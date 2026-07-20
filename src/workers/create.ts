@@ -44,6 +44,7 @@ export function createSyncWorker<C extends Components>(ack$?: Observable<Ack>) {
   const dispose = () => {
     subscription?.unsubscribe();
     ackSub?.unsubscribe();
+    worker.dispose();
   };
 
   return {

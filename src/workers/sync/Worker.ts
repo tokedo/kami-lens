@@ -13,6 +13,11 @@
  *           3. getStateStore receives config.dataDir — the storage-backend
  *              injection the file-snapshot store needs (swap point 3;
  *              browser IndexedDB was ambient).
+ *           4. dispose(): upstream tears the sync worker down with browser
+ *              worker.terminate(), which kills its providers and streams
+ *              wholesale; in-process (swap point 2) that guarantee must be
+ *              explicit, so init() keeps the provider/stream disposers and
+ *              dispose() runs them.
  *           Type-hole fix: the snapshot catch block reads e.code on an
  *           unknown catch variable — cast to {code?: unknown} (upstream is
  *           vite-transpiled and never typechecked; no behavior change).
@@ -106,6 +111,7 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
   private retryCount = 0;
   private retryDelays = [5000, 15000, 30000, 30000, 30000]; // ms
   private maxRetries = 5;
+  private disposers: (() => void)[] = [];
 
   /**
    * Returns the delay (in ms) for the current retry attempt.
@@ -194,7 +200,9 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
       msg: 'Starting State Sync',
       percentage: 0,
     });
-    const { providers } = await createReconnectingProvider(computed(() => config.provider));
+    const reconnectingProvider = await createReconnectingProvider(computed(() => config.provider));
+    const { providers } = reconnectingProvider;
+    this.disposers.push(reconnectingProvider.dispose);
     const provider = providers.get().json;
     const indexedDB = await getStateStore(chainId, worldContract.address, IDB_VERSION, config.dataDir);
     const decode = createDecode();
@@ -205,7 +213,8 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
       decode
     );
 
-    const { blockNumber$ } = createBlockNumberStream(providers);
+    const { blockNumber$, dispose: disposeBlockNumberStream } = createBlockNumberStream(providers);
+    this.disposers.push(disposeBlockNumberStream);
 
     /*
      * LOAD INITIAL STATE (BACKFILL)
@@ -302,13 +311,14 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
           fetchSystemCalls ? createFetchSystemCallsFromEvents(provider) : undefined
         );
 
-    eventStream$.subscribe((event) => {
+    const eventStreamSub = eventStream$.subscribe((event) => {
       if (!outputLiveEvents) {
         if (isNetworkComponentUpdateEvent(event)) initialLiveEvents.push(event);
         return;
       }
       this.output$.next(event as NetworkEvent<C>);
     });
+    this.disposers.push(() => eventStreamSub.unsubscribe());
 
     const streamStartBlockNumber = await awaitStreamValue(blockNumber$);
 
@@ -442,5 +452,16 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
       .subscribe(throttledOutput$);
 
     return throttledOutput$;
+  }
+
+  /** In-process replacement for browser worker.terminate() (swap point 2). */
+  public dispose(): void {
+    for (const disposer of this.disposers.splice(0)) {
+      try {
+        disposer();
+      } catch {
+        // disposal is best-effort; a dead provider may throw on close
+      }
+    }
   }
 }
