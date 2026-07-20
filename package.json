@@ -28,15 +28,25 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@bufbuild/protobuf": "^2.2.0",
+    "@improbable-eng/grpc-web": "^0.15.0",
+    "debug": "^4.3.4",
     "ethers": "^6.15.0",
+    "lodash": "4.17.21",
+    "mobx": "^6.7.0",
+    "nice-grpc-common": "^2.0.2",
+    "nice-grpc-web": "^2.0.1",
     "rxjs": "^7.5.5",
     "type-fest": "^2.14.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
+    "@types/debug": "^4.1.12",
+    "@types/lodash": "^4.14.202",
     "@types/node": "^20.0.0",
     "eslint": "^9.0.0",
     "tsup": "^8.0.0",
+    "tsx": "^4.0.0",
     "typescript": "^5.5.0",
     "typescript-eslint": "^8.0.0",
     "vite-tsconfig-paths": "^5.0.0",
