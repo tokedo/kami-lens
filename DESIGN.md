@@ -1,6 +1,7 @@
 # kami-lens — Design
 
-Status: **v1 — settled** (2026-07-20). Evidence base:
+Status: **v1 — settled** (2026-07-20; untrusted-text policy §3.10 and
+Kamiden scope settled in design session 2, same date). Evidence base:
 [docs/upstream-client-architecture.md](docs/upstream-client-architecture.md)
 (study of the official client at upstream commit `ef898fc9`),
 re-verified claim-by-claim against a fresh clone on 2026-07-20 (see
@@ -64,6 +65,17 @@ bespoke degradation machinery. RPC fallback serves exactly the roles
 it has upstream — gap-fill and stream outage — and only within the
 retention horizon.
 
+**Kamiden is a soft dependency** (settled, design session 2). A
+Kamiden outage or rate-limit degrades exactly the `kamiden`-sourced
+coverage rows, surfaced per-feed in daemon status; chain-row service
+and daemon liveness are never coupled to it. The upstream client's
+Kamiden singleton starts a perennial 5 s-retry stream as an import
+side effect — the port replaces that with explicit lifecycle under
+daemon supervision. If Kamiden access tightens before M4 ships (the
+ApiKey-gated ranking methods prove the operators fence endpoints),
+the affected rows flip to `deferred (service access)` in coverage —
+visibly, never silently.
+
 ### 3.3 Projection ported, not re-derived
 
 Lift the client's calc layer (`calcHealth`, `calcBounty`,
@@ -86,7 +98,9 @@ reaches into `app/cache`. The port keeps this: projection =
 dependencies (`recs`, lodash, ethers,
 `@stdlib/stats-base-dists-normal-cdf`, `constants/**`) — not the
 "recs + lodash only" of earlier drafts. `app/cache/chat` (a Kamiden
-consumer living inside the projection layer) is excluded in v1 (§6).
+consumer living inside the projection layer) ports in milestone M4
+with the rest of the Kamiden client, under the untrusted-text policy
+(§3.10).
 Restructuring upstream code is how silent formula drift happens; we
 don't.
 
@@ -116,7 +130,8 @@ acceptable for a disposable cache.
 
 ### 3.6 Interface: on-demand pull, JSON out
 
-No ambient push. Query tools are general (any operator/account/node
+No ambient push. The lens never alters what the world contains; it
+only chooses what it volunteers (§3.10). Query tools are general (any operator/account/node
 as argument). Consumers that want a session-start briefing simply run
 the own-operator report themselves — it is the same general tool, not
 a special path.
@@ -125,7 +140,8 @@ a special path.
 
 Kamiden in-session feeds (kill feed, recent trades, market history)
 are inside the target; longitudinal reconstruction is not. The chat
-pane is inside the target but deferred in v1 (§6).
+pane is inside the target, served under the untrusted-text policy
+(§3.10).
 
 ### 3.8 Clock discipline
 
@@ -137,6 +153,64 @@ assume a synced clock). Unit care: stream `blockTimestamp` is uint32
 ### 3.9 License: AGPL-3.0
 
 Upstream is AGPL-3.0; this is a derivative work.
+
+### 3.10 Untrusted text — taint model, envelope, composition
+
+Settled in design session 2 (2026-07-20), superseding the v1 chat
+deferral. Verified basis (study errata, second pass): the complete
+player-authored string surface at the pin is account/kami names
+(≤16 bytes, unique, non-empty, **no charset restriction**), account
+bio (≤140 bytes), and chat (no on-chain length cap); Kamiden payloads
+otherwise carry no player text — names render via mirror joins.
+
+- **Taint model.** Every string that can reach output is classified
+  per pin in [docs/coverage.md](docs/coverage.md): `authored-id`
+  (bounded unique handles: kami and account names) / `authored-prose`
+  (free text: bio, chat) / `registry` (game-content text shipped in
+  registries or pinned code) / `system` (addresses, IDs, enums). The
+  id/prose split is a flagged amendment to the original three-way
+  model. Fail-safe default: an unclassified string is treated as
+  `authored-prose` — the strictest class; new upstream fields arrive
+  untrusted until classified, and classification changes get
+  formula-class hand review (§7).
+- **Envelope delivery.** Every response is
+  `{data, untrusted: [<paths>]}` — values verbatim, paths of
+  authored-class strings listed, empty list when none. The list is
+  generated from (output schema × classification artifact), never
+  hand-maintained; gate G3.f fails CI on divergence. Envelope over
+  in-band wrapping, recorded rationale: the fail-safe default makes
+  reclassification routine, and in-band tags would turn every
+  reclassification into a breaking shape change — volatile-by-design
+  metadata must not live inside the data shapes. Envelope over
+  docs-only: opt-in surfaces must return authored text *tagged*,
+  machine-actionably.
+- **Composition.** `authored-prose` is never volunteered: absent from
+  every default output, report, and aggregate; bio behind an explicit
+  opt-in flag on the general queries; chat behind a dedicated query.
+  `authored-id` (names) is **inline by default, always tagged**,
+  bounded by parity: names appear only where the web client shows
+  names, never in novel aggregations. A first-class name-free mode
+  (`--no-authored` / config) withholds authored-id values with
+  receipt — field absent, suppression noted, stable IDs kept for
+  joins. Decision record, both positions: opt-in names (agents are
+  the median consumer; account names are a cheap swarm vector —
+  [docs/threat-model.md](docs/threat-model.md)) was argued and
+  rejected because default parity for names is what the screen
+  actually shows by default — unlike bio, which the screen shows only
+  on demand; the cautious consumer is served by the tag, the
+  name-free mode, and the threat model.
+- **No mutation, ever.** Values are verbatim or absent-with-receipt:
+  an oversize chat message is omitted with an explicit receipt and a
+  raw-fetch override, never truncated or rewritten. Nothing altered,
+  nothing silently dropped.
+- **Chat plan** (resolves the deferral; gate G4.c): dedicated
+  paginated `GetRoomMessages` query; no `Messages` stream ingestion —
+  excluded at the topic filter **and** dropped at ingestion
+  (transport promises are not trusted alone); oversize
+  withhold-with-receipt; config kill-switch; never in reports.
+- Threat model: [docs/threat-model.md](docs/threat-model.md). Its
+  headline: tagging does not make injection safe; a consumer that
+  feeds authored text to an LLM context does so knowingly.
 
 ## 4. Architecture
 
@@ -213,6 +287,11 @@ configs). Exposed as:
   is running
 - **library** — the same queries importable in-process
 
+The surface additionally serves the Kamiden feeds (battles, trade
+history, KamiSwap, portal history, feed buffer, chat) per §3.7 and
+§3.10; every response — CLI, socket, or library — carries the §3.10
+envelope.
+
 ### 4.4 Coverage checklist
 
 The perception inventory (every web-client fixture/modal and the
@@ -249,14 +328,13 @@ Never silent gaps.
 
 ## 6. Deferred — documented, not silent
 
-- **Chat pane (read).** Verified upstream: `GetRoomMessages`
-  (backward pagination by timestamp) plus the Kamiden stream's
-  `Messages` push fully cover it; there is no other message-read RPC.
-  Deferred from v1 pending separate planning for exposing
-  player-authored text to agent consumers (untrusted input;
-  prompt-injection handling). Coverage rows kept, marked `deferred`.
-  Related v1 note: player-authored strings that do appear elsewhere
-  (kami names, account names) are untrusted input wherever surfaced.
+- **Notifications digest ("alerts" query).** The web client's
+  notification toasts derive entirely from served state (quest
+  completability, reveal events); a pull-style digest of "what needs
+  attention" is deferred — its trigger/threshold parity deserves its
+  own design pass, not a v1 tail. Coverage row `notifications` is
+  marked deferred. (The former chat deferral is resolved by §3.10;
+  chat is planned for v1.)
 - **SQLite persistence.** Upgrade trigger: sustained checkpoint cost
   (serialize > ~2 s, or observable daemon stalls).
 - **Differential oracle testing** — vendoring the pinned upstream
@@ -278,6 +356,13 @@ Never silent gaps.
   paths between old and candidate pin:
   - *formula-affecting*: `packages/client/src/app/cache/**`,
     `packages/contracts/src/libraries/**` — hand review mandatory;
+  - *classification-affecting*: the player-string write paths
+    (`ChatSystem`, `AccountRegisterSystem`, `AccountSetNameSystem`,
+    `AccountSetBioSystem`, `KamiNameSystem`, `KamiOnyxRenameSystem`)
+    and `clients/kamiden/proto.ts` string fields — any change to the
+    string-classification artifact in docs/coverage.md gets the same
+    mandatory hand review as formula-affecting diffs (§3.10; the
+    guard against rubber-stamp reclassification);
   - *state-affecting*: `packages/contracts/src/{components,systems}/**`,
     `deploy.json`, `componentIDs.json` — new components become
     coverage rows, mapped or explicitly ignored;

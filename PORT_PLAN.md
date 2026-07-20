@@ -141,6 +141,11 @@ every gate that says "state hash".
 - Status output: sync state, block lag, effective config, tripwire
   counters, degraded/backoff state (DESIGN §3.2, §7).
 - Checked-in JSON schemas for every query output.
+- Untrusted-text surface (DESIGN §3.10): the response envelope
+  (`{data, untrusted: [paths]}`) on every query, generated from
+  (output schema × the classification artifact in docs/coverage.md);
+  prose opt-in flags; the name-free mode (withhold-with-receipt,
+  stable IDs).
 
 **Gate G3** *(\[live\] except a)*
 
@@ -166,8 +171,63 @@ every gate that says "state hash".
   URL mid-session, daemon status must report the backoff/degraded
   state within one interval; queries must still serve last-synced
   state and stamp it stale. Scripted assertions on status JSON.
+- **G3.f envelope conformance** *(hermetic)*: for every query, the
+  emitted `untrusted` path list must equal exactly the set derivable
+  from (checked-in output schema × the per-pin string-classification
+  artifact in docs/coverage.md); hand-maintained divergence fails CI.
+  Also asserts name-free mode: `authored-id` values absent,
+  suppression receipts present, stable IDs intact.
 
-## M4 — Packaging
+## M4 — Kamiden feeds
+
+**Scope**
+
+- Port `clients/kamiden/**` with explicit lifecycle — the upstream
+  module singleton starts a perennial 5 s-retry stream as a side
+  effect of the first `getClient()`; the port replaces this with
+  daemon-supervised start/stop per the soft-dependency clause
+  (DESIGN §3.2).
+- Port the Kamiden consumers: `app/cache/chat`, `app/cache/battles`,
+  `app/cache/trade` (history).
+- Feed ring buffer over stream `Feed` events, served as pull queries;
+  per-feed degradation surfaced in daemon status; a Kamiden outage
+  never affects chain-row service or daemon liveness.
+- Chat query per DESIGN §3.10: paginated `GetRoomMessages`
+  passthrough; no `Messages` stream ingestion (topic filter +
+  ingestion drop); oversize withhold-with-receipt; config
+  kill-switch.
+- The 12 served unary methods: `GetBattles`, `GetBattleStats`,
+  `GetTradeHistory`, `GetOpenOffers`,
+  `GetKamiMarketListings`/`GetKamiMarketBids`/`GetKamiMarketHistory`,
+  `GetTokenDeposits`/`GetTokenWithdrawals`/`GetOpenWithdrawals`,
+  `GetItemTransfers`, `GetAuctionBuys`.
+
+**Gate G4**
+
+- **G4.a unary feed conformance** *(\[live\])*: each of the 12 served
+  unary methods called live → decodes → schema-valid → every entity
+  ID in the response resolves against the mirror at the same block.
+  Observed history depth is *recorded as a measurement, never
+  asserted* — Kamiden retention is unverified, same epistemic status
+  as `GetEventsSince`. Results to `docs/measurements/`.
+- **G4.b stream feed cross-check** *(\[live\])*: subscribe and
+  buffer; sampled `Kill` events must have mirror-resolvable
+  participants and a corresponding mirror state delta within N
+  blocks; `Movements` cross-checked against `RoomIndex` changes.
+  Also verifies both-layer chat exclusion: subscribe with a
+  Messages-excluding topic filter and assert that either no
+  `Message` frames arrive or the ingestion-drop counter accounts for
+  every one that does — the drop must be proven to work when the
+  transport promise fails.
+- **G4.c chat plan conformance** *(\[live\] + hermetic parts)*: chat
+  query returns paginated `GetRoomMessages`, every body
+  envelope-tagged `authored-prose`; withhold-with-receipt fires on
+  an oversize fixture (hermetic); a fixture-seeded sweep of every
+  non-chat query and report asserts zero message bodies anywhere in
+  output (never-in-reports, checked not promised); the config
+  kill-switch removes the query.
+
+## M5 — Packaging
 
 **Scope**
 
@@ -177,26 +237,28 @@ every gate that says "state hash".
   healthcheck.
 - `kami-lens --version` prints version + upstream pin.
 
-**Gate G4** *(\[live\] where network is used)*
+**Gate G5** *(\[live\] where network is used)*
 
-- **G4.a clean-room install:** `npm pack` → install the tarball in a
+- **G5.a clean-room install:** `npm pack` → install the tarball in a
   fresh `node:20` container → `kami-lens daemon` with zero config
   reaches LIVE → a sample query returns schema-valid JSON. Every step
   exit-code-checked.
-- **G4.b container lifecycle:** build the image; run with a mounted
+- **G5.b container lifecycle:** build the image; run with a mounted
   data dir; reach LIVE; restart the container; status must report an
   incremental (warm) bootstrap and beat cold time-to-LIVE;
   healthcheck goes healthy.
-- **G4.c config precedence matrix:** for a config key set at all four
+- **G5.c config precedence matrix:** for a config key set at all four
   levels, the effective-config block in status output must show
   flag > env > file > default, tested pairwise.
-- **G4.d provenance:** LICENSE present; `package.json` license is
+- **G5.d provenance:** LICENSE present; `package.json` license is
   AGPL-3.0; `--version` shows the `UPSTREAM` pin; ported files carry
   provenance headers (spot-checked by script).
 
 ## Order and pin advances
 
-M0 → M1 → M2 → M3 → M4, strictly gated. A pin advance (DESIGN §7) at
-any later date re-runs, at minimum: the classified diff, G2.a, G2.b,
-and G1.b. Coverage rows in [docs/coverage.md](docs/coverage.md) cite
-the gate that verifies them.
+M0 → M1 → M2 → M3 → M4 → M5, strictly gated. A pin advance (DESIGN
+§7) at any later date re-runs, at minimum: the classified diff (now
+including the classification-affecting bucket, DESIGN §7), G2.a,
+G2.b, G1.b, and G3.f. Coverage rows in
+[docs/coverage.md](docs/coverage.md) cite the gate that verifies
+them.
