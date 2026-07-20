@@ -1,0 +1,16 @@
+{
+  "gate": "g1b-stale-reveal-rows",
+  "measuredAt": "2026-07-20T20:52:37.744Z",
+  "headAtSweep": 31158655,
+  "mirrorRows": 15,
+  "staleRows": 1,
+  "oldestStaleRevealBlock": 17140313,
+  "newestStaleRevealBlock": 17140313,
+  "note": "rows Kamigaze serves whose on-chain values were removed; removals predate the log-retention window",
+  "sample": [
+    {
+      "entity": "0x7e5fa16fb58b0a841bd40be0359a05ce936e215fe273eb8edc8f3fdd6b97b08",
+      "revealBlock": 17140313
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "gate": "g1b-parity",
+  "measuredAt": "2026-07-20T20:47:54.598Z",
+  "pinnedBlock": 31158494,
+  "positiveSamples": 534,
+  "negativeSamples": 50,
+  "componentsCovered": 91,
+  "componentsInMirror": 91,
+  "mismatches": 1,
+  "mismatchDetail": [
+    {
+      "componentId": "0xeb96d6a560bda13fa9b1f5e6458550803932abff9fe730fa1f8c3a6ddcb67e6b",
+      "entityId": "0x7e5fa16fb58b0a841bd40be0359a05ce936e215fe273eb8edc8f3fdd6b97b08",
+      "error": "RangeError: data out-of-bounds (buffer=0x, length=0, offset=32, code=BUFFER_OVERRUN, version=6.17.0)"
+    }
+  ]
+}
