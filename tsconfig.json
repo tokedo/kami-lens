@@ -1,0 +1,29 @@
+{
+  // Compiler options mirror the upstream client's tsconfig where relevant
+  // (strict, esnext, bundler resolution); the "paths" block is swap point 7
+  // (DESIGN §4.1): upstream Vite aliases re-expressed here so ported file
+  // bodies keep their import specifiers verbatim.
+  "compilerOptions": {
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "baseUrl": "./",
+    "paths": {
+      "engine/*": ["./src/engine/*", "./src/engine"],
+      "network/*": ["./src/network/*", "./src/network"],
+      "types/*": ["./src/types/*", "./src/types"],
+      "@mud-classic/utils": ["./src/vendor/mud-classic/utils/index.ts"]
+    },
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "sourceMap": true,
+    "strict": true,
+    "target": "esnext",
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": ["src", "test", "scripts", "*.config.ts"],
+  "exclude": ["dist", "node_modules"]
+}

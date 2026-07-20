@@ -1,0 +1,8 @@
+repo        https://github.com/Asphodel-OS/kamigotchi
+commit      ef898fc9350a6085fb080419b12af96c2254e8f3
+commit-date 2026-07-16
+pinned      2026-07-20
+
+# Every ported file carries a provenance header naming its upstream path at
+# this commit. Advancing this pin is a scripted, classified diff plus gate
+# re-runs — see DESIGN.md §7 and PORT_PLAN.md "Order and pin advances".
