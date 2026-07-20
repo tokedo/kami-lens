@@ -11,9 +11,14 @@
     "moduleResolution": "bundler",
     "baseUrl": "./",
     "paths": {
+      "abi/*": ["./src/abi/*", "./src/abi"],
+      "clients/*": ["./src/clients/*", "./src/clients"],
+      "constants/*": ["./src/constants/*", "./src/constants"],
       "engine/*": ["./src/engine/*", "./src/engine"],
       "network/*": ["./src/network/*", "./src/network"],
       "types/*": ["./src/types/*", "./src/types"],
+      "utils/*": ["./src/utils/*", "./src/utils"],
+      "workers/*": ["./src/workers/*", "./src/workers"],
       "@mud-classic/utils": ["./src/vendor/mud-classic/utils/index.ts"]
     },
     "resolveJsonModule": true,

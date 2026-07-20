@@ -2,12 +2,19 @@
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
  * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
  * path:     packages/client/src/engine/utils.ts
- * changes:  partial port (M0) — only the pure formatters. Upstream's
- *           messagePayload and fetchBlock (network-touching) land with M1
- *           (sync core).
+ * changes:  none
  */
 
+import { callWithRetry, range, sleep } from '@mud-classic/utils';
 import { EntityID } from 'engine/recs';
+import { Block, JsonRpcProvider, keccak256 } from 'ethers';
+
+import { Message } from './types/ecs-relay';
+
+// Message payload to sign and use to recover signer
+export function messagePayload(msg: Message) {
+  return `(${msg.version},${msg.id},${keccak256(msg.data)},${msg.timestamp})`;
+}
 
 // Remove zero padding from all entity ids
 // Q(jb): do we even want to do this?  standardization seems preferable
@@ -21,4 +28,34 @@ export function formatComponentID(componentID: string | bigint): string {
   const unpadded = BigInt(componentID).toString(16);
   const padded = unpadded.length % 2 === 0 ? unpadded : '0' + unpadded;
   return '0x' + padded;
+}
+
+/**
+ * Fetch the latest Ethereum block
+ *
+ * @param provider ethers JsonRpcProvider
+ * @param minBlockNumber Minimal required block number.
+ * If the latest block number is below this number, the method waits for 1300ms and tries again, for at most 10 times.
+ * @returns Promise resolving with the latest Ethereum block
+ */
+export async function fetchBlock(
+  provider: JsonRpcProvider,
+  minBlockNumber?: number
+): Promise<Block> {
+  // console.log(`fetching block (min ${minBlockNumber})`);
+  for (const _ of range(10)) {
+    const blockPromise = async () => await provider.getBlock('latest');
+
+    const block = await callWithRetry<Block | null>(blockPromise, [], 10, 25);
+    if (minBlockNumber && (block ? block.number : 0) < minBlockNumber) {
+      await sleep(50);
+      continue;
+    } else {
+      // console.log(`\tretrieved block ${block.number}`);
+      // console.log(`\twith ${block.transactions.length} txs`);
+      if (!block) throw new Error('Could not fetch a block with blockNumber ' + minBlockNumber);
+      return block;
+    }
+  }
+  throw new Error('Could not fetch a block with blockNumber ' + minBlockNumber);
 }
