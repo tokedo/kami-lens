@@ -198,11 +198,31 @@ async function withRetries<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
-function contractFor(cIdx: number): Contract {
+function contractFor(cIdx: number, viaProvider = provider): Contract {
   const componentId = BigInt(frozen.components[cIdx]!).toString(16);
   const address = addressByComponent.get(componentId);
   if (!address) throw new Error(`no registry address for component ${frozen.components[cIdx]}`);
-  return new Contract(address, componentAbi, provider);
+  return new Contract(address, componentAbi, viaProvider);
+}
+
+// The public RPC is load-balanced and backends disagree about very recent
+// state: a pinned-block read can fail on one backend and succeed on another
+// (observed live: 222/584 'missing revert data' failures that all read fine
+// moments later). Retries therefore rotate to a fresh provider connection.
+async function componentCall<T>(cIdx: number, invoke: (c: Contract) => Promise<T>): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const viaProvider = attempt === 0 ? provider : makeProvider(config);
+    try {
+      return await invoke(contractFor(cIdx, viaProvider));
+    } catch (e) {
+      lastError = e;
+      await sleep(attempt === 0 ? 500 : 1000 * attempt);
+    } finally {
+      if (viaProvider !== provider) viaProvider.destroy();
+    }
+  }
+  throw lastError;
 }
 
 type Candidate = { key: number; componentId: string; entityId: string; mirrorValue: unknown };
@@ -214,15 +234,15 @@ for (const key of positives) {
   const entityId = frozen.entities[eIdx]!;
   const componentId = frozen.components[cIdx]!;
   try {
-    const has: boolean = await withRetries(() =>
-      contractFor(cIdx).has(BigInt(entityId), { blockTag: pinnedBlock })
+    const has: boolean = await componentCall(cIdx, (c) =>
+      c.has(BigInt(entityId), { blockTag: pinnedBlock })
     );
     if (!has) {
       // condition (1) established: absent on-chain at the pinned block
       excusalCandidates.push({ key, componentId, entityId, mirrorValue: frozen.state.get(key)! });
     } else {
-      const raw: string = await withRetries(() =>
-        contractFor(cIdx).getRaw(BigInt(entityId), { blockTag: pinnedBlock })
+      const raw: string = await componentCall(cIdx, (c) =>
+        c.getRaw(BigInt(entityId), { blockTag: pinnedBlock })
       );
       const onChain = await decode(componentId, raw);
       const mirrorValue = frozen.state.get(key)!;
@@ -231,7 +251,7 @@ for (const key of positives) {
       }
     }
   } catch (e) {
-    hardFailures.push({ kind: 'read-error', componentId, entityId, error: String(e) });
+    hardFailures.push({ kind: 'unverifiable-rpc-read', componentId, entityId, error: String(e) });
   }
   checked++;
   if (checked % 100 === 0) console.log(`[g1.b] ${checked}/${positives.length} positive samples`);
@@ -243,14 +263,14 @@ for (const [cIdx, eIdx] of negatives) {
   const entityId = frozen.entities[eIdx]!;
   const componentId = frozen.components[cIdx]!;
   try {
-    const has: boolean = await withRetries(() =>
-      contractFor(cIdx).has(BigInt(entityId), { blockTag: pinnedBlock })
+    const has: boolean = await componentCall(cIdx, (c) =>
+      c.has(BigInt(entityId), { blockTag: pinnedBlock })
     );
     if (has) {
       hardFailures.push({ kind: 'mirror-absent-chain-present', componentId, entityId });
     }
   } catch (e) {
-    hardFailures.push({ kind: 'read-error', componentId, entityId, error: String(e) });
+    hardFailures.push({ kind: 'unverifiable-rpc-read', componentId, entityId, error: String(e) });
   }
   negativeChecked++;
   await sleep(CALL_SPACING_MS);

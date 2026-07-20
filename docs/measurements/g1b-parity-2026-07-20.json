@@ -1,17 +1,79 @@
 {
   "gate": "g1b-parity",
-  "measuredAt": "2026-07-20T20:47:54.598Z",
-  "pinnedBlock": 31158494,
-  "positiveSamples": 534,
+  "measuredAt": "2026-07-20T22:53:28.009Z",
+  "pinnedBlock": 31160810,
+  "positiveSamples": 540,
   "negativeSamples": 50,
-  "componentsCovered": 91,
-  "componentsInMirror": 91,
-  "mismatches": 1,
-  "mismatchDetail": [
+  "componentsCovered": 92,
+  "componentsInMirror": 92,
+  "hardFailures": 222,
+  "excusedKamigazeInherited": [],
+  "failureDetail": [
     {
-      "componentId": "0xeb96d6a560bda13fa9b1f5e6458550803932abff9fe730fa1f8c3a6ddcb67e6b",
-      "entityId": "0x7e5fa16fb58b0a841bd40be0359a05ce936e215fe273eb8edc8f3fdd6b97b08",
-      "error": "RangeError: data out-of-bounds (buffer=0x, length=0, offset=32, code=BUFFER_OVERRUN, version=6.17.0)"
+      "kind": "read-error",
+      "componentId": "0xe9a47ac95fcb0b9bf41f159be66a677a5f0eac800ea6adafa4749c9108d191ba",
+      "entityId": "0x7f04cd202df380b6a0e4d692898e3e327bdce615aec148bcd5be32449aeee2a8",
+      "error": "Error: missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xcccf7a8e7f04cd202df380b6a0e4d692898e3e327bdce615aec148bcd5be32449aeee2a8\", \"to\": \"0x319F6D4449a879f98a92d839D5E4Ac566b334AA2\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.17.0)"
+    },
+    {
+      "kind": "read-error",
+      "componentId": "0xe9a47ac95fcb0b9bf41f159be66a677a5f0eac800ea6adafa4749c9108d191ba",
+      "entityId": "0xe3a1488f53f830091d7c5a228c622a1acc6172794811752261c3c517d313d3fe",
+      "error": "Error: missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xcccf7a8ee3a1488f53f830091d7c5a228c622a1acc6172794811752261c3c517d313d3fe\", \"to\": \"0x319F6D4449a879f98a92d839D5E4Ac566b334AA2\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.17.0)"
+    },
+    {
+      "kind": "read-error",
+      "componentId": "0x16d883d37648798ab8e3fa4bb4d4d4680f890b679b13d715f942321c616cbe43",
+      "entityId": "0x1b2ca6a40496d3fc253cb7e92adf7cf052fc5406f33dadaa88241bcbc1c57042",
+      "error": "Error: missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xcccf7a8e1b2ca6a40496d3fc253cb7e92adf7cf052fc5406f33dadaa88241bcbc1c57042\", \"to\": \"0x9E510357c129b29097cb0b8E98ad387d71bcE851\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.17.0)"
+    },
+    {
+      "kind": "read-error",
+      "componentId": "0x16d883d37648798ab8e3fa4bb4d4d4680f890b679b13d715f942321c616cbe43",
+      "entityId": "0xa7376e04f1b5f8ae422c5c7d17f3c4bbaa8aaa40f8a9dde38bb474ffc26d6c98",
+      "error": "Error: missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xcccf7a8ea7376e04f1b5f8ae422c5c7d17f3c4bbaa8aaa40f8a9dde38bb474ffc26d6c98\", \"to\": \"0x9E510357c129b29097cb0b8E98ad387d71bcE851\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.17.0)"
+    },
+    {
+      "kind": "read-error",
+      "componentId": "0x16d883d37648798ab8e3fa4bb4d4d4680f890b679b13d715f942321c616cbe43",
+      "entityId": "0xe1ebdd230dce992a2c5e6cda1d21c597f48e3a4e69cc18d690ad02541e251c18",
+      "error": "Error: missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xcccf7a8ee1ebdd230dce992a2c5e6cda1d21c597f48e3a4e69cc18d690ad02541e251c18\", \"to\": \"0x9E510357c129b29097cb0b8E98ad387d71bcE851\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.17.0)"
+    },
+    {
+      "kind": "read-error",
+      "componentId": "0x16d883d37648798ab8e3fa4bb4d4d4680f890b679b13d715f942321c616cbe43",
+      "entityId": "0x87d66502d8b2fff2876266d76bf03841349e56d8145e73965762d5468073b729",
+      "error": "Error: missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xcccf7a8e87d66502d8b2fff2876266d76bf03841349e56d8145e73965762d5468073b729\", \"to\": \"0x9E510357c129b29097cb0b8E98ad387d71bcE851\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.17.0)"
+    },
+    {
+      "kind": "read-error",
+      "componentId": "0x16d883d37648798ab8e3fa4bb4d4d4680f890b679b13d715f942321c616cbe43",
+      "entityId": "0xc78165d12fc37a80918b8a10dd7e21e4c0b1bcd07f2d5db5bb2e830e3338a92",
+      "error": "Error: missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xcccf7a8e0c78165d12fc37a80918b8a10dd7e21e4c0b1bcd07f2d5db5bb2e830e3338a92\", \"to\": \"0x9E510357c129b29097cb0b8E98ad387d71bcE851\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.17.0)"
+    },
+    {
+      "kind": "read-error",
+      "componentId": "0x16d883d37648798ab8e3fa4bb4d4d4680f890b679b13d715f942321c616cbe43",
+      "entityId": "0xcaa44c305e499d46c41fbadedb3663999468d6d0b8504638d7905056102f5ff1",
+      "error": "Error: missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xcccf7a8ecaa44c305e499d46c41fbadedb3663999468d6d0b8504638d7905056102f5ff1\", \"to\": \"0x9E510357c129b29097cb0b8E98ad387d71bcE851\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.17.0)"
+    },
+    {
+      "kind": "read-error",
+      "componentId": "0x20ab550b15bc644ed0151f9ebe2d55c859a9e4338085826137f0d33968582488",
+      "entityId": "0xbe8ba2ec22b4af7ec425b83c65b078b1a97a9321d42dc7a9047e797dfa376aa4",
+      "error": "Error: missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xcccf7a8ebe8ba2ec22b4af7ec425b83c65b078b1a97a9321d42dc7a9047e797dfa376aa4\", \"to\": \"0xE7a527DA26D01cE0572878921839865f02B22b38\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.17.0)"
+    },
+    {
+      "kind": "read-error",
+      "componentId": "0x20ab550b15bc644ed0151f9ebe2d55c859a9e4338085826137f0d33968582488",
+      "entityId": "0x1b2ca6a40496d3fc253cb7e92adf7cf052fc5406f33dadaa88241bcbc1c57042",
+      "error": "Error: missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xcccf7a8e1b2ca6a40496d3fc253cb7e92adf7cf052fc5406f33dadaa88241bcbc1c57042\", \"to\": \"0xE7a527DA26D01cE0572878921839865f02B22b38\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.17.0)"
     }
-  ]
+  ],
+  "tripwires": {
+    "unknownComponentIds": 0,
+    "unknownComponentSchemas": 0,
+    "decodeFailures": 0,
+    "kamigazeNonceBumps": 0
+  }
 }
