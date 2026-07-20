@@ -3,9 +3,19 @@
 // transaction executor and is therefore not ported): world + component
 // registry + mappings + in-process SyncWorker + applyNetworkUpdates, plus
 // the daemon-only responsibilities: loud-fail cold start (DESIGN §3.1),
-// live mirror StateCache with periodic checkpointing (DESIGN §3.5), bounded
-// bootstrap retries (DESIGN §3.2), and status with tripwire counters
-// (DESIGN §7).
+// periodic checkpointing (DESIGN §3.5), bounded bootstrap retries (DESIGN
+// §3.2), and status with tripwire counters (DESIGN §7).
+//
+// Checkpoint model (§3.5): a checkpoint is always a Kamigaze-consistent
+// backfill artifact — the worker's own post-backfill save, refreshed on the
+// configured interval by re-running the ported incremental snapshot fetch
+// (GetStateBlock + deltas) and saving, exactly the browser's natural
+// reload cycle translated to a daemon. Live stream events feed the recs
+// mirror and status only; they are never folded into the persisted cache.
+// (Folding them would mix daemon-local entity indexing into a file whose
+// warm-restart heal — splice at the Kamigaze cursors and refetch — assumes
+// Kamigaze indexing throughout; upstream avoids this by construction
+// because the browser saves exactly once, before any live events.)
 
 import { keccak256 } from '@mud-classic/utils';
 import { Interface, JsonRpcProvider } from 'ethers';
@@ -14,18 +24,18 @@ import { Subject, Subscription } from 'rxjs';
 import { abi as worldAbi } from 'abi/World.json';
 import { VERSION as CACHE_VERSION } from 'cache/db';
 import { GodID, SyncState, SyncStatus } from 'engine/constants';
+import { createDecode } from 'engine/encoders';
 import { createWorld } from 'engine/recs';
 import { createComponents } from 'network/components';
 import { applyNetworkUpdates } from 'network/setup';
 import { log } from 'utils/logger';
 import { createSyncWorker } from 'workers/create';
 import { Ack, InputType } from 'workers/sync';
+import { createSnapshotClient, fetchSnapshot } from 'workers/sync/snapshot';
 import {
-  StateCache,
-  createStateCache,
   getStateStore,
+  loadStateCacheFromStore,
   saveStateCacheToStore,
-  storeStateEvent,
 } from 'workers/sync/state';
 import { SyncWorkerConfig, isNetworkComponentUpdateEvent } from 'workers/types';
 
@@ -41,19 +51,29 @@ const BOOTSTRAP_RETRY_DELAYS_MS = [5_000, 15_000, 30_000, 60_000, 120_000];
 
 const LOADING_STATE_COMPONENT_ID = keccak256('component.LoadingState');
 
-export type DaemonStatus = {
-  state: keyof typeof SyncState | 'STOPPED';
-  msg: string;
-  percentage: number;
+export type CheckpointReport = {
   blockNumber: number;
-  lastKamigazeBlock: number;
   kamigazeNonce: number;
   stateEntries: number;
   numComponents: number;
   numEntities: number;
+  at: string;
+  durationMs: number;
+};
+
+export type DaemonStatus = {
+  state: keyof typeof SyncState | 'STOPPED';
+  msg: string;
+  percentage: number;
+  /** newest block seen on the live event stream */
+  liveBlockNumber: number;
+  /** last Kamigaze-consistent checkpoint (null before first LIVE) */
+  checkpoint: CheckpointReport | null;
+  checkpointCount: number;
   tripwires: Tripwires;
+  /** nonzero tripwires, rendered as 'name:count' — empty means healthy */
+  degraded: string[];
   bootstrapAttempts: number;
-  checkpoints: { count: number; lastAt: string | null };
   startedAt: string;
   liveAt: string | null;
   config: {
@@ -69,7 +89,6 @@ export type DaemonStatus = {
 
 export class KamiLensDaemon {
   readonly config: KamiLensConfig;
-  readonly mirror: StateCache = createStateCache();
 
   private syncStatus: SyncStatus = { state: SyncState.CONNECTING, msg: '', percentage: 0 };
   private worker: ReturnType<typeof createSyncWorker> | null = null;
@@ -80,7 +99,9 @@ export class KamiLensDaemon {
   private stopped = false;
   private bootstrapAttempts = 0;
   private checkpointCount = 0;
-  private lastCheckpointAt: string | null = null;
+  private lastCheckpoint: CheckpointReport | null = null;
+  private checkpointInFlight = false;
+  private liveBlockNumber = 0;
   private readonly startedAt = new Date().toISOString();
   private liveAt: string | null = null;
 
@@ -188,23 +209,20 @@ export class KamiLensDaemon {
     this.worker = worker;
     this.world = world;
 
-    // Daemon-side live mirror: replay every real state event the worker
-    // emits (initial cache dump + gap fill + live stream) into a StateCache
-    // via the same ported storeStateEvent path the worker itself uses.
-    // Pseudo-events are excluded: txHash 'worker' (LoadingState) and the
-    // EmptyNetworkEvent keepalive.
+    // Status tap: LoadingState transitions and the newest live block. State
+    // events feed the recs mirror via applyNetworkUpdates below; they are
+    // never folded into the persisted cache (see checkpoint model above).
     this.subscriptions.push(
       worker.ecsEvents$.subscribe((updates) => {
         for (const update of updates) {
           if (!isNetworkComponentUpdateEvent(update)) continue;
           if (update.txHash === 'worker') {
-            if (update.component === LOADING_STATE_COMPONENT_ID) {
-              this.onSyncStatus(update.value as unknown as SyncStatus, update.entity === GodID);
+            if (update.component === LOADING_STATE_COMPONENT_ID && update.entity === GodID) {
+              this.onSyncStatus(update.value as unknown as SyncStatus);
             }
             continue;
           }
-          if (update.txHash === 'EmptyNetworkEvent') continue;
-          storeStateEvent(this.mirror, update);
+          if (update.blockNumber > this.liveBlockNumber) this.liveBlockNumber = update.blockNumber;
         }
       })
     );
@@ -226,7 +244,7 @@ export class KamiLensDaemon {
     worker.input$.next({ type: InputType.Config, data: syncWorkerConfig });
   }
 
-  private onSyncStatus(status: SyncStatus, _isGod: boolean): void {
+  private onSyncStatus(status: SyncStatus): void {
     this.syncStatus = status;
     if (status.state === SyncState.LIVE && !this.liveAt) {
       this.liveAt = new Date().toISOString();
@@ -237,22 +255,14 @@ export class KamiLensDaemon {
     this.status$.next(this.getStatus());
   }
 
-  /** On first LIVE: adopt the Kamigaze cursors the worker persisted at
-   * backfill time, then begin periodic checkpointing (DESIGN §3.5). */
+  /** On first LIVE: adopt the worker's post-backfill save as checkpoint #1
+   * and begin the periodic refresh cycle (DESIGN §3.5). */
   private async onLive(): Promise<void> {
     try {
-      const store = await getStateStore(
-        this.config.chainId,
-        this.config.worldAddress,
-        CACHE_VERSION,
-        this.config.dataDir
-      );
-      this.mirror.lastKamigazeBlock = (await store.get('LastKamigazeBlock', 'current')) ?? 0;
-      this.mirror.lastKamigazeEntity = (await store.get('LastKamigazeEntity', 'current')) ?? 0;
-      this.mirror.lastKamigazeComponent = (await store.get('LastKamigazeComponent', 'current')) ?? 0;
-      this.mirror.kamigazeNonce = (await store.get('KamigazeNonce', 'current')) ?? 0;
+      this.lastCheckpoint = await this.readCheckpointReport(0);
+      this.checkpointCount = 1;
     } catch (e) {
-      log.warn('[daemon] failed to adopt Kamigaze cursors from the snapshot store', e);
+      log.warn('[daemon] failed to read the post-backfill checkpoint', e);
     }
     if (this.checkpointTimer) clearInterval(this.checkpointTimer);
     this.checkpointTimer = setInterval(() => {
@@ -291,36 +301,100 @@ export class KamiLensDaemon {
     this.retryTimer.unref?.();
   }
 
-  /** Persist the live mirror wholesale (DESIGN §3.5). */
-  async checkpoint(): Promise<void> {
+  /**
+   * Refresh the persisted Kamigaze-consistent cache (DESIGN §3.5): load the
+   * stored cache, run the ported incremental snapshot fetch (GetStateBlock
+   * + deltas since the stored cursors; a nonce change forces the full
+   * reload, exactly as at bootstrap), save, release. The browser's reload
+   * cycle, minus the browser.
+   */
+  async checkpoint(): Promise<CheckpointReport> {
+    if (!this.config.kamigazeUrl) {
+      throw new Error('checkpoint refresh requires a Kamigaze URL (no-snapshot mode is bootstrap-only)');
+    }
+    if (this.checkpointInFlight) {
+      log.warn('[daemon] checkpoint already in flight — skipping this interval');
+      return this.lastCheckpoint!;
+    }
+    this.checkpointInFlight = true;
+    const t0 = Date.now();
+    try {
+      const store = await getStateStore(
+        this.config.chainId,
+        this.config.worldAddress,
+        CACHE_VERSION,
+        this.config.dataDir
+      );
+      let cache = await loadStateCacheFromStore(store);
+      const client = createSnapshotClient(this.config.kamigazeUrl);
+      cache = await fetchSnapshot(
+        cache,
+        client,
+        createDecode(),
+        10,
+        () => {},
+        () => {}
+      );
+      await saveStateCacheToStore(store, cache);
+      this.checkpointCount++;
+      this.lastCheckpoint = {
+        blockNumber: cache.blockNumber,
+        kamigazeNonce: cache.kamigazeNonce,
+        stateEntries: cache.state.size,
+        numComponents: cache.components.length,
+        numEntities: cache.entities.length,
+        at: new Date().toISOString(),
+        durationMs: Date.now() - t0,
+      };
+      this.status$.next(this.getStatus());
+      return this.lastCheckpoint;
+    } finally {
+      this.checkpointInFlight = false;
+    }
+  }
+
+  /** Summarize the currently stored cache without refreshing it. */
+  private async readCheckpointReport(durationMs: number): Promise<CheckpointReport> {
     const store = await getStateStore(
       this.config.chainId,
       this.config.worldAddress,
       CACHE_VERSION,
       this.config.dataDir
     );
-    await saveStateCacheToStore(store, this.mirror);
-    this.checkpointCount++;
-    this.lastCheckpointAt = new Date().toISOString();
-    this.status$.next(this.getStatus());
+    const [blockNumber, nonce, state, components, entities] = await Promise.all([
+      store.get('BlockNumber', 'current'),
+      store.get('KamigazeNonce', 'current'),
+      store.get('ComponentValues', 'current'),
+      store.get('Mappings', 'components'),
+      store.get('Mappings', 'entities'),
+    ]);
+    return {
+      blockNumber: blockNumber ?? 0,
+      kamigazeNonce: nonce ?? 0,
+      stateEntries: state?.size ?? 0,
+      numComponents: components?.length ?? 0,
+      numEntities: entities?.length ?? 0,
+      at: new Date().toISOString(),
+      durationMs,
+    };
   }
 
   getStatus(): DaemonStatus {
     const { chainId, worldAddress, jsonRpcUrl, wsRpcUrl, kamigazeUrl, dataDir, checkpointIntervalMs } =
       this.config;
+    const tripwires = tripwireReport();
     return {
       state: this.stopped ? 'STOPPED' : (SyncState[this.syncStatus.state] as keyof typeof SyncState),
       msg: this.syncStatus.msg,
       percentage: this.syncStatus.percentage,
-      blockNumber: this.mirror.blockNumber,
-      lastKamigazeBlock: this.mirror.lastKamigazeBlock,
-      kamigazeNonce: this.mirror.kamigazeNonce,
-      stateEntries: this.mirror.state.size,
-      numComponents: this.mirror.components.length,
-      numEntities: this.mirror.entities.length,
-      tripwires: tripwireReport(),
+      liveBlockNumber: this.liveBlockNumber,
+      checkpoint: this.lastCheckpoint,
+      checkpointCount: this.checkpointCount,
+      tripwires,
+      degraded: Object.entries(tripwires)
+        .filter(([, count]) => count > 0)
+        .map(([name, count]) => `${name}:${count}`),
       bootstrapAttempts: this.bootstrapAttempts,
-      checkpoints: { count: this.checkpointCount, lastAt: this.lastCheckpointAt },
       startedAt: this.startedAt,
       liveAt: this.liveAt,
       config: { chainId, worldAddress, jsonRpcUrl, wsRpcUrl, kamigazeUrl, dataDir, checkpointIntervalMs },
@@ -336,18 +410,18 @@ export class KamiLensDaemon {
     this.world = null;
   }
 
-  /** Clean shutdown: final checkpoint (if LIVE was ever reached), then
-   * dispose (DESIGN §3.5). */
+  /** Clean shutdown: final checkpoint refresh (if LIVE was ever reached and
+   * a snapshot source exists), then dispose (DESIGN §3.5). */
   async stop(): Promise<void> {
     if (this.stopped) return;
     this.stopped = true;
     if (this.checkpointTimer) clearInterval(this.checkpointTimer);
     if (this.retryTimer) clearTimeout(this.retryTimer);
-    if (this.liveAt) {
+    if (this.liveAt && this.config.kamigazeUrl) {
       try {
         await this.checkpoint();
       } catch (e) {
-        log.error('[daemon] final checkpoint failed', e);
+        log.error('[daemon] final checkpoint failed — keeping the last saved snapshot', e);
       }
     }
     this.teardownWorker();

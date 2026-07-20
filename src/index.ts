@@ -3,7 +3,7 @@
 // M1: the sync daemon (mirror, checkpointing, status).
 
 export { ERR_NO_SNAPSHOT_SOURCE, KamiLensDaemon, startDaemon } from './daemon';
-export type { DaemonStatus } from './daemon';
+export type { CheckpointReport, DaemonStatus } from './daemon';
 export { YOMINET_DEFAULTS, getDataDir, resolveConfig } from './config';
 export type { KamiLensConfig } from './config';
 export { tripwireReport, tripwires } from './tripwires';

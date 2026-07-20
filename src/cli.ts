@@ -17,9 +17,9 @@ async function main(): Promise<void> {
         state: status.state,
         msg: status.msg,
         percentage: status.percentage,
-        blockNumber: status.blockNumber,
-        stateEntries: status.stateEntries,
-        tripwires: status.tripwires,
+        liveBlockNumber: status.liveBlockNumber,
+        checkpoint: status.checkpoint,
+        degraded: status.degraded,
       })
     );
   });

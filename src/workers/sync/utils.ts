@@ -10,6 +10,11 @@
  *           - fetchEventsInBlockRange receives `provider as JsonRpcProvider`
  *             (its declared Provider lacks the JsonRpc surface the callee
  *             requires; every caller passes a JsonRpcProvider).
+ *           Hygiene divergence (DESIGN §4.1, decision 2026-07-20): an
+ *           undecodable state row is skipped, counted
+ *           (tripwires.decodeFailures, incremented inside createDecode) and
+ *           logged with component/entity/bytes instead of aborting the sync
+ *           attempt — upstream crashes the whole load on one bad row.
  */
 
 import { awaitPromise, range, to256BitString } from '@mud-classic/utils';
@@ -258,8 +263,18 @@ export function createFetchWorldEventsInBlockRange<C extends Components>(
       }
 
       if (event.eventKey === 'ComponentValueSet') {
-        const value = await decode(component, data);
-        ecsEvents.push({ ...ecsEvent, value });
+        try {
+          const value = await decode(component, data);
+          ecsEvents.push({ ...ecsEvent, value });
+        } catch (e) {
+          // hygiene divergence: skip undecodable row (counted in createDecode)
+          console.warn('[rpc] skipping undecodable row', {
+            component,
+            entity,
+            dataHex: data,
+            error: String(e),
+          });
+        }
       }
     }
 

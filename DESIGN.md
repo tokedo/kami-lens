@@ -245,6 +245,19 @@ Port hygiene — upstream artifacts **not** to lift as-is:
 - The snapshot health check uses browser-only fetch `mode: 'cors'`.
 - Upstream persists the state cache exactly once per session; the
   daemon adds periodic checkpointing (§3.5).
+- **Undecodable state rows** (decision, 2026-07-20 implementation
+  session): upstream aborts the whole sync attempt when any
+  snapshot/stream/gap-fill row fails component-value decode — bounded
+  retries, then a dead client. (Measured that day live: two Kamigaze
+  indexer ghost rows — array-schema components carrying single-word
+  payloads, absent on-chain — bricked every fresh client load.) The
+  port instead skips the row, increments the `decodeFailures`
+  tripwire (§7), logs component/entity/bytes, and surfaces degraded
+  status. Unifying principle for this divergence and the gate G1.b
+  excusal amendment (PORT_PLAN): **the lens is faithful to the web
+  client's view; upstream defects are excused only with mechanical
+  proof, counted, and surfaced; port defects are always fatal to the
+  gate.**
 
 Measured RPC constraints (public Yominet endpoint, 2026-07-20):
 

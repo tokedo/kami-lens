@@ -6,7 +6,13 @@
  *           fetchGapEvents an undefined Kamigaze URL and only works through
  *           its error path. Here kamigazeUrl is explicitly optional and the
  *           Kamigaze branch is skipped cleanly when it is absent; the RPC
- *           path is unchanged. Everything else verbatim.
+ *           path is unchanged.
+ *           Hygiene divergence (DESIGN §4.1, decision 2026-07-20): an
+ *           undecodable state row is skipped, counted
+ *           (tripwires.decodeFailures, incremented inside createDecode) and
+ *           logged with component/entity/bytes instead of aborting the sync
+ *           attempt — upstream crashes the whole load on one bad row.
+ *           Everything else verbatim.
  */
 
 import { createKamigazeClient, GetEventsSinceResponse } from 'clients/kamigaze';
@@ -121,10 +127,22 @@ export async function parseGetEventsSinceResponse(
     const component = formatComponentID(ecsEvent.componentId);
     const entity = formatEntityID(ecsEvent.entityId);
 
-    const value =
-      ecsEvent.eventType === 'ComponentValueSet'
-        ? await decode(component, ecsEvent.value!)
-        : undefined;
+    let value;
+    try {
+      value =
+        ecsEvent.eventType === 'ComponentValueSet'
+          ? await decode(component, ecsEvent.value!)
+          : undefined;
+    } catch (e) {
+      // hygiene divergence: skip undecodable row (counted in createDecode)
+      log.warn('[gapfill] skipping undecodable row', {
+        component,
+        entity,
+        dataHex: Buffer.from(ecsEvent.value ?? []).toString('hex'),
+        error: String(e),
+      });
+      continue;
+    }
 
     const lastEventInTx = events[i + 1]?.txHash !== ecsEvent.txHash;
 

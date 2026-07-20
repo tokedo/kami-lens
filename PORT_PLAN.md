@@ -71,7 +71,17 @@ every gate that says "state hash".
   only reverse lookup is Bare-restricted) — and compare mirror values
   against `eth_call` reads pinned to the mirror's block. Also
   negative samples: entities the mirror holds as removed must read
-  absent on-chain. Zero mismatches allowed.
+  absent on-chain. Zero mismatches allowed — except rows the gate
+  script itself mechanically proves Kamigaze-inherited, all three
+  conditions checked per row by the script with the evidence recorded
+  in the measurement: (1) absent on-chain at the pinned block,
+  (2) zero events for the pair within the log-retention window,
+  (3) re-served by Kamigaze on a fresh fetch. There is no
+  human-waiver path. Value differences, mirror-absent/chain-present,
+  and unproven mismatches always fail. (Amended 2026-07-20 by
+  decision: upstream defects are excused only with mechanical proof,
+  counted, and surfaced; port defects are always fatal to the gate —
+  DESIGN §4.1.)
 - **G1.c replay cross-validation:** take a checkpoint at block B−N
   (N ≈ 20 000, safely inside retention), RPC-replay
   `ComponentValueSet`/`ComponentValueRemoved` to B; state hash must

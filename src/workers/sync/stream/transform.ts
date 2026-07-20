@@ -6,7 +6,12 @@
  *           the non-null assertion the sibling gapfill.ts already uses
  *           (value is proto-optional; the ComponentValueSet branch implies
  *           presence). Upstream is vite-transpiled and never typechecked,
- *           so the hole is invisible there. No behavior change.
+ *           so the hole is invisible there.
+ *           Hygiene divergence (DESIGN §4.1, decision 2026-07-20): an
+ *           undecodable state row is skipped, counted
+ *           (tripwires.decodeFailures, incremented inside createDecode) and
+ *           logged with component/entity/bytes instead of aborting the sync
+ *           attempt — upstream crashes the whole load on one bad row.
  */
 
 import { ethers } from 'ethers';
@@ -44,10 +49,22 @@ export const createTransformWorldEvents = (decode: Decode) => {
       const component = formatComponentID(rawComponentId);
       const entity = formatEntityID(entityId);
 
-      const value =
-        ecsEvent.eventType === 'ComponentValueSet'
-          ? await decode(component, ecsEvent.value!)
-          : undefined;
+      let value;
+      try {
+        value =
+          ecsEvent.eventType === 'ComponentValueSet'
+            ? await decode(component, ecsEvent.value!)
+            : undefined;
+      } catch (e) {
+        // hygiene divergence: skip undecodable row (counted in createDecode)
+        console.warn('[stream] skipping undecodable row', {
+          component,
+          entity,
+          dataHex: Buffer.from(ecsEvent.value ?? []).toString('hex'),
+          error: String(e),
+        });
+        continue;
+      }
 
       // Since ECS events are coming in ordered over the wire, we check if the following event has a
       // different transaction then the current, which would mean an event associated with another tx
