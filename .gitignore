@@ -6,3 +6,4 @@ data/
 .env
 .env.*
 .DS_Store
+gates/.artifacts/

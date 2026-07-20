@@ -28,6 +28,7 @@
       "lodash": ["./src/vendor/lodash/index.ts"]
     },
     "resolveJsonModule": true,
+    "allowImportingTsExtensions": true,
     "skipLibCheck": true,
     "sourceMap": true,
     "strict": true,
@@ -35,6 +36,6 @@
     "types": ["node"],
     "noEmit": true
   },
-  "include": ["src", "test", "scripts", "*.config.ts"],
+  "include": ["src", "test", "scripts", "gates", "*.config.ts"],
   "exclude": ["dist", "node_modules"]
 }
