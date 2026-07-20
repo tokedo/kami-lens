@@ -40,17 +40,21 @@ machinery. kami-lens is that machinery, headless.
 5. **Formulas from the source.** Projection code is ported from the
    game's own open-source client and reads its constants from on-chain
    config entities, so game balance patches don't silently break it.
+   Where the client ships data in code rather than on-chain, kami-lens
+   ports it with the pinned commit and documents it in the coverage
+   checklist.
 6. **AGPL-3.0**, as a derivative of the AGPL-3.0 upstream client.
 
 ## Architecture
 
 Three layers:
 
-1. **Sync** — state mirror: Kamigaze snapshot + stream for fast
-   bootstrap and push updates, with a pure-RPC event-replay fallback
-   (`ComponentValueSet` / `ComponentValueRemoved` World events — the
-   complete ground truth); persistent local state cache across
-   restarts.
+1. **Sync** — state mirror: Kamigaze snapshot + stream for bootstrap
+   and push updates (the snapshot is a hard dependency for cold
+   start), with pure-RPC event replay (`ComponentValueSet` /
+   `ComponentValueRemoved` World events) for gap-fill within the
+   public RPC's log-retention window; persistent local state cache,
+   periodically checkpointed across restarts.
 2. **Projection** — the game-logic layer: live HP, harvest output,
    cooldown/recovery timers, liquidation thresholds, computed exactly
    as the web client computes them.

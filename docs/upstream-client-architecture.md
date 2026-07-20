@@ -217,3 +217,59 @@ notifications, action queue (local tx queue).
 Not modal-bound but player-visible: battle/kill feed (kamiden stream),
 room presence of other accounts (`RoomIndex == here`, mirror query),
 sync/loading state (`component.LoadingState`).
+
+## 6. Errata — re-verified 2026-07-20 (fresh clone @ `ef898fc9`)
+
+Corrections and sharpenings from a claim-by-claim re-derivation, plus
+live measurements against the public Yominet RPC. DESIGN.md builds on
+the corrected values.
+
+- **Component split is exactly 64 Bare / 31 full** — counted from the
+  Solidity sources (`packages/contracts/src/components/*.sol`,
+  extending `BareComponent` vs `Component`); `deploy.json` carries no
+  bare/full flag, only the 95-entry registration list (with
+  `indexed: true` on exactly 30). "~65/95" above is off by one.
+- **Swap point 1 (env config) is wider**: `import.meta.env` is also
+  read directly in `clients/kamigaze/client.ts`,
+  `clients/kamiden/client.ts`, and `clients/kamiden/txErrorLogger.ts`.
+- **Swap point 6 is wider**: `engine/recs/Component.ts` also contains
+  localStorage-based `createLocalCache`/`clearLocalCache` — dead code
+  (no callers), stripped together with the React hook.
+- **§2 "full state is reconstructible from logs alone" holds for the
+  protocol, not the public endpoint.** Measured 2026-07-20: the
+  public Yominet RPC retains World logs only for the trailing
+  ~1.02 M blocks (~25 days at ~2.1 s/block); older ranges — including
+  the deploy block — return empty results with HTTP 200, not errors.
+  Pure-RPC bootstrap from block 44,577 is therefore impossible there.
+  The no-snapshot code path is real but is, in practice, the
+  local-dev path (`getLocalConfig`: localhost chain, block 0);
+  production config always sets the Kamigaze URL. Related: the sync
+  worker never reads `initialBlockNumber` — with a fresh cache it
+  gap-fills from block 0 — and in no-stream mode `fillGap` receives
+  an undefined Kamigaze URL, working only via its error path.
+- **There is no Kamigaze→RPC degradation at bootstrap**: a snapshot
+  failure is terminal (`SyncState.FAILED`); `isRateLimited` (gRPC
+  code 8, or 403 from `GET /healthy`) only selects the error message.
+- **The state cache is persisted exactly once per session**
+  (post-backfill, pre-stream); nothing checkpoints during live
+  operation.
+- **§3 "dependencies: recs + lodash only" understates**: `app/cache`
+  also imports ethers, `@stdlib/stats-base-dists-normal-cdf`,
+  `constants/**`, and `clients/kamiden` (`app/cache/chat`); and
+  `network/shapes` / `network/explorer` import `app/cache` back
+  (circular layering — shapes and app/cache port as one unit).
+- **Confirmed exactly as stated**: config-entity hashing and 8×uint32
+  unpacking vs `LibConfig`/`LibPack` (bit-identical); the Kamigaze
+  method set; Kamiden = 15 unary methods + `SubscribeToStream`; the
+  chat pane reads only `GetRoomMessages` + the stream; deterministic
+  ID formulas and `GetterSystem` getters; the 180 s cooldown fallback
+  (`app/cache/kami/calcs/base.ts:95`); the production endpoint
+  values.
+- **Port hazards**: `componentIDs.json` is not strict JSON (trailing
+  comma); `workers/sync/snapshot/fetch.ts` contains a dead
+  `maybeThrow()` test helper (throws with probability 0.6);
+  the snapshot health check uses browser-only fetch `mode: 'cors'`;
+  the Kamiden client starts its perennial stream as a side effect of
+  the first `getClient()` (module singleton, 5 s reconnect loop);
+  stream `blockTimestamp` is uint32 seconds while Kamiden timestamps
+  are milliseconds.
