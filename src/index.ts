@@ -1,5 +1,16 @@
 // kami-lens public surface. Populated as milestones land (PORT_PLAN.md).
 // M0: pure leaf utilities (hash/pack/decode) ported from the upstream pin.
+// M1: the sync daemon (mirror, checkpointing, status).
+
+export { ERR_NO_SNAPSHOT_SOURCE, KamiLensDaemon, startDaemon } from './daemon';
+export type { DaemonStatus } from './daemon';
+export { YOMINET_DEFAULTS, getDataDir, resolveConfig } from './config';
+export type { KamiLensConfig } from './config';
+export { tripwireReport, tripwires } from './tripwires';
+export type { Tripwires } from './tripwires';
+export { SyncState } from 'engine/constants';
+export type { SyncStatus } from 'engine/constants';
+export type { StateCache } from 'workers/sync/state';
 
 export { getEntityByHash, hashArgs } from 'network/shapes/utils/IDs';
 export { unpackArray32 } from 'network/shapes/utils/packing';
