@@ -2,7 +2,14 @@
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
  * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
  * path:     packages/client/src/engine/providers/create.ts
- * changes:  none
+ * changes:  daemon-liveness hygiene (one addition in create()): a passive
+ *           permanent 'error' listener is attached to the WebSocket at
+ *           construction. Upstream's reconnect handlers attach with
+ *           {once: true}, so a second error on the same socket (observed
+ *           live: DNS ENOTFOUND during reconnection) finds zero listeners
+ *           and crashes the Node process — a browser tab survives this,
+ *           a daemon must too. The reconnect handlers in
+ *           createReconnecting are unchanged and still drive recovery.
  */
 
 import { callWithRetry, observableToComputed, timeoutAfter } from '@mud-classic/utils';
@@ -38,6 +45,9 @@ export function create({
   }
   const json = new MUDJsonRpcProvider(jsonRpcUrl, network);
   const ws = useWebSocket ? new WebSocketProvider(wsRpcUrl!, network) : undefined;
+  // keep a passive listener so a socket error can never crash the process
+  // (Node throws on 'error' events with zero listeners)
+  (ws?.websocket as { on?: (event: string, listener: () => void) => void })?.on?.('error', () => {});
   const signer = externalProvider;
 
   if (options?.pollingInterval) {

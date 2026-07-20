@@ -1,9 +1,9 @@
 {
   "gate": "g1f-retention",
-  "measuredAt": "2026-07-20T20:14:02.194Z",
-  "head": 31157881,
-  "horizon": 30132380,
-  "retentionBlocks": 1025501,
+  "measuredAt": "2026-07-20T22:21:32.701Z",
+  "head": 31160418,
+  "horizon": 30134834,
+  "retentionBlocks": 1025584,
   "approxDays": 24.9,
   "probes": 16,
   "probeSpan": 2000,
