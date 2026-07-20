@@ -1,0 +1,15 @@
+{
+  "gate": "g1a-bootstrap",
+  "measuredAt": "2026-07-20T20:15:00.644Z",
+  "timeToLiveColdMs": 43048,
+  "blockNumber": 31157891,
+  "stateEntries": 2789473,
+  "numComponents": 92,
+  "numEntities": 809184,
+  "tripwires": {
+    "unknownComponentIds": 0,
+    "unknownComponentSchemas": 0,
+    "decodeFailures": 0,
+    "kamigazeNonceBumps": 0
+  }
+}

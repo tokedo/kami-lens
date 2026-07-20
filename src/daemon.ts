@@ -117,7 +117,7 @@ export class KamiLensDaemon {
     const { kamigazeUrl, chainId, worldAddress, initialBlockNumber, jsonRpcUrl } = this.config;
     if (kamigazeUrl) return;
 
-    const store = await getStateStore(chainId, worldAddress, CACHE_VERSION);
+    const store = await getStateStore(chainId, worldAddress, CACHE_VERSION, this.config.dataDir);
     const cachedBlock = (await store.get('BlockNumber', 'current')) ?? 0;
     if (cachedBlock > 0) {
       log.warn(
@@ -211,7 +211,7 @@ export class KamiLensDaemon {
 
     applyNetworkUpdates(world, components, worker.ecsEvents$, mappings, ack$);
 
-    const { chainId, worldAddress, jsonRpcUrl, wsRpcUrl, kamigazeUrl, initialBlockNumber } =
+    const { chainId, worldAddress, jsonRpcUrl, wsRpcUrl, kamigazeUrl, initialBlockNumber, dataDir } =
       this.config;
     const syncWorkerConfig: SyncWorkerConfig = {
       provider: { chainId, jsonRpcUrl, wsRpcUrl, options: { batch: false } },
@@ -220,6 +220,7 @@ export class KamiLensDaemon {
       snapshotServiceUrl: kamigazeUrl,
       streamServiceUrl: kamigazeUrl,
       initialBlockNumber,
+      dataDir,
       fetchSystemCalls: false,
     };
     worker.input$.next({ type: InputType.Config, data: syncWorkerConfig });
@@ -243,7 +244,8 @@ export class KamiLensDaemon {
       const store = await getStateStore(
         this.config.chainId,
         this.config.worldAddress,
-        CACHE_VERSION
+        CACHE_VERSION,
+        this.config.dataDir
       );
       this.mirror.lastKamigazeBlock = (await store.get('LastKamigazeBlock', 'current')) ?? 0;
       this.mirror.lastKamigazeEntity = (await store.get('LastKamigazeEntity', 'current')) ?? 0;
@@ -291,7 +293,12 @@ export class KamiLensDaemon {
 
   /** Persist the live mirror wholesale (DESIGN §3.5). */
   async checkpoint(): Promise<void> {
-    const store = await getStateStore(this.config.chainId, this.config.worldAddress, CACHE_VERSION);
+    const store = await getStateStore(
+      this.config.chainId,
+      this.config.worldAddress,
+      CACHE_VERSION,
+      this.config.dataDir
+    );
     await saveStateCacheToStore(store, this.mirror);
     this.checkpointCount++;
     this.lastCheckpointAt = new Date().toISOString();

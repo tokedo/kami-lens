@@ -10,6 +10,9 @@
  *           2. no-stream mode — fillGap receives streamServiceUrl without
  *              the non-null assertion; gapfill.ts now handles the absent
  *              URL explicitly instead of via its error path.
+ *           3. getStateStore receives config.dataDir — the storage-backend
+ *              injection the file-snapshot store needs (swap point 3;
+ *              browser IndexedDB was ambient).
  *           Type-hole fix: the snapshot catch block reads e.code on an
  *           unknown catch variable — cast to {code?: unknown} (upstream is
  *           vite-transpiled and never typechecked; no behavior change).
@@ -193,7 +196,7 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
     });
     const { providers } = await createReconnectingProvider(computed(() => config.provider));
     const provider = providers.get().json;
-    const indexedDB = await getStateStore(chainId, worldContract.address, IDB_VERSION);
+    const indexedDB = await getStateStore(chainId, worldContract.address, IDB_VERSION, config.dataDir);
     const decode = createDecode();
     const fetchWorldEvents = createFetchWorldEventsInBlockRange(
       provider,

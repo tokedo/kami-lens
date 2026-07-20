@@ -17,7 +17,9 @@
  *             durability contract (all sets land in a single snapshot).
  *           StateStores/`getID` keep their upstream shapes; the two GetState
  *           cursors absent upstream (see loaders.ts note) are not persisted.
- *           The data directory comes from src/config.ts.
+ *           The data directory comes from src/config.ts, overridable per
+ *           store via the dataDir parameter — the same injection slot where
+ *           upstream's get() accepts a custom idb?: IDBFactory.
  */
 
 import { promises as fs } from 'node:fs';
@@ -171,9 +173,14 @@ async function readSnapshotFile(
 }
 
 // load in a StateStore from its computed ID
-export const get = async (chainID: number, worldAddress: string, version: number) => {
+export const get = async (
+  chainID: number,
+  worldAddress: string,
+  version: number,
+  dataDir?: string
+) => {
   const id = getID('ECSCache', chainID, worldAddress, version);
-  const filePath = path.join(getDataDir(), `${id}.v8snap`);
+  const filePath = path.join(dataDir ?? getDataDir(), `${id}.v8snap`);
   const store = new FileStateStore(filePath, {
     chainId: chainID,
     worldAddress,
