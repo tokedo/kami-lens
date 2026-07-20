@@ -273,3 +273,67 @@ the corrected values.
   the first `getClient()` (module singleton, 5 s reconnect loop);
   stream `blockTimestamp` is uint32 seconds while Kamiden timestamps
   are milliseconds.
+
+### Second pass — design session 2 (2026-07-20, same pinned clone)
+
+Corrections from the untrusted-strings/Kamiden verification sweep. One
+bullet above is itself corrected here — errata to the errata, flagged
+rather than silently rewritten.
+
+- **"Kamiden = 15 unary methods" above is wrong**: the pinned
+  `clients/kamiden/proto.ts` defines **22 unary methods** plus
+  `SubscribeToStream`. Call-site grep says the client uses 13
+  (`GetRoomMessages`; `GetBattles`/`GetBattleStats`;
+  `GetTradeHistory`/`GetOpenOffers`;
+  `GetKamiMarketListings`/`GetKamiMarketBids`/`GetKamiMarketHistory`;
+  `GetTokenDeposits`/`GetTokenWithdrawals`/`GetOpenWithdrawals`;
+  `GetItemTransfers`; `GetAuctionBuys`); nine are uncalled —
+  `GetHarvestRanking`/`GetKillerRanking` (the only methods with an
+  `ApiKey` request field) and seven per-entity stat getters
+  (`Get{Kills,Deaths,Musu,Movements}ByAccount`,
+  `Get{Kills,Deaths,PNL}ByKami`).
+- **The leaderboard modal is chain-only at this pin**: it reads
+  `shapes/Score` + `constants/leaderboards`; "kamiden rankings" in §5
+  refers to RPCs the client never calls.
+- **Kamiden dependencies hidden inside chain-sourced surfaces**: the
+  inventory modal's transfer-history tab (`GetItemTransfers`), the
+  gacha auction price chart (`GetAuctionBuys`), and notification
+  production (droptable/sacrifice reveals arrive via
+  `DTRevealerSystem`'s feed subscription).
+- **Player-authored string surface, measured in the contracts**:
+  account name ≤16 bytes, non-empty, unique
+  (`AccountRegisterSystem`/`AccountSetNameSystem`); kami name ≤16
+  bytes, non-empty, unique (`KamiNameSystem`; `KamiOnyxRenameSystem`
+  is on-chain-disabled, same cap); account bio ≤140 bytes of free
+  text (`AccountSetBioSystem`), read back through `shapes/Account`
+  (friend/request/blocked cards); chat has **no on-chain length
+  cap** — `ChatSystem` accepts an arbitrary string and forwards to
+  the Emitter (`LibEmitter.emitMessage`); the 200-char limit is a
+  client-side input `maxLength` only. Received chat is unbounded
+  adversarial input. `AccountSetPFPSystem` is not a text path (it
+  copies an owned kami's `MediaURI` by ID).
+- **Chat transits the chain**: a message is a `ChatSystem` transaction
+  emitting an Emitter event — never component state; Kamiden indexes
+  the events and is the only queryable store. ("Chat exists only in
+  Kamiden" holds for storage, not transport.)
+- **Kamiden payloads carry almost no player-authored text**: every
+  feed/trade/market/portal/battle message is IDs, indices, amounts,
+  timestamps, booleans. Player text appears only in `Message.Message`
+  (chat) and in name fields of the client-unused ranking/leaderboard
+  responses (`RankRow`, `LeaderboardRow`). Names shown in feeds and
+  markets come from consumer-side joins against the mirror's `Name`
+  component.
+- **§5's modal list has gaps**: `visibility.ts` + the modals directory
+  also contain `obol`, `presale`, `studio` (AnimationStudio),
+  `kamiPortal`, `kamiAdoptionAgency`, `operatorFund`/`FundOperator`,
+  `help`, `settings`, `questDialogue`, `bridgeERC20`/`bridgeERC721`.
+  `emaBoard` is the naming modal's UI, not a separate surface; the
+  `lootBox` modal key exists in `visibility.ts` with no dedicated
+  `modals/lootBox` directory. Coverage now carries the enumeration.
+- **Notifications verified**: a client-local recs component, never
+  chain state; producers are quest-completability checks and Kamiden
+  reveal events; contents are registry text (item names, quest
+  titles), not player-authored.
+- **`StreamRequest` supports topic filtering** (`topics: string[]`,
+  empty = all) — a daemon subscription can exclude chat at the
+  transport level.
