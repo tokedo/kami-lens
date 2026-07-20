@@ -1,0 +1,50 @@
+{
+  "_meta": {
+    "generator": "scripts/gen-vectors.py (pycryptodome keccak \u2014 independent of ethers/@noble)",
+    "upstream-pin": "ef898fc9350a6085fb080419b12af96c2254e8f3"
+  },
+  "vectors": [
+    {
+      "tuple": [
+        0,
+        0
+      ],
+      "packed": 0
+    },
+    {
+      "tuple": [
+        1,
+        1
+      ],
+      "packed": 16777217
+    },
+    {
+      "tuple": [
+        94,
+        12345
+      ],
+      "packed": 1577070649
+    },
+    {
+      "tuple": [
+        127,
+        16777215
+      ],
+      "packed": 2147483647
+    },
+    {
+      "tuple": [
+        128,
+        0
+      ],
+      "packed": -2147483648
+    },
+    {
+      "tuple": [
+        255,
+        16777215
+      ],
+      "packed": -1
+    }
+  ]
+}

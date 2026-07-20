@@ -1,0 +1,101 @@
+{
+  "_meta": {
+    "generator": "scripts/gen-vectors.py (pycryptodome keccak \u2014 independent of ethers/@noble)",
+    "upstream-pin": "ef898fc9350a6085fb080419b12af96c2254e8f3"
+  },
+  "vectors": [
+    {
+      "values": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "packed": "0x0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "values": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "packed": "0x0000000100000002000000030000000400000005000000060000000700000008"
+    },
+    {
+      "values": [
+        50,
+        10,
+        300,
+        60,
+        0,
+        0,
+        0,
+        0
+      ],
+      "packed": "0x000000320000000a0000012c0000003c00000000000000000000000000000000"
+    },
+    {
+      "values": [
+        4294967294,
+        4294967294,
+        4294967294,
+        4294967294,
+        4294967294,
+        4294967294,
+        4294967294,
+        4294967294
+      ],
+      "packed": "0xfffffffefffffffefffffffefffffffefffffffefffffffefffffffefffffffe",
+      "note": "max value packArrU32 accepts (its require is < 2**32 - 1)"
+    },
+    {
+      "values": [
+        4294967294,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "packed": "0xfffffffe00000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "values": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        4294967294
+      ],
+      "packed": "0x00000000000000000000000000000000000000000000000000000000fffffffe"
+    },
+    {
+      "values": [
+        4294967295,
+        4294967295,
+        4294967295,
+        4294967295,
+        4294967295,
+        4294967295,
+        4294967295,
+        4294967295
+      ],
+      "packed": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "note": "client-only: packArrU32 rejects 2**32 - 1; unpack must still handle it"
+    }
+  ]
+}

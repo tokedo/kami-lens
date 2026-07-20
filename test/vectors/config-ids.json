@@ -1,0 +1,83 @@
+{
+  "_meta": {
+    "generator": "scripts/gen-vectors.py (pycryptodome keccak \u2014 independent of ethers/@noble)",
+    "upstream-pin": "ef898fc9350a6085fb080419b12af96c2254e8f3"
+  },
+  "vectors": [
+    {
+      "field": "BASE_FRIENDS_LIMIT",
+      "hash": "0x08c1d49d6a1715be92f41e187fd203d3d9404ea60cc8aec06fc0dbdb0f0e3f22",
+      "id": "0x8c1d49d6a1715be92f41e187fd203d3d9404ea60cc8aec06fc0dbdb0f0e3f22"
+    },
+    {
+      "field": "FRIENDS_REQUEST_LIMIT",
+      "hash": "0x9eaaac7bf7e84e6a832b093359b7522902e17f384c78c3a2e61192598d45e1bd",
+      "id": "0x9eaaac7bf7e84e6a832b093359b7522902e17f384c78c3a2e61192598d45e1bd"
+    },
+    {
+      "field": "KAMI_HARV_BOUNTY",
+      "hash": "0x86dd25509c1e30efd17db2c632acf543908ea2296992f4418590fb812d809636",
+      "id": "0x86dd25509c1e30efd17db2c632acf543908ea2296992f4418590fb812d809636"
+    },
+    {
+      "field": "KAMI_HARV_EFFICACY_BODY",
+      "hash": "0xcfec1886a0202d4508541f7550fe5f262c618fc1fa8ba8a5fe8d480c58de8522",
+      "id": "0xcfec1886a0202d4508541f7550fe5f262c618fc1fa8ba8a5fe8d480c58de8522"
+    },
+    {
+      "field": "KAMI_HARV_FERTILITY",
+      "hash": "0x259030e4eb570f3c89e0c30d25a116c614eecb53309415e5e40c10cf0aa51aae",
+      "id": "0x259030e4eb570f3c89e0c30d25a116c614eecb53309415e5e40c10cf0aa51aae"
+    },
+    {
+      "field": "KAMI_HARV_INTENSITY",
+      "hash": "0x30781c2832f467f8c246335b94a0e213f6f87ade16c06fa66a84932fe4b6b350",
+      "id": "0x30781c2832f467f8c246335b94a0e213f6f87ade16c06fa66a84932fe4b6b350"
+    },
+    {
+      "field": "KAMI_HARV_STRAIN",
+      "hash": "0xebb71c714cf5183d1ccabdccd1dc40213a4e6856ae58c2c0f82b58e8d4557c4b",
+      "id": "0xebb71c714cf5183d1ccabdccd1dc40213a4e6856ae58c2c0f82b58e8d4557c4b"
+    },
+    {
+      "field": "KAMI_LIQ_THRESHOLD",
+      "hash": "0x57e21510ca8316b14fcc26498e78aec0bb44e9f098592d478b44ffd522a1da50",
+      "id": "0x57e21510ca8316b14fcc26498e78aec0bb44e9f098592d478b44ffd522a1da50"
+    },
+    {
+      "field": "KAMI_LVL_REQ_BASE",
+      "hash": "0x4f51848a3e1e70a693f3ea2e7eba8f36836d67dc615a56f36294a560ac8986ac",
+      "id": "0x4f51848a3e1e70a693f3ea2e7eba8f36836d67dc615a56f36294a560ac8986ac"
+    },
+    {
+      "field": "KAMI_REST_METABOLISM",
+      "hash": "0x669b6b3f6329ee47b5dd8cb5cfac526d319ba40657e3d3133bd39edb48533ecb",
+      "id": "0x669b6b3f6329ee47b5dd8cb5cfac526d319ba40657e3d3133bd39edb48533ecb"
+    },
+    {
+      "field": "KAMI_STANDARD_COOLDOWN",
+      "hash": "0x19f65a3bd7db5fcc04f326946ee735246c2925845f9703fd35fefa7bddebf588",
+      "id": "0x19f65a3bd7db5fcc04f326946ee735246c2925845f9703fd35fefa7bddebf588"
+    },
+    {
+      "field": "MINT_MAX_TOTAL",
+      "hash": "0x3991411c882ea47d03f0b1f8a9ec721d5beda6b8838adbbeccb2fee8a094e195",
+      "id": "0x3991411c882ea47d03f0b1f8a9ec721d5beda6b8838adbbeccb2fee8a094e195"
+    },
+    {
+      "field": "NEWBIE_VENDOR_CYCLE",
+      "hash": "0xdd681a888ff831c7d4acc6379e3afa2ac67536332070c1b51286080dd774ce2d",
+      "id": "0xdd681a888ff831c7d4acc6379e3afa2ac67536332070c1b51286080dd774ce2d"
+    },
+    {
+      "field": "PORTAL_ITEM_EXPORT_TAX",
+      "hash": "0xcaa4a58b4287a6793bc5554a9aa03ff62cf41b6a8525ef40d07ca241a040c461",
+      "id": "0xcaa4a58b4287a6793bc5554a9aa03ff62cf41b6a8525ef40d07ca241a040c461"
+    },
+    {
+      "field": "KAMI_LENS_SYNTHETIC_LZ_9",
+      "hash": "0x0565187d0c1271f34aeed63f7e1cf1e0bb10f069b81845d0dd509e5faf17c6bf",
+      "id": "0x565187d0c1271f34aeed63f7e1cf1e0bb10f069b81845d0dd509e5faf17c6bf"
+    }
+  ]
+}

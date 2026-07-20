@@ -1,0 +1,63 @@
+{
+  "_meta": {
+    "generator": "scripts/gen-vectors.py (pycryptodome keccak \u2014 independent of ethers/@noble)",
+    "upstream-pin": "ef898fc9350a6085fb080419b12af96c2254e8f3"
+  },
+  "vectors": [
+    {
+      "argTypes": [
+        "string"
+      ],
+      "args": [
+        "kami.gacha.commit"
+      ],
+      "id": "0x1d8ce6acf791ac3ae4f90f9b71caa0c14064509288c5938453c0e0c2f9b8a0f3"
+    },
+    {
+      "argTypes": [
+        "string",
+        "uint32"
+      ],
+      "args": [
+        "kami.index",
+        1
+      ],
+      "id": "0x686135341780d4ac5774a6919e8f2e6d9e3bfe376a1fa01a418ab8962ce3d57c"
+    },
+    {
+      "argTypes": [
+        "string",
+        "uint32"
+      ],
+      "args": [
+        "room.index",
+        42
+      ],
+      "id": "0x63809ec4c394d2f98cc684ee5426bb7e094fb33aa403f7d20838661dec4599b7"
+    },
+    {
+      "argTypes": [
+        "string",
+        "uint256"
+      ],
+      "args": [
+        "skill.points",
+        "115792089237316195423570985008687907853269984665640564039457584007913129639935"
+      ],
+      "id": "0xdb567479bda0b395379a0f147a715782be4ed29aec48d8c7e917d09e27caa0bb"
+    },
+    {
+      "argTypes": [
+        "string",
+        "string",
+        "uint256"
+      ],
+      "args": [
+        "data",
+        "score",
+        "1000000"
+      ],
+      "id": "0xd8b2df7d1d3b01df8b2105dadf987ebf246f4c6504abc1cebcb2a369790eb1c1"
+    }
+  ]
+}
