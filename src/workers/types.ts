@@ -2,7 +2,12 @@
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
  * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
  * path:     packages/client/src/workers/types.ts
- * changes:  none
+ * changes:  SyncWorkerConfig gains initialBlockNumber?: number. Upstream
+ *           passes it at runtime (setupMUDNetwork startSync spreads it into
+ *           the worker config) but the type omits it (vite-transpiled,
+ *           never typechecked). The port's replay-floor hygiene fix in
+ *           Worker.ts reads it, so the type now tells the truth.
+ *           Everything else verbatim.
  */
 
 import { Components, ComponentValue, EntityID, SchemaOf } from 'engine/recs';
@@ -82,6 +87,7 @@ export type SyncWorkerConfig = {
   chainId: number;
   snapshotServiceUrl?: string;
   streamServiceUrl?: string;
+  initialBlockNumber?: number;
   fetchSystemCalls?: boolean;
   snapshotNumChunks?: number;
   pruneOptions?: { playerAddress: string; hashedComponentId: string };

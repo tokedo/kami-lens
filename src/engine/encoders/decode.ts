@@ -2,11 +2,18 @@
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
  * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
  * path:     packages/client/src/engine/encoders/decode.ts
- * changes:  none
+ * changes:  tripwire counters (DESIGN §7) at the two existing failure
+ *           sites: the missing-schema fallback increments
+ *           tripwires.unknownComponentSchemas, and a throwing decoder
+ *           increments tripwires.decodeFailures before rethrowing
+ *           (behavior unchanged — errors still propagate). Everything
+ *           else verbatim.
  */
 
 import { ComponentValue } from 'engine/recs';
 import { AbiCoder, BytesLike } from 'ethers';
+
+import { tripwires } from '../../tripwires';
 
 import { ComponentsSchema } from 'types/ComponentsSchema';
 import { ContractSchemaValue, ContractSchemaValueId } from './types';
@@ -39,6 +46,7 @@ export const createDecode = () => {
 
       // set bool as a default schema - only to prevent errors
       if (!schema) {
+        tripwires.unknownComponentSchemas++;
         console.warn(`No schema found for component ${String(compID)}`);
         schema = { keys: ['value'], values: [0] };
       }
@@ -46,7 +54,12 @@ export const createDecode = () => {
       decoders[componentID] = createDecoder(schema.keys, schema.values);
     }
     // Decode the raw value
-    return decoders[componentID]!(data);
+    try {
+      return decoders[componentID]!(data);
+    } catch (e) {
+      tripwires.decodeFailures++;
+      throw e;
+    }
   }
 
   return decode;

@@ -12,6 +12,7 @@
     "baseUrl": "./",
     "paths": {
       "abi/*": ["./src/abi/*", "./src/abi"],
+      "cache/*": ["./src/cache/*", "./src/cache"],
       "clients/*": ["./src/clients/*", "./src/clients"],
       "constants/*": ["./src/constants/*", "./src/constants"],
       "engine/*": ["./src/engine/*", "./src/engine"],

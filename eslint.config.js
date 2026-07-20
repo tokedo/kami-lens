@@ -20,5 +20,28 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-expressions': ['error', { allowShortCircuit: true }],
       '@typescript-eslint/no-unused-vars': ['error', { args: 'none', varsIgnorePattern: '^_' }],
     },
+  },
+  {
+    // Ported and vendored trees stay byte-faithful to upstream (DESIGN §3.4),
+    // so style rules that would force edits there are off. Native kami-lens
+    // code (src/*.ts at the top level, gates, scripts, tests) keeps them.
+    files: [
+      'src/abi/**',
+      'src/cache/**',
+      'src/clients/**',
+      'src/constants/**',
+      'src/engine/**',
+      'src/network/**',
+      'src/types/**',
+      'src/utils/**',
+      'src/vendor/**',
+      'src/workers/**',
+    ],
+    rules: {
+      'no-empty': 'off',
+      'no-var': 'off',
+      'prefer-const': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
+    },
   }
 );
