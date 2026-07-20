@@ -11,16 +11,29 @@
  *           transport upstream's Safari path uses against the production
  *           server. isSafariOrIOS keeps its upstream contract and returns
  *           false off-browser (its navigator checks are inlined unchanged).
+ *           The @improbable-eng/grpc-web import uses default-import CJS
+ *           interop — Node's ESM loader cannot see the package's named
+ *           export (vite handled this for the browser build) — and `self`
+ *           is aliased to globalThis before the transport is constructed:
+ *           the library addresses fetch/Headers through the worker global,
+ *           and Node 20+ provides them all on globalThis.
  */
 
-import { grpc } from '@improbable-eng/grpc-web';
+import grpcWebPkg from '@improbable-eng/grpc-web';
+import type { grpc } from '@improbable-eng/grpc-web';
+
+const { grpc: grpcWeb } = grpcWebPkg as unknown as { grpc: typeof grpc };
+
+if (typeof (globalThis as { self?: unknown }).self === 'undefined') {
+  (globalThis as { self?: unknown }).self = globalThis;
+}
 
 /**
  * Returns the appropriate gRPC transport for Node
  * - FetchReadableStreamTransport (upstream's Safari/iOS path)
  */
 export function getGrpcTransport(): grpc.TransportFactory {
-  return grpc.FetchReadableStreamTransport({ credentials: 'omit' });
+  return grpcWeb.FetchReadableStreamTransport({ credentials: 'omit' });
 }
 
 /**

@@ -20,7 +20,12 @@
       "types/*": ["./src/types/*", "./src/types"],
       "utils/*": ["./src/utils/*", "./src/utils"],
       "workers/*": ["./src/workers/*", "./src/workers"],
-      "@mud-classic/utils": ["./src/vendor/mud-classic/utils/index.ts"]
+      "@mud-classic/utils": ["./src/vendor/mud-classic/utils/index.ts"],
+      // Ported files import 'lodash' verbatim; Node's ESM loader cannot
+      // named-import CJS lodash (vite handled it upstream), so the bare
+      // specifier resolves to a typed shim re-exporting lodash-es — the
+      // same 4.17.21 code published as real ESM.
+      "lodash": ["./src/vendor/lodash/index.ts"]
     },
     "resolveJsonModule": true,
     "skipLibCheck": true,
