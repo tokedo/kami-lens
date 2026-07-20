@@ -5,7 +5,7 @@
 //
 // G1.b: ≥ 500 (component, entity) samples from the mirror — covering every
 // component id present, Bare and full alike — compared against direct
-// eth_call reads (has/getRawValue) pinned to the mirror's block, plus
+// eth_call reads (has/getRaw) pinned to the mirror's block, plus
 // negative samples (pairs the mirror holds as absent must read absent
 // on-chain). Zero mismatches allowed.
 //
@@ -158,9 +158,12 @@ while (negatives.length < NEGATIVE_SAMPLES && guard++ < 10_000) {
   if (!frozen.state.has(packTuple([cIdx, eIdx]))) negatives.push([cIdx, eIdx]);
 }
 
+// Kamigotchi components expose getRaw(uint256)/has(uint256) (they are not
+// vanilla solecs — no getRawValue). Only the uint256 overloads are declared
+// so ethers binds the right selectors.
 const componentAbi = [
   'function has(uint256 entity) view returns (bool)',
-  'function getRawValue(uint256 entity) view returns (bytes)',
+  'function getRaw(uint256 entity) view returns (bytes)',
 ];
 const decode = createDecode();
 
@@ -210,7 +213,7 @@ for (const key of positives) {
   const componentId = frozen.components[cIdx]!;
   try {
     const raw: string = await withRetries(() =>
-      contractFor(cIdx).getRawValue(BigInt(entityId), { blockTag: pinnedBlock })
+      contractFor(cIdx).getRaw(BigInt(entityId), { blockTag: pinnedBlock })
     );
     const onChain = await decode(componentId, raw);
     const mirrorValue = frozen.state.get(key)!;
