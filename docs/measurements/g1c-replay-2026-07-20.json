@@ -1,0 +1,22 @@
+{
+  "gate": "g1c-replay",
+  "measuredAt": "2026-07-20T23:26:34.641Z",
+  "c1Block": 31161131,
+  "c2Block": 31161731,
+  "commonBlock": 31161733,
+  "replaySpanBlocks": 602,
+  "planTargetSpanBlocks": 20000,
+  "provisional": true,
+  "replayMs": 4718,
+  "rpcPathHash": {
+    "hash": "75dccfe55dff2124567050b17c33f0a0e0dfe610aa8c5dad1eb52f4bce828c02",
+    "entries": 2789549,
+    "blockNumber": 31161733
+  },
+  "kamigazePathHash": {
+    "hash": "75dccfe55dff2124567050b17c33f0a0e0dfe610aa8c5dad1eb52f4bce828c02",
+    "entries": 2789549,
+    "blockNumber": 31161733
+  },
+  "match": true
+}
