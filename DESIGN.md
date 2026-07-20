@@ -248,12 +248,15 @@ Port hygiene — upstream artifacts **not** to lift as-is:
 - **Undecodable state rows** (decision, 2026-07-20 implementation
   session): upstream aborts the whole sync attempt when any
   snapshot/stream/gap-fill row fails component-value decode — bounded
-  retries, then a dead client. (Measured that day live: two Kamigaze
-  indexer ghost rows — array-schema components carrying single-word
-  payloads, absent on-chain — bricked every fresh client load.) The
-  port instead skips the row, increments the `decodeFailures`
-  tripwire (§7), logs component/entity/bytes, and surfaces degraded
-  status. Unifying principle for this divergence and the gate G1.b
+  retries, then a dead client. The port instead skips the row,
+  increments the `decodeFailures` tripwire (§7), logs
+  component/entity/bytes, and surfaces degraded status. (Errata, same
+  day: the decode failures that motivated this were traced to a
+  kami-lens checkpoint-indexing bug, fixed the same session — an
+  aligned sweep of the full Kamigaze stream found zero undecodable
+  rows. The divergence stands as approved forward-looking robustness
+  against contract-side drift, the §7 tripwire scenario — not as a
+  response to an observed upstream defect.) Unifying principle for this divergence and the gate G1.b
   excusal amendment (PORT_PLAN): **the lens is faithful to the web
   client's view; upstream defects are excused only with mechanical
   proof, counted, and surfaced; port defects are always fatal to the

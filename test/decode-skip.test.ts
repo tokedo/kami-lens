@@ -10,9 +10,10 @@ import { StreamResponse } from 'clients/kamigaze';
 
 // Hygiene divergence (DESIGN §4.1, decision 2026-07-20): an undecodable
 // state row is skipped, counted, and logged — never fatal to the sync.
-// Modeled on the live 2026-07-20 incident: array-schema components
-// (component.blacklist uint32[], component.values uint256[]) served with
-// single-word payloads.
+// The poison shape (array-schema component served a single-word payload)
+// reproduces the decode failures first observed 2026-07-20 — later traced
+// to a kami-lens checkpoint-indexing bug, kept here as the canonical
+// undecodable-row shape the divergence guards against.
 const BLACKLIST_ID = '0xb3f96e7944f99619a1086b9a1272bbdff635f1cac9c8bf7ba6ce1a9aa202f19c';
 const POISON_DATA = Buffer.from(
   'f9351563910978c79517ef6592de2ec5dfab3fc3a4981b2b63349ec963a516e4',
