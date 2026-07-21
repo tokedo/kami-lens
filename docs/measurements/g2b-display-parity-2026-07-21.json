@@ -1,0 +1,2121 @@
+{
+  "gate": "g2b-display-parity",
+  "measuredAt": "2026-07-21T16:46:03.593Z",
+  "mode": "screenshot-transcription",
+  "snapshotBasisBlock": 31181765,
+  "observationBlocks": {
+    "g2b-01.png": 31185008,
+    "g2b-02.png": 31185010,
+    "g2b-03.png": 31185010,
+    "g2b-04.png": 31185014
+  },
+  "rowsCompared": 29,
+  "failures": 1,
+  "rejections": [
+    {
+      "screenshot": "g2b-01.png",
+      "kind": "party",
+      "kami": 10069,
+      "reason": "on-chain action between replay basis and observation block",
+      "changedMarkers": [
+        "state",
+        "timeLast",
+        "timeCooldown"
+      ],
+      "basis": {
+        "state": "HARVESTING",
+        "timeLast": 1784587404,
+        "timeCooldown": 1784587584
+      },
+      "observation": {
+        "state": "RESTING",
+        "timeLast": 1784643722,
+        "timeCooldown": 1784643902
+      }
+    },
+    {
+      "screenshot": "g2b-01.png",
+      "kind": "party",
+      "kami": 10254,
+      "reason": "on-chain action between replay basis and observation block",
+      "changedMarkers": [
+        "state",
+        "timeLast",
+        "timeCooldown"
+      ],
+      "basis": {
+        "state": "HARVESTING",
+        "timeLast": 1784585553,
+        "timeCooldown": 1784585733
+      },
+      "observation": {
+        "state": "RESTING",
+        "timeLast": 1784642635,
+        "timeCooldown": 1784642815
+      }
+    },
+    {
+      "screenshot": "g2b-01.png",
+      "kind": "enemy",
+      "kami": "Elgancho",
+      "reason": "on-chain action between replay basis and observation block",
+      "changedMarkers": [
+        "state",
+        "timeLast",
+        "timeCooldown",
+        "harvestStart",
+        "harvestReset"
+      ],
+      "basis": {
+        "state": "RESTING",
+        "timeLast": 1784637131,
+        "timeCooldown": 1784637004,
+        "harvestStart": 1782855755,
+        "harvestReset": 1784631367
+      },
+      "observation": {
+        "state": "HARVESTING",
+        "timeLast": 1784650528,
+        "timeCooldown": 1784650708,
+        "harvestStart": 1784650528,
+        "harvestReset": 1784650528
+      }
+    },
+    {
+      "screenshot": "g2b-01.png",
+      "kind": "enemy",
+      "kami": "Mosquis",
+      "reason": "on-chain action between replay basis and observation block",
+      "changedMarkers": [
+        "state",
+        "timeLast",
+        "timeCooldown",
+        "harvestStart",
+        "harvestReset"
+      ],
+      "basis": {
+        "state": "RESTING",
+        "timeLast": 1784636791,
+        "timeCooldown": 1784636971,
+        "harvestStart": 1782855100,
+        "harvestReset": 1784631375
+      },
+      "observation": {
+        "state": "HARVESTING",
+        "timeLast": 1784650503,
+        "timeCooldown": 1784650683,
+        "harvestStart": 1784650503,
+        "harvestReset": 1784650503
+      }
+    },
+    {
+      "screenshot": "g2b-01.png",
+      "kind": "enemy",
+      "kami": 1102,
+      "reason": "on-chain action between replay basis and observation block",
+      "changedMarkers": [
+        "state",
+        "timeLast",
+        "timeCooldown",
+        "harvestStart",
+        "harvestReset"
+      ],
+      "basis": {
+        "state": "RESTING",
+        "timeLast": 1784637167,
+        "timeCooldown": 1784637004,
+        "harvestStart": 1782855482,
+        "harvestReset": 1784625648
+      },
+      "observation": {
+        "state": "HARVESTING",
+        "timeLast": 1784650483,
+        "timeCooldown": 1784650663,
+        "harvestStart": 1784650483,
+        "harvestReset": 1784650483
+      }
+    },
+    {
+      "screenshot": "g2b-01.png",
+      "kind": "enemy",
+      "kami": "Voidspirit",
+      "reason": "on-chain action between replay basis and observation block",
+      "changedMarkers": [
+        "state",
+        "timeLast",
+        "timeCooldown",
+        "harvestStart",
+        "harvestReset"
+      ],
+      "basis": {
+        "state": "RESTING",
+        "timeLast": 1784639105,
+        "timeCooldown": 1784639285,
+        "harvestStart": 1784637618,
+        "harvestReset": 1784637618
+      },
+      "observation": {
+        "state": "HARVESTING",
+        "timeLast": 1784650457,
+        "timeCooldown": 1784650637,
+        "harvestStart": 1784650457,
+        "harvestReset": 1784650457
+      }
+    },
+    {
+      "screenshot": "g2b-01.png",
+      "kind": "enemy",
+      "kami": 7841,
+      "reason": "on-chain action between replay basis and observation block",
+      "changedMarkers": [
+        "state",
+        "timeLast",
+        "timeCooldown",
+        "harvestStart",
+        "harvestReset"
+      ],
+      "basis": {
+        "state": "RESTING",
+        "timeLast": 1784640522,
+        "timeCooldown": 1784640702,
+        "harvestStart": 1784624244,
+        "harvestReset": 1784624244
+      },
+      "observation": {
+        "state": "HARVESTING",
+        "timeLast": 1784650306,
+        "timeCooldown": 1784650486,
+        "harvestStart": 1784650306,
+        "harvestReset": 1784650306
+      }
+    },
+    {
+      "screenshot": "g2b-01.png",
+      "kind": "enemy",
+      "kami": 1518,
+      "reason": "on-chain action between replay basis and observation block",
+      "changedMarkers": [
+        "timeLast",
+        "timeCooldown",
+        "harvestStart",
+        "harvestReset"
+      ],
+      "basis": {
+        "timeLast": 1784607241,
+        "timeCooldown": 1784607421,
+        "harvestStart": 1784607241,
+        "harvestReset": 1784607241
+      },
+      "observation": {
+        "timeLast": 1784649944,
+        "timeCooldown": 1784650124,
+        "harvestStart": 1784649944,
+        "harvestReset": 1784649944
+      }
+    },
+    {
+      "screenshot": "g2b-01.png",
+      "kind": "enemy",
+      "kami": 5895,
+      "reason": "on-chain action between replay basis and observation block",
+      "changedMarkers": [
+        "timeLast",
+        "timeCooldown",
+        "harvestStart",
+        "harvestReset"
+      ],
+      "basis": {
+        "timeLast": 1784618287,
+        "timeCooldown": 1784618467,
+        "harvestStart": 1784618287,
+        "harvestReset": 1784618287
+      },
+      "observation": {
+        "timeLast": 1784649944,
+        "timeCooldown": 1784650124,
+        "harvestStart": 1784649944,
+        "harvestReset": 1784649944
+      }
+    },
+    {
+      "screenshot": "g2b-02.png",
+      "kind": "party",
+      "kami": 10005,
+      "reason": "on-chain action between replay basis and observation block",
+      "changedMarkers": [
+        "state",
+        "timeLast",
+        "timeCooldown",
+        "harvestStart",
+        "harvestReset"
+      ],
+      "basis": {
+        "state": "RESTING",
+        "timeLast": 1784613110,
+        "timeCooldown": 1784613290,
+        "harvestStart": 1784543077,
+        "harvestReset": 1784543077
+      },
+      "observation": {
+        "state": "HARVESTING",
+        "timeLast": 1784645641,
+        "timeCooldown": 1784645821,
+        "harvestStart": 1784645641,
+        "harvestReset": 1784645641
+      }
+    },
+    {
+      "screenshot": "g2b-04.png",
+      "kind": "party",
+      "kami": 10423,
+      "reason": "on-chain action between replay basis and observation block",
+      "changedMarkers": [
+        "timeLast",
+        "harvestReset"
+      ],
+      "basis": {
+        "timeLast": 1784637503,
+        "harvestReset": 1784637503
+      },
+      "observation": {
+        "timeLast": 1784646931,
+        "harvestReset": 1784646931
+      }
+    },
+    {
+      "screenshot": "g2b-04.png",
+      "kind": "party",
+      "kami": 10473,
+      "reason": "on-chain action between replay basis and observation block",
+      "changedMarkers": [
+        "timeLast",
+        "harvestReset"
+      ],
+      "basis": {
+        "timeLast": 1784639783,
+        "harvestReset": 1784639783
+      },
+      "observation": {
+        "timeLast": 1784649994,
+        "harvestReset": 1784649994
+      }
+    },
+    {
+      "screenshot": "g2b-04.png",
+      "kind": "party",
+      "kami": 11068,
+      "reason": "on-chain action between replay basis and observation block",
+      "changedMarkers": [
+        "timeLast",
+        "harvestReset"
+      ],
+      "basis": {
+        "timeLast": 1784636725,
+        "harvestReset": 1784628280
+      },
+      "observation": {
+        "timeLast": 1784642629,
+        "harvestReset": 1784642629
+      }
+    },
+    {
+      "screenshot": "g2b-04.png",
+      "kind": "party",
+      "kami": 11200,
+      "reason": "on-chain action between replay basis and observation block",
+      "changedMarkers": [
+        "timeLast",
+        "harvestReset"
+      ],
+      "basis": {
+        "timeLast": 1784636660,
+        "harvestReset": 1784635709
+      },
+      "observation": {
+        "timeLast": 1784644957,
+        "harvestReset": 1784644957
+      }
+    },
+    {
+      "screenshot": "g2b-04.png",
+      "kind": "party",
+      "kami": 11300,
+      "reason": "on-chain action between replay basis and observation block",
+      "changedMarkers": [
+        "timeLast",
+        "harvestReset"
+      ],
+      "basis": {
+        "timeLast": 1784639159,
+        "harvestReset": 1784639159
+      },
+      "observation": {
+        "timeLast": 1784650207,
+        "harvestReset": 1784650207
+      }
+    },
+    {
+      "screenshot": "g2b-04.png",
+      "kind": "party",
+      "kami": 11419,
+      "reason": "on-chain action between replay basis and observation block",
+      "changedMarkers": [
+        "timeLast",
+        "harvestReset"
+      ],
+      "basis": {
+        "timeLast": 1784636760,
+        "harvestReset": 1784627177
+      },
+      "observation": {
+        "timeLast": 1784643684,
+        "harvestReset": 1784643684
+      }
+    },
+    {
+      "screenshot": "g2b-04.png",
+      "kind": "party",
+      "kami": 11696,
+      "reason": "on-chain action between replay basis and observation block",
+      "changedMarkers": [
+        "timeLast",
+        "harvestReset"
+      ],
+      "basis": {
+        "timeLast": 1784636906,
+        "harvestReset": 1784634060
+      },
+      "observation": {
+        "timeLast": 1784644569,
+        "harvestReset": 1784644569
+      }
+    }
+  ],
+  "skips": [],
+  "rows": [
+    {
+      "screenshot": "g2b-01.png",
+      "kind": "party",
+      "kami": 10016,
+      "hp": {
+        "ours": "203/250",
+        "displayed": "203/250",
+        "delta": 0,
+        "ok": true
+      },
+      "hpPercent": {
+        "ours": 81,
+        "displayed": 81,
+        "ok": true
+      },
+      "state": {
+        "ours": "Resting",
+        "displayed": "Resting",
+        "ok": true
+      },
+      "rates": {
+        "oursAtCapture": {
+          "musu": "0.00",
+          "hp": "+28.98"
+        },
+        "displayed": {
+          "hp": "+28.98"
+        },
+        "matchedAtSecondsBeforeCapture": 65,
+        "ok": true
+      },
+      "cooldown": {
+        "ours": 0,
+        "displayed": 0,
+        "delta": 0,
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "screenshot": "g2b-01.png",
+      "kind": "party",
+      "kami": 10164,
+      "hp": {
+        "ours": "165/240",
+        "displayed": "165/240",
+        "delta": 0,
+        "ok": true
+      },
+      "hpPercent": {
+        "ours": 69,
+        "displayed": 69,
+        "ok": true
+      },
+      "state": {
+        "ours": "Harvesting",
+        "displayed": "Harvesting",
+        "ok": true
+      },
+      "node": {
+        "ours": "Guardian Skull",
+        "displayed": "Guardian Skull",
+        "ok": true
+      },
+      "rates": {
+        "oursAtCapture": {
+          "musu": "+88.66",
+          "hp": "-11.21"
+        },
+        "displayed": {
+          "musu": "+88.66",
+          "hp": "-11.21"
+        },
+        "matchedAtSecondsBeforeCapture": 44,
+        "ok": true
+      },
+      "musu": {
+        "ours": 586,
+        "displayed": 586,
+        "delta": 0,
+        "ok": true
+      },
+      "cooldown": {
+        "ours": 0,
+        "displayed": 0,
+        "delta": 0,
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "screenshot": "g2b-01.png",
+      "kind": "party",
+      "kami": 10282,
+      "hp": {
+        "ours": "143/240",
+        "displayed": "143/240",
+        "delta": 0,
+        "ok": true
+      },
+      "hpPercent": {
+        "ours": 60,
+        "displayed": 60,
+        "ok": true
+      },
+      "state": {
+        "ours": "Resting",
+        "displayed": "Resting",
+        "ok": true
+      },
+      "rates": {
+        "oursAtCapture": {
+          "musu": "0.00",
+          "hp": "+25.80"
+        },
+        "displayed": {
+          "hp": "+25.80"
+        },
+        "matchedAtSecondsBeforeCapture": 65,
+        "ok": true
+      },
+      "cooldown": {
+        "ours": 0,
+        "displayed": 0,
+        "delta": 0,
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "screenshot": "g2b-01.png",
+      "kind": "party",
+      "kami": 10367,
+      "hp": {
+        "ours": "214/240",
+        "displayed": "214/240",
+        "delta": 0,
+        "ok": true
+      },
+      "hpPercent": {
+        "ours": 89,
+        "displayed": 89,
+        "ok": true
+      },
+      "state": {
+        "ours": "Harvesting",
+        "displayed": "Harvesting",
+        "ok": true
+      },
+      "node": {
+        "ours": "Guardian Skull",
+        "displayed": "Guardian Skull",
+        "ok": true
+      },
+      "rates": {
+        "oursAtCapture": {
+          "musu": "+55.55",
+          "hp": "-7.02"
+        },
+        "displayed": {
+          "musu": "+55.55",
+          "hp": "-7.02"
+        },
+        "matchedAtSecondsBeforeCapture": 41,
+        "ok": true
+      },
+      "musu": {
+        "ours": 205,
+        "displayed": 205,
+        "delta": 0,
+        "ok": true
+      },
+      "cooldown": {
+        "ours": 0,
+        "displayed": 0,
+        "delta": 0,
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "screenshot": "g2b-01.png",
+      "kind": "party",
+      "kami": 10409,
+      "hp": {
+        "ours": "210/240",
+        "displayed": "210/240",
+        "delta": 0,
+        "ok": true
+      },
+      "hpPercent": {
+        "ours": 88,
+        "displayed": 88,
+        "ok": true
+      },
+      "state": {
+        "ours": "Harvesting",
+        "displayed": "Harvesting",
+        "ok": true
+      },
+      "node": {
+        "ours": "Guardian Skull",
+        "displayed": "Guardian Skull",
+        "ok": true
+      },
+      "rates": {
+        "oursAtCapture": {
+          "musu": "+61.88",
+          "hp": "-8.38"
+        },
+        "displayed": {
+          "musu": "+61.78",
+          "hp": "-8.37"
+        },
+        "matchedAtSecondsBeforeCapture": 65,
+        "ok": true
+      },
+      "musu": {
+        "ours": 218,
+        "displayed": 218,
+        "delta": 0,
+        "ok": true
+      },
+      "cooldown": {
+        "ours": 0,
+        "displayed": 0,
+        "delta": 0,
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "screenshot": "g2b-01.png",
+      "kind": "party",
+      "kami": 10507,
+      "hp": {
+        "ours": "200/220",
+        "displayed": "200/220",
+        "delta": 0,
+        "ok": true
+      },
+      "hpPercent": {
+        "ours": 91,
+        "displayed": 91,
+        "ok": true
+      },
+      "state": {
+        "ours": "Harvesting",
+        "displayed": "Harvesting",
+        "ok": true
+      },
+      "node": {
+        "ours": "Guardian Skull",
+        "displayed": "Guardian Skull",
+        "ok": true
+      },
+      "rates": {
+        "oursAtCapture": {
+          "musu": "+48.78",
+          "hp": "-6.17"
+        },
+        "displayed": {
+          "musu": "+48.68",
+          "hp": "-6.15"
+        },
+        "matchedAtSecondsBeforeCapture": 65,
+        "ok": true
+      },
+      "musu": {
+        "ours": 152,
+        "displayed": 152,
+        "delta": 0,
+        "ok": true
+      },
+      "cooldown": {
+        "ours": 0,
+        "displayed": 0,
+        "delta": 0,
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "screenshot": "g2b-02.png",
+      "kind": "party",
+      "kami": 10141,
+      "hp": {
+        "ours": "60/240",
+        "displayed": "60/240",
+        "delta": 0,
+        "ok": true
+      },
+      "hpPercent": {
+        "ours": 25,
+        "displayed": 25,
+        "ok": true
+      },
+      "state": {
+        "ours": "Harvesting",
+        "displayed": "Harvesting",
+        "ok": true
+      },
+      "node": {
+        "ours": "Geometric Cliffs",
+        "displayed": "Geometric Cliffs",
+        "ok": true
+      },
+      "rates": {
+        "oursAtCapture": {
+          "musu": "+140.22",
+          "hp": "-17.34"
+        },
+        "displayed": {
+          "musu": "+140.22",
+          "hp": "-17.34"
+        },
+        "matchedAtSecondsBeforeCapture": 55,
+        "ok": true
+      },
+      "musu": {
+        "ours": 1455,
+        "displayed": 1455,
+        "delta": 0,
+        "ok": true
+      },
+      "cooldown": {
+        "ours": 0,
+        "displayed": 0,
+        "delta": 0,
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "screenshot": "g2b-02.png",
+      "kind": "party",
+      "kami": 10450,
+      "hp": {
+        "ours": "169/380",
+        "displayed": "169/380",
+        "delta": 0,
+        "ok": true
+      },
+      "hpPercent": {
+        "ours": 44,
+        "displayed": 44,
+        "ok": true
+      },
+      "state": {
+        "ours": "Harvesting",
+        "displayed": "Harvesting",
+        "ok": true
+      },
+      "node": {
+        "ours": "Geometric Cliffs",
+        "displayed": "Geometric Cliffs",
+        "ok": true
+      },
+      "rates": {
+        "oursAtCapture": {
+          "musu": "+97.65",
+          "hp": "-12.21"
+        },
+        "displayed": {
+          "musu": "+97.61",
+          "hp": "-12.20"
+        },
+        "matchedAtSecondsBeforeCapture": 65,
+        "ok": true
+      },
+      "musu": {
+        "ours": 1685,
+        "displayed": 1685,
+        "delta": 0,
+        "ok": true
+      },
+      "cooldown": {
+        "ours": 0,
+        "displayed": 0,
+        "delta": 0,
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "screenshot": "g2b-02.png",
+      "kind": "party",
+      "kami": 10532,
+      "hp": {
+        "ours": "166/250",
+        "displayed": "166/250",
+        "delta": 0,
+        "ok": true
+      },
+      "hpPercent": {
+        "ours": 66,
+        "displayed": 66,
+        "ok": true
+      },
+      "state": {
+        "ours": "Harvesting",
+        "displayed": "Harvesting",
+        "ok": true
+      },
+      "node": {
+        "ours": "Geometric Cliffs",
+        "displayed": "Geometric Cliffs",
+        "ok": true
+      },
+      "rates": {
+        "oursAtCapture": {
+          "musu": "+141.78",
+          "hp": "-15.81"
+        },
+        "displayed": {
+          "musu": "+141.57",
+          "hp": "-15.79"
+        },
+        "matchedAtSecondsBeforeCapture": 65,
+        "ok": true
+      },
+      "musu": {
+        "ours": 753,
+        "displayed": 753,
+        "delta": 0,
+        "ok": true
+      },
+      "cooldown": {
+        "ours": 0,
+        "displayed": 0,
+        "delta": 0,
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "screenshot": "g2b-02.png",
+      "kind": "party",
+      "kami": 11086,
+      "hp": {
+        "ours": "210/210",
+        "displayed": "210/210",
+        "delta": 0,
+        "ok": true
+      },
+      "hpPercent": {
+        "ours": 100,
+        "displayed": 100,
+        "ok": true
+      },
+      "state": {
+        "ours": "Resting",
+        "displayed": "Resting",
+        "ok": true
+      },
+      "rates": {
+        "oursAtCapture": {
+          "musu": "0.00",
+          "hp": "+28.20"
+        },
+        "displayed": {
+          "hp": "+28.20"
+        },
+        "matchedAtSecondsBeforeCapture": 65,
+        "ok": true
+      },
+      "cooldown": {
+        "ours": 0,
+        "displayed": 0,
+        "delta": 0,
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "screenshot": "g2b-02.png",
+      "kind": "party",
+      "kami": 11243,
+      "hp": {
+        "ours": "203/260",
+        "displayed": "203/260",
+        "delta": 0,
+        "ok": true
+      },
+      "hpPercent": {
+        "ours": 78,
+        "displayed": 78,
+        "ok": true
+      },
+      "state": {
+        "ours": "Resting",
+        "displayed": "Resting",
+        "ok": true
+      },
+      "rates": {
+        "oursAtCapture": {
+          "musu": "0.00",
+          "hp": "+27.60"
+        },
+        "displayed": {
+          "hp": "+27.60"
+        },
+        "matchedAtSecondsBeforeCapture": 65,
+        "ok": true
+      },
+      "cooldown": {
+        "ours": 0,
+        "displayed": 0,
+        "delta": 0,
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "screenshot": "g2b-02.png",
+      "kind": "party",
+      "kami": 11253,
+      "hp": {
+        "ours": "238/270",
+        "displayed": "238/270",
+        "delta": 0,
+        "ok": true
+      },
+      "hpPercent": {
+        "ours": 88,
+        "displayed": 88,
+        "ok": true
+      },
+      "state": {
+        "ours": "Harvesting",
+        "displayed": "Harvesting",
+        "ok": true
+      },
+      "node": {
+        "ours": "Geometric Cliffs",
+        "displayed": "Geometric Cliffs",
+        "ok": true
+      },
+      "rates": {
+        "oursAtCapture": {
+          "musu": "+86.56",
+          "hp": "-9.59"
+        },
+        "displayed": {
+          "musu": "+86.56",
+          "hp": "-9.59"
+        },
+        "matchedAtSecondsBeforeCapture": 54,
+        "ok": true
+      },
+      "musu": {
+        "ours": 286,
+        "displayed": 286,
+        "delta": 0,
+        "ok": true
+      },
+      "cooldown": {
+        "ours": 0,
+        "displayed": 0,
+        "delta": 0,
+        "ok": true
+      },
+      "uncertainFields": [
+        "hp.current"
+      ],
+      "ok": true
+    },
+    {
+      "screenshot": "g2b-02.png",
+      "kind": "party",
+      "kami": 11279,
+      "hp": {
+        "ours": "185/250",
+        "displayed": "185/250",
+        "delta": 0,
+        "ok": true
+      },
+      "hpPercent": {
+        "ours": 74,
+        "displayed": 74,
+        "ok": true
+      },
+      "state": {
+        "ours": "Harvesting",
+        "displayed": "Harvesting",
+        "ok": true
+      },
+      "node": {
+        "ours": "Geometric Cliffs",
+        "displayed": "Geometric Cliffs",
+        "ok": true
+      },
+      "rates": {
+        "oursAtCapture": {
+          "musu": "+88.66",
+          "hp": "-10.09"
+        },
+        "displayed": {
+          "musu": "+88.58",
+          "hp": "-10.07"
+        },
+        "ok": false
+      },
+      "musu": {
+        "ours": 571,
+        "displayed": 571,
+        "delta": 0,
+        "ok": true
+      },
+      "cooldown": {
+        "ours": 0,
+        "displayed": 0,
+        "delta": 0,
+        "ok": true
+      },
+      "ok": false
+    },
+    {
+      "screenshot": "g2b-03.png",
+      "kind": "party",
+      "kami": 15068,
+      "hp": {
+        "ours": "80/80",
+        "displayed": "80/80",
+        "delta": 0,
+        "ok": true
+      },
+      "hpPercent": {
+        "ours": 100,
+        "displayed": 100,
+        "ok": true
+      },
+      "state": {
+        "ours": "Resting",
+        "displayed": "Resting",
+        "ok": true
+      },
+      "rates": {
+        "oursAtCapture": {
+          "musu": "0.00",
+          "hp": "+21.00"
+        },
+        "displayed": {
+          "hp": "+21.00"
+        },
+        "matchedAtSecondsBeforeCapture": 65,
+        "ok": true
+      },
+      "cooldown": {
+        "ours": 0,
+        "displayed": 0,
+        "delta": 0,
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "screenshot": "g2b-03.png",
+      "kind": "party",
+      "kami": 13308,
+      "hp": {
+        "ours": "90/90",
+        "displayed": "90/90",
+        "delta": 0,
+        "ok": true
+      },
+      "hpPercent": {
+        "ours": 100,
+        "displayed": 100,
+        "ok": true
+      },
+      "state": {
+        "ours": "Resting",
+        "displayed": "Resting",
+        "ok": true
+      },
+      "rates": {
+        "oursAtCapture": {
+          "musu": "0.00",
+          "hp": "+20.40"
+        },
+        "displayed": {
+          "hp": "+20.40"
+        },
+        "matchedAtSecondsBeforeCapture": 65,
+        "ok": true
+      },
+      "cooldown": {
+        "ours": 0,
+        "displayed": 0,
+        "delta": 0,
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "screenshot": "g2b-03.png",
+      "kind": "party",
+      "kami": 15875,
+      "hp": {
+        "ours": "70/70",
+        "displayed": "70/70",
+        "delta": 0,
+        "ok": true
+      },
+      "hpPercent": {
+        "ours": 100,
+        "displayed": 100,
+        "ok": true
+      },
+      "state": {
+        "ours": "Resting",
+        "displayed": "Resting",
+        "ok": true
+      },
+      "rates": {
+        "oursAtCapture": {
+          "musu": "0.00",
+          "hp": "+18.00"
+        },
+        "displayed": {
+          "hp": "+18.00"
+        },
+        "matchedAtSecondsBeforeCapture": 65,
+        "ok": true
+      },
+      "cooldown": {
+        "ours": 0,
+        "displayed": 0,
+        "delta": 0,
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "screenshot": "g2b-03.png",
+      "kind": "party",
+      "kami": 7825,
+      "hp": {
+        "ours": "90/90",
+        "displayed": "90/90",
+        "delta": 0,
+        "ok": true
+      },
+      "hpPercent": {
+        "ours": 100,
+        "displayed": 100,
+        "ok": true
+      },
+      "state": {
+        "ours": "Resting",
+        "displayed": "Resting",
+        "ok": true
+      },
+      "rates": {
+        "oursAtCapture": {
+          "musu": "0.00",
+          "hp": "+21.60"
+        },
+        "displayed": {
+          "hp": "+21.60"
+        },
+        "matchedAtSecondsBeforeCapture": 65,
+        "ok": true
+      },
+      "cooldown": {
+        "ours": 0,
+        "displayed": 0,
+        "delta": 0,
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "screenshot": "g2b-03.png",
+      "kind": "party",
+      "kami": 13513,
+      "hp": {
+        "ours": "90/90",
+        "displayed": "90/90",
+        "delta": 0,
+        "ok": true
+      },
+      "hpPercent": {
+        "ours": 100,
+        "displayed": 100,
+        "ok": true
+      },
+      "state": {
+        "ours": "Resting",
+        "displayed": "Resting",
+        "ok": true
+      },
+      "rates": {
+        "oursAtCapture": {
+          "musu": "0.00",
+          "hp": "+18.00"
+        },
+        "displayed": {
+          "hp": "+18.00"
+        },
+        "matchedAtSecondsBeforeCapture": 65,
+        "ok": true
+      },
+      "cooldown": {
+        "ours": 0,
+        "displayed": 0,
+        "delta": 0,
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "screenshot": "g2b-03.png",
+      "kind": "party",
+      "kami": 15785,
+      "hp": {
+        "ours": "110/110",
+        "displayed": "110/110",
+        "delta": 0,
+        "ok": true
+      },
+      "hpPercent": {
+        "ours": 100,
+        "displayed": 100,
+        "ok": true
+      },
+      "state": {
+        "ours": "Resting",
+        "displayed": "Resting",
+        "ok": true
+      },
+      "rates": {
+        "oursAtCapture": {
+          "musu": "0.00",
+          "hp": "+18.00"
+        },
+        "displayed": {
+          "hp": "+18.00"
+        },
+        "matchedAtSecondsBeforeCapture": 65,
+        "ok": true
+      },
+      "cooldown": {
+        "ours": 0,
+        "displayed": 0,
+        "delta": 0,
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "screenshot": "g2b-03.png",
+      "kind": "party",
+      "kami": 16259,
+      "hp": {
+        "ours": "130/130",
+        "displayed": "130/130",
+        "delta": 0,
+        "ok": true
+      },
+      "hpPercent": {
+        "ours": 100,
+        "displayed": 100,
+        "ok": true
+      },
+      "state": {
+        "ours": "Resting",
+        "displayed": "Resting",
+        "ok": true
+      },
+      "rates": {
+        "oursAtCapture": {
+          "musu": "0.00",
+          "hp": "+18.60"
+        },
+        "displayed": {
+          "hp": "+18.60"
+        },
+        "matchedAtSecondsBeforeCapture": 65,
+        "ok": true
+      },
+      "cooldown": {
+        "ours": 0,
+        "displayed": 0,
+        "delta": 0,
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "screenshot": "g2b-03.png",
+      "kind": "party",
+      "kami": 14839,
+      "hp": {
+        "ours": "70/70",
+        "displayed": "70/70",
+        "delta": 0,
+        "ok": true
+      },
+      "hpPercent": {
+        "ours": 100,
+        "displayed": 100,
+        "ok": true
+      },
+      "state": {
+        "ours": "Resting",
+        "displayed": "Resting",
+        "ok": true
+      },
+      "rates": {
+        "oursAtCapture": {
+          "musu": "0.00",
+          "hp": "+21.60"
+        },
+        "displayed": {
+          "hp": "+21.60"
+        },
+        "matchedAtSecondsBeforeCapture": 65,
+        "ok": true
+      },
+      "cooldown": {
+        "ours": 0,
+        "displayed": 0,
+        "delta": 0,
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "screenshot": "g2b-04.png",
+      "kind": "party",
+      "kami": 10611,
+      "hp": {
+        "ours": "147/220",
+        "displayed": "147/220",
+        "delta": 0,
+        "ok": true
+      },
+      "hpPercent": {
+        "ours": 67,
+        "displayed": 67,
+        "ok": true
+      },
+      "state": {
+        "ours": "Harvesting",
+        "displayed": "Harvesting",
+        "ok": true
+      },
+      "node": {
+        "ours": "Blooming Tree",
+        "displayed": "Blooming Tree",
+        "ok": true
+      },
+      "rates": {
+        "oursAtCapture": {
+          "musu": "+161.84",
+          "hp": "-20.92"
+        },
+        "displayed": {
+          "musu": "+161.79",
+          "hp": "-20.91"
+        },
+        "matchedAtSecondsBeforeCapture": 65,
+        "ok": true
+      },
+      "musu": {
+        "ours": 1582,
+        "displayed": 1582,
+        "delta": 0,
+        "ok": true
+      },
+      "cooldown": {
+        "ours": 0,
+        "displayed": 0,
+        "delta": 0,
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "screenshot": "g2b-04.png",
+      "kind": "enemy",
+      "kami": 4990,
+      "hp": {
+        "ours": "17/210",
+        "displayed": "17/210",
+        "delta": 0,
+        "ok": true
+      },
+      "musu": {
+        "ours": 1522,
+        "displayed": 1522,
+        "delta": 0,
+        "ok": true
+      },
+      "cooldown": {
+        "ours": 0,
+        "displayed": 0,
+        "delta": 0,
+        "ok": true
+      },
+      "owner": {
+        "ours": "BBoy",
+        "displayed": "BBoy",
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "screenshot": "g2b-04.png",
+      "kind": "enemy",
+      "kami": 4146,
+      "hp": {
+        "ours": "27/250",
+        "displayed": "27/250",
+        "delta": 0,
+        "ok": true
+      },
+      "musu": {
+        "ours": 1679,
+        "displayed": 1679,
+        "delta": 0,
+        "ok": true
+      },
+      "cooldown": {
+        "ours": 0,
+        "displayed": 0,
+        "delta": 0,
+        "ok": true
+      },
+      "owner": {
+        "ours": "BBoy",
+        "displayed": "BBoy",
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "screenshot": "g2b-04.png",
+      "kind": "enemy",
+      "kami": 18170,
+      "hp": {
+        "ours": "25/170",
+        "displayed": "25/170",
+        "delta": 0,
+        "ok": true
+      },
+      "musu": {
+        "ours": 3008,
+        "displayed": 3008,
+        "delta": 0,
+        "ok": true
+      },
+      "cooldown": {
+        "ours": 0,
+        "displayed": 0,
+        "delta": 0,
+        "ok": true
+      },
+      "owner": {
+        "ours": "BBoy",
+        "displayed": "BBoy",
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "screenshot": "g2b-04.png",
+      "kind": "enemy",
+      "kami": 15709,
+      "hp": {
+        "ours": "25/160",
+        "displayed": "25/160",
+        "delta": 0,
+        "ok": true
+      },
+      "musu": {
+        "ours": 3556,
+        "displayed": 3556,
+        "delta": 0,
+        "ok": true
+      },
+      "cooldown": {
+        "ours": 0,
+        "displayed": 0,
+        "delta": 0,
+        "ok": true
+      },
+      "owner": {
+        "ours": "BBoy",
+        "displayed": "BBoy",
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "screenshot": "g2b-04.png",
+      "kind": "enemy",
+      "kami": 18694,
+      "hp": {
+        "ours": "39/160",
+        "displayed": "39/160",
+        "delta": 0,
+        "ok": true
+      },
+      "musu": {
+        "ours": 855,
+        "displayed": 855,
+        "delta": 0,
+        "ok": true
+      },
+      "cooldown": {
+        "ours": 0,
+        "displayed": 0,
+        "delta": 0,
+        "ok": true
+      },
+      "owner": {
+        "ours": "BBoy",
+        "displayed": "BBoy",
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "screenshot": "g2b-04.png",
+      "kind": "enemy",
+      "kami": 10734,
+      "hp": {
+        "ours": "94/250",
+        "displayed": "94/250",
+        "delta": 0,
+        "ok": true
+      },
+      "musu": {
+        "ours": 1839,
+        "displayed": 1839,
+        "delta": 0,
+        "ok": true
+      },
+      "cooldown": {
+        "ours": 0,
+        "displayed": 0,
+        "delta": 0,
+        "ok": true
+      },
+      "owner": {
+        "ours": "BBoy",
+        "displayed": "BBoy",
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "screenshot": "g2b-04.png",
+      "kind": "enemy",
+      "kami": 1614,
+      "hp": {
+        "ours": "114/250",
+        "displayed": "114/250",
+        "delta": 0,
+        "ok": true
+      },
+      "musu": {
+        "ours": 1021,
+        "displayed": 1021,
+        "delta": 0,
+        "ok": true
+      },
+      "cooldown": {
+        "ours": 0,
+        "displayed": 0,
+        "delta": 0,
+        "ok": true
+      },
+      "owner": {
+        "ours": "BBoy",
+        "displayed": "BBoy",
+        "ok": true
+      },
+      "ok": true
+    }
+  ],
+  "inventory": [
+    {
+      "screenshot": "g2b-01.png",
+      "account": "buzz",
+      "balance": {
+        "ours": 278439,
+        "displayed": 278439,
+        "ok": true
+      },
+      "counts": {
+        "ours": [
+          1,
+          2700,
+          1042,
+          1012,
+          844,
+          63,
+          1245,
+          21,
+          25200,
+          84,
+          192,
+          39,
+          4,
+          2,
+          2,
+          697,
+          296,
+          291,
+          5,
+          84,
+          195,
+          73,
+          2,
+          35,
+          109,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "displayed": [
+          1,
+          2700,
+          1042,
+          1012,
+          844,
+          63,
+          1245,
+          21,
+          25200,
+          84,
+          192,
+          39,
+          4,
+          2,
+          2,
+          697,
+          296,
+          291,
+          5,
+          84,
+          195,
+          73,
+          2,
+          35,
+          109,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "complete": true,
+        "uncertainCells": [
+          12,
+          13,
+          14
+        ],
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "screenshot": "g2b-02.png",
+      "account": "caw-caw",
+      "balance": {
+        "ours": 153113,
+        "displayed": 153113,
+        "ok": true
+      },
+      "counts": {
+        "ours": [
+          3300,
+          78,
+          146,
+          1500,
+          1032,
+          67,
+          4650,
+          1,
+          5000,
+          215000,
+          117,
+          11,
+          5,
+          2,
+          2,
+          532,
+          750,
+          282,
+          5,
+          5,
+          1,
+          14,
+          7,
+          10,
+          143,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "displayed": [
+          3300,
+          78,
+          146,
+          1500,
+          1032,
+          67,
+          4650,
+          1,
+          5000,
+          215000,
+          117,
+          11,
+          5,
+          2,
+          2,
+          532,
+          750,
+          282,
+          5,
+          3,
+          1,
+          14,
+          7,
+          10,
+          143,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "complete": true,
+        "uncertainCells": [
+          18,
+          19,
+          20
+        ],
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "screenshot": "g2b-03.png",
+      "account": "apeon",
+      "balance": {
+        "ours": 262023,
+        "displayed": 262023,
+        "ok": true
+      },
+      "counts": {
+        "ours": [
+          11,
+          66,
+          2321,
+          1430000,
+          2,
+          9,
+          3,
+          2,
+          1,
+          1,
+          1
+        ],
+        "displayed": [
+          11,
+          66,
+          2321,
+          1430000,
+          2,
+          9,
+          3,
+          2,
+          1,
+          1,
+          1
+        ],
+        "complete": true,
+        "uncertainCells": [],
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "screenshot": "g2b-04.png",
+      "account": "tokedo",
+      "balance": {
+        "ours": 2428360,
+        "displayed": 2428360,
+        "ok": true
+      },
+      "counts": {
+        "ours": [
+          90796,
+          1,
+          3,
+          6,
+          6,
+          3,
+          2,
+          9,
+          6,
+          8,
+          5,
+          3,
+          1,
+          2,
+          1,
+          13900,
+          202,
+          764,
+          8180,
+          500,
+          171,
+          762,
+          10,
+          59,
+          318,
+          9,
+          319,
+          610,
+          104,
+          1372,
+          415,
+          16841,
+          42500,
+          375,
+          53,
+          23,
+          488800,
+          250,
+          374980,
+          24250,
+          7900,
+          630875,
+          2358300,
+          37500,
+          3125,
+          920,
+          1022,
+          131,
+          148,
+          89,
+          1675,
+          102,
+          168,
+          329,
+          1,
+          2653,
+          39,
+          334,
+          300,
+          6,
+          7,
+          7,
+          5,
+          41,
+          11,
+          444,
+          7,
+          115,
+          106,
+          17,
+          472,
+          3764,
+          1474,
+          6354,
+          849,
+          4,
+          4021,
+          5681,
+          2173,
+          139,
+          1,
+          103,
+          3,
+          30,
+          6,
+          4,
+          110,
+          8,
+          73,
+          5,
+          153,
+          79,
+          6,
+          369,
+          436,
+          37,
+          11,
+          30,
+          2043,
+          6,
+          6,
+          82,
+          32,
+          9,
+          1,
+          44,
+          10,
+          1,
+          23,
+          35,
+          9,
+          1,
+          34,
+          12,
+          1,
+          32,
+          3,
+          2,
+          1,
+          1
+        ],
+        "displayed": [
+          90796,
+          1,
+          3,
+          6,
+          8,
+          3,
+          2,
+          9,
+          6,
+          3,
+          2,
+          3,
+          1,
+          2,
+          1,
+          13900,
+          202,
+          764,
+          8180,
+          500,
+          171,
+          762,
+          10,
+          59,
+          318,
+          9,
+          319,
+          610,
+          104,
+          1372,
+          415,
+          16841,
+          42500,
+          375,
+          53,
+          23,
+          488800,
+          250,
+          374980,
+          24250,
+          7900,
+          630875,
+          2358300,
+          37500,
+          3125,
+          920,
+          1022,
+          131,
+          148,
+          89,
+          1675,
+          102,
+          168,
+          329,
+          1,
+          2653,
+          39,
+          334,
+          300,
+          6,
+          7,
+          2,
+          5,
+          41,
+          11,
+          444
+        ],
+        "complete": false,
+        "uncertainCells": [
+          1,
+          12,
+          13,
+          14
+        ],
+        "skipped": "grid transcription illegible at capture resolution — counts excluded, balance still strict",
+        "ok": true
+      },
+      "ok": true
+    }
+  ],
+  "zeroBias": {
+    "hp": {
+      "deltas": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "nonzero": 0,
+      "positive": 0,
+      "negative": 0,
+      "oneSided": false
+    },
+    "musu": {
+      "deltas": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "nonzero": 0,
+      "positive": 0,
+      "negative": 0,
+      "oneSided": false
+    },
+    "cooldown": {
+      "deltas": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "nonzero": 0,
+      "positive": 0,
+      "negative": 0,
+      "oneSided": false
+    }
+  },
+  "coverage": {
+    "distinctKamis": 29,
+    "accounts": [
+      "buzz",
+      "caw-caw",
+      "apeon",
+      "tokedo"
+    ],
+    "roomViews": 2,
+    "inventoryPanels": 4,
+    "rejections": 17,
+    "skips": 0
+  },
+  "match": false
+}

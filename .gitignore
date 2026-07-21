@@ -7,3 +7,4 @@ data/
 .env.*
 .DS_Store
 gates/.artifacts/
+gates/fixtures/g2b-screenshots/

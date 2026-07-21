@@ -121,18 +121,43 @@ every gate that says "state hash".
   `calcCooldown`, `calcHealTime`, liquidation thresholds. Integer
   math must match exactly; zero tolerance. Re-run on every pin
   advance (DESIGN §7).
-- **G2.b live display parity** *(\[live\] + human data entry)*: with
-  the official web client open beside the daemon, record into a
-  fixtures file, for ≥ 10 kamis spanning states (HARVESTING, RESTING,
-  on-cooldown, near-starving): displayed HP, musu output, cooldown
-  remaining, state label, wall timestamp, block height. The gate
-  script replays kami-lens projection at those timestamps and asserts
-  agreement within display rounding (HP to the integer, cooldown to
-  the second, musu to the floor). The observations are data; the
-  verdict is the script's exit code. This gate presupposes an
-  observer account that owns kamis in the required variety of states
-  at gate time — an operational prerequisite of running the gate, not
-  a dependency of kami-lens itself.
+- **G2.b live display parity** *(\[live\] + hand-captured
+  screenshots, session-transcribed — decision 2026-07-21)*: the
+  operator's involvement ends at dropping original, unedited
+  official-client screenshots (party panels, public room node views,
+  own-account inventory panels) into `gates/fixtures/
+  g2b-screenshots/`; everything else is machine-side.
+  *Transcription:* multiple kamis per screenshot (party rows, room
+  "Enemies" rows); fields as displayed — HP X/Y and %, state text
+  including any mood suffix, accrued musu, cooldown seconds ("ready"
+  = 0), displayed rates (+MUSU/hr, −HP/hr) where shown; inventory
+  panels transcribe the item grid counts and musu balance. Capture
+  timestamp per screenshot from the original filename/mtime;
+  blockHeight derived from it by block-timestamp bisection (no
+  ticker in frame; ± a block is absorbed by tolerance); every row
+  cites its source screenshot; `recordedBy` notes hand-captured /
+  session-transcribed so the audit trail is honest.
+  *Gate semantics:* displayed rates are the primary comparison
+  fields — they are time-invariant between state changes — compared
+  at their shown precision; HP and accrued musu ±2 display units;
+  cooldown ±2 s; state token exact (mood suffixes are UI-layer, not
+  derived by the ported unit — coverage note, no invented
+  comparison); own-account inventory is discrete-event state, not
+  projection — STRICT, zero tolerance (the M2 unit materializes
+  account inventory, so it folds in here as a state-display-parity
+  section). Zero-bias check on every toleranced field: a consistent
+  one-sided error across fixtures fails the gate even inside
+  tolerance.
+  *Machine-side hygiene, all logged in the measurement:* reject any
+  row whose kami shows an on-chain action between the replay-basis
+  snapshot and its observation block; skip operator-controlled
+  kamis appearing in third-party room views.
+  *Coverage:* ≥ 10 distinct kamis across ≥ 2 accounts, including
+  ≥ 1 public-room view of third-party kamis and ≥ 1 own-account
+  inventory panel; a shortfall names exactly which state/field is
+  missing and requests one specific extra screenshot, never a full
+  re-shoot. The observations are data; the verdict is the script's
+  exit code.
 - **G2.c clock skew immunity** *(\[live\])*: run the daemon in a
   container with the system clock deliberately skewed ± 120 s;
   projected values must equal an unskewed run's at the same stream

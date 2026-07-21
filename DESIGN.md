@@ -1,7 +1,8 @@
 # kami-lens — Design
 
 Status: **v1 — settled** (2026-07-20; untrusted-text policy §3.10 and
-Kamiden scope settled in design session 2, same date). Evidence base:
+Kamiden scope settled in design session 2, same date; §3.7 parity
+reference standard amended 2026-07-21, decision D56). Evidence base:
 [docs/upstream-client-architecture.md](docs/upstream-client-architecture.md)
 (study of the official client at upstream commit `ef898fc9`),
 re-verified claim-by-claim against a fresh clone on 2026-07-20 (see
@@ -136,12 +137,25 @@ as argument). Consumers that want a session-start briefing simply run
 the own-operator report themselves — it is the same general tool, not
 a special path.
 
-### 3.7 History boundary: web-client parity
+### 3.7 History boundary: community-standard parity
 
 Kamiden in-session feeds (kill feed, recent trades, market history)
 are inside the target; longitudinal reconstruction is not. The chat
 pane is inside the target, served under the untrusted-text policy
 (§3.10).
+
+**Amendment D56 (2026-07-21).** The parity reference standard is the
+**community-standard environment**: the official web client plus
+widely-used community tooling (ShadowTracker-class trackers) — not
+the web client alone. This section's earlier "web-client parity"
+phrasing for sync/history is superseded accordingly. Consumers get
+general full-view read tools — any inventory, any room, other
+players — the visibility the community environment already grants;
+oracle/investigator-grade analytics stay out (non-goals §2
+unchanged). Each exposure class cites its community-tool precedent;
+exposure specifics land at the next harness design pass. Gate G2.b
+and the M2 scope are unchanged: display parity is still measured
+against the official client.
 
 ### 3.8 Clock discipline
 
