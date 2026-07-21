@@ -16,7 +16,7 @@
 // in stateless mode exit with the documented 'requires daemon' code rather
 // than a wrong answer.
 
-import { Contract, JsonRpcProvider, keccak256, toUtf8Bytes, AbiCoder } from 'ethers';
+import { Contract, JsonRpcProvider, keccak256, toUtf8Bytes, AbiCoder, Result } from 'ethers';
 
 import { KamiLensConfig } from './config';
 
@@ -41,8 +41,15 @@ export type StatelessKami = {
   blockNumber: number;
 };
 
-const statTotal = (s: { base: bigint; shift: bigint; boost: bigint }): number =>
-  (1 + Number(s.boost) / 1e3) * (Number(s.base) + Number(s.shift));
+const statTotal = (raw: unknown): number => {
+  // ethers Result: take named fields via toObject() when available, else
+  // positional (base, shift, boost, sync) per the Stat struct at the pin.
+  const s =
+    raw instanceof Result
+      ? (raw.toObject() as { base: bigint; shift: bigint; boost: bigint })
+      : (raw as { base: bigint; shift: bigint; boost: bigint });
+  return (1 + Number(s.boost) / 1e3) * (Number(s.base) + Number(s.shift));
+};
 
 export async function statelessKami(
   config: KamiLensConfig,

@@ -105,6 +105,21 @@ uncalled and kami-lens does not serve them).
 - `code`-sourced rows change only via a pin advance and are diffed by
   the tracking protocol's coverage-affecting bucket (DESIGN §7).
 
+## M3 query surface (2026-07-21)
+
+Served queries at M3: `kami`, `account`, `party`, `node`, `item`,
+`items`, `config`, `status`, plus `kami --stateless` (discrete-vitals
+subset; projections need the mirror). Checked-in schemas in
+`src/queries/schemas/`; string classes in
+`docs/string-classification.json`.
+
+**Deferred, explicitly:** `quests`, `trades`, `auctions` listing
+queries. The explorer modules are ported and the mirror state is
+served (their entities appear in `node`/`account`/`item` answers where
+linked); dedicated query outputs with schemas land with M4, where
+trade *history* (Kamiden) arrives and the trade/auction surfaces can
+be designed once, whole. Not a silent gap: this row is the record.
+
 ## Maintenance
 
 Per release: resolve every `TBD` to `planned`/`deferred`/
