@@ -1,6 +1,13 @@
 # Gate G2.c skewed-clock container. The dump runs under libfaketime with the
 # wall clock skewed ±120 s while the chain (and the §3.8 stream offset) stay
-# real. Usage (from the repo root, colima/docker running):
+# real.
+#
+# VM SIZING (measured 2026-07-21): the in-container daemon holds the full
+# 2.79M-entry mirror — colima's default 2 GB VM OOM-kills it (exit 137)
+# just short of the target block. Start colima with at least 8 GB:
+#   colima start --memory 8 --cpu 4
+#
+# Usage (from the repo root, colima/docker running):
 #
 #   docker build -t kami-lens-clockskew -f gates/g2/Dockerfile.clockskew .
 #   docker run -d --name g2c -v "$PWD:/repo-src:ro" \
