@@ -155,6 +155,13 @@ if (mode === 'dump') {
   const skewWasReal = wallDelta >= 100_000;
   const skewCorrected = nowDelta <= 5_000;
 
+  // Time-dependent fields advance with real time between the two dumps'
+  // freeze instants (they trigger on the same block, but polling granularity
+  // and stream delivery skew the instants by a few seconds). The lawful
+  // bound is therefore the RECORDED corrected-clock difference plus one
+  // display unit — not a fixed allowance: a better-synchronized pair
+  // tightens the comparison automatically. State stays exact.
+  const timeTolerance = Math.ceil(nowDelta / 1000) + 1;
   const byIndex = new Map(unskewed.rows.map((r) => [r.index, r]));
   let mismatches = 0;
   const samples: Record<string, unknown>[] = [];
@@ -166,9 +173,9 @@ if (mode === 'dump') {
     }
     const bad =
       row.state !== other.state ||
-      Math.abs(row.hp - other.hp) > 1 ||
-      Math.abs(row.musu - other.musu) > 1 ||
-      Math.abs(row.cooldownSec - other.cooldownSec) > 1;
+      Math.abs(row.hp - other.hp) > timeTolerance ||
+      Math.abs(row.musu - other.musu) > timeTolerance ||
+      Math.abs(row.cooldownSec - other.cooldownSec) > timeTolerance;
     if (bad) {
       mismatches++;
       if (samples.length < 10) samples.push({ skewed: row, unskewed: other });
@@ -180,6 +187,7 @@ if (mode === 'dump') {
     rows: skewed.rows.length,
     wallDeltaMs: wallDelta,
     nowDeltaMs: nowDelta,
+    timeToleranceSec: timeTolerance,
     skewedOffsetMs: skewed.offsetMs,
     unskewedOffsetMs: unskewed.offsetMs,
     skewWasReal,
