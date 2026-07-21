@@ -50,6 +50,7 @@ export default tseslint.config(
       'no-extra-boolean-cast': 'off',
       'no-var': 'off',
       'prefer-const': 'off',
+      '@typescript-eslint/ban-ts-comment': 'off',
       '@typescript-eslint/no-empty-object-type': 'off',
       '@typescript-eslint/no-unused-expressions': 'off',
       '@typescript-eslint/no-unused-vars': 'off',
