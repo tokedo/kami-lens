@@ -1,0 +1,26 @@
+{
+  "gate": "g1c-replay",
+  "measuredAt": "2026-07-21T13:41:56.758Z",
+  "c1Block": 31161741,
+  "c2Block": 31181765,
+  "commonBlock": 31181767,
+  "replaySpanBlocks": 20026,
+  "planTargetSpanBlocks": 20000,
+  "provisional": false,
+  "replayMs": 130651,
+  "notes": [
+    "Supersedes the provisional 602-block record of 2026-07-20 (g1c-replay-2026-07-20.json); full-span target met, provisional flag cleared.",
+    "Span accumulated by a 14.2 h daemon run (pid 65795, 2026-07-20T23:29:02Z → 2026-07-21T13:39:03Z) that rode through a ~20-min host system sleep 23:39–00:03 UTC: JsonRpcProvider retry storm on wake, then gap-heal stored forward 31162098 → 31162425 — a real-world, unplanned exercise of the heal path inside the measured span."
+  ],
+  "rpcPathHash": {
+    "hash": "fef871310ee3a9bebb9b8a021f8e6f73aeae138db74b9b9fbf21149ae5221822",
+    "entries": 2790580,
+    "blockNumber": 31181767
+  },
+  "kamigazePathHash": {
+    "hash": "fef871310ee3a9bebb9b8a021f8e6f73aeae138db74b9b9fbf21149ae5221822",
+    "entries": 2790580,
+    "blockNumber": 31181767
+  },
+  "match": true
+}
