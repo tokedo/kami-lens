@@ -53,12 +53,21 @@ import { log } from 'utils/logger';
 /** Upstream's reconnect delay (clients/kamiden/client.ts setupSubscription). */
 const RETRY_DELAY_MS = 5_000;
 
-/** Messages-excluding topic filter requested on subscribe. Best-effort
- * transport-layer exclusion in the server's vocabulary (the StreamResponse
- * carries exactly two fields: Messages and Feed); unverifiable from the
- * pinned client source — measured live by G4.b. The ingestion drop below
- * is the guaranteed layer either way. */
-export const DEFAULT_STREAM_TOPICS = ['Feed'];
+/** Topics requested on subscribe. MEASURED (2026-07-21, gate G4.b probe):
+ * the production server recognizes NO topic string at this pin — any
+ * non-empty list ('Feed', 'Movements', 'Kills', even 'Messages') yields
+ * zero frames, while the proto-documented "empty = all" flows. A
+ * Messages-excluding filter is therefore inexpressible without killing
+ * the feeds themselves, so the default is upstream's own subscription
+ * (empty list) and the §3.10 Messages exclusion is enforced entirely at
+ * the ingestion drop below — the layer DESIGN trusts ("transport
+ * promises are not trusted alone"), proven hermetically by G4.b. The
+ * topics option stays configurable for the day the server grows a
+ * vocabulary. Same probe: the server closes the stream every ~40 s
+ * ("Response closed without grpc-status"), so resubscription is routine —
+ * frames during a reconnect gap are lost, exactly as they are for the
+ * upstream client's identical 5 s-retry loop. */
+export const DEFAULT_STREAM_TOPICS: string[] = [];
 
 export type FeedEventType =
   | 'movement'

@@ -18,18 +18,23 @@
 //   - Movements are cross-checked against RoomIndex changes: the moved
 //     account's `account` answer must show the movement's room, where a
 //     newer movement for the same account supersedes the check.
-//   - both-layer chat exclusion: the subscription runs with the
-//     Messages-excluding topic filter; after the window, either zero
-//     Message frames arrived (filter effective — recorded) or every one
-//     is accounted by the ingestion-drop counters (proven above). The
-//     topic filter's live behavior is a MEASUREMENT (server semantics are
-//     unverifiable at the pin).
+//   - both-layer chat exclusion: a topic-filter probe first RECORDS the
+//     server's vocabulary (measured 2026-07-21: NO topic string is
+//     recognized at this pin — every non-empty list yields zero frames,
+//     "empty = all" flows, and the server closes streams every ~40 s), so
+//     a Messages-excluding filter is inexpressible without killing the
+//     feeds; the daemon subscribes upstream-style (empty list) and the
+//     exclusion holds entirely at the ingestion drop: after the window,
+//     either zero Message frames arrived or every one is accounted by the
+//     drop counters (the path proven hermetically above).
 //
 // Env: G4B_WINDOW_S (default 1200), G4B_MIN_KILLS (default 1),
-//      G4B_MIN_MOVES (default 5).
+//      G4B_MIN_MOVES (default 5), G4B_PROBE_S (default 45).
 
-import { KamidenFeeds } from '../../src/kamiden';
+import { configureKamiden, getKamidenClient } from '../../src/clients/kamiden';
 import { subscribeToFeed, subscribeToMessages } from '../../src/clients/kamiden/subscriptions';
+import { resolveConfig } from '../../src/config';
+import { KamidenFeeds } from '../../src/kamiden';
 import { fail, pass, sleep, writeMeasurement } from '../g1/lib.mts';
 import { socketQuery, spawnDaemonLive } from './lib.mts';
 
@@ -91,6 +96,39 @@ import { socketQuery, spawnDaemonLive } from './lib.mts';
     fail('G4.b', { reason: 'hermetic ingestion-drop/buffer checks failed', checks });
   }
   console.log(`hermetic ingestion checks OK ${JSON.stringify(checks)}`);
+}
+
+// ---- topic-filter vocabulary probe (recorded evidence, live) ----------------
+// A Messages-excluding filter must be REQUESTED per §3.10 — this records
+// what requesting one actually does at the pin. The []-control is the
+// daemon's own live window below (feedFrames > 0 is a pass condition).
+
+const PROBE_S = Number(process.env.G4B_PROBE_S ?? 45);
+const topicProbe: Record<string, { frames: number; feeds: number; messages: number; error: string }> = {};
+{
+  configureKamiden(resolveConfig().kamidenUrl);
+  const client = getKamidenClient();
+  if (!client) fail('G4.b', { reason: 'no kamiden url configured for the probe' });
+  for (const topics of [['Feed'], []]) {
+    const ac = new AbortController();
+    let frames = 0;
+    let feeds = 0;
+    let messages = 0;
+    let error = '';
+    const timer = setTimeout(() => ac.abort(), PROBE_S * 1000);
+    try {
+      for await (const r of client.subscribeToStream({ topics }, { signal: ac.signal })) {
+        frames++;
+        if (r.Feed) feeds++;
+        messages += r.Messages.length;
+      }
+    } catch (e) {
+      if (!ac.signal.aborted) error = e instanceof Error ? e.message : String(e);
+    }
+    clearTimeout(timer);
+    topicProbe[JSON.stringify(topics)] = { frames, feeds, messages, error };
+  }
+  console.log(`topic-filter probe ${JSON.stringify(topicProbe)}`);
 }
 
 // ---- live: window over the feed query ---------------------------------------
@@ -209,11 +247,12 @@ try {
   const movesFailed = moveResults.filter((m) => m.ok === false);
 
   const chatExclusion = {
-    topics: kamiden.stream.topics,
+    topicsRequested: kamiden.stream.topics,
+    topicProbe,
+    topicFilterExpressible: false, // measured: no server vocabulary at pin
     messageFramesArrived: kamiden.stream.messageFramesDropped,
     messagesDropped: kamiden.stream.messagesDropped,
-    topicFilterEffective: kamiden.stream.messageFramesDropped === 0,
-    accounted: true, // any arrived frame is counted by the proven drop path
+    droppedAtIngestion: true, // any arrived frame is counted by the proven drop path
   };
 
   await writeMeasurement('g4b-stream', {
@@ -241,8 +280,12 @@ try {
       unresolvable.length === 0,
   });
 
-  if (kamiden.stream.state !== 'live') {
-    fail('G4.b', { reason: `stream not live at window end (${kamiden.stream.state})` });
+  // the server closes streams every ~40 s (measured), so 'retrying' is a
+  // routine transient — the stream is healthy iff frames flowed
+  if (kamiden.stream.feedFrames === 0 || !['live', 'retrying', 'connecting'].includes(kamiden.stream.state)) {
+    fail('G4.b', {
+      reason: `stream unhealthy at window end (state=${kamiden.stream.state}, feedFrames=${kamiden.stream.feedFrames})`,
+    });
   }
   if (unresolvable.length > 0) {
     fail('G4.b', { reason: 'unresolvable feed participants', unresolvable: unresolvable.slice(0, 20) });
@@ -265,8 +308,9 @@ try {
     killsOk,
     movesOk,
     feedFrames: kamiden.stream.feedFrames,
+    retries: kamiden.stream.retries,
     messageFramesArrived: kamiden.stream.messageFramesDropped,
-    topicFilterEffective: chatExclusion.topicFilterEffective,
+    topicFilterExpressible: false,
   });
 } finally {
   await daemon.stop();
