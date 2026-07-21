@@ -106,12 +106,13 @@ export function classifyPaths(schema: QuerySchema): Map<string, StringClass> {
     }
     if (node.type === 'object' && node.properties) {
       for (const [key, child] of Object.entries(node.properties)) {
-        walk(child, atPath === '' ? key : `${atPath}.${key}`, refName ?? undefined);
+        // the resolved owner propagates through anonymous nested objects
+        walk(child, atPath === '' ? key : `${atPath}.${key}`, refName ?? defName);
       }
       return;
     }
     if (node.type === 'array' && node.items) {
-      walk(node.items, `${atPath}[]`, refName ?? undefined);
+      walk(node.items, `${atPath}[]`, refName ?? defName);
     }
   };
 

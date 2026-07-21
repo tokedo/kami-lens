@@ -70,6 +70,9 @@ export type DaemonStatus = {
   percentage: number;
   /** newest block seen on the live event stream */
   liveBlockNumber: number;
+  /** ms since the last live stream event (0 before LIVE); > STREAM_STALL_MS
+   * marks the daemon degraded (G3.e) */
+  streamSilentMs: number;
   /** last Kamigaze-consistent checkpoint (null before first LIVE) */
   checkpoint: CheckpointReport | null;
   checkpointCount: number;
@@ -108,6 +111,11 @@ export class KamiLensDaemon {
   private lastCheckpoint: CheckpointReport | null = null;
   private checkpointInFlight = false;
   private liveBlockNumber = 0;
+  private lastStreamEventAtWallMs = 0;
+  /** Stream-health surfacing (gate G3.e): once LIVE, a stream silent for
+   * longer than this marks the daemon degraded and its answers stale —
+   * last-synced state keeps being served, honestly stamped. */
+  static readonly STREAM_STALL_MS = 60_000;
   private readonly startedAt = new Date().toISOString();
   private liveAt: string | null = null;
 
@@ -230,6 +238,7 @@ export class KamiLensDaemon {
             continue;
           }
           if (update.blockNumber > this.liveBlockNumber) this.liveBlockNumber = update.blockNumber;
+          this.lastStreamEventAtWallMs = Date.now();
         }
       })
     );
@@ -429,17 +438,26 @@ export class KamiLensDaemon {
     const { chainId, worldAddress, jsonRpcUrl, wsRpcUrl, kamigazeUrl, dataDir, checkpointIntervalMs } =
       this.config;
     const tripwires = tripwireReport();
+    const streamSilentMs =
+      this.liveAt && this.lastStreamEventAtWallMs > 0
+        ? Date.now() - this.lastStreamEventAtWallMs
+        : 0;
+    const streamStalled = !this.stopped && streamSilentMs > KamiLensDaemon.STREAM_STALL_MS;
     return {
       state: this.stopped ? 'STOPPED' : (SyncState[this.syncStatus.state] as keyof typeof SyncState),
       msg: this.syncStatus.msg,
       percentage: this.syncStatus.percentage,
       liveBlockNumber: this.liveBlockNumber,
+      streamSilentMs,
       checkpoint: this.lastCheckpoint,
       checkpointCount: this.checkpointCount,
       tripwires,
-      degraded: Object.entries(tripwires)
-        .filter(([, count]) => count > 0)
-        .map(([name, count]) => `${name}:${count}`),
+      degraded: [
+        ...(streamStalled ? [`stream-stalled:${Math.floor(streamSilentMs / 1000)}s`] : []),
+        ...Object.entries(tripwires)
+          .filter(([, count]) => count > 0)
+          .map(([name, count]) => `${name}:${count}`),
+      ],
       bootstrapAttempts: this.bootstrapAttempts,
       startedAt: this.startedAt,
       liveAt: this.liveAt,

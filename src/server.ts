@@ -35,6 +35,7 @@ export function buildStatusData(daemon: KamiLensDaemon): Record<string, unknown>
     msg: s.msg,
     percentage: s.percentage,
     liveBlockNumber: s.liveBlockNumber,
+    streamSilentMs: s.streamSilentMs,
     startedAt: s.startedAt,
     liveAt: s.liveAt,
     checkpoint: s.checkpoint as unknown as Record<string, unknown> | null,
