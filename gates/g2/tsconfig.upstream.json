@@ -1,0 +1,40 @@
+{
+  // Alias map for running PINNED UPSTREAM modules (gates/.artifacts/upstream)
+  // under tsx in the G2.a differential harness: upstream's own vite/tsconfig
+  // aliases re-expressed against the clone's tree. 'lodash' resolves to the
+  // kami-lens ESM shim for the same reason as in the root tsconfig (Node
+  // cannot named-import CJS lodash). npm deps (rxjs, viem, moment, ethers,
+  // @stdlib/**) resolve from kami-lens node_modules by directory walk-up —
+  // versions satisfy upstream's ranges (viem ^2.36.0, moment ^2.29.4,
+  // pluralize ^8.0.0, @stdlib ^0.0.7, lodash 4.17.21).
+  "compilerOptions": {
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "jsx": "preserve",
+    "baseUrl": "./",
+    "paths": {
+      "abi/*": ["../.artifacts/upstream/packages/client/abi/*"],
+      "types/*": ["../.artifacts/upstream/packages/client/types/*"],
+      "app/*": ["../.artifacts/upstream/packages/client/src/app/*", "../.artifacts/upstream/packages/client/src/app"],
+      "assets/*": ["../.artifacts/upstream/packages/client/src/assets/*"],
+      "cache/*": ["../.artifacts/upstream/packages/client/src/cache/*", "../.artifacts/upstream/packages/client/src/cache"],
+      "clients/*": ["../.artifacts/upstream/packages/client/src/clients/*", "../.artifacts/upstream/packages/client/src/clients"],
+      "constants/*": ["../.artifacts/upstream/packages/client/src/constants/*", "../.artifacts/upstream/packages/client/src/constants"],
+      "engine/*": ["../.artifacts/upstream/packages/client/src/engine/*", "../.artifacts/upstream/packages/client/src/engine"],
+      "network/*": ["../.artifacts/upstream/packages/client/src/network/*", "../.artifacts/upstream/packages/client/src/network"],
+      "utils/*": ["../.artifacts/upstream/packages/client/src/utils/*", "../.artifacts/upstream/packages/client/src/utils"],
+      "workers/*": ["../.artifacts/upstream/packages/client/src/workers/*", "../.artifacts/upstream/packages/client/src/workers"],
+      "lodash": ["../../src/vendor/lodash/index.ts"],
+      "@mud-classic/utils": ["../../src/vendor/mud-classic/utils/index.ts"]
+    },
+    "resolveJsonModule": true,
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "target": "esnext",
+    "noEmit": true
+  },
+  "include": ["a-upstream-runner.mts"]
+}

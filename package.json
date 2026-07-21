@@ -52,6 +52,7 @@
     "@types/node": "^20.0.0",
     "@types/pluralize": "^0.0.33",
     "eslint": "^9.0.0",
+    "react": "^19.2.7",
     "tsup": "^8.0.0",
     "tsx": "^4.0.0",
     "typescript": "^5.5.0",
