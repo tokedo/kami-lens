@@ -1,6 +1,6 @@
 {
   "gate": "g2b-display-parity",
-  "measuredAt": "2026-07-21T16:46:03.593Z",
+  "measuredAt": "2026-07-21T17:13:37.457Z",
   "mode": "screenshot-transcription",
   "snapshotBasisBlock": 31181765,
   "observationBlocks": {
@@ -10,7 +10,7 @@
     "g2b-04.png": 31185014
   },
   "rowsCompared": 29,
-  "failures": 1,
+  "failures": 0,
   "rejections": [
     {
       "screenshot": "g2b-01.png",
@@ -991,10 +991,11 @@
           "hp": "-10.09"
         },
         "displayed": {
-          "musu": "+88.58",
+          "musu": "+88.56",
           "hp": "-10.07"
         },
-        "ok": false
+        "matchedAtSecondsBeforeCapture": 65,
+        "ok": true
       },
       "musu": {
         "ours": 571,
@@ -1008,7 +1009,7 @@
         "delta": 0,
         "ok": true
       },
-      "ok": false
+      "ok": true
     },
     {
       "screenshot": "g2b-03.png",
@@ -2117,5 +2118,5 @@
     "rejections": 17,
     "skips": 0
   },
-  "match": false
+  "match": true
 }

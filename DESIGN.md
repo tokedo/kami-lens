@@ -144,10 +144,13 @@ are inside the target; longitudinal reconstruction is not. The chat
 pane is inside the target, served under the untrusted-text policy
 (§3.10).
 
-**Amendment D56 (2026-07-21).** The parity reference standard is the
-**community-standard environment**: the official web client plus
-widely-used community tooling (ShadowTracker-class trackers) — not
-the web client alone. This section's earlier "web-client parity"
+**Amendment D56 (2026-07-21; wording revised same day).** The parity
+reference standard is the **community-standard environment**: the
+official web client plus widely-used community tooling (the
+account/room-tracker class) — not the web client alone. Specific
+tool precedents are cited in the private record that owns this
+decision; the public principle stands on "widely-used community
+tooling" alone. This section's earlier "web-client parity"
 phrasing for sync/history is superseded accordingly. Consumers get
 general full-view read tools — any inventory, any room, other
 players — the visibility the community environment already grants;
