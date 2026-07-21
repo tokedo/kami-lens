@@ -1,8 +1,8 @@
 {
   "gate": "g3e-degraded",
-  "measuredAt": "2026-07-21T18:37:48.442Z",
+  "measuredAt": "2026-07-21T18:46:26.135Z",
   "stallIntervalMs": 60000,
-  "degradedAfterMs": 59123,
+  "degradedAfterMs": 56150,
   "degradedMarkers": [
     "stream-stalled:60s"
   ],

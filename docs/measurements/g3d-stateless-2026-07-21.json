@@ -1,6 +1,6 @@
 {
   "gate": "g3d-stateless",
-  "measuredAt": "2026-07-21T18:33:08.453Z",
+  "measuredAt": "2026-07-21T18:42:07.044Z",
   "kamis": [
     10016,
     10164,
@@ -9,7 +9,7 @@
   "comparisons": [
     {
       "kami": 10016,
-      "block": 31188491,
+      "block": 31188668,
       "checks": {
         "id": true,
         "index": true,
@@ -28,7 +28,7 @@
           "total": 250
         },
         "accountId": "0x75dcc56d012391a8ccd1bbc083eb57f28d3c34b0",
-        "blockNumber": 31188491
+        "blockNumber": 31188668
       },
       "daemon": {
         "id": "0x1de49e6a1933854a87d1d12ef1316c5fbc421049ffcd87d30348cf4e23975bd8",
@@ -41,16 +41,16 @@
           "total": 250,
           "percent": 98
         },
-        "hpRatePerHr": "-5.09",
+        "hpRatePerHr": "-5.20",
         "cooldownSec": 0,
         "account": {
           "index": 2930,
           "name": "buzz"
         },
         "musu": {
-          "accrued": 23,
-          "spotRatePerHr": "+37.56",
-          "avgRatePerHr": "+35.53"
+          "accrued": 28,
+          "spotRatePerHr": "+38.39",
+          "avgRatePerHr": "+35.95"
         },
         "node": {
           "index": 86,
@@ -61,7 +61,7 @@
     },
     {
       "kami": 10164,
-      "block": 31188491,
+      "block": 31188668,
       "checks": {
         "id": true,
         "index": true,
@@ -80,7 +80,7 @@
           "total": 240
         },
         "accountId": "0x75dcc56d012391a8ccd1bbc083eb57f28d3c34b0",
-        "blockNumber": 31188491
+        "blockNumber": 31188668
       },
       "daemon": {
         "id": "0xeaf09fafe579f604942e495b55b4b4826abcbb7c3a4362376b9f507544db2449",
@@ -89,20 +89,20 @@
         "state": "HARVESTING",
         "level": 34,
         "hp": {
-          "current": 138,
+          "current": 136,
           "total": 240,
           "percent": 57
         },
-        "hpRatePerHr": "-13.01",
+        "hpRatePerHr": "-13.11",
         "cooldownSec": 0,
         "account": {
           "index": 2930,
           "name": "buzz"
         },
         "musu": {
-          "accrued": 805,
-          "spotRatePerHr": "+102.93",
-          "avgRatePerHr": "+63.04"
+          "accrued": 819,
+          "spotRatePerHr": "+103.77",
+          "avgRatePerHr": "+63.45"
         },
         "node": {
           "index": 86,
@@ -113,7 +113,7 @@
     },
     {
       "kami": 11279,
-      "block": 31188491,
+      "block": 31188668,
       "checks": {
         "id": true,
         "index": true,
@@ -132,7 +132,7 @@
           "total": 250
         },
         "accountId": "0xa7baff95d94ce7c250736149bcc3efc124e4cbd3",
-        "blockNumber": 31188491
+        "blockNumber": 31188668
       },
       "daemon": {
         "id": "0xbaf425db23309be140618493f3b2bcd8fc4c0b8e7e355ba83f741f8ed88aefd1",
@@ -141,20 +141,20 @@
         "state": "HARVESTING",
         "level": 33,
         "hp": {
-          "current": 160,
+          "current": 158,
           "total": 250,
-          "percent": 64
+          "percent": 63
         },
-        "hpRatePerHr": "-11.71",
+        "hpRatePerHr": "-11.80",
         "cooldownSec": 0,
         "account": {
           "index": 2746,
           "name": "caw-caw"
         },
         "musu": {
-          "accrued": 790,
-          "spotRatePerHr": "+102.93",
-          "avgRatePerHr": "+64.92"
+          "accrued": 804,
+          "spotRatePerHr": "+103.77",
+          "avgRatePerHr": "+65.33"
         },
         "node": {
           "index": 82,
