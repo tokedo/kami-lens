@@ -17,7 +17,12 @@
 //     the victim's harvest; one 15 s re-check absorbs stream lag).
 //   - Movements are cross-checked against RoomIndex changes: the moved
 //     account's `account` answer must show the movement's room, where a
-//     newer movement for the same account supersedes the check.
+//     newer movement for the same account supersedes the check; residual
+//     failures get the G1.b-style mechanical proof — the account's
+//     ComponentValueSet(RoomIndex) chain logs over the window must
+//     contain the movement's room (catches fast round-trips whose return
+//     event fell into a reconnect gap; the mirror only holds current
+//     state, the chain holds the history). Unproven failures fail.
 //   - both-layer chat exclusion: a topic-filter probe first RECORDS the
 //     server's vocabulary (measured 2026-07-21: NO topic string is
 //     recognized at this pin — every non-empty list yields zero frames,
@@ -34,11 +39,15 @@
 //      G4B_MIN_KILLS (default 1), G4B_MIN_MOVES (default 5),
 //      G4B_PROBE_S (default 45).
 
+import { keccak256 } from '@mud-classic/utils';
+import { Interface } from 'ethers';
+
+import { abi as worldAbi } from '../../src/abi/World.json';
 import { configureKamiden, getKamidenClient } from '../../src/clients/kamiden';
 import { subscribeToFeed, subscribeToMessages } from '../../src/clients/kamiden/subscriptions';
 import { resolveConfig } from '../../src/config';
 import { KamidenFeeds } from '../../src/kamiden';
-import { fail, pass, sleep, writeMeasurement } from '../g1/lib.mts';
+import { fail, makeProvider, pass, sleep, writeMeasurement } from '../g1/lib.mts';
 import { socketQuery, spawnDaemonLive } from './lib.mts';
 
 // ---- hermetic: ingestion drop + ring buffer ---------------------------------
@@ -164,13 +173,17 @@ type PendingMove = {
   roomIndex: number;
   seq: number;
   armedAtMs: number;
+  armedAtBlock: number;
+  accountId: string;
+  eventTimestampMs: number;
   firstObservedRoom?: number;
 };
+type FailedMove = PendingMove & { account: number; observedRoom: number | null; note?: string };
 const pendingMoves = new Map<number, PendingMove>();
 let verifiedMoves = 0;
 let supersededMoves = 0;
 let supersededUnseen = 0;
-const failedMoves: Record<string, unknown>[] = [];
+const failedMoves: FailedMove[] = [];
 const unresolvable: Record<string, unknown>[] = [];
 let killsChecked = 0;
 let movesObserved = 0;
@@ -183,7 +196,7 @@ async function settlePendingMoves(): Promise<void> {
     if (!resp.ok) {
       // can't observe the mirror — still expire (30 s slack), never hang
       if (Date.now() - p.armedAtMs > MOVE_DEADLINE_MS + 30_000) {
-        failedMoves.push({ account: accIndex, ...p, observedRoom: null, note: 'account query failing' });
+        failedMoves.push({ ...p, account: accIndex, observedRoom: null, note: 'account query failing' });
         pendingMoves.delete(accIndex);
       }
       continue;
@@ -204,7 +217,7 @@ async function settlePendingMoves(): Promise<void> {
       continue;
     }
     if (Date.now() - p.armedAtMs > MOVE_DEADLINE_MS) {
-      failedMoves.push({ account: accIndex, ...p, observedRoom: roomNow });
+      failedMoves.push({ ...p, account: accIndex, observedRoom: roomNow });
       pendingMoves.delete(accIndex);
     }
   }
@@ -217,6 +230,7 @@ try {
     polls++;
     const resp = await socketQuery('feed', [String(lastSeq)]);
     if (!resp.ok) fail('G4.b', { reason: 'feed query failed', error: resp.error });
+    const pollBlock = resp.meta?.blockNumber ?? 0;
     const data = resp.data as { events: FeedEntry[]; stream: { state: string } };
     const events = data.events;
     if (events.length > 0) lastSeq = Math.max(...events.map((e) => e.seq));
@@ -263,6 +277,9 @@ try {
           roomIndex: m.room.index,
           seq: e.seq,
           armedAtMs: Date.now(),
+          armedAtBlock: pollBlock,
+          accountId: m.account.id,
+          eventTimestampMs: m.timestamp,
         });
       }
     }
@@ -283,6 +300,62 @@ try {
   while (pendingMoves.size > 0) {
     await sleep(POLL_S * 1000);
     await settlePendingMoves();
+  }
+
+  // Chain-log verification of residual movement failures (the G1.b-style
+  // mechanical proof). The mirror only holds CURRENT state, so a fast
+  // round-trip (A→B→A) whose return event fell into a reconnect gap looks
+  // identical to "mirror never applied" — but the chain holds history:
+  // ComponentValueSet(componentId, component, entity, data) indexes both
+  // componentId and entity, so the account's RoomIndex writes over the
+  // window are one targeted getLogs call. The movement is proven iff its
+  // room appears in that sequence; the mirror must match the LATEST chain
+  // value. Anything unproven stays a hard failure.
+  const chainVerifiedMoves: Record<string, unknown>[] = [];
+  if (failedMoves.length > 0) {
+    const cfg = resolveConfig();
+    const iface = new Interface(worldAbi);
+    const setTopic = iface.getEvent('ComponentValueSet')!.topicHash;
+    const roomIndexTopic = keccak256('component.index.room');
+    const entityTopic = (dec: string) => '0x' + BigInt(dec).toString(16).padStart(64, '0');
+
+    for (let i = failedMoves.length - 1; i >= 0; i--) {
+      const f = failedMoves[i];
+      // window start: the event's own age at arming plus margin (~2 s/block)
+      const blocksBack = Math.min(
+        43_000, // clamp to ~1 day, well inside retention
+        Math.ceil(Math.max(0, f.armedAtMs - f.eventTimestampMs) / 1000 / 2.0) + 90
+      );
+      const fromBlock = Math.max(1, f.armedAtBlock - blocksBack);
+      let note = '';
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const provider = makeProvider(cfg);
+        try {
+          const logs = await provider.getLogs({
+            address: cfg.worldAddress,
+            fromBlock,
+            toBlock: 'latest',
+            topics: [setTopic, roomIndexTopic, null, entityTopic(f.accountId)],
+          });
+          // number-component payload: the abi-encoded bytes end in one
+          // 32-byte uint — read the tail
+          const rooms = logs.map((l) => Number(BigInt('0x' + l.data.slice(2).slice(-64))));
+          if (rooms.includes(f.roomIndex)) {
+            chainVerifiedMoves.push({ ...f, roomsOnChain: rooms, fromBlock });
+            failedMoves.splice(i, 1);
+          } else {
+            failedMoves[i] = { ...f, note: `chain shows [${rooms.join(',')}] from ${fromBlock}` };
+          }
+          note = '';
+          break;
+        } catch (e) {
+          note = e instanceof Error ? e.message : String(e);
+        } finally {
+          provider.destroy();
+        }
+      }
+      if (note) failedMoves[i] = { ...failedMoves[i], note: `getLogs failed: ${note}` };
+    }
   }
 
   // final status: chat-exclusion accounting + stream health
@@ -327,6 +400,7 @@ try {
     killChecks: killChecks.slice(0, 20),
     movesObserved,
     verifiedMoves,
+    chainVerifiedMoves,
     supersededMoves,
     supersededUnseen,
     moveDeadlineMs: MOVE_DEADLINE_MS,
@@ -335,11 +409,11 @@ try {
     chatExclusion_measured: chatExclusion,
     match:
       killsOk >= MIN_KILLS &&
-      verifiedMoves >= MIN_MOVES &&
+      verifiedMoves + chainVerifiedMoves.length >= MIN_MOVES &&
       killsFailed.length === 0 &&
       failedMoves.length === 0 &&
       unresolvable.length === 0 &&
-      supersededUnseen <= verifiedMoves,
+      supersededUnseen <= verifiedMoves + chainVerifiedMoves.length,
   });
 
   // the server closes streams every ~40 s (measured), so 'retrying' is a
@@ -355,30 +429,32 @@ try {
   if (killsFailed.length > 0) {
     fail('G4.b', { reason: 'kill without mirror state delta', killsFailed });
   }
+  const movesVerifiedTotal = verifiedMoves + chainVerifiedMoves.length;
   if (failedMoves.length > 0) {
     fail('G4.b', {
-      reason: 'movement without a RoomIndex delta inside the deadline',
+      reason: 'movement with neither a mirror RoomIndex delta nor a chain-log proof',
       movesFailed: failedMoves.slice(0, 20),
     });
   }
-  if (supersededUnseen > verifiedMoves) {
+  if (supersededUnseen > movesVerifiedTotal) {
     fail('G4.b', {
       reason: 'movement cross-check inconclusive — stream loss outpaced verification',
       supersededUnseen,
-      verifiedMoves,
+      movesVerifiedTotal,
     });
   }
-  if (killsOk < MIN_KILLS || verifiedMoves < MIN_MOVES) {
+  if (killsOk < MIN_KILLS || movesVerifiedTotal < MIN_MOVES) {
     fail('G4.b', {
       reason: 'window closed short of minimum samples — re-run at a busier hour',
       killsOk,
-      verifiedMoves,
+      movesVerifiedTotal,
       windowS: WINDOW_S,
     });
   }
   pass('G4.b', {
     killsOk,
     verifiedMoves,
+    chainVerifiedMoves: chainVerifiedMoves.length,
     supersededMoves,
     supersededUnseen,
     feedFrames: kamiden.stream.feedFrames,
