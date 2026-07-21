@@ -136,6 +136,11 @@ const CASES: { query: string; args: string[]; opts?: { prose?: boolean; noAuthor
   { query: 'item', args: ['1'] },
   { query: 'items', args: [] },
   { query: 'config', args: ['KAMI_STANDARD_COOLDOWN'] },
+  // M4 chain-only listings, no-service form (kamiden variants: G4.a live)
+  { query: 'quests', args: [] },
+  { query: 'quests', args: [String(anAccount)] },
+  { query: 'trades', args: [] },
+  { query: 'auctions', args: [] },
 ];
 
 const mismatches: Record<string, unknown>[] = [];

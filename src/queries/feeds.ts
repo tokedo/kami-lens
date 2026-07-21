@@ -125,15 +125,23 @@ function kamiIdRef(mirror: Mirror, rawId: string): IdRef {
 export type RoomRef = { index: number; name: string };
 
 function roomRef(mirror: Mirror, index: number): RoomRef {
-  const room = getRoomByIndex(mirror.world, mirror.components, index);
-  return { index, name: room?.name ?? '' };
+  try {
+    const room = getRoomByIndex(mirror.world, mirror.components, index);
+    return { index, name: room?.name ?? '' };
+  } catch {
+    return { index, name: '' }; // room index the mirror has no entity for
+  }
 }
 
 export type ItemRef = { index: number; name: string };
 
 function itemRef(mirror: Mirror, index: number): ItemRef {
-  const item = getItemByIndex(mirror.world, mirror.components, index);
-  return { index, name: item?.name ?? '' };
+  try {
+    const item = getItemByIndex(mirror.world, mirror.components, index);
+    return { index, name: item?.name ?? '' };
+  } catch {
+    return { index, name: '' }; // item index the mirror has no registry row for
+  }
 }
 
 function accountByIndexOrThrow(mirror: Mirror, accountIndex: number) {
@@ -305,11 +313,15 @@ export async function tradesQuery(
       type: getTradeType(t),
       ...(t.maker?.index ? { maker: { index: t.maker.index, name: t.maker.name } } : {}),
       ...(t.taker?.index ? { taker: { index: t.taker.index, name: t.taker.name } } : {}),
+      // Number() coercion: the upstream TradeOrder type says number[], but
+      // the mirror decodes these uint components as hex strings — the cast
+      // is a phantom at the pin (vite never typechecks). Same quirk class
+      // as the Trade Timestamp import (app/cache/trade/history.ts header).
       ...(t.buyOrder
         ? {
             buyOrder: {
               items: t.buyOrder.items.map((i) => ({ index: i.index, name: i.name })),
-              amounts: t.buyOrder.amounts ?? [],
+              amounts: (t.buyOrder.amounts ?? []).map(Number),
             },
           }
         : {}),
@@ -317,7 +329,7 @@ export async function tradesQuery(
         ? {
             sellOrder: {
               items: t.sellOrder.items.map((i) => ({ index: i.index, name: i.name })),
-              amounts: t.sellOrder.amounts ?? [],
+              amounts: (t.sellOrder.amounts ?? []).map(Number),
             },
           }
         : {}),
@@ -450,19 +462,22 @@ export function questsQuery(ctx: QueryCtx, args: { accountIndex?: number }): Que
       name: q.name,
       description: q.description,
       repeatable: q.repeatable,
-      ...(q.repeatDuration ? { repeatDuration: q.repeatDuration } : {}),
+      ...(q.repeatDuration ? { repeatDuration: Number(q.repeatDuration) } : {}),
     }));
 
   const out: QuestsOut = { registry };
   if (args.accountIndex !== undefined) {
     const account = accountByIndexOrThrow(mirror, args.accountIndex);
     out.account = { index: account.index, name: account.name };
+    // Number() coercion: upstream's Quest shape casts StartTime/LastTime
+    // to number, but the mirror decodes them as hex strings ("0x6821abae")
+    // — phantom types at the pin; the served surface is honest seconds
     out.accepted = explorer.getForAccount(args.accountIndex).map((q) => ({
       index: q.index,
       name: q.name,
       complete: q.complete,
-      startTime: q.startTime,
-      endTime: q.endTime,
+      startTime: Number(q.startTime),
+      endTime: Number(q.endTime),
     }));
   }
   return out;

@@ -89,6 +89,13 @@ for (const name of ['HARVEST_EFFICACY_BOOST', 'KAMI_STANDARD_COOLDOWN']) {
     await check('config', ['KAMI_REROLL_FEE']);
   }
 }
+// M4 chain-only listings (the M3-deferred trio): hermetic on the snapshot
+// mirror in their no-service form — the kamiden-argument variants are
+// validated live by G4.a
+await check('quests', []);
+for (const a of [...accountIndexes].slice(0, 3)) await check('quests', [String(a)]);
+await check('trades', []);
+await check('auctions', []);
 // status: contract on an unstarted daemon
 {
   const daemon = new KamiLensDaemon({ dataDir: path.join(ARTIFACTS_DIR, 'g3a-void') });
