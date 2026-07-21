@@ -2,9 +2,12 @@
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
  * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
  * path:     packages/client/src/network/shapes/Quest/functions.ts
- * changes:  none
+ * changes:  Date.now() → clock.now() at 2 call sites plus the
+ *           clock import (§3.8: offset-corrected stream clock, not naive
+ *           wall clock — see src/clock.ts). Body otherwise verbatim.
  */
 
+import * as clock from 'clock';
 import { EntityIndex, World, getComponentValue } from 'engine/recs';
 
 import { Components } from 'network/';
@@ -22,7 +25,7 @@ import { BaseQuest, Quest, populate } from './quest';
 // check whether a Repeatable Quest is Available to be repeated now
 export const canRepeat = (completed: Quest) => {
   if (!completed.repeatable) return false;
-  const now = Date.now() / 1000;
+  const now = clock.now() / 1000;
   const cooldown = completed.repeatDuration ?? 0;
   const startTime = completed.startTime;
   return Number(startTime) + Number(cooldown) <= Number(now);
@@ -52,7 +55,7 @@ export const hasCompletedDelay = (
   if (!getIsComplete(components, instance)) return false; // prior quest not completed
 
   const endTime = Number(getComponentValue(LastTime, instance)?.value ?? 0);
-  return Date.now() / 1000 > endTime + Number(delay);
+  return clock.now() / 1000 > endTime + Number(delay);
 };
 
 // find a Quest in a list of other Quests by its index

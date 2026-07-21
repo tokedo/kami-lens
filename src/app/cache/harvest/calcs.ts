@@ -2,9 +2,12 @@
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
  * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
  * path:     packages/client/src/app/cache/harvest/calcs.ts
- * changes:  none
+ * changes:  Date.now() → clock.now() at 4 call sites plus the
+ *           clock import (§3.8: offset-corrected stream clock, not naive
+ *           wall clock — see src/clock.ts). Body otherwise verbatim.
  */
 
+import * as clock from 'clock';
 import { Harvest, RateDetails } from 'network/shapes/Harvest/types';
 import { Kami } from 'network/shapes/Kami';
 import { Efficacy } from 'network/shapes/Kami/configs';
@@ -16,20 +19,20 @@ import { getKamiBodyAffinity, getKamiHandAffinity } from '../kami';
 // calculate the duration since a harvest has been collected from
 export const calcIdleTime = (harvest: Harvest): number => {
   if (!harvest.time.last) return 0;
-  const secondsSinceLast = Date.now() / 1000 - harvest.time.last;
+  const secondsSinceLast = clock.now() / 1000 - harvest.time.last;
   return Math.floor(secondsSinceLast); // intensity period
 };
 
 // get the number of seconds passed since the last harvest reset
 export const calcIntensityTime = (harvest: Harvest): number => {
   if (!harvest.time.reset) return 0;
-  const secondsSinceReset = Date.now() / 1000 - harvest.time.reset;
+  const secondsSinceReset = clock.now() / 1000 - harvest.time.reset;
   return Math.floor(secondsSinceReset); // intensity period
 };
 
 // calculate the duration since a harvest was started
 export const calcLifeTime = (harvest: Harvest): number => {
-  return Math.floor(Date.now() / 1000 - harvest.time.start);
+  return Math.floor(clock.now() / 1000 - harvest.time.start);
 };
 
 /////////////////
@@ -106,7 +109,7 @@ export const calcFertility = (harvest: Harvest, kami: Kami): number => {
 
 // calculate the intensity rates of a harvest, measured in musu/s
 export const calcIntensity = (harvest: Harvest, kami: Kami): RateDetails => {
-  const now = Date.now() / 1000;
+  const now = clock.now() / 1000;
   const lastTs = harvest.time?.last ?? now;
   const resetTs = harvest.time?.reset ?? now;
 

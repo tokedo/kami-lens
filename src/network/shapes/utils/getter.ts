@@ -2,9 +2,12 @@
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
  * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
  * path:     packages/client/src/network/shapes/utils/getter.ts
- * changes:  none
+ * changes:  Date.now() → clock.now() at 1 call site plus the
+ *           clock import (§3.8: offset-corrected stream clock, not naive
+ *           wall clock — see src/clock.ts). Body otherwise verbatim.
  */
 
+import * as clock from 'clock';
 import { EntityID, EntityIndex, World, getComponentValue, hasComponent } from 'engine/recs';
 
 import { formatEntityID } from 'engine/utils';
@@ -46,7 +49,7 @@ export const getBalance = (
   } else if (type === 'LEVEL') {
     return getLevel(components, holder);
   } else if (type === 'BLOCKTIME') {
-    return Date.now() / 1000;
+    return clock.now() / 1000;
   } else if (type === 'SKILL') {
     return getHolderSkillLevel(world, components, holderID, index ?? 0);
   } else if (type === 'ROOM') {

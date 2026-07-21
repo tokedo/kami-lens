@@ -2,9 +2,12 @@
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
  * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
  * path:     packages/client/src/app/cache/room/base.ts
- * changes:  none
+ * changes:  Date.now() → clock.now() at 2 call sites plus the
+ *           clock import (§3.8: offset-corrected stream clock, not naive
+ *           wall clock — see src/clock.ts). Body otherwise verbatim.
  */
 
+import * as clock from 'clock';
 import { EntityIndex, World } from 'engine/recs';
 
 import { Components } from 'network/';
@@ -31,10 +34,10 @@ export const get = (
   // populate the exits as requested
   if (options?.exits) {
     const updateTs = ExitUpdateTs.get(entity) ?? 0;
-    const updateDelta = (Date.now() - updateTs) / 1000; // convert to seconds
+    const updateDelta = (clock.now() - updateTs) / 1000; // convert to seconds
     if (updateDelta > options.exits) {
       room.exits = getExitsFor(world, components, room);
-      ExitUpdateTs.set(entity, Date.now());
+      ExitUpdateTs.set(entity, clock.now());
     }
   }
 

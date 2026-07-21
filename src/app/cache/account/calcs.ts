@@ -2,9 +2,12 @@
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
  * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
  * path:     packages/client/src/app/cache/account/calcs.ts
- * changes:  none
+ * changes:  Date.now() → clock.now() at 2 call sites plus the
+ *           clock import (§3.8: offset-corrected stream clock, not naive
+ *           wall clock — see src/clock.ts). Body otherwise verbatim.
  */
 
+import * as clock from 'clock';
 import { Stat } from 'network/shapes/Stats';
 import { Account } from '../account';
 
@@ -16,7 +19,7 @@ import { Account } from '../account';
 export const calcCurrentStamina = (account: Account): number => {
   if (!account.config) return 0;
   const recoveryPeriod = account.config.stamina.recovery ?? 60;
-  const timeDelta = Date.now() / 1000 - account.time.action;
+  const timeDelta = clock.now() / 1000 - account.time.action;
   const recovered = Math.floor(timeDelta / recoveryPeriod);
   return sync(account.stamina, recovered);
 };
@@ -26,7 +29,7 @@ export const calcCurrentStamina = (account: Account): number => {
 
 // calculate idle time in reference to any last action
 export const calcIdleTime = (account: Account) => {
-  return Date.now() / 1000 - account.time.last;
+  return clock.now() / 1000 - account.time.last;
 };
 
 ///////////////////

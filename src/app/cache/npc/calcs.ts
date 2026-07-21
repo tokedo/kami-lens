@@ -2,9 +2,12 @@
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
  * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
  * path:     packages/client/src/app/cache/npc/calcs.ts
- * changes:  none
+ * changes:  Date.now() → clock.now() at 1 call site plus the
+ *           clock import (§3.8: offset-corrected stream clock, not naive
+ *           wall clock — see src/clock.ts). Body otherwise verbatim.
  */
 
+import * as clock from 'clock';
 import { Listing } from 'network/shapes/Listing';
 
 // calculate the buy price of a listing based on amt purchased
@@ -26,7 +29,7 @@ export const calcBuyPrice = (listing: Listing, amt: number) => {
 // assume we are processing a listing with a GDA-based buy price
 // TODO: determine rounding rules for erc20 denominations
 export const calcBuyPriceGDA = (listing: Listing, amt: number) => {
-  const now = Date.now() / 1000;
+  const now = clock.now() / 1000;
 
   const value = listing.value;
   const pricing = listing.buy!;

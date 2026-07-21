@@ -2,9 +2,12 @@
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
  * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
  * path:     packages/client/src/utils/time.ts
- * changes:  none
+ * changes:  Date.now() → clock.now() at 6 call sites plus the
+ *           clock import (§3.8: offset-corrected stream clock, not naive
+ *           wall clock — see src/clock.ts). Body otherwise verbatim.
  */
 
+import * as clock from 'clock';
 import { DaylightIcon, EvenfallIcon, MoonsideIcon } from 'assets/images/icons/phases';
 
 const SECONDS_PER_MINUTE = 60;
@@ -16,7 +19,7 @@ const SECONDS_PER_DAY = SECONDS_PER_HOUR * 24;
 
 // get the countdown string for a given end timestamp
 export const getCountdown = (endTs: number) => {
-  const now = Math.floor(Date.now() / 1000);
+  const now = Math.floor(clock.now() / 1000);
   return formatCountdown(endTs - now);
 };
 
@@ -34,7 +37,7 @@ export const formatCountdown = (secs: number) => {
 
 // parse an epoch time into a date string
 export const getDateString = (epochTime?: number, precision = 3): string => {
-  const time = epochTime ? epochTime * 10 ** (3 - precision) : Date.now();
+  const time = epochTime ? epochTime * 10 ** (3 - precision) : clock.now();
   const date = new Date(time);
   return date.toLocaleString('default', {
     month: 'short',
@@ -71,7 +74,7 @@ export const getTimeDeltaString = (delta: number): string => {
 
 // parse an epoch time to KamiWorld Military Time (36h days)
 export const getKamiTime = (epochTime?: number, precision = 3): string => {
-  let time = (epochTime ?? Date.now()) / 10 ** precision;
+  let time = (epochTime ?? clock.now()) / 10 ** precision;
   time = Math.floor(time);
   const seconds = time % 60;
   time = Math.floor(time / 60);
@@ -88,7 +91,7 @@ export const getKamiTime = (epochTime?: number, precision = 3): string => {
 
 // days are 36 hours long. months are 40 days long. 12 months in a year with 7 holy days (487)
 export const getKamiDate = (epochTime?: number, precision = 3): string => {
-  let time = (epochTime ?? Date.now()) / 10 ** precision;
+  let time = (epochTime ?? clock.now()) / 10 ** precision;
   const dayDuration = 60 * 60 * 36;
   time = Math.floor(time / dayDuration); // complete days since epoch
   const day = (time % 40) + 1;
@@ -102,7 +105,7 @@ export const getKamiDate = (epochTime?: number, precision = 3): string => {
 };
 
 export const getKamiDT = (epochTime?: number, precision = 3): string => {
-  let time = (epochTime ?? Date.now()) / 10 ** precision;
+  let time = (epochTime ?? clock.now()) / 10 ** precision;
   time = Math.floor(time);
   const seconds = time % 60;
   time = Math.floor(time / 60);
@@ -131,7 +134,7 @@ export const getKamiDT = (epochTime?: number, precision = 3): string => {
 
 // figures out 1, 2, or 3, which time of day it is
 export const getCurrPhase = (): number => {
-  return getPhaseOf(Date.now());
+  return getPhaseOf(clock.now());
 };
 
 export const getPhaseOf = (epochTime: number, precision = 3): number => {

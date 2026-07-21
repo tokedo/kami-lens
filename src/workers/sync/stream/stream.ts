@@ -2,7 +2,9 @@
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
  * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
  * path:     packages/client/src/workers/sync/stream/stream.ts
- * changes:  none
+ * changes:  §3.8 clock tap — one import and one line in the stream chunk
+ *           handler feed each chunk's blockTimestamp to the offset-corrected
+ *           clock (see src/clock.ts). Body otherwise verbatim.
  */
 
 import {
@@ -20,6 +22,8 @@ import {
   timeout,
   timer,
 } from 'rxjs';
+
+import * as clock from 'clock';
 
 import { createKamigazeClient } from 'clients/kamigaze';
 import { EmptyNetworkEvent } from 'constants/stream';
@@ -209,6 +213,7 @@ function createRawStream(
     from(response)
       .pipe(
         concatMap(async (responseChunk) => {
+          clock.observeBlockTimestamp(responseChunk.blockTimestamp);
           let events = await transformWorldEvents(responseChunk);
 
           if (trackingState.isFirstMessage) {

@@ -26,6 +26,9 @@
       "types/*": ["./src/types/*", "./src/types"],
       "utils/*": ["./src/utils/*", "./src/utils"],
       "workers/*": ["./src/workers/*", "./src/workers"],
+      // The §3.8 offset-corrected clock is a native module; ported projection
+      // files import it via this explicit alias (like the lodash shim below).
+      "clock": ["./src/clock.ts"],
       "@mud-classic/utils": ["./src/vendor/mud-classic/utils/index.ts"],
       // Ported files import 'lodash' verbatim; Node's ESM loader cannot
       // named-import CJS lodash (vite handled it upstream), so the bare

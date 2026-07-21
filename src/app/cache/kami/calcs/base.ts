@@ -2,9 +2,12 @@
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
  * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
  * path:     packages/client/src/app/cache/kami/calcs/base.ts
- * changes:  none
+ * changes:  Date.now() → clock.now() at 2 call sites plus the
+ *           clock import (§3.8: offset-corrected stream clock, not naive
+ *           wall clock — see src/clock.ts). Body otherwise verbatim.
  */
 
+import * as clock from 'clock';
 import { calcHarvestIdleTime, calcHarvestRawNetBounty } from 'app/cache/harvest';
 import { Kami } from 'network/shapes/Kami/types';
 import { calcHarvestingHealthRate, calcMaxMusu, calcStrainFromBalance } from './harvest';
@@ -62,7 +65,7 @@ export const onCooldown = (kami: Kami): boolean => {
 
 // calculate the time a kami has spent idle (in seconds) for the sake of health regen
 export const calcIdleTime = (kami: Kami): number => {
-  const now = Date.now() / 1000;
+  const now = clock.now() / 1000;
   const lastTs = kami.time?.last ?? now;
   return now - lastTs;
 };
@@ -90,7 +93,7 @@ export const calcHealTime = (kami: Kami): number => {
 
 // calculate the cooldown remaining on kami standard actions
 export const calcCooldown = (kami: Kami): number => {
-  const now = Date.now() / 1000;
+  const now = clock.now() / 1000;
   const cdEndTime = kami.time?.cooldown ?? now;
   const remainingTime = cdEndTime - now;
   return Math.max(0, remainingTime);
