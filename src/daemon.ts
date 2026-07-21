@@ -21,6 +21,8 @@ import { keccak256 } from '@mud-classic/utils';
 import { Interface, JsonRpcProvider } from 'ethers';
 import { Subject, Subscription } from 'rxjs';
 
+import * as clock from 'clock';
+
 import { abi as worldAbi } from 'abi/World.json';
 import { VERSION as CACHE_VERSION } from 'cache/db';
 import { GodID, SyncState, SyncStatus } from 'engine/constants';
@@ -95,6 +97,8 @@ export class KamiLensDaemon {
   private world: ReturnType<typeof createWorld> | null = null;
   private subscriptions: Subscription[] = [];
   private checkpointTimer: NodeJS.Timeout | null = null;
+  private clockSyncTimer: NodeJS.Timeout | null = null;
+  private clockProvider: JsonRpcProvider | null = null;
   private retryTimer: NodeJS.Timeout | null = null;
   private stopped = false;
   private bootstrapAttempts = 0;
@@ -269,7 +273,39 @@ export class KamiLensDaemon {
       void this.checkpoint().catch((e) => log.error('[daemon] checkpoint failed', e));
     }, this.config.checkpointIntervalMs);
     this.checkpointTimer.unref?.();
+    this.startClockSync();
     this.resolveLive();
+  }
+
+  /** §3.8 clock observations. The Kamigaze stream's blockTimestamp field
+   * arrives as 0 — the server never populates it (measured live 2026-07-21;
+   * the stream tap in workers/sync/stream stays armed in case that changes,
+   * and fresher observations would simply win). The operative source is
+   * therefore the header timestamp of a block the stream HAS delivered,
+   * fetched via RPC on a slow cadence. A very fresh block can be missing on
+   * a lagging load-balanced backend (the G1.b lesson) — getBlock() then
+   * returns null and the sync just waits for the next tick. */
+  private static readonly CLOCK_SYNC_INTERVAL_MS = 300_000;
+
+  private startClockSync(): void {
+    if (this.clockSyncTimer) clearInterval(this.clockSyncTimer);
+    void this.syncClock().catch((e) => log.warn('[daemon] clock sync failed', e));
+    this.clockSyncTimer = setInterval(() => {
+      void this.syncClock().catch((e) => log.warn('[daemon] clock sync failed', e));
+    }, KamiLensDaemon.CLOCK_SYNC_INTERVAL_MS);
+    this.clockSyncTimer.unref?.();
+  }
+
+  private async syncClock(): Promise<void> {
+    if (this.stopped || !this.liveBlockNumber) return;
+    const { chainId, jsonRpcUrl } = this.config;
+    this.clockProvider ??= new JsonRpcProvider(
+      jsonRpcUrl,
+      { chainId, name: 'yominet' },
+      { staticNetwork: true }
+    );
+    const block = await this.clockProvider.getBlock(this.liveBlockNumber);
+    if (block) clock.observeBlockTimestamp(block.timestamp);
   }
 
   /** Bounded bootstrap retry (DESIGN §3.2): upstream shows the player an
@@ -416,6 +452,8 @@ export class KamiLensDaemon {
     if (this.stopped) return;
     this.stopped = true;
     if (this.checkpointTimer) clearInterval(this.checkpointTimer);
+    if (this.clockSyncTimer) clearInterval(this.clockSyncTimer);
+    this.clockProvider?.destroy();
     if (this.retryTimer) clearTimeout(this.retryTimer);
     if (this.liveAt && this.config.kamigazeUrl) {
       try {

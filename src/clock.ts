@@ -3,9 +3,15 @@
 // Upstream projection code reads the browser's wall clock (Date.now()); a
 // daemon must not assume a synced clock. Every wall-clock read in the ported
 // projection unit (app/cache/**, network/shapes/**, utils/time.ts) goes
-// through clock.now() instead: wall time plus an offset learned from the
-// live Kamigaze stream's blockTimestamp (uint32 SECONDS — Kamiden feeds are
+// through clock.now() instead: wall time plus an offset learned from block
+// timestamps of the streamed chain (uint32 SECONDS — Kamiden feeds are
 // milliseconds; the callers keep upstream's own unit handling).
+//
+// Observation sources, in practice: the Kamigaze stream's blockTimestamp
+// proto field arrives as 0 — the server never populates it (measured live
+// 2026-07-21; that tap stays armed in workers/sync/stream in case it ever
+// does) — so the operative feed is the daemon's slow-cadence RPC fetch of a
+// streamed block's header timestamp (src/daemon.ts syncClock, §3.8).
 //
 // Properties, chosen deliberately:
 // - Before the first observation the offset is 0, i.e. exactly upstream's
