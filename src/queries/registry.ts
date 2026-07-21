@@ -1,8 +1,14 @@
 // kami-lens native module (not a port): the query registry (DESIGN §4.3).
 // One entry per served query: argument parsing (shared by CLI and socket),
-// the checked-in output schema, and the mirror-backed builder. The same
-// registry backs the daemon socket, the CLI, and the library exports —
-// "the same queries as library exports" is a table property, not a promise.
+// the checked-in output schema, and the builder. The same registry backs
+// the daemon socket, the CLI, and the library exports — "the same queries
+// as library exports" is a table property, not a promise.
+//
+// M4: builders take a QueryCtx ({mirror, kamiden?, chat?}) and may be
+// async (Kamiden unary passthroughs). Chain-only builders keep using just
+// ctx.mirror. The chat entry is subject to the §3.10 kill-switch, enforced
+// inside its builder (CHAT_DISABLED) so the removal is an explicit,
+// documented answer rather than a silent absence.
 
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -13,14 +19,41 @@ import {
   itemQuery,
   itemsQuery,
   kamiQuery,
-  Mirror,
   nodeQuery,
   partyQuery,
   QueryError,
 } from './build';
 import { EnvelopeOptions, QuerySchema } from './envelope';
+import {
+  auctionsQuery,
+  battlesQuery,
+  chatQuery,
+  feedQuery,
+  marketQuery,
+  portalQuery,
+  QueryCtx,
+  questsQuery,
+  tradesQuery,
+  transfersQuery,
+} from './feeds';
 
-export type QueryName = 'kami' | 'account' | 'node' | 'party' | 'item' | 'items' | 'config';
+export type QueryName =
+  | 'kami'
+  | 'account'
+  | 'node'
+  | 'party'
+  | 'item'
+  | 'items'
+  | 'config'
+  | 'battles'
+  | 'trades'
+  | 'auctions'
+  | 'quests'
+  | 'market'
+  | 'portal'
+  | 'transfers'
+  | 'feed'
+  | 'chat';
 
 export type QueryDef = {
   name: QueryName;
@@ -29,7 +62,17 @@ export type QueryDef = {
   parseArgs: (positional: string[]) => Record<string, unknown>;
   /** true when the query is servable without a daemon (G3.d) */
   stateless: boolean;
-  build: (mirror: Mirror, args: Record<string, unknown>, opts: EnvelopeOptions) => unknown;
+  /** true when the answer needs the Kamiden feed service (soft dependency,
+   * §3.2 — an outage degrades exactly these, with KAMIDEN_UNAVAILABLE) */
+  kamiden: boolean;
+  /** §3.10: invoking this dedicated query IS the authored-prose opt-in
+   * (chat) — the envelope keeps prose fields without the --prose flag */
+  forcesProse?: boolean;
+  build: (
+    ctx: QueryCtx,
+    args: Record<string, unknown>,
+    opts: EnvelopeOptions & { oversize?: boolean }
+  ) => unknown | Promise<unknown>;
 };
 
 const int = (s: string | undefined, what: string): number => {
@@ -38,13 +81,17 @@ const int = (s: string | undefined, what: string): number => {
   return n;
 };
 
+const optInt = (s: string | undefined, what: string): number | undefined =>
+  s === undefined ? undefined : int(s, what);
+
 export const REGISTRY: Record<QueryName, QueryDef> = {
   kami: {
     name: 'kami',
     summary: 'single-kami vitals by on-chain index',
     parseArgs: ([index]) => ({ index: int(index, 'kami index') }),
     stateless: true,
-    build: (m, a) => kamiQuery(m, a as { index: number }),
+    kamiden: false,
+    build: (ctx, a) => kamiQuery(ctx.mirror, a as { index: number }),
   },
   account: {
     name: 'account',
@@ -54,35 +101,40 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
       return /^\d+$/.test(key) ? { index: Number(key) } : { name: key };
     },
     stateless: false,
-    build: (m, a, o) => accountQuery(m, a as { index?: number; name?: string }, o),
+    kamiden: false,
+    build: (ctx, a, o) => accountQuery(ctx.mirror, a as { index?: number; name?: string }, o),
   },
   node: {
     name: 'node',
     summary: 'node with its ACTIVE harvests (discovery query)',
     parseArgs: ([index]) => ({ index: int(index, 'node index') }),
     stateless: false,
-    build: (m, a) => nodeQuery(m, a as { index: number }),
+    kamiden: false,
+    build: (ctx, a) => nodeQuery(ctx.mirror, a as { index: number }),
   },
   party: {
     name: 'party',
     summary: 'account party report: every kami with full vitals',
     parseArgs: ([accountIndex]) => ({ accountIndex: int(accountIndex, 'account index') }),
     stateless: false,
-    build: (m, a) => partyQuery(m, a as { accountIndex: number }),
+    kamiden: false,
+    build: (ctx, a) => partyQuery(ctx.mirror, a as { accountIndex: number }),
   },
   item: {
     name: 'item',
     summary: 'item registry row by index',
     parseArgs: ([index]) => ({ index: int(index, 'item index') }),
     stateless: false,
-    build: (m, a) => itemQuery(m, a as { index: number }),
+    kamiden: false,
+    build: (ctx, a) => itemQuery(ctx.mirror, a as { index: number }),
   },
   items: {
     name: 'items',
     summary: 'the full item registry',
     parseArgs: () => ({}),
     stateless: false,
-    build: (m) => itemsQuery(m),
+    kamiden: false,
+    build: (ctx) => itemsQuery(ctx.mirror),
   },
   config: {
     name: 'config',
@@ -92,7 +144,111 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
       return { name, array: flag === '--array' };
     },
     stateless: false,
-    build: (m, a) => configQuery(m, a as { name: string; array?: boolean }),
+    kamiden: false,
+    build: (ctx, a) => configQuery(ctx.mirror, a as { name: string; array?: boolean }),
+  },
+  battles: {
+    name: 'battles',
+    summary: 'kami battle history + stats (kamiden; [beforeMs] pages back)',
+    parseArgs: ([index, before]) => ({
+      index: int(index, 'kami index'),
+      before: optInt(before, 'before (ms timestamp)'),
+    }),
+    stateless: false,
+    kamiden: true,
+    build: (ctx, a) => battlesQuery(ctx, a as { index: number; before?: number }),
+  },
+  trades: {
+    name: 'trades',
+    summary: 'open chain trades; with [accountIndex], kamiden history + open offers',
+    parseArgs: ([accountIndex]) => ({
+      accountIndex: optInt(accountIndex, 'account index'),
+    }),
+    stateless: false,
+    kamiden: false, // chain listing works without kamiden; history needs it
+    build: (ctx, a) => tradesQuery(ctx, a as { accountIndex?: number }),
+  },
+  auctions: {
+    name: 'auctions',
+    summary: 'chain auctions with current GDA price; with [itemIndex], kamiden buy history',
+    parseArgs: ([itemIndex]) => ({ itemIndex: optInt(itemIndex, 'item index') }),
+    stateless: false,
+    kamiden: false, // chain listing works without kamiden; buys need it
+    build: (ctx, a) => auctionsQuery(ctx, a as { itemIndex?: number }),
+  },
+  quests: {
+    name: 'quests',
+    summary: 'quest registry; with [accountIndex], accepted quests + completion',
+    parseArgs: ([accountIndex]) => ({
+      accountIndex: optInt(accountIndex, 'account index'),
+    }),
+    stateless: false,
+    kamiden: false,
+    build: (ctx, a) => questsQuery(ctx, a as { accountIndex?: number }),
+  },
+  market: {
+    name: 'market',
+    summary: 'KamiSwap listings + bids (kamiden); with [accountIndex], order history',
+    parseArgs: ([accountIndex]) => ({
+      accountIndex: optInt(accountIndex, 'account index'),
+    }),
+    stateless: false,
+    kamiden: true,
+    build: (ctx, a) => marketQuery(ctx, a as { accountIndex?: number }),
+  },
+  portal: {
+    name: 'portal',
+    summary: 'token portal history for an account + open withdrawals (kamiden)',
+    parseArgs: ([accountIndex]) => ({ accountIndex: int(accountIndex, 'account index') }),
+    stateless: false,
+    kamiden: true,
+    build: (ctx, a) => portalQuery(ctx, a as { accountIndex: number }),
+  },
+  transfers: {
+    name: 'transfers',
+    summary: 'item transfer history for an account (kamiden)',
+    parseArgs: ([accountIndex]) => ({ accountIndex: int(accountIndex, 'account index') }),
+    stateless: false,
+    kamiden: true,
+    build: (ctx, a) => transfersQuery(ctx, a as { accountIndex: number }),
+  },
+  feed: {
+    name: 'feed',
+    summary: 'buffered stream feed events ([sinceSeq] [type] filter)',
+    parseArgs: (positional) => {
+      const args: { sinceSeq?: number; type?: string } = {};
+      for (const p of positional) {
+        if (/^\d+$/.test(p)) args.sinceSeq = int(p, 'sinceSeq');
+        else args.type = p;
+      }
+      return args;
+    },
+    stateless: false,
+    kamiden: true,
+    build: (ctx, a) => feedQuery(ctx, a as { sinceSeq?: number; type?: string }),
+  },
+  chat: {
+    name: 'chat',
+    summary: 'room chat page (kamiden; [beforeMs] [size]; --oversize serves withheld bodies)',
+    parseArgs: (positional) => {
+      const rest = positional.filter((p) => p !== '--oversize');
+      const oversize = rest.length !== positional.length;
+      const [roomIndex, before, size] = rest;
+      return {
+        roomIndex: int(roomIndex, 'room index'),
+        before: optInt(before, 'before (ms timestamp)'),
+        size: optInt(size, 'size'),
+        oversize,
+      };
+    },
+    stateless: false,
+    kamiden: true,
+    forcesProse: true,
+    build: (ctx, a, o) =>
+      chatQuery(ctx, {
+        ...(a as { roomIndex: number; before?: number; size?: number; oversize?: boolean }),
+        oversize: (a as { oversize?: boolean }).oversize || o.oversize,
+      }),
   },
 };
 

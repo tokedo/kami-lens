@@ -93,20 +93,25 @@ type QueryKami = {
 };
 
 const realNow = Date.now;
-function partyAt(
+// serveQuery is async since M4; the party builder itself is synchronous
+// chain-only code, so the Date.now freeze still spans the whole
+// computation (nothing else can interleave in this single script).
+async function partyAt(
   mirrorBlock: number,
   accountIndex: number,
   frozenMs: number
-): Map<number, QueryKami> {
+): Promise<Map<number, QueryKami>> {
   const m = mirrors.get(mirrorBlock)!;
   Date.now = () => frozenMs;
   clock.reset();
   try {
     KamiCache.clear();
-    const out = serveQuery({ ...m, blockNumber: mirrorBlock }, 'party', [String(accountIndex)], {
-      stale: false,
-      mode: 'daemon',
-    }).data as { kamis: QueryKami[] };
+    const out = (
+      await serveQuery({ ...m, blockNumber: mirrorBlock }, 'party', [String(accountIndex)], {
+        stale: false,
+        mode: 'daemon',
+      })
+    ).data as { kamis: QueryKami[] };
     return new Map(out.kamis.map((k) => [k.index, k]));
   } finally {
     Date.now = realNow;
@@ -140,7 +145,7 @@ for (const shot of fixture.screenshots) {
   const satisfiedAt = new Map<number, number>();
   let atCapture = new Map<number, QueryKami>();
   for (let off = 65; off >= 0; off--) {
-    const q = partyAt(obsBlock, accountIndex, shot.capturedAtMs - off * 1000);
+    const q = await partyAt(obsBlock, accountIndex, shot.capturedAtMs - off * 1000);
     if (off === 0) atCapture = q;
     for (const row of party) {
       if (satisfiedAt.has(row.kamiIndex)) continue;

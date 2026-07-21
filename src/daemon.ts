@@ -42,7 +42,10 @@ import {
 } from 'workers/sync/state';
 import { SyncWorkerConfig, isNetworkComponentUpdateEvent } from 'workers/types';
 
+import { setupCacheInvalidationHandler } from 'network/systems/CacheInvalidationSystem';
+
 import { KamiLensConfig, resolveConfig } from './config';
+import { KamidenFeeds, KamidenStatus } from './kamiden';
 import { Tripwires, tripwireReport } from './tripwires';
 
 /** Documented error marker for refusing a cold start without a snapshot
@@ -77,8 +80,12 @@ export type DaemonStatus = {
   checkpoint: CheckpointReport | null;
   checkpointCount: number;
   tripwires: Tripwires;
-  /** nonzero tripwires, rendered as 'name:count' — empty means healthy */
+  /** nonzero tripwires, rendered as 'name:count' — empty means healthy.
+   * CHAIN health only: kamiden degradation lives in `kamiden` and never
+   * stamps chain-row answers stale (§3.2 soft dependency). */
   degraded: string[];
+  /** Kamiden feed health, per-feed (M4; DESIGN §3.2) */
+  kamiden: KamidenStatus;
   bootstrapAttempts: number;
   startedAt: string;
   liveAt: string | null;
@@ -88,6 +95,8 @@ export type DaemonStatus = {
     jsonRpcUrl: string;
     wsRpcUrl?: string;
     kamigazeUrl?: string;
+    kamidenUrl?: string;
+    chatEnabled: boolean;
     dataDir: string;
     checkpointIntervalMs: number;
   };
@@ -101,6 +110,7 @@ export class KamiLensDaemon {
   private world: ReturnType<typeof createWorld> | null = null;
   private components: ReturnType<typeof createComponents> | null = null;
   private subscriptions: Subscription[] = [];
+  private feedCleanups: (() => void)[] = [];
   private checkpointTimer: NodeJS.Timeout | null = null;
   private clockSyncTimer: NodeJS.Timeout | null = null;
   private clockProvider: JsonRpcProvider | null = null;
@@ -126,8 +136,18 @@ export class KamiLensDaemon {
   private resolveLive!: () => void;
   private rejectLive!: (e: Error) => void;
 
+  /** Kamiden feed supervisor (M4): constructed with the daemon so the
+   * client is configured before any consumer looks it up; started only on
+   * LIVE, stopped with the daemon. Soft dependency — its failures never
+   * touch chain sync (DESIGN §3.2). */
+  readonly kamiden: KamidenFeeds;
+
   constructor(overrides: Partial<KamiLensConfig> = {}) {
     this.config = resolveConfig(overrides);
+    this.kamiden = new KamidenFeeds({
+      url: this.config.kamidenUrl,
+      bufferCapacity: this.config.kamidenBufferCapacity,
+    });
     this.live = new Promise<void>((resolve, reject) => {
       this.resolveLive = resolve;
       this.rejectLive = reject;
@@ -245,6 +265,19 @@ export class KamiLensDaemon {
 
     applyNetworkUpdates(world, components, worker.ecsEvents$, mappings, ack$);
 
+    // Kamiden feed consumer (M4): stream casts/kills invalidate the
+    // affected kami/bonus cache rows, exactly upstream's
+    // CacheInvalidationSystem. Wired per-world (the closure holds this
+    // bootstrap's world); torn down with the worker. Inert until the
+    // supervisor starts dispatching feeds on LIVE.
+    this.feedCleanups.push(
+      setupCacheInvalidationHandler({
+        world,
+        components,
+        network: { connectedAddress: { get: () => undefined } },
+      })
+    );
+
     const { chainId, worldAddress, jsonRpcUrl, wsRpcUrl, kamigazeUrl, initialBlockNumber, dataDir } =
       this.config;
     const syncWorkerConfig: SyncWorkerConfig = {
@@ -286,6 +319,9 @@ export class KamiLensDaemon {
     }, this.config.checkpointIntervalMs);
     this.checkpointTimer.unref?.();
     this.startClockSync();
+    // Kamiden feeds start once the chain mirror is LIVE (soft dependency:
+    // a feed failure degrades feed rows in status, never chain service).
+    this.kamiden.start();
     this.resolveLive();
   }
 
@@ -435,8 +471,17 @@ export class KamiLensDaemon {
   }
 
   getStatus(): DaemonStatus {
-    const { chainId, worldAddress, jsonRpcUrl, wsRpcUrl, kamigazeUrl, dataDir, checkpointIntervalMs } =
-      this.config;
+    const {
+      chainId,
+      worldAddress,
+      jsonRpcUrl,
+      wsRpcUrl,
+      kamigazeUrl,
+      kamidenUrl,
+      chatEnabled,
+      dataDir,
+      checkpointIntervalMs,
+    } = this.config;
     const tripwires = tripwireReport();
     const streamSilentMs =
       this.liveAt && this.lastStreamEventAtWallMs > 0
@@ -458,16 +503,29 @@ export class KamiLensDaemon {
           .filter(([, count]) => count > 0)
           .map(([name, count]) => `${name}:${count}`),
       ],
+      kamiden: this.kamiden.getStatus(),
       bootstrapAttempts: this.bootstrapAttempts,
       startedAt: this.startedAt,
       liveAt: this.liveAt,
-      config: { chainId, worldAddress, jsonRpcUrl, wsRpcUrl, kamigazeUrl, dataDir, checkpointIntervalMs },
+      config: {
+        chainId,
+        worldAddress,
+        jsonRpcUrl,
+        wsRpcUrl,
+        kamigazeUrl,
+        kamidenUrl,
+        chatEnabled,
+        dataDir,
+        checkpointIntervalMs,
+      },
     };
   }
 
   private teardownWorker(): void {
     for (const sub of this.subscriptions) sub.unsubscribe();
     this.subscriptions = [];
+    for (const cleanup of this.feedCleanups) cleanup();
+    this.feedCleanups = [];
     this.worker?.dispose();
     this.worker = null;
     this.world?.dispose();
@@ -479,6 +537,7 @@ export class KamiLensDaemon {
   async stop(): Promise<void> {
     if (this.stopped) return;
     this.stopped = true;
+    this.kamiden.stop();
     if (this.checkpointTimer) clearInterval(this.checkpointTimer);
     if (this.clockSyncTimer) clearInterval(this.clockSyncTimer);
     this.clockProvider?.destroy();

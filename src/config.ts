@@ -26,6 +26,21 @@ export type KamiLensConfig = {
   wsRpcUrl?: string;
   /** undefined = no snapshot/stream service configured (loud-fail cold start) */
   kamigazeUrl?: string;
+  /** Kamiden feed service (DESIGN §3.2: SOFT dependency — outage degrades
+   * feed rows only, never daemon liveness). Upstream creates the Kamiden
+   * channel on the Kamigaze URL (clients/kamiden/client.ts reads
+   * VITE_KAMIGAZE_URL — both services share the endpoint at the pin), so
+   * the default is the resolved kamigazeUrl; undefined = feeds disabled,
+   * kamiden-sourced rows degrade visibly (M4). */
+  kamidenUrl?: string;
+  /** feed ring buffer capacity, in events (M4; oldest evicted first) */
+  kamidenBufferCapacity: number;
+  /** chat kill-switch (DESIGN §3.10): false removes the chat query */
+  chatEnabled: boolean;
+  /** chat oversize threshold, UTF-8 bytes of one message body: larger
+   * bodies are withheld-with-receipt (DESIGN §3.10 — never truncated;
+   * explicit oversize opt-in serves them verbatim) */
+  chatMaxBytes: number;
   dataDir: string;
   checkpointIntervalMs: number;
 };
@@ -65,6 +80,16 @@ export function resolveConfig(overrides: Partial<KamiLensConfig> = {}): KamiLens
         ? undefined
         : (envKamigaze ?? YOMINET_DEFAULTS.kamigazeUrl);
 
+  // Kamiden defaults to the Kamigaze endpoint (upstream parity — see the
+  // KamiLensConfig field comment). KAMI_LENS_KAMIDEN_URL=none disables feeds.
+  const envKamiden = env('KAMI_LENS_KAMIDEN_URL');
+  const kamidenUrl =
+    'kamidenUrl' in overrides
+      ? overrides.kamidenUrl
+      : envKamiden === 'none'
+        ? undefined
+        : (envKamiden ?? kamigazeUrl);
+
   return {
     chainId: overrides.chainId ?? Number(env('KAMI_LENS_CHAIN_ID') ?? YOMINET_DEFAULTS.chainId),
     worldAddress:
@@ -78,6 +103,14 @@ export function resolveConfig(overrides: Partial<KamiLensConfig> = {}): KamiLens
         ? overrides.wsRpcUrl
         : (env('KAMI_LENS_RPC_WS_URL') ?? YOMINET_DEFAULTS.wsRpcUrl),
     kamigazeUrl,
+    kamidenUrl,
+    kamidenBufferCapacity:
+      overrides.kamidenBufferCapacity ??
+      Number(env('KAMI_LENS_KAMIDEN_BUFFER_CAPACITY') ?? 4096),
+    chatEnabled:
+      overrides.chatEnabled ?? env('KAMI_LENS_CHAT_ENABLED') !== 'false',
+    chatMaxBytes:
+      overrides.chatMaxBytes ?? Number(env('KAMI_LENS_CHAT_MAX_BYTES') ?? 4096),
     dataDir: overrides.dataDir ?? getDataDir(),
     checkpointIntervalMs:
       overrides.checkpointIntervalMs ??

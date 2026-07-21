@@ -12,6 +12,7 @@
         "startedAt",
         "tripwires",
         "degraded",
+        "kamiden",
         "clockOffsetMs",
         "config"
       ],
@@ -59,6 +60,9 @@
             "type": "string"
           }
         },
+        "kamiden": {
+          "$ref": "#/$defs/KamidenStatus"
+        },
         "clockOffsetMs": {
           "type": "number"
         },
@@ -90,6 +94,12 @@
             "kamigazeUrl": {
               "type": "string"
             },
+            "kamidenUrl": {
+              "type": "string"
+            },
+            "chatEnabled": {
+              "type": "boolean"
+            },
             "dataDir": {
               "type": "string"
             },
@@ -100,6 +110,73 @@
         },
         "streamSilentMs": {
           "type": "number"
+        }
+      }
+    },
+    "KamidenStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["configured", "url", "stream", "buffer", "unary"],
+      "properties": {
+        "configured": { "type": "boolean" },
+        "url": { "type": ["string", "null"] },
+        "stream": { "$ref": "#/$defs/KamidenStream" },
+        "buffer": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["size", "capacity", "evicted", "newestSeq"],
+          "properties": {
+            "size": { "type": "number" },
+            "capacity": { "type": "number" },
+            "evicted": { "type": "number" },
+            "newestSeq": { "type": "number" }
+          }
+        },
+        "unary": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      }
+    },
+    "KamidenStream": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "topics",
+        "startedAt",
+        "framesReceived",
+        "feedFrames",
+        "lastFrameAtWallMs",
+        "silentMs",
+        "messageFramesDropped",
+        "messagesDropped",
+        "retries",
+        "consecutiveFailures",
+        "lastError",
+        "events"
+      ],
+      "properties": {
+        "state": { "type": "string" },
+        "topics": { "type": "array", "items": { "type": "string" } },
+        "startedAt": { "type": ["string", "null"] },
+        "framesReceived": { "type": "number" },
+        "feedFrames": { "type": "number" },
+        "lastFrameAtWallMs": { "type": "number" },
+        "silentMs": { "type": "number" },
+        "messageFramesDropped": { "type": "number" },
+        "messagesDropped": { "type": "number" },
+        "retries": { "type": "number" },
+        "consecutiveFailures": { "type": "number" },
+        "lastError": { "type": ["string", "null"] },
+        "events": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          }
         }
       }
     }

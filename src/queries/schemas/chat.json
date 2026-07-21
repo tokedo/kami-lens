@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kami-lens/schemas/chat.json",
+  "$ref": "#/$defs/Chat",
+  "$defs": {
+    "Chat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["roomIndex", "before", "count", "messages"],
+      "properties": {
+        "roomIndex": { "type": "number" },
+        "before": { "type": "number" },
+        "count": { "type": "number" },
+        "messages": { "type": "array", "items": { "$ref": "#/$defs/ChatMessage" } }
+      }
+    },
+    "ChatMessage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["roomIndex", "account", "timestamp"],
+      "properties": {
+        "roomIndex": { "type": "number" },
+        "account": { "$ref": "#/$defs/AccountIdRef" },
+        "timestamp": { "type": "number" },
+        "message": { "type": "string" },
+        "withheld": { "$ref": "#/$defs/Withheld" }
+      }
+    },
+    "Withheld": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reason", "bytes"],
+      "properties": {
+        "reason": { "type": "string" },
+        "bytes": { "type": "number" }
+      }
+    },
+    "AccountIdRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string" },
+        "index": { "type": "number" },
+        "name": { "type": "string" }
+      }
+    }
+  }
+}

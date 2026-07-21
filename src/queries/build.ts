@@ -41,7 +41,7 @@ export type Mirror = {
 
 export class QueryError extends Error {
   constructor(
-    readonly code: 'NOT_FOUND' | 'BAD_ARGS',
+    readonly code: 'NOT_FOUND' | 'BAD_ARGS' | 'KAMIDEN_UNAVAILABLE' | 'CHAT_DISABLED',
     message: string
   ) {
     super(message);

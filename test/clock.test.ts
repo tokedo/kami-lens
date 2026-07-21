@@ -52,7 +52,7 @@ describe('clock (§3.8)', () => {
 // fails this test until it is wired to the clock.
 describe('projection trees carry no naive wall-clock reads', () => {
   const ROOT = path.resolve(__dirname, '../src');
-  const TREES = ['app/cache', 'network/shapes', 'constants', 'assets'];
+  const TREES = ['app/cache', 'network/shapes', 'network/explorer', 'network/systems', 'constants', 'assets'];
   const EXTRA_FILES = ['utils/time.ts'];
   const WALL_CLOCK = /\bDate\.now\(\)|\bnew Date\(\)|(?<![\w.])moment\(\)/;
 

@@ -1,0 +1,314 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kami-lens/schemas/feed.json",
+  "$ref": "#/$defs/Feed",
+  "$defs": {
+    "Feed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stream", "buffer", "events"],
+      "properties": {
+        "stream": { "$ref": "#/$defs/StreamHealth" },
+        "buffer": { "$ref": "#/$defs/BufferState" },
+        "events": { "type": "array", "items": { "$ref": "#/$defs/FeedEntry" } }
+      }
+    },
+    "StreamHealth": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "topics",
+        "silentMs",
+        "retries",
+        "lastError",
+        "framesReceived",
+        "feedFrames",
+        "messagesDropped"
+      ],
+      "properties": {
+        "state": { "type": "string" },
+        "topics": { "type": "array", "items": { "type": "string" } },
+        "silentMs": { "type": "number" },
+        "retries": { "type": "number" },
+        "lastError": { "type": ["string", "null"] },
+        "framesReceived": { "type": "number" },
+        "feedFrames": { "type": "number" },
+        "messagesDropped": { "type": "number" }
+      }
+    },
+    "BufferState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["size", "capacity", "evicted", "newestSeq"],
+      "properties": {
+        "size": { "type": "number" },
+        "capacity": { "type": "number" },
+        "evicted": { "type": "number" },
+        "newestSeq": { "type": "number" }
+      }
+    },
+    "FeedEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["seq", "receivedAtWallMs", "type"],
+      "properties": {
+        "seq": { "type": "number" },
+        "receivedAtWallMs": { "type": "number" },
+        "type": { "type": "string" },
+        "movement": { "$ref": "#/$defs/FeedMovement" },
+        "harvestEnd": { "$ref": "#/$defs/FeedHarvestEnd" },
+        "kill": { "$ref": "#/$defs/Kill" },
+        "trade": { "$ref": "#/$defs/TradeHistory" },
+        "kamiCast": { "$ref": "#/$defs/FeedKamiCast" },
+        "droptableReveal": { "$ref": "#/$defs/FeedDroptableReveal" },
+        "sacrificeReveal": { "$ref": "#/$defs/FeedSacrificeReveal" },
+        "kamiMarketList": { "$ref": "#/$defs/FeedMarketList" },
+        "kamiMarketBuy": { "$ref": "#/$defs/FeedMarketBuy" },
+        "kamiMarketOffer": { "$ref": "#/$defs/FeedMarketOffer" },
+        "kamiMarketAccept": { "$ref": "#/$defs/FeedMarketAccept" },
+        "kamiMarketCancel": { "$ref": "#/$defs/FeedMarketCancel" }
+      }
+    },
+    "FeedMovement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["accountId", "account", "room", "timestamp"],
+      "properties": {
+        "accountId": { "type": "string" },
+        "account": { "$ref": "#/$defs/AccountIdRef" },
+        "room": { "$ref": "#/$defs/RoomRef" },
+        "timestamp": { "type": "number" }
+      }
+    },
+    "FeedHarvestEnd": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kamiId", "kami", "room", "timestamp"],
+      "properties": {
+        "kamiId": { "type": "string" },
+        "kami": { "$ref": "#/$defs/KamiIdRef" },
+        "room": { "$ref": "#/$defs/RoomRef" },
+        "timestamp": { "type": "number" }
+      }
+    },
+    "Kill": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "timestamp",
+        "roomIndex",
+        "room",
+        "isDeath",
+        "killer",
+        "victim",
+        "account",
+        "killerHealth",
+        "victimHealth",
+        "bounty",
+        "salvage",
+        "spoils"
+      ],
+      "properties": {
+        "timestamp": { "type": "number" },
+        "roomIndex": { "type": "number" },
+        "room": { "$ref": "#/$defs/RoomRef" },
+        "isDeath": { "type": "boolean" },
+        "killer": { "$ref": "#/$defs/KamiIdRef" },
+        "victim": { "$ref": "#/$defs/KamiIdRef" },
+        "account": { "$ref": "#/$defs/AccountIdRef" },
+        "killerHealth": { "$ref": "#/$defs/Health" },
+        "victimHealth": { "$ref": "#/$defs/Health" },
+        "bounty": { "type": "string" },
+        "salvage": { "type": "string" },
+        "spoils": { "type": "string" },
+        "blockNumber": { "type": "number" }
+      }
+    },
+    "Health": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sync", "total"],
+      "properties": {
+        "sync": { "type": "number" },
+        "total": { "type": "number" }
+      }
+    },
+    "TradeHistory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tradeId", "maker", "taker", "buyOrder", "sellOrder", "timestamps"],
+      "properties": {
+        "tradeId": { "type": "string" },
+        "maker": { "$ref": "#/$defs/AccountIdRef" },
+        "taker": { "$ref": "#/$defs/AccountIdRef" },
+        "buyOrder": { "type": "array", "items": { "$ref": "#/$defs/OrderEntry" } },
+        "sellOrder": { "type": "array", "items": { "$ref": "#/$defs/OrderEntry" } },
+        "timestamps": { "$ref": "#/$defs/TradeTimestamps" }
+      }
+    },
+    "OrderEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["itemIndex", "item", "amount"],
+      "properties": {
+        "itemIndex": { "type": "number" },
+        "item": { "$ref": "#/$defs/ItemRef" },
+        "amount": { "type": "string" }
+      }
+    },
+    "TradeTimestamps": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["create", "cancel", "execute", "complete"],
+      "properties": {
+        "create": { "type": "string" },
+        "cancel": { "type": "string" },
+        "execute": { "type": "string" },
+        "complete": { "type": "string" }
+      }
+    },
+    "FeedKamiCast": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["accountId", "account", "targetId", "target", "itemIndex", "nodeIndex", "timestamp"],
+      "properties": {
+        "accountId": { "type": "string" },
+        "account": { "$ref": "#/$defs/AccountIdRef" },
+        "targetId": { "type": "string" },
+        "target": { "$ref": "#/$defs/KamiIdRef" },
+        "itemIndex": { "type": "number" },
+        "nodeIndex": { "type": "number" },
+        "timestamp": { "type": "number" }
+      }
+    },
+    "FeedDroptableReveal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commitId", "holderId", "dtId", "timestamp", "itemIndices", "itemAmounts"],
+      "properties": {
+        "commitId": { "type": "string" },
+        "holderId": { "type": "string" },
+        "dtId": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "itemIndices": { "type": "array", "items": { "type": "number" } },
+        "itemAmounts": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "FeedSacrificeReveal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commitId", "holderId", "kamiId", "dtId", "timestamp", "itemIndices", "itemAmounts"],
+      "properties": {
+        "commitId": { "type": "string" },
+        "holderId": { "type": "string" },
+        "kamiId": { "type": "string" },
+        "dtId": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "itemIndices": { "type": "array", "items": { "type": "number" } },
+        "itemAmounts": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "FeedMarketList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["orderId", "accountId", "kamiIndex", "price", "expiry", "timestamp"],
+      "properties": {
+        "orderId": { "type": "string" },
+        "accountId": { "type": "string" },
+        "kamiIndex": { "type": "number" },
+        "price": { "type": "string" },
+        "expiry": { "type": "string" },
+        "timestamp": { "type": "number" }
+      }
+    },
+    "FeedMarketBuy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["orderId", "buyerAccountId", "sellerAccountId", "kamiIndex", "price", "timestamp"],
+      "properties": {
+        "orderId": { "type": "string" },
+        "buyerAccountId": { "type": "string" },
+        "sellerAccountId": { "type": "string" },
+        "kamiIndex": { "type": "number" },
+        "price": { "type": "string" },
+        "timestamp": { "type": "number" }
+      }
+    },
+    "FeedMarketOffer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["orderId", "accountId", "kamiIndex", "quantity", "price", "expiry", "timestamp"],
+      "properties": {
+        "orderId": { "type": "string" },
+        "accountId": { "type": "string" },
+        "kamiIndex": { "type": "number" },
+        "quantity": { "type": "number" },
+        "price": { "type": "string" },
+        "expiry": { "type": "string" },
+        "timestamp": { "type": "number" }
+      }
+    },
+    "FeedMarketAccept": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["orderId", "sellerAccountId", "buyerAccountId", "kamiIndex", "price", "timestamp"],
+      "properties": {
+        "orderId": { "type": "string" },
+        "sellerAccountId": { "type": "string" },
+        "buyerAccountId": { "type": "string" },
+        "kamiIndex": { "type": "number" },
+        "price": { "type": "string" },
+        "timestamp": { "type": "number" }
+      }
+    },
+    "FeedMarketCancel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["orderId", "accountId", "timestamp"],
+      "properties": {
+        "orderId": { "type": "string" },
+        "accountId": { "type": "string" },
+        "timestamp": { "type": "number" }
+      }
+    },
+    "ItemRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "name"],
+      "properties": {
+        "index": { "type": "number" },
+        "name": { "type": "string" }
+      }
+    },
+    "KamiIdRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string" },
+        "index": { "type": "number" },
+        "name": { "type": "string" }
+      }
+    },
+    "AccountIdRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string" },
+        "index": { "type": "number" },
+        "name": { "type": "string" }
+      }
+    },
+    "RoomRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "name"],
+      "properties": {
+        "index": { "type": "number" },
+        "name": { "type": "string" }
+      }
+    }
+  }
+}

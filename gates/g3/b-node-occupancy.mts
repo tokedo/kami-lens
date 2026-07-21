@@ -66,8 +66,9 @@ type NodeAnswer = {
 const nodes = getAllNodes(world, components).filter((n) => n.index);
 let chosen: NodeAnswer | null = null;
 for (const n of nodes) {
-  const answer = serveQuery(mirror, 'node', [String(n.index)], { stale: false, mode: 'daemon' })
-    .data as NodeAnswer;
+  const answer = (
+    await serveQuery(mirror, 'node', [String(n.index)], { stale: false, mode: 'daemon' })
+  ).data as NodeAnswer;
   if (
     answer.harvests.length > 0 &&
     (!chosen || Math.abs(answer.harvests.length - 40) < Math.abs(chosen.harvests.length - 40))
@@ -140,8 +141,9 @@ let negativeChecked = 0;
 for (const other of nodes) {
   if (negativeChecked >= 10) break;
   if (other.index === node.index) continue;
-  const answer = serveQuery(mirror, 'node', [String(other.index)], { stale: false, mode: 'daemon' })
-    .data as NodeAnswer;
+  const answer = (
+    await serveQuery(mirror, 'node', [String(other.index)], { stale: false, mode: 'daemon' })
+  ).data as NodeAnswer;
   for (const h of answer.harvests.slice(0, 2)) {
     if (negativeChecked >= 10) break;
     negativeChecked++;

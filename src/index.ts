@@ -1,6 +1,10 @@
 // kami-lens public surface. Populated as milestones land (PORT_PLAN.md).
 // M0: pure leaf utilities (hash/pack/decode) ported from the upstream pin.
 // M1: the sync daemon (mirror, checkpointing, status).
+// M3: the query surface (serveQuery + registry; the same queries the
+//     daemon socket and CLI serve — re-exported here since M4; M3 shipped
+//     them importable from 'kami-lens/queries' paths only).
+// M4: the Kamiden feed supervisor and per-feed status types (§3.2).
 
 export { ERR_NO_SNAPSHOT_SOURCE, KamiLensDaemon, startDaemon } from './daemon';
 export type { CheckpointReport, DaemonStatus } from './daemon';
@@ -8,6 +12,11 @@ export { YOMINET_DEFAULTS, getDataDir, resolveConfig } from './config';
 export type { KamiLensConfig } from './config';
 export { tripwireReport, tripwires } from './tripwires';
 export type { Tripwires } from './tripwires';
+
+export { QueryError, QUERY_NAMES, REGISTRY, loadSchema, serveQuery } from './queries';
+export type { Envelope, EnvelopeOptions, Mirror, QueryCtx, QueryName } from './queries';
+export { KamidenFeeds, KamidenUnavailableError, DEFAULT_STREAM_TOPICS } from './kamiden';
+export type { BufferedFeedEvent, FeedEventType, KamidenStatus, StreamState } from './kamiden';
 export { SyncState } from 'engine/constants';
 export type { SyncStatus } from 'engine/constants';
 export type { StateCache } from 'workers/sync/state';

@@ -4,7 +4,13 @@
  * path:     packages/client/src/app/cache/battles/battles.ts
  * changes:  Date.now() → clock.now() at 1 call site plus the
  *           clock import (§3.8: offset-corrected stream clock, not naive
- *           wall clock — see src/clock.ts). Body otherwise verbatim.
+ *           wall clock — see src/clock.ts). M4: upstream captures
+ *           `const BattleClient = getKamidenClient()` at module scope —
+ *           sound in the browser, where the url is env-static at import
+ *           time; in the daemon, configuration happens after import (swap
+ *           point 1, clients/kamiden/client.ts), so the capture moves
+ *           inside process() — same null path, same call, later lookup.
+ *           Body otherwise verbatim.
  */
 
 import * as clock from 'clock';
@@ -14,7 +20,6 @@ import { getKamidenClient, Kill } from 'clients/kamiden';
 import { parseID } from 'utils/strings';
 
 export const BattleCache = new Map<EntityID, Kill[]>();
-const BattleClient = getKamidenClient();
 
 export const get = async (kamiId: EntityID, append: boolean) => {
   if (!BattleCache.has(kamiId) || append) await process(kamiId);
@@ -22,6 +27,7 @@ export const get = async (kamiId: EntityID, append: boolean) => {
 };
 
 export const process = async (kamiId: EntityID) => {
+  const BattleClient = getKamidenClient();
   if (!BattleClient) {
     console.warn('process(): Kamiden client not initialized');
     BattleCache.set(kamiId, []);

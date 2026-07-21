@@ -43,8 +43,8 @@ type Failure = { query: string; args: unknown; errors: unknown };
 const failures: Failure[] = [];
 let validated = 0;
 
-function check(query: string, args: string[], opts: { prose?: boolean; noAuthored?: boolean } = {}) {
-  const envelope = serveQuery(mirror, query, args, { ...opts, stale: false, mode: 'daemon' });
+async function check(query: string, args: string[], opts: { prose?: boolean; noAuthored?: boolean } = {}) {
+  const envelope = await serveQuery(mirror, query, args, { ...opts, stale: false, mode: 'daemon' });
   const valid = ajv.validate(query, envelope.data);
   validated++;
   if (!valid) {
@@ -55,12 +55,12 @@ function check(query: string, args: string[], opts: { prose?: boolean; noAuthore
 }
 
 // kami: broad sample
-for (const index of kamiIndexes.filter((i) => i > 0).slice(0, 300)) check('kami', [String(index)]);
+for (const index of kamiIndexes.filter((i) => i > 0).slice(0, 300)) await check('kami', [String(index)]);
 // accounts: via kami owners (first 40 distinct)
 const accountIndexes = new Set<number>();
 for (const index of kamiIndexes.filter((i) => i > 0)) {
   if (accountIndexes.size >= 40) break;
-  const env = serveQuery(mirror, 'kami', [String(index)], { stale: false, mode: 'daemon' });
+  const env = await serveQuery(mirror, 'kami', [String(index)], { stale: false, mode: 'daemon' });
   const acc = (env.data as { account?: { index: number } }).account;
   if (acc?.index) accountIndexes.add(acc.index);
 }
@@ -69,24 +69,24 @@ for (const index of kamiIndexes.filter((i) => i > 0)) {
 // G3.f asserts that shape), so it is not validated against the canonical
 // schema here.
 for (const a of accountIndexes) {
-  check('account', [String(a)]);
-  check('account', [String(a)], { prose: true });
-  check('party', [String(a)]);
+  await check('account', [String(a)]);
+  await check('account', [String(a)], { prose: true });
+  await check('party', [String(a)]);
 }
 // nodes: all
-for (const n of nodes) check('node', [String(n.index)]);
+for (const n of nodes) await check('node', [String(n.index)]);
 // items
-check('items', []);
-const itemsEnv = serveQuery(mirror, 'items', [], { stale: false, mode: 'daemon' });
+await check('items', []);
+const itemsEnv = await serveQuery(mirror, 'items', [], { stale: false, mode: 'daemon' });
 for (const item of (itemsEnv.data as { items: { index: number }[] }).items.slice(0, 50)) {
-  check('item', [String(item.index)]);
+  await check('item', [String(item.index)]);
 }
 // config: known fields
 for (const name of ['HARVEST_EFFICACY_BOOST', 'KAMI_STANDARD_COOLDOWN']) {
   try {
-    check('config', [name]);
+    await check('config', [name]);
   } catch {
-    check('config', ['KAMI_REROLL_FEE']);
+    await check('config', ['KAMI_REROLL_FEE']);
   }
 }
 // status: contract on an unstarted daemon

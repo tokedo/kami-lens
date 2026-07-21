@@ -2,8 +2,14 @@
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
  * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
  * path:     packages/client/src/network/explorer/auctions/pricing.ts
- * changes:  none
+ * changes:  Date.now() → clock.now() at 1 call site plus the clock import
+ *           (§3.8 — this price calc was unserved dead code at M3; the M4
+ *           auctions query serves it, so the wall-clock read joins the
+ *           swept set and network/explorer joins the static guard in
+ *           test/clock.test.ts). Body otherwise verbatim.
  */
+
+import * as clock from 'clock';
 
 import { Auction } from 'network/shapes/Auction';
 
@@ -17,7 +23,7 @@ export const getAuctionPrices = (auctions: Auction[]): AuctionDetails[] => {
   return auctions.map((auction) => {
     const name = auction.auctionItem?.name ?? 'Unknown';
     const currency = auction.paymentItem?.name ?? 'Unknown';
-    const now = Date.now() / 1000;
+    const now = clock.now() / 1000;
     const prevSold = auction.supply.sold;
     const price = calcPrice(auction, now, prevSold);
     return { name, price, currency };

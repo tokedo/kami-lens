@@ -64,9 +64,19 @@
       "jsonRpcUrl": "system",
       "wsRpcUrl": "system",
       "kamigazeUrl": "system",
+      "kamidenUrl": "system",
       "worldAddress": "system",
       "degraded": "system",
       "version": "system"
+    },
+    "KamidenStatus": {
+      "url": "system"
+    },
+    "KamidenStream": {
+      "state": "system",
+      "topics": "system",
+      "startedAt": "system",
+      "lastError": "system"
     },
     "Meta": {
       "servedAt": "system",
@@ -78,6 +88,141 @@
       "state": "system",
       "id": "system",
       "accountId": "system"
+    },
+    "KamiIdRef": {
+      "id": "system",
+      "name": "authored-id"
+    },
+    "AccountIdRef": {
+      "id": "system",
+      "name": "authored-id"
+    },
+    "RoomRef": {
+      "name": "registry"
+    },
+    "ItemRef": {
+      "name": "registry"
+    },
+    "Kill": {
+      "bounty": "system",
+      "salvage": "system",
+      "spoils": "system"
+    },
+    "TradeChain": {
+      "id": "system",
+      "state": "system",
+      "type": "system"
+    },
+    "TradeHistory": {
+      "tradeId": "system"
+    },
+    "OrderEntry": {
+      "amount": "system"
+    },
+    "TradeTimestamps": {
+      "create": "system",
+      "cancel": "system",
+      "execute": "system",
+      "complete": "system"
+    },
+    "AuctionBuy": {
+      "accountIndex": "system"
+    },
+    "QuestRegistry": {
+      "name": "registry",
+      "description": "registry"
+    },
+    "QuestAccepted": {
+      "name": "registry"
+    },
+    "MarketListing": {
+      "orderId": "system",
+      "price": "system",
+      "expiry": "system"
+    },
+    "MarketBid": {
+      "orderId": "system",
+      "price": "system",
+      "expiry": "system"
+    },
+    "MarketOrder": {
+      "orderId": "system"
+    },
+    "Receipt": {
+      "timestamp": "system",
+      "receiptId": "system",
+      "itemAmt": "system",
+      "taxAmt": "system",
+      "tokenAddress": "system",
+      "tokenAmt": "system"
+    },
+    "Transfer": {
+      "amount": "system"
+    },
+    "StreamHealth": {
+      "state": "system",
+      "topics": "system",
+      "lastError": "system"
+    },
+    "FeedEntry": {
+      "type": "system"
+    },
+    "FeedMovement": {
+      "accountId": "system"
+    },
+    "FeedHarvestEnd": {
+      "kamiId": "system"
+    },
+    "FeedKamiCast": {
+      "accountId": "system",
+      "targetId": "system"
+    },
+    "FeedDroptableReveal": {
+      "commitId": "system",
+      "holderId": "system",
+      "dtId": "system",
+      "itemAmounts": "system"
+    },
+    "FeedSacrificeReveal": {
+      "commitId": "system",
+      "holderId": "system",
+      "kamiId": "system",
+      "dtId": "system",
+      "itemAmounts": "system"
+    },
+    "FeedMarketList": {
+      "orderId": "system",
+      "accountId": "system",
+      "price": "system",
+      "expiry": "system"
+    },
+    "FeedMarketBuy": {
+      "orderId": "system",
+      "buyerAccountId": "system",
+      "sellerAccountId": "system",
+      "price": "system"
+    },
+    "FeedMarketOffer": {
+      "orderId": "system",
+      "accountId": "system",
+      "price": "system",
+      "expiry": "system"
+    },
+    "FeedMarketAccept": {
+      "orderId": "system",
+      "sellerAccountId": "system",
+      "buyerAccountId": "system",
+      "price": "system"
+    },
+    "FeedMarketCancel": {
+      "orderId": "system",
+      "accountId": "system"
+    },
+    "ChatMessage": {
+      "message": "authored-prose"
+    },
+    "Withheld": {
+      "reason": "system"
     }
   }
 }

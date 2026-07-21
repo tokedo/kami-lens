@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kami-lens/schemas/quests.json",
+  "$ref": "#/$defs/Quests",
+  "$defs": {
+    "Quests": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["registry"],
+      "properties": {
+        "registry": { "type": "array", "items": { "$ref": "#/$defs/QuestRegistry" } },
+        "account": { "$ref": "#/$defs/AccountRef" },
+        "accepted": { "type": "array", "items": { "$ref": "#/$defs/QuestAccepted" } }
+      }
+    },
+    "QuestRegistry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "name", "description", "repeatable"],
+      "properties": {
+        "index": { "type": "number" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "repeatable": { "type": "boolean" },
+        "repeatDuration": { "type": "number" }
+      }
+    },
+    "QuestAccepted": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "name", "complete", "startTime", "endTime"],
+      "properties": {
+        "index": { "type": "number" },
+        "name": { "type": "string" },
+        "complete": { "type": "boolean" },
+        "startTime": { "type": "number" },
+        "endTime": { "type": "number" }
+      }
+    },
+    "AccountRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "name"],
+      "properties": {
+        "index": { "type": "number" },
+        "name": { "type": "string" }
+      }
+    }
+  }
+}

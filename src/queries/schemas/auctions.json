@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kami-lens/schemas/auctions.json",
+  "$ref": "#/$defs/Auctions",
+  "$defs": {
+    "Auctions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["auctions"],
+      "properties": {
+        "auctions": { "type": "array", "items": { "$ref": "#/$defs/Auction" } },
+        "buys": { "type": "array", "items": { "$ref": "#/$defs/AuctionBuy" } }
+      }
+    },
+    "Auction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["params", "supply", "startTime", "price"],
+      "properties": {
+        "auctionItem": { "$ref": "#/$defs/ItemRef" },
+        "paymentItem": { "$ref": "#/$defs/ItemRef" },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value", "period", "decay", "rate"],
+          "properties": {
+            "value": { "type": "number" },
+            "period": { "type": "number" },
+            "decay": { "type": "number" },
+            "rate": { "type": "number" }
+          }
+        },
+        "supply": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sold", "total"],
+          "properties": {
+            "sold": { "type": "number" },
+            "total": { "type": "number" }
+          }
+        },
+        "startTime": { "type": "number" },
+        "price": { "type": "number" }
+      }
+    },
+    "AuctionBuy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["accountIndex", "itemIndex", "amount", "currency", "cost", "timestamp"],
+      "properties": {
+        "accountIndex": { "type": "string" },
+        "itemIndex": { "type": "number" },
+        "amount": { "type": "number" },
+        "currency": { "type": "number" },
+        "cost": { "type": "number" },
+        "timestamp": { "type": "number" }
+      }
+    },
+    "ItemRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "name"],
+      "properties": {
+        "index": { "type": "number" },
+        "name": { "type": "string" }
+      }
+    }
+  }
+}

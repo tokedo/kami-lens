@@ -116,8 +116,9 @@ const kamiIndexes = queryKamis(components)
 let firstKami = '';
 let anAccount = 0;
 for (const idx of kamiIndexes) {
-  const data = serveQuery(mirror, 'kami', [String(idx)], { stale: false, mode: 'daemon' })
-    .data as { account?: { index: number } };
+  const data = (
+    await serveQuery(mirror, 'kami', [String(idx)], { stale: false, mode: 'daemon' })
+  ).data as { account?: { index: number } };
   if (data.account?.index) {
     firstKami = String(idx);
     anAccount = data.account.index;
@@ -140,7 +141,7 @@ const CASES: { query: string; args: string[]; opts?: { prose?: boolean; noAuthor
 const mismatches: Record<string, unknown>[] = [];
 let compared = 0;
 for (const c of CASES) {
-  const envelope = serveQuery(mirror, c.query, c.args, {
+  const envelope = await serveQuery(mirror, c.query, c.args, {
     ...c.opts,
     stale: false,
     mode: 'daemon',
@@ -155,8 +156,8 @@ for (const c of CASES) {
 }
 
 // name-free assertions on a real party output
-const named = serveQuery(mirror, 'party', [String(anAccount)], { stale: false, mode: 'daemon' });
-const nameFree = serveQuery(mirror, 'party', [String(anAccount)], {
+const named = await serveQuery(mirror, 'party', [String(anAccount)], { stale: false, mode: 'daemon' });
+const nameFree = await serveQuery(mirror, 'party', [String(anAccount)], {
   noAuthored: true,
   stale: false,
   mode: 'daemon',

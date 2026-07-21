@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kami-lens/schemas/market.json",
+  "$ref": "#/$defs/Market",
+  "$defs": {
+    "Market": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["listings", "bids"],
+      "properties": {
+        "listings": { "type": "array", "items": { "$ref": "#/$defs/MarketListing" } },
+        "bids": { "type": "array", "items": { "$ref": "#/$defs/MarketBid" } },
+        "account": { "$ref": "#/$defs/AccountRef" },
+        "orders": { "type": "array", "items": { "$ref": "#/$defs/MarketOrder" } }
+      }
+    },
+    "MarketListing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["orderId", "seller", "kamiIndex", "price", "expiry", "timestamp"],
+      "properties": {
+        "orderId": { "type": "string" },
+        "seller": { "$ref": "#/$defs/AccountIdRef" },
+        "buyer": { "$ref": "#/$defs/AccountIdRef" },
+        "kamiIndex": { "type": "number" },
+        "price": { "type": "string" },
+        "expiry": { "type": "string" },
+        "timestamp": { "type": "number" }
+      }
+    },
+    "MarketBid": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "orderId",
+        "buyer",
+        "kamiIndex",
+        "total",
+        "price",
+        "expiry",
+        "timestamp",
+        "bidType",
+        "quantity",
+        "boughtKamiIndexes"
+      ],
+      "properties": {
+        "orderId": { "type": "string" },
+        "buyer": { "$ref": "#/$defs/AccountIdRef" },
+        "kamiIndex": { "type": "number" },
+        "total": { "type": "number" },
+        "price": { "type": "string" },
+        "expiry": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "bidType": { "type": "number" },
+        "quantity": { "type": "number" },
+        "boughtKamiIndexes": { "type": "array", "items": { "type": "number" } }
+      }
+    },
+    "MarketOrder": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["timestamp", "orderId", "isCanceled", "isComplete"],
+      "properties": {
+        "timestamp": { "type": "number" },
+        "orderId": { "type": "string" },
+        "isCanceled": { "type": "boolean" },
+        "isComplete": { "type": "boolean" },
+        "listing": { "$ref": "#/$defs/MarketListing" },
+        "bid": { "$ref": "#/$defs/MarketBid" }
+      }
+    },
+    "AccountRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "name"],
+      "properties": {
+        "index": { "type": "number" },
+        "name": { "type": "string" }
+      }
+    },
+    "AccountIdRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string" },
+        "index": { "type": "number" },
+        "name": { "type": "string" }
+      }
+    }
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kami-lens/schemas/transfers.json",
+  "$ref": "#/$defs/Transfers",
+  "$defs": {
+    "Transfers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["account", "transfers"],
+      "properties": {
+        "account": { "$ref": "#/$defs/AccountRef" },
+        "transfers": { "type": "array", "items": { "$ref": "#/$defs/Transfer" } }
+      }
+    },
+    "Transfer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sender", "recipient", "item", "amount"],
+      "properties": {
+        "sender": { "$ref": "#/$defs/AccountIdRef" },
+        "recipient": { "$ref": "#/$defs/AccountIdRef" },
+        "item": { "$ref": "#/$defs/ItemRef" },
+        "amount": { "type": "string" }
+      }
+    },
+    "ItemRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "name"],
+      "properties": {
+        "index": { "type": "number" },
+        "name": { "type": "string" }
+      }
+    },
+    "AccountRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "name"],
+      "properties": {
+        "index": { "type": "number" },
+        "name": { "type": "string" }
+      }
+    },
+    "AccountIdRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string" },
+        "index": { "type": "number" },
+        "name": { "type": "string" }
+      }
+    }
+  }
+}

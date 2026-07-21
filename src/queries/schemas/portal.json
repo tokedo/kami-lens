@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kami-lens/schemas/portal.json",
+  "$ref": "#/$defs/Portal",
+  "$defs": {
+    "Portal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["account", "receipts", "openWithdrawals"],
+      "properties": {
+        "account": { "$ref": "#/$defs/AccountRef" },
+        "receipts": { "type": "array", "items": { "$ref": "#/$defs/Receipt" } },
+        "openWithdrawals": { "type": "array", "items": { "$ref": "#/$defs/Receipt" } }
+      }
+    },
+    "Receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "timestamp",
+        "account",
+        "receiptId",
+        "item",
+        "itemAmt",
+        "taxAmt",
+        "tokenAddress",
+        "tokenAmt",
+        "isWithdrawal",
+        "isCanceled",
+        "isClaimed"
+      ],
+      "properties": {
+        "timestamp": { "type": "string" },
+        "account": { "$ref": "#/$defs/AccountIdRef" },
+        "receiptId": { "type": "string" },
+        "item": { "$ref": "#/$defs/ItemRef" },
+        "itemAmt": { "type": "string" },
+        "taxAmt": { "type": "string" },
+        "tokenAddress": { "type": "string" },
+        "tokenAmt": { "type": "string" },
+        "isWithdrawal": { "type": "boolean" },
+        "isCanceled": { "type": "boolean" },
+        "isClaimed": { "type": "boolean" }
+      }
+    },
+    "ItemRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "name"],
+      "properties": {
+        "index": { "type": "number" },
+        "name": { "type": "string" }
+      }
+    },
+    "AccountRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "name"],
+      "properties": {
+        "index": { "type": "number" },
+        "name": { "type": "string" }
+      }
+    },
+    "AccountIdRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string" },
+        "index": { "type": "number" },
+        "name": { "type": "string" }
+      }
+    }
+  }
+}

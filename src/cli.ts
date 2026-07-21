@@ -7,7 +7,9 @@
 //
 // Flags: --prose (opt-in authored-prose fields, e.g. account bio),
 //        --no-authored (name-free mode: withhold authored-id with receipt),
-//        --stateless (kami only), --data-dir <path>.
+//        --stateless (kami only), --data-dir <path>,
+//        --oversize (chat only: serve oversize bodies verbatim instead of
+//        withheld-with-receipt — DESIGN §3.10 raw-fetch override).
 //
 // Exit codes (documented):
 //   0 success · 1 query error / daemon fatal · 2 usage ·
@@ -177,7 +179,9 @@ async function main(): Promise<void> {
 
   if (command === 'daemon') return runDaemon();
 
-  const flagList = rest.filter((a) => a.startsWith('--') && a !== '--array');
+  // --array (config) and --oversize (chat) are query arguments, not client
+  // flags — they ride through as positionals for the query's parseArgs
+  const flagList = rest.filter((a) => a.startsWith('--') && a !== '--array' && a !== '--oversize');
   const flags = new Set(flagList);
   let positional = rest.filter((a) => !flags.has(a));
   let dataDir = resolveConfig().dataDir;

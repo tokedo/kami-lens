@@ -41,6 +41,10 @@ export function buildStatusData(daemon: KamiLensDaemon): Record<string, unknown>
     checkpoint: s.checkpoint as unknown as Record<string, unknown> | null,
     tripwires: s.tripwires as unknown as Record<string, number>,
     degraded: s.degraded,
+    // per-feed Kamiden health (§3.2): surfaced separately from `degraded`,
+    // which stays chain-only — a Kamiden outage must never stamp chain
+    // answers stale
+    kamiden: s.kamiden as unknown as Record<string, unknown>,
     clockOffsetMs: clock.offset(),
     clockLastSyncWallMs: clock.lastObservedAtWallMs(),
     config: {
@@ -49,6 +53,8 @@ export function buildStatusData(daemon: KamiLensDaemon): Record<string, unknown>
       jsonRpcUrl: s.config.jsonRpcUrl,
       ...(s.config.wsRpcUrl ? { wsRpcUrl: s.config.wsRpcUrl } : {}),
       ...(s.config.kamigazeUrl ? { kamigazeUrl: s.config.kamigazeUrl } : {}),
+      ...(s.config.kamidenUrl ? { kamidenUrl: s.config.kamidenUrl } : {}),
+      chatEnabled: s.config.chatEnabled,
       dataDir: s.config.dataDir,
       checkpointIntervalMs: s.config.checkpointIntervalMs,
     },
@@ -66,13 +72,14 @@ type Request = {
   args?: string[];
   prose?: boolean;
   noAuthored?: boolean;
+  oversize?: boolean;
 };
 
-function handle(daemon: KamiLensDaemon, req: Request): Record<string, unknown> {
+async function handle(daemon: KamiLensDaemon, req: Request): Promise<Record<string, unknown>> {
   const id = req.id ?? null;
   try {
     if (!req.query) throw new QueryError('BAD_ARGS', 'request needs a query name');
-    const opts = { prose: req.prose, noAuthored: req.noAuthored };
+    const opts = { prose: req.prose, noAuthored: req.noAuthored, oversize: req.oversize };
     if (req.query === 'status') {
       const envelope = buildEnvelope(
         buildStatusData(daemon),
@@ -84,14 +91,19 @@ function handle(daemon: KamiLensDaemon, req: Request): Record<string, unknown> {
     }
     const mirror = daemon.getMirror();
     if (!mirror) throw new QueryError('NOT_FOUND', 'mirror not initialized yet');
-    const envelope = serveQuery(mirror, req.query, req.args ?? [], {
+    const ctx = {
+      mirror,
+      kamiden: daemon.kamiden,
+      chat: { enabled: daemon.config.chatEnabled, maxBytes: daemon.config.chatMaxBytes },
+    };
+    const envelope = await serveQuery(ctx, req.query, req.args ?? [], {
       ...opts,
       stale: isStale(daemon),
       mode: 'daemon',
     });
     return { id, ok: true, ...envelope };
   } catch (e) {
-    const code = e instanceof QueryError ? e.code : 'INTERNAL';
+    const code = e instanceof QueryError ? e.code : ((e as { code?: string }).code ?? 'INTERNAL');
     return { id, ok: false, error: { code, message: e instanceof Error ? e.message : String(e) } };
   }
 }
@@ -106,6 +118,9 @@ export function startQuerySocket(daemon: KamiLensDaemon, dataDir: string): Serve
   }
   const server = createServer((conn: Socket) => {
     let buffer = '';
+    // async handlers (M4 kamiden passthroughs) — chain per connection so
+    // responses keep request order on the line protocol
+    let pending: Promise<void> = Promise.resolve();
     conn.on('data', (chunk) => {
       buffer += chunk.toString('utf8');
       let nl: number;
@@ -117,10 +132,16 @@ export function startQuerySocket(daemon: KamiLensDaemon, dataDir: string): Serve
         try {
           req = JSON.parse(line) as Request;
         } catch {
-          conn.write(JSON.stringify({ id: null, ok: false, error: { code: 'BAD_ARGS', message: 'invalid JSON' } }) + '\n');
+          pending = pending.then(() => {
+            conn.write(JSON.stringify({ id: null, ok: false, error: { code: 'BAD_ARGS', message: 'invalid JSON' } }) + '\n');
+          });
           continue;
         }
-        conn.write(JSON.stringify(handle(daemon, req)) + '\n');
+        pending = pending
+          .then(() => handle(daemon, req))
+          .then((response) => {
+            conn.write(JSON.stringify(response) + '\n');
+          });
       }
     });
     conn.on('error', (e) => log.debug('[server] connection error', e));

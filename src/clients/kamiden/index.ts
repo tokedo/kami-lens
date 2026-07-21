@@ -1,22 +1,23 @@
-// kami-lens shim (not a port): upstream clients/kamiden/index.ts re-exports
-// the live gRPC-web client (getClient), stream subscriptions, and an
-// IndexedDB tx-error logger. The Kamiden client ports in milestone M4 with
-// the rest of the untrusted-text surface (DESIGN §3.4/§3.10); M2 needs only
-// what app/cache imports: the generated proto types (ported verbatim in
-// ./proto.ts) and getKamidenClient. Upstream's getClient returns null when
-// no Kamiden URL is configured and every consumer handles that (e.g.
-// app/cache/battles warns and caches empty) — this shim IS that unset-URL
-// mode, permanently until M4.
-// upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
-// path:     packages/client/src/clients/kamiden/index.ts
+/**
+ * kami-lens vendor port (AGPL-3.0 — see LICENSE).
+ * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
+ * path:     packages/client/src/clients/kamiden/index.ts
+ * changes:  (M4 — this file replaces the M2 shim that pinned getKamidenClient
+ *           to null.) Upstream additionally exports logTxErrorToDB from
+ *           ./txErrorLogger — an IndexedDB logger for failed TRANSACTIONS,
+ *           acting-side machinery (kami-lens is read-only, DESIGN §2) with a
+ *           browser-only store; not ported, so that export is dropped.
+ *           configureKamiden is a port addition (swap point 1 — see
+ *           ./client.ts header). Everything else is upstream's export
+ *           surface verbatim.
+ */
 
-import type { KamidenServiceClient } from './proto';
-
-export function getKamidenClient(): KamidenServiceClient | null {
-  return null;
-}
+export { configureKamiden, getClient as getKamidenClient } from './client';
+export { subscribeToFeed, subscribeToMessages } from './subscriptions';
 
 export { KamiMarketBidType } from './proto';
+
+export type { KamidenServiceClient } from './proto';
 
 export type {
   AuctionBuy,

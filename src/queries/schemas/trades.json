@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kami-lens/schemas/trades.json",
+  "$ref": "#/$defs/Trades",
+  "$defs": {
+    "Trades": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["open"],
+      "properties": {
+        "open": { "type": "array", "items": { "$ref": "#/$defs/TradeChain" } },
+        "account": { "$ref": "#/$defs/AccountRef" },
+        "history": { "type": "array", "items": { "$ref": "#/$defs/TradeHistory" } },
+        "openOffers": { "type": "array", "items": { "$ref": "#/$defs/TradeHistory" } }
+      }
+    },
+    "TradeChain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "state", "type"],
+      "properties": {
+        "id": { "type": "string" },
+        "state": { "type": "string" },
+        "type": { "type": "string" },
+        "maker": { "$ref": "#/$defs/AccountRef" },
+        "taker": { "$ref": "#/$defs/AccountRef" },
+        "buyOrder": { "$ref": "#/$defs/TradeOrder" },
+        "sellOrder": { "$ref": "#/$defs/TradeOrder" }
+      }
+    },
+    "TradeOrder": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["items", "amounts"],
+      "properties": {
+        "items": { "type": "array", "items": { "$ref": "#/$defs/ItemRef" } },
+        "amounts": { "type": "array", "items": { "type": "number" } }
+      }
+    },
+    "TradeHistory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tradeId", "maker", "taker", "buyOrder", "sellOrder", "timestamps"],
+      "properties": {
+        "tradeId": { "type": "string" },
+        "maker": { "$ref": "#/$defs/AccountIdRef" },
+        "taker": { "$ref": "#/$defs/AccountIdRef" },
+        "buyOrder": { "type": "array", "items": { "$ref": "#/$defs/OrderEntry" } },
+        "sellOrder": { "type": "array", "items": { "$ref": "#/$defs/OrderEntry" } },
+        "timestamps": { "$ref": "#/$defs/TradeTimestamps" }
+      }
+    },
+    "OrderEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["itemIndex", "item", "amount"],
+      "properties": {
+        "itemIndex": { "type": "number" },
+        "item": { "$ref": "#/$defs/ItemRef" },
+        "amount": { "type": "string" }
+      }
+    },
+    "TradeTimestamps": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["create", "cancel", "execute", "complete"],
+      "properties": {
+        "create": { "type": "string" },
+        "cancel": { "type": "string" },
+        "execute": { "type": "string" },
+        "complete": { "type": "string" }
+      }
+    },
+    "ItemRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "name"],
+      "properties": {
+        "index": { "type": "number" },
+        "name": { "type": "string" }
+      }
+    },
+    "AccountRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "name"],
+      "properties": {
+        "index": { "type": "number" },
+        "name": { "type": "string" }
+      }
+    },
+    "AccountIdRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string" },
+        "index": { "type": "number" },
+        "name": { "type": "string" }
+      }
+    }
+  }
+}

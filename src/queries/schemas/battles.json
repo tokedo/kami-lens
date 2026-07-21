@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kami-lens/schemas/battles.json",
+  "$ref": "#/$defs/Battles",
+  "$defs": {
+    "Battles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kami", "before", "kills"],
+      "properties": {
+        "kami": { "$ref": "#/$defs/KamiRef" },
+        "before": { "type": "number" },
+        "stats": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kills", "deaths", "pnl"],
+          "properties": {
+            "kills": { "type": "number" },
+            "deaths": { "type": "number" },
+            "pnl": { "type": "number" }
+          }
+        },
+        "kills": { "type": "array", "items": { "$ref": "#/$defs/Kill" } }
+      }
+    },
+    "KamiRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "index", "name"],
+      "properties": {
+        "id": { "type": "string" },
+        "index": { "type": "number" },
+        "name": { "type": "string" }
+      }
+    },
+    "Kill": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "timestamp",
+        "roomIndex",
+        "room",
+        "isDeath",
+        "killer",
+        "victim",
+        "account",
+        "killerHealth",
+        "victimHealth",
+        "bounty",
+        "salvage",
+        "spoils"
+      ],
+      "properties": {
+        "timestamp": { "type": "number" },
+        "roomIndex": { "type": "number" },
+        "room": { "$ref": "#/$defs/RoomRef" },
+        "isDeath": { "type": "boolean" },
+        "killer": { "$ref": "#/$defs/KamiIdRef" },
+        "victim": { "$ref": "#/$defs/KamiIdRef" },
+        "account": { "$ref": "#/$defs/AccountIdRef" },
+        "killerHealth": { "$ref": "#/$defs/Health" },
+        "victimHealth": { "$ref": "#/$defs/Health" },
+        "bounty": { "type": "string" },
+        "salvage": { "type": "string" },
+        "spoils": { "type": "string" },
+        "blockNumber": { "type": "number" }
+      }
+    },
+    "Health": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sync", "total"],
+      "properties": {
+        "sync": { "type": "number" },
+        "total": { "type": "number" }
+      }
+    },
+    "KamiIdRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string" },
+        "index": { "type": "number" },
+        "name": { "type": "string" }
+      }
+    },
+    "AccountIdRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string" },
+        "index": { "type": "number" },
+        "name": { "type": "string" }
+      }
+    },
+    "RoomRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "name"],
+      "properties": {
+        "index": { "type": "number" },
+        "name": { "type": "string" }
+      }
+    }
+  }
+}
