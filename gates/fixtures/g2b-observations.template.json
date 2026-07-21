@@ -1,0 +1,29 @@
+{
+  "_instructions": [
+    "Gate G2.b fixture template. Copy to g2b-observations.json and fill in",
+    "from the OFFICIAL web client, one entry per kami, ≥ 10 kamis spanning",
+    "states: HARVESTING, RESTING, on-cooldown, near-starving.",
+    "Per observation: kamiIndex = the kami's on-chain index; blockHeight =",
+    "the chain head at the moment of reading (must be at/after the local",
+    "mirror snapshot block and within RPC retention, ~25 days);",
+    "wallTimestampMs = epoch ms on the observing machine at the moment of",
+    "reading (the same clock the web client renders with); stateLabel as",
+    "displayed; displayedHP to the integer; displayedMusu to the floor;",
+    "displayedCooldownSec remaining cooldown in whole seconds (0 if none).",
+    "The observations are data; the verdict is b-display-parity.mts's exit",
+    "code."
+  ],
+  "recordedBy": "",
+  "recordedAt": "",
+  "observations": [
+    {
+      "kamiIndex": 0,
+      "blockHeight": 0,
+      "wallTimestampMs": 0,
+      "stateLabel": "HARVESTING",
+      "displayedHP": 0,
+      "displayedMusu": 0,
+      "displayedCooldownSec": 0
+    }
+  ]
+}

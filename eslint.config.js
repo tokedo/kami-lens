@@ -2,7 +2,7 @@ import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist/**', 'node_modules/**'] },
+  { ignores: ['dist/**', 'node_modules/**', 'gates/.artifacts/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -20,6 +20,12 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-expressions': ['error', { allowShortCircuit: true }],
       '@typescript-eslint/no-unused-vars': ['error', { args: 'none', varsIgnorePattern: '^_' }],
     },
+  },
+  {
+    // Plain-JS Node loader hooks (gates); js.configs.recommended has no
+    // environment globals, so declare the ones they use.
+    files: ['**/*.mjs'],
+    languageOptions: { globals: { URL: 'readonly' } },
   },
   {
     // Ported and vendored trees stay byte-faithful to upstream (DESIGN §3.4),
