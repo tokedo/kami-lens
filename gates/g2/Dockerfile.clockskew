@@ -1,0 +1,24 @@
+# Gate G2.c skewed-clock container. The dump runs under libfaketime with the
+# wall clock skewed ±120 s while the chain (and the §3.8 stream offset) stay
+# real. Usage (from the repo root, colima/docker running):
+#
+#   docker build -t kami-lens-clockskew -f gates/g2/Dockerfile.clockskew .
+#   docker run -d --name g2c -v "$PWD:/repo-src:ro" \
+#     -v "$PWD/gates/.artifacts:/out" kami-lens-clockskew sleep infinity
+#   docker exec g2c bash -c 'tar -C /repo-src --exclude node_modules \
+#     --exclude .git --exclude gates/.artifacts \
+#     --exclude gates/fixtures/g2b-screenshots -cf - . | tar -C /work -xf - \
+#     && cd /work && npm ci --no-audit --no-fund'
+#   docker exec g2c bash -c 'cd /work && faketime -f "-120s" npx tsx \
+#     --tsconfig tsconfig.json gates/g2/c-clock-skew.mts dump \
+#     /out/g2c-skewed.json <targetBlock>'
+#
+# concurrently with the unskewed dump on the host (same targetBlock); then
+#   npx tsx --tsconfig tsconfig.json gates/g2/c-clock-skew.mts compare \
+#     gates/.artifacts/g2c-skewed.json gates/.artifacts/g2c-unskewed.json
+
+FROM node:22-bookworm
+RUN apt-get update && apt-get install -y --no-install-recommends faketime \
+  && rm -rf /var/lib/apt/lists/* \
+  && mkdir /work
+WORKDIR /work
