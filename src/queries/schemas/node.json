@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kami-lens/schemas/node.json",
+  "$ref": "#/$defs/Node",
+  "$defs": {
+    "Node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "index",
+        "name",
+        "type",
+        "affinity",
+        "roomIndex",
+        "description",
+        "harvests"
+      ],
+      "properties": {
+        "index": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "affinity": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "roomIndex": {
+          "type": "number"
+        },
+        "description": {
+          "type": "string"
+        },
+        "harvests": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Harvest"
+          }
+        }
+      }
+    },
+    "Harvest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "state",
+        "kami",
+        "account"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "kami": {
+          "$ref": "#/$defs/KamiRef"
+        },
+        "account": {
+          "$ref": "#/$defs/AccountRef"
+        }
+      }
+    },
+    "KamiRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "index",
+        "name"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "index": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        }
+      }
+    },
+    "AccountRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "index",
+        "name"
+      ],
+      "properties": {
+        "index": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

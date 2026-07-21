@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kami-lens/schemas/account.json",
+  "$ref": "#/$defs/Account",
+  "$defs": {
+    "Account": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "index",
+        "name",
+        "ownerAddress",
+        "operatorAddress",
+        "roomIndex",
+        "musu",
+        "reputation",
+        "kamis"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "index": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "ownerAddress": {
+          "type": "string"
+        },
+        "operatorAddress": {
+          "type": "string"
+        },
+        "roomIndex": {
+          "type": "number"
+        },
+        "musu": {
+          "type": "number"
+        },
+        "reputation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "agency",
+            "mina",
+            "nursery"
+          ],
+          "properties": {
+            "agency": {
+              "type": "number"
+            },
+            "mina": {
+              "type": "number"
+            },
+            "nursery": {
+              "type": "number"
+            }
+          }
+        },
+        "kamis": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KamiRef"
+          }
+        },
+        "bio": {
+          "type": "string"
+        }
+      }
+    },
+    "KamiRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "index",
+        "name"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "index": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

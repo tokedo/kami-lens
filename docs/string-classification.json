@@ -1,0 +1,83 @@
+{
+  "$comment": "Machine form of the per-pin string classification (DESIGN \u00a73.10; prose rationale and the canonical class definitions live in docs/coverage.md 'String classification'). Keyed by named schema $def \u00d7 property. Every string-valued path in a query output schema resolves here via its owning $def type; a string property NOT listed resolves to the fail-safe default authored-prose (never volunteered \u2014 pruned from default output and refused without opt-in). Changes get formula-class hand review (DESIGN \u00a77). Gate G3.f derives every query's untrusted path list from (output schema \u00d7 this artifact) and fails on divergence from the emitted envelope.",
+  "pin": "ef898fc9350a6085fb080419b12af96c2254e8f3",
+  "default": "authored-prose",
+  "types": {
+    "KamiRef": {
+      "name": "authored-id",
+      "state": "system",
+      "id": "system"
+    },
+    "KamiVitals": {
+      "name": "authored-id",
+      "state": "system",
+      "id": "system",
+      "spotRatePerHr": "system",
+      "avgRatePerHr": "system",
+      "hpRatePerHr": "system"
+    },
+    "AccountRef": {
+      "name": "authored-id",
+      "id": "system"
+    },
+    "NodeRef": {
+      "name": "registry"
+    },
+    "Account": {
+      "name": "authored-id",
+      "id": "system",
+      "ownerAddress": "system",
+      "operatorAddress": "system",
+      "pfpURI": "system",
+      "bio": "authored-prose"
+    },
+    "Node": {
+      "name": "registry",
+      "description": "registry",
+      "type": "system",
+      "affinity": "system",
+      "image": "system",
+      "id": "system"
+    },
+    "Harvest": {
+      "id": "system",
+      "state": "system"
+    },
+    "Item": {
+      "name": "registry",
+      "description": "registry",
+      "type": "system",
+      "for": "system",
+      "rarity": "system",
+      "image": "system",
+      "id": "system"
+    },
+    "Config": {
+      "name": "system"
+    },
+    "Status": {
+      "state": "system",
+      "msg": "system",
+      "startedAt": "system",
+      "liveAt": "system",
+      "dataDir": "system",
+      "jsonRpcUrl": "system",
+      "wsRpcUrl": "system",
+      "kamigazeUrl": "system",
+      "worldAddress": "system",
+      "degraded": "system",
+      "version": "system"
+    },
+    "Meta": {
+      "servedAt": "system",
+      "mode": "system",
+      "suppressed": "system"
+    },
+    "StatelessKami": {
+      "name": "authored-id",
+      "state": "system",
+      "id": "system",
+      "accountId": "system"
+    }
+  }
+}

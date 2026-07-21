@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kami-lens/schemas/item.json",
+  "$ref": "#/$defs/Item",
+  "$defs": {
+    "Item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "index",
+        "name",
+        "type",
+        "description",
+        "for",
+        "rarity"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "index": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "for": {
+          "type": "string"
+        },
+        "rarity": {
+          "type": "number"
+        }
+      }
+    }
+  }
+}

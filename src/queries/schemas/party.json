@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kami-lens/schemas/party.json",
+  "$ref": "#/$defs/Party",
+  "$defs": {
+    "Party": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "account",
+        "kamis"
+      ],
+      "properties": {
+        "account": {
+          "$ref": "#/$defs/AccountRef"
+        },
+        "kamis": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KamiVitals"
+          }
+        }
+      }
+    },
+    "KamiVitals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "index",
+        "name",
+        "state",
+        "hp",
+        "hpRatePerHr",
+        "cooldownSec"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "index": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "level": {
+          "type": "number"
+        },
+        "hp": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "current",
+            "total",
+            "percent"
+          ],
+          "properties": {
+            "current": {
+              "type": "number"
+            },
+            "total": {
+              "type": "number"
+            },
+            "percent": {
+              "type": "number"
+            }
+          }
+        },
+        "hpRatePerHr": {
+          "type": "string"
+        },
+        "musu": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "accrued",
+            "spotRatePerHr",
+            "avgRatePerHr"
+          ],
+          "properties": {
+            "accrued": {
+              "type": "number"
+            },
+            "spotRatePerHr": {
+              "type": "string"
+            },
+            "avgRatePerHr": {
+              "type": "string"
+            }
+          }
+        },
+        "cooldownSec": {
+          "type": "number"
+        },
+        "node": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "account": {
+          "$ref": "#/$defs/AccountRef"
+        }
+      }
+    },
+    "NodeRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "index",
+        "name"
+      ],
+      "properties": {
+        "index": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "AccountRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "index",
+        "name"
+      ],
+      "properties": {
+        "index": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

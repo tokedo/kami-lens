@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kami-lens/schemas/status.json",
+  "$ref": "#/$defs/Status",
+  "$defs": {
+    "Status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "liveBlockNumber",
+        "startedAt",
+        "tripwires",
+        "degraded",
+        "clockOffsetMs",
+        "config"
+      ],
+      "properties": {
+        "state": {
+          "type": "string"
+        },
+        "msg": {
+          "type": "string"
+        },
+        "percentage": {
+          "type": "number"
+        },
+        "liveBlockNumber": {
+          "type": "number"
+        },
+        "blockLag": {
+          "type": "number"
+        },
+        "startedAt": {
+          "type": "string"
+        },
+        "liveAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "checkpoint": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": true
+        },
+        "tripwires": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          }
+        },
+        "degraded": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "clockOffsetMs": {
+          "type": "number"
+        },
+        "clockLastSyncWallMs": {
+          "type": "number"
+        },
+        "config": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "chainId",
+            "worldAddress",
+            "jsonRpcUrl",
+            "dataDir"
+          ],
+          "properties": {
+            "chainId": {
+              "type": "number"
+            },
+            "worldAddress": {
+              "type": "string"
+            },
+            "jsonRpcUrl": {
+              "type": "string"
+            },
+            "wsRpcUrl": {
+              "type": "string"
+            },
+            "kamigazeUrl": {
+              "type": "string"
+            },
+            "dataDir": {
+              "type": "string"
+            },
+            "checkpointIntervalMs": {
+              "type": "number"
+            }
+          }
+        }
+      }
+    }
+  }
+}

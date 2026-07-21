@@ -27,7 +27,8 @@ import { abi as worldAbi } from 'abi/World.json';
 import { VERSION as CACHE_VERSION } from 'cache/db';
 import { GodID, SyncState, SyncStatus } from 'engine/constants';
 import { createDecode } from 'engine/encoders';
-import { createWorld } from 'engine/recs';
+import { createWorld, World } from 'engine/recs';
+import { Components } from 'network/';
 import { createComponents } from 'network/components';
 import { applyNetworkUpdates } from 'network/setup';
 import { log } from 'utils/logger';
@@ -95,6 +96,7 @@ export class KamiLensDaemon {
   private syncStatus: SyncStatus = { state: SyncState.CONNECTING, msg: '', percentage: 0 };
   private worker: ReturnType<typeof createSyncWorker> | null = null;
   private world: ReturnType<typeof createWorld> | null = null;
+  private components: ReturnType<typeof createComponents> | null = null;
   private subscriptions: Subscription[] = [];
   private checkpointTimer: NodeJS.Timeout | null = null;
   private clockSyncTimer: NodeJS.Timeout | null = null;
@@ -212,6 +214,7 @@ export class KamiLensDaemon {
     const worker = createSyncWorker(ack$);
     this.worker = worker;
     this.world = world;
+    this.components = components;
 
     // Status tap: LoadingState transitions and the newest live block. State
     // events feed the recs mirror via applyNetworkUpdates below; they are
@@ -413,6 +416,13 @@ export class KamiLensDaemon {
       at: new Date().toISOString(),
       durationMs,
     };
+  }
+
+  /** The live recs mirror for the query surface (DESIGN §4.3); null before
+   * the first bootstrap. Read-only by convention — queries never mutate. */
+  getMirror(): { world: World; components: Components; blockNumber: number } | null {
+    if (!this.world || !this.components) return null;
+    return { world: this.world, components: this.components, blockNumber: this.liveBlockNumber };
   }
 
   getStatus(): DaemonStatus {

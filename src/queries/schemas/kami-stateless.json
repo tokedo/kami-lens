@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kami-lens/schemas/kami-stateless.json",
+  "$ref": "#/$defs/StatelessKami",
+  "$defs": {
+    "StatelessKami": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "index",
+        "name",
+        "state",
+        "level",
+        "hp",
+        "accountId",
+        "blockNumber"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "index": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "level": {
+          "type": "number"
+        },
+        "hp": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "total"
+          ],
+          "properties": {
+            "total": {
+              "type": "number"
+            }
+          }
+        },
+        "accountId": {
+          "type": "string"
+        },
+        "blockNumber": {
+          "type": "number"
+        }
+      }
+    }
+  }
+}
