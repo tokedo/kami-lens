@@ -1,0 +1,40 @@
+/**
+ * kami-lens vendor port (AGPL-3.0 — see LICENSE).
+ * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
+ * path:     packages/client/src/network/shapes/Item/queries.ts
+ * changes:  none
+ */
+
+import { EntityIndex, Has, HasValue, QueryFragment, runQuery, World } from 'engine/recs';
+
+import { Components } from 'network/components';
+import { getEntityByHash } from '../utils';
+
+export interface Filters {
+  index?: number;
+  registry?: boolean;
+  type?: string;
+}
+
+// Query for a set of items (AND)
+export const query = (components: Components, filters: Filters): EntityIndex[] => {
+  const { EntityType, IsRegistry, ItemIndex, Type } = components;
+
+  const toQuery: QueryFragment[] = [];
+  if (filters?.index) toQuery.push(HasValue(ItemIndex, { value: filters.index }));
+  if (filters?.registry) toQuery.push(Has(IsRegistry));
+  if (filters?.type) toQuery.push(HasValue(Type, { value: filters.type }));
+  toQuery.push(HasValue(EntityType, { value: 'ITEM' }));
+
+  return Array.from(runQuery(toQuery));
+};
+
+// get all the items in the registry
+export const queryRegistry = (components: Components): EntityIndex[] => {
+  return query(components, { registry: true });
+};
+
+// query for an item by its index, using the entity hash
+export const queryByIndex = (world: World, index: number): EntityIndex | undefined => {
+  return getEntityByHash(world, ['registry.item', index], ['string', 'uint32']);
+};

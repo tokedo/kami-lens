@@ -1,0 +1,41 @@
+/**
+ * kami-lens vendor port (AGPL-3.0 — see LICENSE).
+ * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
+ * path:     packages/client/src/app/cache/inventory/functions.ts
+ * changes:  none
+ */
+
+import { Inventory } from 'network/shapes/Inventory';
+
+// removes MUSU, filters out empty, sorts
+export const clean = (inventories: Inventory[]): Inventory[] => {
+  return inventories
+    .filter((inv) => !!inv && !!inv.item) // skip empty
+    .filter((inv) => (inv.balance || 0) > 0) // filter out empty
+    .sort((a: Inventory, b: Inventory) => (a.item.index > b.item.index ? 1 : -1)); //sort
+};
+
+// find an inventory by its index
+export const find = (inventories: Inventory[], index: number): Inventory | undefined => {
+  return inventories.find((inv) => inv.item.index === index);
+};
+
+// filter a set of inventories by type, for and balance
+export const filter = (
+  inventories: Inventory[],
+  type_?: string,
+  for_?: string,
+  min = 1
+): Inventory[] => {
+  return inventories.filter((inv) => {
+    const forMatches = for_ ? inv.item.for === for_ : true;
+    const isMatches = type_ ? inv.item.type === type_ : true;
+    return forMatches && isMatches && inv.balance >= min;
+  });
+};
+
+// get the balance of an item in a set of inventories
+export const getBalance = (inventories: Inventory[], itemIndex: number): number => {
+  const filtered = inventories.find((inv) => inv.item?.index == itemIndex);
+  return filtered?.balance ?? 0;
+};

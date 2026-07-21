@@ -1,0 +1,149 @@
+/**
+ * kami-lens vendor port (AGPL-3.0 — see LICENSE).
+ * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
+ * path:     packages/client/src/network/shapes/Droptable.ts
+ * changes:  none
+ */
+
+import { EntityID, EntityIndex, World, getComponentValue } from 'engine/recs';
+
+import { formatEntityID } from 'engine/utils';
+import { Components } from 'network/';
+import { Commit, getHolderCommits } from './Commit';
+import { getItemDetailsByIndex } from './Item';
+import { DetailedEntity, getEntityByHash } from './utils';
+import { getKeys, getWeights } from './utils/component';
+
+export interface Droptable {
+  keys: number[];
+  weights: number[];
+}
+
+export interface DTCommit extends Commit {
+  anchorID: EntityID;
+  rolls: number;
+}
+
+export interface DTDetails {
+  rarity: number;
+  object: DetailedEntity;
+}
+
+export interface DTResult extends DTDetails {
+  amount: number;
+}
+
+export interface DTLog {
+  id: EntityID;
+  results: DTResult[];
+}
+
+export const NullDT: Droptable = {
+  keys: [],
+  weights: [],
+};
+
+export const NullDTLog: DTLog = {
+  id: '0' as EntityID,
+  results: [],
+};
+
+export const getDroptable = (components: Components, entity: EntityIndex): Droptable => {
+  return {
+    keys: getKeys(components, entity),
+    weights: getWeights(components, entity),
+  };
+};
+
+export const getDTLogByHash = (
+  world: World,
+  components: Components,
+  holderID: EntityID,
+  dtID: EntityID,
+  logPrefix: string = 'droptable.item.log'
+): DTLog => {
+  const entity = getEntityByHash(
+    world,
+    [logPrefix, holderID, dtID],
+    ['string', 'uint256', 'uint256']
+  );
+  if (!entity) return NullDTLog;
+
+  const { Values } = components;
+  const amounts = getComponentValue(Values, entity)?.value as number[] | [];
+
+  const droptable = getDroptable(components, world.entityToIndex.get(dtID) as EntityIndex);
+
+  return {
+    id: world.entities[entity],
+    results: getDTResults(world, components, droptable, amounts),
+  };
+};
+
+// returns in a gronkable item format
+export const getDTDetails = (
+  world: World,
+  components: Components,
+  droptable: Droptable
+): DetailedEntity[] => {
+  const details: DetailedEntity[] = [];
+  const processed = droptable.weights.map((w) => (w === 0 ? 0 : 1 << (w - 1)));
+  const total = processed.reduce((a, b) => a + b, 0) || 1;
+  for (let i = 0; i < droptable.keys.length; i++)
+    details.push({
+      ...getItemDetailsByIndex(world, components, droptable.keys[i]),
+      description: `${((processed[i] / total) * 100).toFixed(1)}%`,
+    });
+  return details;
+};
+
+export const getDTResults = (
+  world: World,
+  components: Components,
+  droptable: Droptable,
+  amounts: number[]
+): DTResult[] => {
+  const results: DTResult[] = [];
+  for (let i = 0; i < droptable.keys.length; i++) {
+    if (amounts[i] > 0) {
+      const rarity = droptable.weights[i];
+      const object = getItemDetailsByIndex(world, components, droptable.keys[i]);
+      results.push({ amount: amounts[i] * 1, rarity, object });
+    }
+  }
+  return results;
+};
+
+export const queryDTCommits = (
+  world: World,
+  components: Components,
+  holderID: EntityID
+): DTCommit[] => {
+  const { SourceID, Value } = components;
+
+  const commits = getHolderCommits(world, components, 'ITEM_DROPTABLE_COMMIT', holderID);
+  return commits.map((commit) => {
+    return {
+      ...commit,
+      anchorID: formatEntityID((getComponentValue(SourceID, commit.entity)?.value || 0).toString()),
+      rolls: (getComponentValue(Value, commit.entity)?.value as number) * 1,
+    };
+  });
+};
+
+export const querySacrificeCommits = (
+  world: World,
+  components: Components,
+  holderID: EntityID
+): DTCommit[] => {
+  const { SourceID } = components;
+
+  const commits = getHolderCommits(world, components, 'KAMI_SACRIFICE_COMMIT', holderID);
+  return commits.map((commit) => {
+    return {
+      ...commit,
+      anchorID: formatEntityID((getComponentValue(SourceID, commit.entity)?.value || 0).toString()),
+      rolls: 1,
+    };
+  });
+};

@@ -1,0 +1,139 @@
+/**
+ * kami-lens vendor port (AGPL-3.0 — see LICENSE).
+ * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
+ * path:     packages/client/src/network/shapes/Quest/quest.ts
+ * changes:  none
+ */
+
+import { EntityID, EntityIndex, World, getComponentValue, hasComponent } from 'engine/recs';
+
+import { Components } from 'network/';
+import { Allo } from '../Allo';
+import { hasFlag } from '../Flag';
+import { getEntityByHash } from '../utils';
+import { getIsDisabled } from '../utils/component';
+import { Objective, getObjectives } from './objective';
+import { query } from './queries';
+import { Requirement, getRequirements } from './requirement';
+import { getRewards } from './reward';
+
+/////////////////
+// SHAPES
+
+export interface BaseQuest {
+  id: EntityID;
+  index: number;
+  entity: EntityIndex;
+  registryEntityIndex: EntityIndex;
+  name: string;
+  description: string;
+  repeatable: boolean;
+  repeatDuration?: number;
+}
+
+export interface Quest extends BaseQuest {
+  startTime: number;
+  endTime: number;
+  complete: boolean;
+  repeatable: boolean;
+  requirements: Requirement[];
+  objectives: Objective[];
+  rewards: Allo[];
+  descriptionAlt: string;
+  subType: string;
+  typeComp: string;
+  isDisabled: boolean;
+}
+
+// Get a Quest Registry object, complete with all Requirements, Objectives, and Rewards
+export const get = (world: World, components: Components, entity: EntityIndex): Quest => {
+  const base = getBase(world, components, entity);
+  return populate(world, components, base);
+};
+
+// get a lightweight base quest without additional details
+export const getBase = (world: World, components: Components, entity: EntityIndex): BaseQuest => {
+  const { Description, Name, QuestIndex, Time } = components;
+  const index = (getComponentValue(QuestIndex, entity)?.value ?? 0) as number;
+  const registryEntityIndex = query(components, { index: index, registry: true })[0];
+
+  return {
+    id: world.entities[entity],
+    index,
+    entity,
+    registryEntityIndex,
+    name: getComponentValue(Name, registryEntityIndex)?.value ?? '',
+    description: getComponentValue(Description, registryEntityIndex)?.value ?? '',
+    repeatable: hasFlag(world, components, registryEntityIndex, 'REPEATABLE'),
+    repeatDuration: getComponentValue(Time, registryEntityIndex)?.value ?? 0,
+  };
+};
+
+// populate a BareQuest with all the details of a full Quest
+export const populate = (world: World, components: Components, base: BaseQuest): Quest => {
+  const { IsComplete, StartTime, LastTime, DescriptionAlt, Subtype, Type } = components;
+  const entity = base.entity;
+
+  return {
+    ...base,
+    startTime: (getComponentValue(StartTime, entity)?.value ?? 0) as number,
+    endTime: (getComponentValue(LastTime, entity)?.value ?? 0) as number,
+    complete: hasComponent(IsComplete, entity),
+    requirements: getRequirements(world, components, base.index),
+    objectives: getObjectives(world, components, base.index),
+    rewards: getRewards(world, components, base.index),
+    descriptionAlt: getComponentValue(DescriptionAlt, base.registryEntityIndex)?.value ?? '',
+    subType: getComponentValue(Subtype, base.registryEntityIndex)?.value ?? '',
+    typeComp: getComponentValue(Type, base.registryEntityIndex)?.value ?? '',
+    isDisabled: getIsDisabled(components, base.registryEntityIndex),
+  };
+};
+
+/////////////////
+// GETTERS
+
+export const getBaseByEntityIndex = (
+  world: World,
+  components: Components,
+  entity: EntityIndex
+): BaseQuest => {
+  return getBase(world, components, entity);
+};
+
+export const getByEntityIndex = (
+  world: World,
+  components: Components,
+  entity: EntityIndex
+): Quest => {
+  return get(world, components, entity);
+};
+
+// retrieves a list of Quest Objects from a list of their EntityIndices
+export const getByEntityIndices = (
+  world: World,
+  components: Components,
+  entityIndices: EntityIndex[]
+): Quest[] => {
+  return entityIndices.map((index) => getByEntityIndex(world, components, index));
+};
+
+export const getByIndex = (
+  world: World,
+  components: Components,
+  index: number
+): Quest | undefined => {
+  const entity = query(components, { index: index, registry: true })[0];
+  if (!entity) return;
+  return get(world, components, entity);
+};
+
+///////////////
+// IDs
+
+export const getInstanceEntity = (
+  world: World,
+  index: number,
+  id: EntityID
+): EntityIndex | undefined => {
+  return getEntityByHash(world, ['quest.instance', index, id], ['string', 'uint32', 'uint256']);
+};

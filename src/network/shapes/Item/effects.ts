@@ -1,0 +1,42 @@
+/**
+ * kami-lens vendor port (AGPL-3.0 — see LICENSE).
+ * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
+ * path:     packages/client/src/network/shapes/Item/effects.ts
+ * changes:  none
+ */
+
+import { EntityID, World } from 'engine/recs';
+
+import { Components } from 'network/components';
+import { Allo, getAllosOf } from '../Allo';
+import { genRef, hashArgs } from '../utils';
+import { genRefAnchorID } from './utils';
+
+export interface Effects {
+  // burn: Allo[];
+  // craft: Allo[];
+  use: Allo[];
+  equip: Allo[];
+}
+
+export const getEffects = (world: World, comps: Components, index: number): Effects => {
+  return {
+    use: getActionAllos(world, comps, index, 'USE'),
+    equip: getActionAllos(world, comps, index, 'EQUIP'),
+  };
+};
+
+export const getActionAllos = (
+  world: World,
+  comps: Components,
+  index: number,
+  action: string
+): Allo[] => {
+  const anchorID = genAlloAnchor(index, action);
+  return getAllosOf(world, comps, anchorID);
+};
+
+export const genAlloAnchor = (index: number, action: string): EntityID => {
+  const actionID = genRef(action, genRefAnchorID(index));
+  return hashArgs(['item.allo', actionID], ['string', 'uint256']);
+};

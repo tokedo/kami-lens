@@ -1,0 +1,90 @@
+/**
+ * kami-lens vendor port (AGPL-3.0 — see LICENSE).
+ * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
+ * path:     packages/client/src/network/shapes/Account/getters.ts
+ * changes:  none
+ */
+
+import { EntityID, World } from 'engine/recs';
+
+import { formatEntityID } from 'engine/utils';
+import { Components, NetworkLayer } from 'network/';
+import { NullAccount } from './constants';
+import { queryAll, queryByIndex, queryByName, queryByOperator, queryByOwner } from './queries';
+import { Options, getAccount, getBaseAccount } from './types';
+
+// get all accounts
+export const getAll = (world: World, components: Components, options?: Options) => {
+  const entities = queryAll(components);
+  return entities.map((entity) => getAccount(world, components, entity, options));
+};
+
+// get all Base Accounts
+export const getAllBase = (world: World, components: Components) => {
+  const entities = queryAll(components);
+  return entities.map((entity) => getBaseAccount(world, components, entity));
+};
+
+// get an Account, assuming the currently connected burner is the Operator
+export const getFromBurner = (network: NetworkLayer, options?: Options) => {
+  const { world, components } = network;
+  const connectedAddress = network.network.connectedAddress.get();
+  if (!connectedAddress) return NullAccount;
+  return getByOperator(world, components, connectedAddress, options);
+};
+
+// get an Account by its entityID
+export const getByID = (world: World, components: Components, id: EntityID, options?: Options) => {
+  const formattedID = formatEntityID(id.toLowerCase());
+  const entity = world.entityToIndex.get(formattedID);
+  if (!entity) return NullAccount;
+  return getAccount(world, components, entity, options);
+};
+
+// get an Account by its AccountIndex
+export const getByIndex = (
+  world: World,
+  components: Components,
+  index: number,
+  options?: Options
+) => {
+  const entity = queryByIndex(components, index);
+  if (!entity) return NullAccount;
+  return getAccount(world, components, entity, options);
+};
+
+// get an Account by its Operator EOA
+export const getByOperator = (
+  world: World,
+  components: Components,
+  operatorAddress: string,
+  options?: Options
+) => {
+  const entity = queryByOperator(components, operatorAddress);
+  if (!entity) return NullAccount;
+  return getAccount(world, components, entity, options);
+};
+
+// get an Account by its Owner EOA
+export const getByOwner = (
+  world: World,
+  components: Components,
+  ownerAddress: string,
+  options?: Options
+) => {
+  const entity = queryByOwner(components, ownerAddress);
+  if (!entity) return NullAccount;
+  return getAccount(world, components, entity, options);
+};
+
+// get an Account by its name
+export const getByName = (
+  world: World,
+  components: Components,
+  name: string,
+  options?: Options
+) => {
+  const entity = queryByName(components, name);
+  if (!entity) return NullAccount;
+  return getAccount(world, components, entity, options);
+};

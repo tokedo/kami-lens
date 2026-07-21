@@ -1,0 +1,55 @@
+/**
+ * kami-lens vendor port (AGPL-3.0 — see LICENSE).
+ * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
+ * path:     packages/client/src/app/cache/kami/functions.ts
+ * changes:  none
+ */
+
+import { World } from 'engine/recs';
+
+import { Components } from 'network/';
+import { Kami } from 'network/shapes/Kami';
+import { getSourceID } from 'network/shapes/utils/component';
+import { getNode } from '../node';
+import { updateHarvestRate, updateHealthRate } from './calcs';
+import { getKamiHarvest, getKamiTraits } from './getters';
+
+// NOTE: don't love this pattern. probably want to use caches here and reserve
+// any object fields for actual onchain data we lazily evaluate state from.
+// needs a bit of prep work to make the refactoring less painful
+export const updateRates = (world: World, components: Components, kami: Kami) => {
+  const harvest = getKamiHarvest(world, components, kami.entity);
+  const nodeID = getSourceID(components, harvest.entity);
+  const nodeEntity = world.entityToIndex.get(nodeID)!; // may cause issue if called too early
+  harvest.node = getNode(world, components, nodeEntity);
+  kami.harvest = harvest;
+
+  const traits = getKamiTraits(world, components, kami.entity);
+  kami.traits = traits;
+
+  updateHarvestRate(kami); // must come before kami health rate function
+  updateHealthRate(kami);
+  return kami;
+};
+
+// get the body affinity of a kami. defaults to 'NORMAL' if not found
+export const getBodyAffinity = (kami: Kami) => {
+  const body = kami.traits?.body;
+  if (!body || !body.affinity) return 'NORMAL';
+  return body.affinity;
+};
+
+// get the hand affinity of a kami. defaults to 'NORMAL' if not found
+export const getHandAffinity = (kami: Kami) => {
+  const hand = kami.traits?.hand;
+  if (!hand || !hand.affinity) return 'NORMAL';
+  return hand.affinity;
+};
+
+// get the room index where the kami is currently harvesting
+// default to 0 if no harvest is found
+export const getRoomIndex = (kami: Kami) => {
+  const node = kami.harvest?.node;
+  if (!node) return 0;
+  return node.index;
+};

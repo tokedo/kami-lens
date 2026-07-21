@@ -1,0 +1,47 @@
+/**
+ * kami-lens vendor port (AGPL-3.0 — see LICENSE).
+ * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
+ * path:     packages/client/src/network/shapes/Room/queries.ts
+ * changes:  none
+ */
+
+import { EntityIndex, HasValue, QueryFragment, runQuery } from 'engine/recs';
+
+import { Components } from 'network/';
+import { Coord, coordToBigInt } from './utils';
+
+const IndexCache = new Map<number, EntityIndex>();
+
+export type QueryOptions = {
+  index?: number;
+  location?: Coord;
+};
+
+// returns raw entity index
+export const query = (components: Components, options?: QueryOptions): EntityIndex[] => {
+  const { Location, EntityType, RoomIndex } = components;
+
+  const toQuery: QueryFragment[] = [];
+  if (options?.index) toQuery.push(HasValue(RoomIndex, { value: options.index }));
+  if (options?.location) {
+    toQuery.push(
+      HasValue(Location, {
+        value: '0x' + coordToBigInt(options.location).toString(16).slice(-48),
+      })
+    );
+  }
+  toQuery.push(HasValue(EntityType, { value: 'ROOM' }));
+
+  return Array.from(runQuery(toQuery));
+};
+
+// Index query relying on query() with cached results
+export const queryByIndex = (components: Components, index: number): EntityIndex | undefined => {
+  if (IndexCache.has(index)) return IndexCache.get(index)!;
+  const results = query(components, { index });
+  if (results.length > 1) console.warn('More than one room found for index', index);
+  else if (results.length == 0) console.warn('No room found for index', index);
+  else IndexCache.set(index, results[0]);
+
+  return results[0];
+};

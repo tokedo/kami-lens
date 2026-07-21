@@ -1,0 +1,104 @@
+/**
+ * kami-lens vendor port (AGPL-3.0 — see LICENSE).
+ * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
+ * path:     packages/client/src/network/shapes/Stats.ts
+ * changes:  none
+ */
+
+import { EntityID, EntityIndex, World, getComponentValue } from 'engine/recs';
+
+import { Components } from 'network/';
+import { StatComponent } from 'network/components/definitions/StatComponent';
+import { getBonusValue } from './Bonus';
+
+export interface Stat {
+  base: number;
+  shift: number;
+  boost: number;
+  sync: number;
+  rate: number;
+  total: number;
+}
+
+// standardized shape of Stats on an Entity
+export interface Stats {
+  health: Stat;
+  power: Stat;
+  violence: Stat;
+  harmony: Stat;
+  slots: Stat;
+  stamina: Stat;
+}
+
+export const NullStat: Stat = {
+  base: 0,
+  shift: 0,
+  boost: 0,
+  sync: 0,
+  rate: 0,
+  total: 0,
+};
+
+export const NullStats: Stats = {
+  health: NullStat,
+  power: NullStat,
+  violence: NullStat,
+  harmony: NullStat,
+  slots: NullStat,
+  stamina: NullStat,
+};
+
+// get the stats of an entity
+// get the Stats from the EnityIndex of a Kami
+export const getStats = (
+  world: World,
+  components: Components,
+  entity: EntityIndex,
+  bonusHolderID?: EntityID // optional, calc bonus if provided
+): Stats => {
+  const { Harmony, Health, Power, Slots, Stamina, Violence } = components;
+
+  const getBonus = (type: string) => {
+    if (!bonusHolderID) return 0;
+    return getBonusValue(world, components, type, bonusHolderID);
+  };
+
+  let stats = {
+    health: getStat(entity, Health, getBonus('STAT_HEALTH_SHIFT')),
+    power: getStat(entity, Power, getBonus('STAT_POWER_SHIFT')),
+    violence: getStat(entity, Violence, getBonus('STAT_VIOLENCE_SHIFT')),
+    harmony: getStat(entity, Harmony, getBonus('STAT_HARMONY_SHIFT')),
+    slots: getStat(entity, Slots, getBonus('STAT_SLOTS_SHIFT')),
+    stamina: getStat(entity, Stamina, getBonus('STAT_STAMINA_SHIFT')),
+  };
+
+  return stats;
+};
+
+export const getStat = (entity: EntityIndex, type: StatComponent, shiftBonus?: number): Stat => {
+  const raw = BigInt(getComponentValue(type, entity)?.value || 0);
+  return getStatFromUint(raw, shiftBonus);
+};
+
+// get the constructed Stamina stat value of an entity
+export const getStamina = (components: Components, entity: EntityIndex): Stat => {
+  const { Stamina } = components;
+  return getStat(entity, Stamina);
+};
+
+export const getStatFromUint = (value: bigint, shiftBonus?: number): Stat => {
+  const base = Number(BigInt.asIntN(32, (value >> 192n) & 0xffffffffffffffffn));
+  const shift =
+    Number(BigInt.asIntN(32, (value >> 128n) & 0xffffffffffffffffn)) + (shiftBonus ?? 0);
+  const boost = Number(BigInt.asIntN(32, (value >> 64n) & 0xffffffffffffffffn));
+  const sync = Number(BigInt.asIntN(32, value & 0xffffffffffffffffn));
+
+  return {
+    base: base,
+    shift: shift,
+    boost: boost,
+    sync: sync,
+    rate: 0,
+    total: (1 + boost / 1e3) * (base + shift),
+  };
+};

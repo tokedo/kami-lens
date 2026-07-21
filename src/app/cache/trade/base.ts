@@ -1,0 +1,83 @@
+/**
+ * kami-lens vendor port (AGPL-3.0 — see LICENSE).
+ * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
+ * path:     packages/client/src/app/cache/trade/base.ts
+ * changes:  none
+ */
+
+import { EntityID, EntityIndex, World } from 'engine/recs';
+
+import { Components } from 'network/';
+import { getBuyAnchor, getSellAnchor, getTrade, State, Trade } from 'network/shapes/Trade';
+import { getOwnsTradeID, getState, getTargetID } from 'network/shapes/utils/component';
+import { getAccount } from '../account';
+import { getOrder } from './helpers';
+
+export const TradeCache = new Map<EntityID, Trade>();
+export const HistoryUpdated = new Set<EntityID>();
+
+const StateUpdateTs = new Map<EntityIndex, number>();
+const TakerUpdateTs = new Map<EntityIndex, number>();
+
+/// process all static data on for a Trade
+export const process = (world: World, comps: Components, entity: EntityIndex, id: EntityID) => {
+  const trade = getTrade(world, comps, entity);
+
+  // set maker
+  const makerID = getOwnsTradeID(comps, entity);
+  const makerEntity = world.entityToIndex.get(makerID);
+  if (makerEntity) trade.maker = getAccount(world, comps, makerEntity);
+  else console.warn('maker not found', makerID);
+
+  // set taker if defined
+  const takerID = getTargetID(comps, entity, false);
+  const takerEntity = world.entityToIndex.get(takerID);
+  if (takerEntity) trade.taker = getAccount(world, comps, takerEntity);
+
+  // set order data
+  trade.buyOrder = getOrder(world, comps, getBuyAnchor(world, trade.id));
+  trade.sellOrder = getOrder(world, comps, getSellAnchor(world, trade.id));
+
+  TradeCache.set(id, trade);
+};
+
+export interface RefreshOptions {
+  state?: number;
+  taker?: number;
+}
+
+// get a Trade from the cache and optionally update any changing data
+export const get = (
+  world: World,
+  comps: Components,
+  entity: EntityIndex,
+  options?: RefreshOptions
+): Trade => {
+  const id = world.entities[entity];
+  if (!TradeCache.has(id)) process(world, comps, entity, id);
+  const trade = TradeCache.get(id)!;
+  if (!options) return trade;
+
+  const now = Date.now();
+  // set participants
+  if (options.state != undefined) {
+    const updateTs = StateUpdateTs.get(entity) ?? 0;
+    const updateDelta = (now - updateTs) / 1000; // convert to seconds
+    if (updateDelta > options.state) {
+      trade.state = getState(comps, entity) as State;
+      StateUpdateTs.set(entity, now);
+    }
+  }
+  if (options.taker != undefined) {
+    const updateTs = TakerUpdateTs.get(entity) ?? 0;
+    const updateDelta = (now - updateTs) / 1000; // convert to seconds
+    if (updateDelta > options.taker) {
+      const takerID = getTargetID(comps, entity, false);
+      const takerEntity = world.entityToIndex.get(takerID);
+      if (takerEntity) trade.taker = getAccount(world, comps, takerEntity);
+      TakerUpdateTs.set(entity, now);
+    }
+  }
+
+  return trade;
+};

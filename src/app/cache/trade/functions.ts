@@ -1,0 +1,48 @@
+/**
+ * kami-lens vendor port (AGPL-3.0 — see LICENSE).
+ * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
+ * path:     packages/client/src/app/cache/trade/functions.ts
+ * changes:  none
+ */
+
+import { Trade } from 'network/shapes/Trade/types';
+import { isItemCurrency, Item } from '../item';
+
+export type Type = 'Buy' | 'Sell' | 'Barter' | 'Forex' | '???';
+
+// Determine the type of trade from the items in the Buy/Sell Orders
+export const getTradeType = (trade: Trade, isMaker = true): Type => {
+  const buyOrder = trade.buyOrder;
+  const sellOrder = trade.sellOrder;
+  if (!buyOrder || !sellOrder) return '???';
+
+  const buyOnlyCurrency = buyOrder.items.every((item) => isItemCurrency(item));
+  const sellOnlyCurrency = sellOrder.items.every((item) => isItemCurrency(item));
+  const buyHasCurrency = buyOrder.items.some((item) => isItemCurrency(item));
+  const sellHasCurrency = sellOrder.items.some((item) => isItemCurrency(item));
+
+  if (buyOnlyCurrency && sellOnlyCurrency) return 'Forex';
+  if (!buyHasCurrency && !sellHasCurrency) return 'Barter';
+  if (!buyHasCurrency && sellOnlyCurrency) return isMaker ? 'Buy' : 'Sell';
+  if (!sellHasCurrency && buyOnlyCurrency) return isMaker ? 'Sell' : 'Buy';
+  return '???';
+};
+
+// gets the per unit item price if it's a simple Buy/Sell trade. 0 if unclear
+export const getPerUnitPrice = (trade: Trade, type: Type): number => {
+  const buyOrder = trade.buyOrder;
+  const sellOrder = trade.sellOrder;
+  if (!buyOrder || buyOrder.items.length !== 1) return 0;
+  if (!sellOrder || sellOrder.items.length !== 1) return 0;
+
+  if (type === 'Buy') return buyOrder.amounts[0] / sellOrder.amounts[0];
+  else if (type === 'Sell') return sellOrder.amounts[0] / buyOrder.amounts[0];
+  return 0;
+};
+
+// really stupid tax calc function. we'll do something about it later
+export const calcTax = (item: Item, amt: number, taxRate: number): number => {
+  const isCurrency = isItemCurrency(item);
+  if (!isCurrency) return 0;
+  return Math.floor(amt * taxRate);
+};

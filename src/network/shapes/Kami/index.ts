@@ -1,0 +1,42 @@
+/**
+ * kami-lens vendor port (AGPL-3.0 — see LICENSE).
+ * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
+ * path:     packages/client/src/network/shapes/Kami/index.ts
+ * changes:  none
+ */
+
+export { getBattles as getKamiBattles } from './battle';
+export { getBonuses as getKamiBonuses } from './bonuses';
+export { getConfigs as getKamiConfigs } from './configs';
+export { NullKami } from './constants';
+export {
+  getAll as getAllKamis,
+  getByIndex as getKamiByIndex,
+  getByName as getKamiByName,
+  getLocation as getKamiLocation,
+  getByAccount as getKamisByAccount,
+} from './getters';
+export { getHarvest as getKamiHarvest, queryHarvest as queryKamiHarvest } from './harvest';
+export {
+  calcExperienceRequirement as calcKamiExpRequirement,
+  getProgress as getKamiProgress,
+} from './progress';
+export {
+  queryByIndex as queryKamiByIndex,
+  query as queryKamis,
+  queryByState as queryKamisByState,
+} from './queries';
+export { getStats as getKamiStats } from './stats';
+export { getTimes as getKamiTimes } from './times';
+export { getTraits as getKamiTraits, queryTraits as queryKamiTraits } from './traits';
+export { getBase as getBaseKami, getGachaKami, get as getKami } from './types';
+
+export type { Battles as KamiBattles } from './battle';
+export type { Bonuses as KamiBonuses } from './bonuses';
+export type { AsphoAST, Efficacy, Configs as KamiConfigs } from './configs';
+export type { QueryOptions } from './queries';
+export type { Skills as KamiSkills } from './skills';
+export type { Stats as KamiStats } from './stats';
+export type { Times as KamiTimes } from './times';
+export type { Traits as KamiTraits } from './traits';
+export type { BaseKami, GachaKami, Kami, Options as KamiOptions } from './types';

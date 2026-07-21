@@ -9,9 +9,15 @@
     "isolatedModules": true,
     "module": "esnext",
     "moduleResolution": "bundler",
+    // Upstream ships one JSX-free .tsx in the projection unit
+    // (network/shapes/Trade/history.tsx); "preserve" mirrors upstream's
+    // own tsconfig and keeps the quirky extension portable verbatim.
+    "jsx": "preserve",
     "baseUrl": "./",
     "paths": {
       "abi/*": ["./src/abi/*", "./src/abi"],
+      "app/*": ["./src/app/*", "./src/app"],
+      "assets/*": ["./src/assets/*", "./src/assets"],
       "cache/*": ["./src/cache/*", "./src/cache"],
       "clients/*": ["./src/clients/*", "./src/clients"],
       "constants/*": ["./src/constants/*", "./src/constants"],

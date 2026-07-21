@@ -1,0 +1,67 @@
+/**
+ * kami-lens vendor port (AGPL-3.0 — see LICENSE).
+ * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
+ * path:     packages/client/src/network/shapes/Conditional/types.ts
+ * changes:  none
+ */
+
+import { EntityID, EntityIndex, World, getComponentValue } from 'engine/recs';
+import { Components } from 'network/';
+import { getFor } from '../utils/component';
+
+/**
+ * A client equivalent to Conditionals. For supporting other shapes
+ */
+
+export interface Condition {
+  id: EntityID;
+  logic: string;
+  target: Target;
+  status?: Status;
+  for?: string;
+}
+
+// the Target of a Condition (eg Objective, Requirement, Reward)
+export interface Target {
+  type: string;
+  index?: number;
+  value?: number;
+}
+
+export interface Status {
+  target?: number;
+  current?: number;
+  completable: boolean;
+}
+
+export interface Options {
+  for?: boolean;
+}
+
+export type HANDLER = 'CURR' | 'INC' | 'DEC' | 'BOOL';
+export type OPERATOR = 'MIN' | 'MAX' | 'EQUAL' | 'IS' | 'NOT';
+
+export const getCondition = (
+  world: World,
+  components: Components,
+  entity: EntityIndex | undefined,
+  options?: Options
+): Condition => {
+  const { Value, Index, LogicType, Type } = components;
+
+  if (!entity) return { id: '0' as EntityID, logic: '', target: { type: '' }, status: undefined };
+
+  let result: Condition = {
+    id: world.entities[entity],
+    logic: getComponentValue(LogicType, entity)?.value || ('' as string),
+    target: {
+      type: getComponentValue(Type, entity)?.value || ('' as string),
+      index: getComponentValue(Index, entity)?.value,
+      value: getComponentValue(Value, entity)?.value,
+    },
+  };
+
+  if (options?.for) result.for = getFor(components, entity);
+
+  return result;
+};

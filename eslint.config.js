@@ -27,6 +27,8 @@ export default tseslint.config(
     // code (src/*.ts at the top level, gates, scripts, tests) keeps them.
     files: [
       'src/abi/**',
+      'src/app/**',
+      'src/assets/**',
       'src/cache/**',
       'src/clients/**',
       'src/constants/**',
@@ -39,8 +41,11 @@ export default tseslint.config(
     ],
     rules: {
       'no-empty': 'off',
+      'no-extra-boolean-cast': 'off',
       'no-var': 'off',
       'prefer-const': 'off',
+      '@typescript-eslint/no-empty-object-type': 'off',
+      '@typescript-eslint/no-unused-expressions': 'off',
       '@typescript-eslint/no-unused-vars': 'off',
     },
   }
