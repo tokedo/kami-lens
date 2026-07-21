@@ -20,8 +20,8 @@
 # daemons sequentially on that data dir). Kamiden must be reachable —
 # these are [live] parts by design; an outage fails the run loudly.
 #
-# Tunables: G4B_WINDOW_S (default 1200), G4B_MIN_KILLS (1),
-#           G4B_MIN_MOVES (5).
+# Tunables: G4B_WINDOW_S (default 3600 — an early-exit cap, not a
+#           duration), G4B_MIN_KILLS (1), G4B_MIN_MOVES (5).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

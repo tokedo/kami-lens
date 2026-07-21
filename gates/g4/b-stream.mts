@@ -28,8 +28,11 @@
 //     either zero Message frames arrived or every one is accounted by the
 //     drop counters (the path proven hermetically above).
 //
-// Env: G4B_WINDOW_S (default 1200), G4B_MIN_KILLS (default 1),
-//      G4B_MIN_MOVES (default 5), G4B_PROBE_S (default 45).
+// Env: G4B_WINDOW_S (default 3600 — a CAP, not a duration: the window
+//      exits as soon as the minimums are verified with no pending checks;
+//      kill cadence is bursty — one 20-min window saw 10, the next 0),
+//      G4B_MIN_KILLS (default 1), G4B_MIN_MOVES (default 5),
+//      G4B_PROBE_S (default 45).
 
 import { configureKamiden, getKamidenClient } from '../../src/clients/kamiden';
 import { subscribeToFeed, subscribeToMessages } from '../../src/clients/kamiden/subscriptions';
@@ -133,7 +136,7 @@ const topicProbe: Record<string, { frames: number; feeds: number; messages: numb
 
 // ---- live: window over the feed query ---------------------------------------
 
-const WINDOW_S = Number(process.env.G4B_WINDOW_S ?? 1200);
+const WINDOW_S = Number(process.env.G4B_WINDOW_S ?? 3600);
 const MIN_KILLS = Number(process.env.G4B_MIN_KILLS ?? 1);
 const MIN_MOVES = Number(process.env.G4B_MIN_MOVES ?? 5);
 const POLL_S = 5;

@@ -1,7 +1,7 @@
 {
   "gate": "g4a-unary",
-  "measuredAt": "2026-07-21T19:56:23.298Z",
-  "blockNumber": 31190467,
+  "measuredAt": "2026-07-21T20:22:05.784Z",
+  "blockNumber": 31191288,
   "methodsCalled": [
     "GetAuctionBuys",
     "GetBattleStats",
@@ -20,84 +20,84 @@
     "GetAuctionBuys": {
       "ok": 1,
       "errors": 0,
-      "lastOkAt": "2026-07-21T19:56:21.369Z",
+      "lastOkAt": "2026-07-21T20:22:03.754Z",
       "lastErrorAt": null,
       "lastError": null
     },
     "GetKamiMarketListings": {
       "ok": 2,
       "errors": 0,
-      "lastOkAt": "2026-07-21T19:56:21.819Z",
+      "lastOkAt": "2026-07-21T20:22:04.255Z",
       "lastErrorAt": null,
       "lastError": null
     },
     "GetKamiMarketBids": {
       "ok": 2,
       "errors": 0,
-      "lastOkAt": "2026-07-21T19:56:21.901Z",
+      "lastOkAt": "2026-07-21T20:22:04.338Z",
       "lastErrorAt": null,
       "lastError": null
     },
     "GetKamiMarketHistory": {
       "ok": 1,
       "errors": 0,
-      "lastOkAt": "2026-07-21T19:56:21.987Z",
+      "lastOkAt": "2026-07-21T20:22:04.432Z",
       "lastErrorAt": null,
       "lastError": null
     },
     "GetTradeHistory": {
       "ok": 2,
       "errors": 0,
-      "lastOkAt": "2026-07-21T19:56:22.664Z",
+      "lastOkAt": "2026-07-21T20:22:05.153Z",
       "lastErrorAt": null,
       "lastError": null
     },
     "GetOpenOffers": {
       "ok": 2,
       "errors": 0,
-      "lastOkAt": "2026-07-21T19:56:22.749Z",
+      "lastOkAt": "2026-07-21T20:22:05.231Z",
       "lastErrorAt": null,
       "lastError": null
     },
     "GetItemTransfers": {
       "ok": 2,
       "errors": 0,
-      "lastOkAt": "2026-07-21T19:56:22.831Z",
+      "lastOkAt": "2026-07-21T20:22:05.318Z",
       "lastErrorAt": null,
       "lastError": null
     },
     "GetTokenWithdrawals": {
       "ok": 2,
       "errors": 0,
-      "lastOkAt": "2026-07-21T19:56:22.908Z",
+      "lastOkAt": "2026-07-21T20:22:05.403Z",
       "lastErrorAt": null,
       "lastError": null
     },
     "GetTokenDeposits": {
       "ok": 2,
       "errors": 0,
-      "lastOkAt": "2026-07-21T19:56:22.990Z",
+      "lastOkAt": "2026-07-21T20:22:05.477Z",
       "lastErrorAt": null,
       "lastError": null
     },
     "GetOpenWithdrawals": {
       "ok": 2,
       "errors": 0,
-      "lastOkAt": "2026-07-21T19:56:23.065Z",
+      "lastOkAt": "2026-07-21T20:22:05.557Z",
       "lastErrorAt": null,
       "lastError": null
     },
     "GetBattleStats": {
       "ok": 1,
       "errors": 0,
-      "lastOkAt": "2026-07-21T19:56:23.165Z",
+      "lastOkAt": "2026-07-21T20:22:05.667Z",
       "lastErrorAt": null,
       "lastError": null
     },
     "GetBattles": {
       "ok": 1,
       "errors": 0,
-      "lastOkAt": "2026-07-21T19:56:23.286Z",
+      "lastOkAt": "2026-07-21T20:22:05.759Z",
       "lastErrorAt": null,
       "lastError": null
     }
@@ -105,8 +105,8 @@
   "observedDepth_recordedNotAsserted": {
     "GetAuctionBuys": {
       "rows": 7018,
-      "oldestTs": "1970-01-21T05:23:20.402Z",
-      "depthDays": 20635.6
+      "oldestTs": null,
+      "depthDays": null
     },
     "GetKamiMarketListings": {
       "rows": 305,
@@ -181,7 +181,8 @@
     "receiptsSeen": 18,
     "openWithdrawalsSeen": 38,
     "oldestTradeCreateRaw_unitUnverified": 1753002768,
-    "oldestReceiptRaw_unitUnverified": 1761862239
+    "oldestReceiptRaw_unitUnverified": 1761862239,
+    "oldestAuctionBuyRaw_secondsMeasured": 1747400402
   },
   "match": true
 }
