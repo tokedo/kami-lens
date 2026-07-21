@@ -22,7 +22,9 @@ import { Components } from 'network/';
 import { getAccountByIndex, getAccountByName } from 'network/shapes/Account';
 import { queryByIndex as queryAccountEntityByIndex } from 'network/shapes/Account/queries';
 import { getConfigFieldValue, getConfigFieldValueArray } from 'network/shapes/Config';
-import { getHarvest } from 'network/shapes/Harvest';
+// getHarvestKami (Harvest/kami.ts), NOT getHarvest's {kami:true} option —
+// that option is a dormant upstream defect (see Harvest/types.ts header).
+import { getHarvest, getHarvestKami } from 'network/shapes/Harvest';
 import { getAllItems, getItemByIndex } from 'network/shapes/Item';
 import { getKami as getShapeKami } from 'network/shapes/Kami';
 import { queryByIndex as queryKamiByIndex } from 'network/shapes/Kami/queries';
@@ -190,8 +192,8 @@ export function nodeQuery(mirror: Mirror, args: { index: number }): NodeOut {
   const nodeEntity = queryNodeEntityByIndex(world, args.index);
   const harvestEntities = queryHarvests(world, components, nodeEntity);
   const harvests = harvestEntities.map((h) => {
-    const harvest = getHarvest(world, components, h, { kami: true });
-    const kami = harvest.kami;
+    const harvest = getHarvest(world, components, h);
+    const kami = getHarvestKami(world, components, h);
     const owner = kami ? getKamiAccount(world, components, kami.entity) : undefined;
     return {
       id: harvest.id,

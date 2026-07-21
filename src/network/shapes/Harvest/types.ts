@@ -2,7 +2,14 @@
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
  * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
  * path:     packages/client/src/network/shapes/Harvest/types.ts
- * changes:  none
+ * changes:  none — but an upstream defect is on the record here: getHarvest's
+ *           `options.kami` block imports getKami from '../Kami' (the
+ *           kami-shape getter) rather than './kami' (the harvest→kami
+ *           resolver) and calls it with the HARVEST entity, so it returns a
+ *           hollow Kami carrying the harvest's id (signature-compatible, so
+ *           even a typecheck passes — a silent semantic bug, dormant
+ *           upstream because no caller passes {kami: true} at the pin).
+ *           kami-lens callers use getHarvestKami (./kami) instead.
  */
 
 import { EntityID, EntityIndex, World } from 'engine/recs';
