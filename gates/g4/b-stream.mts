@@ -148,15 +148,64 @@ type FeedEntry = {
 
 const daemon = await spawnDaemonLive();
 const killChecks: Record<string, unknown>[] = [];
-const moveChecks = new Map<
-  number,
-  { roomIndex: number; seq: number; ok: boolean | null; observedRoom?: number }
->();
+// Movement verification is deadline-based, not one-shot: the movement
+// event and the chain mirror are two independent streams, so the mirror
+// may apply the RoomIndex change a few blocks after the feed delivers the
+// event — a pending check is re-polled until it verifies, is superseded
+// by a newer movement, is PROVEN superseded-unseen (the mirror lands in a
+// third room it can only reach via a movement the reconnect gap swallowed
+// — the ~40 s server closes make ~10% frame loss routine, measured), or
+// exceeds the deadline (the only true failure).
+const MOVE_DEADLINE_MS = 90_000; // ≈ 35 blocks — the "within N blocks" bound
+type PendingMove = {
+  roomIndex: number;
+  seq: number;
+  armedAtMs: number;
+  firstObservedRoom?: number;
+};
+const pendingMoves = new Map<number, PendingMove>();
+let verifiedMoves = 0;
+let supersededMoves = 0;
+let supersededUnseen = 0;
+const failedMoves: Record<string, unknown>[] = [];
 const unresolvable: Record<string, unknown>[] = [];
 let killsChecked = 0;
 let movesObserved = 0;
 let lastSeq = 0;
 let polls = 0;
+
+async function settlePendingMoves(): Promise<void> {
+  for (const [accIndex, p] of pendingMoves) {
+    const resp = await socketQuery('account', [String(accIndex)]);
+    if (!resp.ok) {
+      // can't observe the mirror — still expire (30 s slack), never hang
+      if (Date.now() - p.armedAtMs > MOVE_DEADLINE_MS + 30_000) {
+        failedMoves.push({ account: accIndex, ...p, observedRoom: null, note: 'account query failing' });
+        pendingMoves.delete(accIndex);
+      }
+      continue;
+    }
+    const roomNow = (resp.data as { roomIndex: number }).roomIndex;
+    if (roomNow === p.roomIndex) {
+      verifiedMoves++;
+      pendingMoves.delete(accIndex);
+      continue;
+    }
+    if (p.firstObservedRoom === undefined) {
+      pendingMoves.set(accIndex, { ...p, firstObservedRoom: roomNow });
+    } else if (roomNow !== p.firstObservedRoom) {
+      // the mirror moved to a third room with no movement event seen —
+      // proof of a lost supersede (rooms change only via moves)
+      supersededUnseen++;
+      pendingMoves.delete(accIndex);
+      continue;
+    }
+    if (Date.now() - p.armedAtMs > MOVE_DEADLINE_MS) {
+      failedMoves.push({ account: accIndex, ...p, observedRoom: roomNow });
+      pendingMoves.delete(accIndex);
+    }
+  }
+}
 
 try {
   const deadline = Date.now() + WINDOW_S * 1000;
@@ -204,23 +253,33 @@ try {
           unresolvable.push({ where: 'movement', account: m.account.id });
           continue;
         }
-        // latest movement per account wins; each poll re-arms the check
-        moveChecks.set(m.account.index, { roomIndex: m.room.index, seq: e.seq, ok: null });
+        // latest movement per account wins; a still-pending older one is
+        // superseded (counted, never a verdict)
+        if (pendingMoves.has(m.account.index)) supersededMoves++;
+        pendingMoves.set(m.account.index, {
+          roomIndex: m.room.index,
+          seq: e.seq,
+          armedAtMs: Date.now(),
+        });
       }
     }
 
-    // verify pending movement checks against the mirror (prompt, same poll)
-    for (const [accIndex, check] of moveChecks) {
-      if (check.ok !== null) continue;
-      const resp2 = await socketQuery('account', [String(accIndex)]);
-      if (!resp2.ok) continue;
-      const roomNow = (resp2.data as { roomIndex: number }).roomIndex;
-      moveChecks.set(accIndex, { ...check, ok: roomNow === check.roomIndex, observedRoom: roomNow });
-    }
+    await settlePendingMoves();
 
     const killsOk = killChecks.filter((k) => k.ok).length;
-    const movesOk = [...moveChecks.values()].filter((m) => m.ok).length;
-    if (killsOk >= MIN_KILLS && movesOk >= MIN_MOVES) break;
+    if (
+      killsOk >= MIN_KILLS &&
+      verifiedMoves >= MIN_MOVES &&
+      pendingMoves.size === 0 &&
+      failedMoves.length === 0
+    )
+      break;
+  }
+
+  // grace: let still-pending movement checks reach their own deadline
+  while (pendingMoves.size > 0) {
+    await sleep(POLL_S * 1000);
+    await settlePendingMoves();
   }
 
   // final status: chat-exclusion accounting + stream health
@@ -242,9 +301,6 @@ try {
 
   const killsOk = killChecks.filter((k) => k.ok).length;
   const killsFailed = killChecks.filter((k) => !k.ok);
-  const moveResults = [...moveChecks.entries()].map(([acc, m]) => ({ account: acc, ...m }));
-  const movesOk = moveResults.filter((m) => m.ok).length;
-  const movesFailed = moveResults.filter((m) => m.ok === false);
 
   const chatExclusion = {
     topicsRequested: kamiden.stream.topics,
@@ -267,17 +323,20 @@ try {
     killsOk,
     killChecks: killChecks.slice(0, 20),
     movesObserved,
-    movesChecked: moveResults.length,
-    movesOk,
-    movesFailed: movesFailed.slice(0, 20),
+    verifiedMoves,
+    supersededMoves,
+    supersededUnseen,
+    moveDeadlineMs: MOVE_DEADLINE_MS,
+    movesFailed: failedMoves.slice(0, 20),
     unresolvable: unresolvable.slice(0, 20),
     chatExclusion_measured: chatExclusion,
     match:
       killsOk >= MIN_KILLS &&
-      movesOk >= MIN_MOVES &&
+      verifiedMoves >= MIN_MOVES &&
       killsFailed.length === 0 &&
-      movesFailed.length === 0 &&
-      unresolvable.length === 0,
+      failedMoves.length === 0 &&
+      unresolvable.length === 0 &&
+      supersededUnseen <= verifiedMoves,
   });
 
   // the server closes streams every ~40 s (measured), so 'retrying' is a
@@ -293,20 +352,32 @@ try {
   if (killsFailed.length > 0) {
     fail('G4.b', { reason: 'kill without mirror state delta', killsFailed });
   }
-  if (movesFailed.length > 0) {
-    fail('G4.b', { reason: 'movement/RoomIndex mismatches', movesFailed: movesFailed.slice(0, 20) });
+  if (failedMoves.length > 0) {
+    fail('G4.b', {
+      reason: 'movement without a RoomIndex delta inside the deadline',
+      movesFailed: failedMoves.slice(0, 20),
+    });
   }
-  if (killsOk < MIN_KILLS || movesOk < MIN_MOVES) {
+  if (supersededUnseen > verifiedMoves) {
+    fail('G4.b', {
+      reason: 'movement cross-check inconclusive — stream loss outpaced verification',
+      supersededUnseen,
+      verifiedMoves,
+    });
+  }
+  if (killsOk < MIN_KILLS || verifiedMoves < MIN_MOVES) {
     fail('G4.b', {
       reason: 'window closed short of minimum samples — re-run at a busier hour',
       killsOk,
-      movesOk,
+      verifiedMoves,
       windowS: WINDOW_S,
     });
   }
   pass('G4.b', {
     killsOk,
-    movesOk,
+    verifiedMoves,
+    supersededMoves,
+    supersededUnseen,
     feedFrames: kamiden.stream.feedFrames,
     retries: kamiden.stream.retries,
     messageFramesArrived: kamiden.stream.messageFramesDropped,

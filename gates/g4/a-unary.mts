@@ -105,7 +105,10 @@ try {
     buys?: { timestamp: number }[];
   };
   const buys = buysData.buys ?? [];
-  record('GetAuctionBuys', buys.length, buys.length ? Math.min(...buys.map((b) => b.timestamp)) : null);
+  // AuctionBuy.Timestamp is SECONDS (measured — a ms reading dates to
+  // 1970), unlike the ms Message/market timestamps; recorded raw
+  const oldestAuctionBuyRaw = buys.length ? Math.min(...buys.map((b) => b.timestamp)) : null;
+  record('GetAuctionBuys', buys.length, null);
 
   // --- market → listings/bids/history ---------------------------------------
   const marketResp = await socketQuery('market');
@@ -305,6 +308,7 @@ try {
       openWithdrawalsSeen,
       oldestTradeCreateRaw_unitUnverified: oldestTradeCreateRaw,
       oldestReceiptRaw_unitUnverified: oldestReceiptRaw,
+      oldestAuctionBuyRaw_secondsMeasured: oldestAuctionBuyRaw,
     },
     match: resolution.failures.length === 0 && envelopeMismatches.length === 0,
   });

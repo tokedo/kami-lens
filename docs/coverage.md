@@ -119,6 +119,48 @@ served (their entities appear in `node`/`account`/`item` answers where
 linked); dedicated query outputs with schemas land with M4, where
 trade *history* (Kamiden) arrives and the trade/auction surfaces can
 be designed once, whole. Not a silent gap: this row is the record.
+*Resolved in M4 — see the section below.*
+
+## M4 Kamiden surface (2026-07-21)
+
+Served queries added at M4: `battles`, `market`, `portal`, `transfers`,
+`feed`, `chat` (Kamiden-backed passthrough-with-joins; request shapes
+are the web client's own, cited per builder in `src/queries/feeds.ts`),
+plus the M3-deferred chain trio `quests`, `trades`, `auctions` —
+designed whole with their Kamiden halves (trade history/open offers,
+auction buy history). Schemas in `src/queries/schemas/`; string classes
+in the classification table above (Kamiden payload strings are `system`
+— the payloads carry no player text; joined names are `authored-id`;
+chat bodies are the release's only served `authored-prose`).
+
+Standing caveats, measured 2026-07-21 (gate G4 evidence,
+docs/measurements/g4*-2026-07-21.json):
+
+- **Stream topic filter nonfunctional at this pin.** The server
+  recognizes no topic string — every non-empty `topics` list yields
+  zero frames while the proto-documented "empty = all" flows — so a
+  Messages-excluding filter is inexpressible without killing the feeds.
+  The daemon subscribes upstream-style (empty list); the §3.10 chat
+  exclusion is enforced at the ingestion drop, hermetically proven and
+  counter-surfaced in status. The requested topics stay configurable
+  for a future server vocabulary.
+- **The server closes the stream every ~40 s** ("Response closed
+  without grpc-status"); resubscription is routine (upstream's 5 s
+  cadence) and feed events during a reconnect gap are lost — identical
+  to the upstream client's exposure. The feed ring buffer is
+  best-effort recent history, never a complete log.
+- **Kamiden unary history depth is recorded per gate run, never
+  asserted** — service retention is unverified (the same epistemic
+  status as `GetEventsSince`).
+- `GetOpenOffers` is defined at the pin but uncalled by the web client;
+  kami-lens serves it per PORT_PLAN M4 with observed semantics recorded
+  by G4.a.
+- Chat oversize threshold: bodies over `chatMaxBytes` (default 4096
+  UTF-8 bytes; config/env) are withheld-with-receipt, verbatim on the
+  explicit `--oversize` override — never truncated (DESIGN §3.10). The
+  threshold default is a kami-lens implementation parameter (upstream
+  has no receive-side cap; its 200-char limit is send-side input
+  validation only).
 
 ## Maintenance
 

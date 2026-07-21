@@ -1,0 +1,187 @@
+{
+  "gate": "g4a-unary",
+  "measuredAt": "2026-07-21T19:56:23.298Z",
+  "blockNumber": 31190467,
+  "methodsCalled": [
+    "GetAuctionBuys",
+    "GetBattleStats",
+    "GetBattles",
+    "GetItemTransfers",
+    "GetKamiMarketBids",
+    "GetKamiMarketHistory",
+    "GetKamiMarketListings",
+    "GetOpenOffers",
+    "GetOpenWithdrawals",
+    "GetTokenDeposits",
+    "GetTokenWithdrawals",
+    "GetTradeHistory"
+  ],
+  "perMethodHealth": {
+    "GetAuctionBuys": {
+      "ok": 1,
+      "errors": 0,
+      "lastOkAt": "2026-07-21T19:56:21.369Z",
+      "lastErrorAt": null,
+      "lastError": null
+    },
+    "GetKamiMarketListings": {
+      "ok": 2,
+      "errors": 0,
+      "lastOkAt": "2026-07-21T19:56:21.819Z",
+      "lastErrorAt": null,
+      "lastError": null
+    },
+    "GetKamiMarketBids": {
+      "ok": 2,
+      "errors": 0,
+      "lastOkAt": "2026-07-21T19:56:21.901Z",
+      "lastErrorAt": null,
+      "lastError": null
+    },
+    "GetKamiMarketHistory": {
+      "ok": 1,
+      "errors": 0,
+      "lastOkAt": "2026-07-21T19:56:21.987Z",
+      "lastErrorAt": null,
+      "lastError": null
+    },
+    "GetTradeHistory": {
+      "ok": 2,
+      "errors": 0,
+      "lastOkAt": "2026-07-21T19:56:22.664Z",
+      "lastErrorAt": null,
+      "lastError": null
+    },
+    "GetOpenOffers": {
+      "ok": 2,
+      "errors": 0,
+      "lastOkAt": "2026-07-21T19:56:22.749Z",
+      "lastErrorAt": null,
+      "lastError": null
+    },
+    "GetItemTransfers": {
+      "ok": 2,
+      "errors": 0,
+      "lastOkAt": "2026-07-21T19:56:22.831Z",
+      "lastErrorAt": null,
+      "lastError": null
+    },
+    "GetTokenWithdrawals": {
+      "ok": 2,
+      "errors": 0,
+      "lastOkAt": "2026-07-21T19:56:22.908Z",
+      "lastErrorAt": null,
+      "lastError": null
+    },
+    "GetTokenDeposits": {
+      "ok": 2,
+      "errors": 0,
+      "lastOkAt": "2026-07-21T19:56:22.990Z",
+      "lastErrorAt": null,
+      "lastError": null
+    },
+    "GetOpenWithdrawals": {
+      "ok": 2,
+      "errors": 0,
+      "lastOkAt": "2026-07-21T19:56:23.065Z",
+      "lastErrorAt": null,
+      "lastError": null
+    },
+    "GetBattleStats": {
+      "ok": 1,
+      "errors": 0,
+      "lastOkAt": "2026-07-21T19:56:23.165Z",
+      "lastErrorAt": null,
+      "lastError": null
+    },
+    "GetBattles": {
+      "ok": 1,
+      "errors": 0,
+      "lastOkAt": "2026-07-21T19:56:23.286Z",
+      "lastErrorAt": null,
+      "lastError": null
+    }
+  },
+  "observedDepth_recordedNotAsserted": {
+    "GetAuctionBuys": {
+      "rows": 7018,
+      "oldestTs": "1970-01-21T05:23:20.402Z",
+      "depthDays": 20635.6
+    },
+    "GetKamiMarketListings": {
+      "rows": 305,
+      "oldestTs": "2026-07-18T12:55:25.381Z",
+      "depthDays": 3.3
+    },
+    "GetKamiMarketBids": {
+      "rows": 6,
+      "oldestTs": "2026-07-18T12:55:26.050Z",
+      "depthDays": 3.3
+    },
+    "GetKamiMarketHistory": {
+      "rows": 20,
+      "oldestTs": "2026-07-18T12:55:27.873Z",
+      "depthDays": 3.3
+    },
+    "GetTradeHistory": {
+      "rows": 82,
+      "oldestTs": null,
+      "depthDays": null
+    },
+    "GetOpenOffers": {
+      "rows": 44,
+      "oldestTs": null,
+      "depthDays": null
+    },
+    "GetItemTransfers": {
+      "rows": 92,
+      "oldestTs": null,
+      "depthDays": null
+    },
+    "GetTokenWithdrawals+Deposits": {
+      "rows": 18,
+      "oldestTs": null,
+      "depthDays": null
+    },
+    "GetOpenWithdrawals": {
+      "rows": 38,
+      "oldestTs": null,
+      "depthDays": null
+    },
+    "GetBattles": {
+      "rows": 17,
+      "oldestTs": "1970-01-21T05:04:32.142Z",
+      "depthDays": 20635.6
+    },
+    "GetBattleStats": {
+      "rows": 1,
+      "oldestTs": null,
+      "depthDays": null
+    }
+  },
+  "resolution": {
+    "checked": 854,
+    "resolved": 820,
+    "none": 34,
+    "failures": []
+  },
+  "envelopeMismatches": [],
+  "samples": {
+    "auctionItem": 10,
+    "marketAccounts": 12,
+    "accountsTried": [
+      1357,
+      429
+    ],
+    "battleKills": 17,
+    "battleStats": true,
+    "tradesSeen": 82,
+    "offersSeen": 44,
+    "transfersSeen": 92,
+    "receiptsSeen": 18,
+    "openWithdrawalsSeen": 38,
+    "oldestTradeCreateRaw_unitUnverified": 1753002768,
+    "oldestReceiptRaw_unitUnverified": 1761862239
+  },
+  "match": true
+}
