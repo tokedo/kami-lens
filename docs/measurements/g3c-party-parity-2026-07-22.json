@@ -1,0 +1,326 @@
+{
+  "gate": "g3c-party-parity",
+  "measuredAt": "2026-07-22T18:48:35.475Z",
+  "fixtures": "gates/fixtures/g2b-observations.json (G2.b protocol, reused)",
+  "hygieneSource": "g2b-display-parity-2026-07-21.json rejections",
+  "observationBlocks": {
+    "g2b-01.png": 31185008,
+    "g2b-02.png": 31185010,
+    "g2b-03.png": 31185010,
+    "g2b-04.png": 31185014
+  },
+  "compared": 22,
+  "skips": 10,
+  "failures": 0,
+  "rows": [
+    {
+      "row": "g2b-01.png:10016",
+      "checks": {
+        "state": true,
+        "hp": true,
+        "percent": true,
+        "node": true,
+        "musu": true,
+        "cooldown": true,
+        "rates": true
+      },
+      "rateMatchedAtSecondsBeforeCapture": 65,
+      "ok": true
+    },
+    {
+      "row": "g2b-01.png:10164",
+      "checks": {
+        "state": true,
+        "hp": true,
+        "percent": true,
+        "node": true,
+        "musu": true,
+        "cooldown": true,
+        "rates": true
+      },
+      "rateMatchedAtSecondsBeforeCapture": 44,
+      "ok": true
+    },
+    {
+      "row": "g2b-01.png:10282",
+      "checks": {
+        "state": true,
+        "hp": true,
+        "percent": true,
+        "node": true,
+        "musu": true,
+        "cooldown": true,
+        "rates": true
+      },
+      "rateMatchedAtSecondsBeforeCapture": 65,
+      "ok": true
+    },
+    {
+      "row": "g2b-01.png:10367",
+      "checks": {
+        "state": true,
+        "hp": true,
+        "percent": true,
+        "node": true,
+        "musu": true,
+        "cooldown": true,
+        "rates": true
+      },
+      "rateMatchedAtSecondsBeforeCapture": 41,
+      "ok": true
+    },
+    {
+      "row": "g2b-01.png:10409",
+      "checks": {
+        "state": true,
+        "hp": true,
+        "percent": true,
+        "node": true,
+        "musu": true,
+        "cooldown": true,
+        "rates": true
+      },
+      "rateMatchedAtSecondsBeforeCapture": 65,
+      "ok": true
+    },
+    {
+      "row": "g2b-01.png:10507",
+      "checks": {
+        "state": true,
+        "hp": true,
+        "percent": true,
+        "node": true,
+        "musu": true,
+        "cooldown": true,
+        "rates": true
+      },
+      "rateMatchedAtSecondsBeforeCapture": 65,
+      "ok": true
+    },
+    {
+      "row": "g2b-02.png:10141",
+      "checks": {
+        "state": true,
+        "hp": true,
+        "percent": true,
+        "node": true,
+        "musu": true,
+        "cooldown": true,
+        "rates": true
+      },
+      "rateMatchedAtSecondsBeforeCapture": 55,
+      "ok": true
+    },
+    {
+      "row": "g2b-02.png:10450",
+      "checks": {
+        "state": true,
+        "hp": true,
+        "percent": true,
+        "node": true,
+        "musu": true,
+        "cooldown": true,
+        "rates": true
+      },
+      "rateMatchedAtSecondsBeforeCapture": 65,
+      "ok": true
+    },
+    {
+      "row": "g2b-02.png:10532",
+      "checks": {
+        "state": true,
+        "hp": true,
+        "percent": true,
+        "node": true,
+        "musu": true,
+        "cooldown": true,
+        "rates": true
+      },
+      "rateMatchedAtSecondsBeforeCapture": 65,
+      "ok": true
+    },
+    {
+      "row": "g2b-02.png:11086",
+      "checks": {
+        "state": true,
+        "hp": true,
+        "percent": true,
+        "node": true,
+        "musu": true,
+        "cooldown": true,
+        "rates": true
+      },
+      "rateMatchedAtSecondsBeforeCapture": 65,
+      "ok": true
+    },
+    {
+      "row": "g2b-02.png:11243",
+      "checks": {
+        "state": true,
+        "hp": true,
+        "percent": true,
+        "node": true,
+        "musu": true,
+        "cooldown": true,
+        "rates": true
+      },
+      "rateMatchedAtSecondsBeforeCapture": 65,
+      "ok": true
+    },
+    {
+      "row": "g2b-02.png:11253",
+      "checks": {
+        "state": true,
+        "hp": true,
+        "percent": true,
+        "node": true,
+        "musu": true,
+        "cooldown": true,
+        "rates": true
+      },
+      "rateMatchedAtSecondsBeforeCapture": 54,
+      "ok": true
+    },
+    {
+      "row": "g2b-02.png:11279",
+      "checks": {
+        "state": true,
+        "hp": true,
+        "percent": true,
+        "node": true,
+        "musu": true,
+        "cooldown": true,
+        "rates": true
+      },
+      "rateMatchedAtSecondsBeforeCapture": 65,
+      "ok": true
+    },
+    {
+      "row": "g2b-03.png:15068",
+      "checks": {
+        "state": true,
+        "hp": true,
+        "percent": true,
+        "node": true,
+        "musu": true,
+        "cooldown": true,
+        "rates": true
+      },
+      "rateMatchedAtSecondsBeforeCapture": 65,
+      "ok": true
+    },
+    {
+      "row": "g2b-03.png:13308",
+      "checks": {
+        "state": true,
+        "hp": true,
+        "percent": true,
+        "node": true,
+        "musu": true,
+        "cooldown": true,
+        "rates": true
+      },
+      "rateMatchedAtSecondsBeforeCapture": 65,
+      "ok": true
+    },
+    {
+      "row": "g2b-03.png:15875",
+      "checks": {
+        "state": true,
+        "hp": true,
+        "percent": true,
+        "node": true,
+        "musu": true,
+        "cooldown": true,
+        "rates": true
+      },
+      "rateMatchedAtSecondsBeforeCapture": 65,
+      "ok": true
+    },
+    {
+      "row": "g2b-03.png:7825",
+      "checks": {
+        "state": true,
+        "hp": true,
+        "percent": true,
+        "node": true,
+        "musu": true,
+        "cooldown": true,
+        "rates": true
+      },
+      "rateMatchedAtSecondsBeforeCapture": 65,
+      "ok": true
+    },
+    {
+      "row": "g2b-03.png:13513",
+      "checks": {
+        "state": true,
+        "hp": true,
+        "percent": true,
+        "node": true,
+        "musu": true,
+        "cooldown": true,
+        "rates": true
+      },
+      "rateMatchedAtSecondsBeforeCapture": 65,
+      "ok": true
+    },
+    {
+      "row": "g2b-03.png:15785",
+      "checks": {
+        "state": true,
+        "hp": true,
+        "percent": true,
+        "node": true,
+        "musu": true,
+        "cooldown": true,
+        "rates": true
+      },
+      "rateMatchedAtSecondsBeforeCapture": 65,
+      "ok": true
+    },
+    {
+      "row": "g2b-03.png:16259",
+      "checks": {
+        "state": true,
+        "hp": true,
+        "percent": true,
+        "node": true,
+        "musu": true,
+        "cooldown": true,
+        "rates": true
+      },
+      "rateMatchedAtSecondsBeforeCapture": 65,
+      "ok": true
+    },
+    {
+      "row": "g2b-03.png:14839",
+      "checks": {
+        "state": true,
+        "hp": true,
+        "percent": true,
+        "node": true,
+        "musu": true,
+        "cooldown": true,
+        "rates": true
+      },
+      "rateMatchedAtSecondsBeforeCapture": 65,
+      "ok": true
+    },
+    {
+      "row": "g2b-04.png:10611",
+      "checks": {
+        "state": true,
+        "hp": true,
+        "percent": true,
+        "node": true,
+        "musu": true,
+        "cooldown": true,
+        "rates": true
+      },
+      "rateMatchedAtSecondsBeforeCapture": 65,
+      "ok": true
+    }
+  ],
+  "match": true
+}

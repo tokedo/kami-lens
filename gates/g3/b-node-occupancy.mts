@@ -46,9 +46,16 @@ const abi = AbiCoder.defaultAbiCoder();
 const config = resolveConfig();
 const cache = await loadCacheFromSnapshotFile(path.join(ARTIFACTS_DIR, 'c2.v8snap'), config);
 {
+  // two-stage heal (lesson recorded at G6.b, 2026-07-22): the coarse
+  // replay over an aged snapshot takes minutes, so a target computed
+  // before it is already outside the eth_call state window when it lands.
+  // Pay the long gap first, then re-pin with a seconds-cheap delta replay.
   const p = makeProvider(config);
+  const coarse = (await p.getBlockNumber()) - 8;
+  console.log(`[g3.b] coarse heal ${cache.blockNumber} → ${coarse}`);
+  await replayOnto(cache, makeFetchWorldEvents(p, config), coarse);
   const target = (await p.getBlockNumber()) - 8;
-  console.log(`[g3.b] healing mirror ${cache.blockNumber} → ${target} for in-window reads`);
+  console.log(`[g3.b] delta re-pin ${cache.blockNumber} → ${target}`);
   await replayOnto(cache, makeFetchWorldEvents(p, config), target);
   p.destroy();
 }
@@ -121,18 +128,29 @@ async function readRaw(contract: Contract, entityId: string): Promise<string | n
 
 const eqId = (a: string | bigint, b: string): boolean => BigInt(a) === BigInt(b);
 
-// --- verify every listed harvest --------------------------------------------
+// --- verify every listed harvest (pooled — the reads must all land inside
+// the state window; sequential-with-backoff ages the pin out, the G6.b
+// lesson) --------------------------------------------------------------------
 let verified = 0;
 const violations: Record<string, unknown>[] = [];
-for (const h of node.harvests) {
-  const stateRaw = await readRaw(contracts.state, h.id);
-  const sourceRaw = await readRaw(contracts.source, h.id);
-  const holderRaw = await readRaw(contracts.holder, h.id);
-  const stateOk = stateRaw !== null && abi.decode(['string'], stateRaw)[0] === 'ACTIVE';
-  const sourceOk = sourceRaw !== null && eqId(abi.decode(['uint256'], sourceRaw)[0], nodeId);
-  const kamiOk = holderRaw !== null && eqId(abi.decode(['uint256'], holderRaw)[0], h.kami.id);
-  if (stateOk && sourceOk && kamiOk) verified++;
-  else violations.push({ harvest: h.id, kami: h.kami.index, stateOk, sourceOk, kamiOk });
+{
+  let cursor = 0;
+  const worker = async (): Promise<void> => {
+    while (cursor < node.harvests.length) {
+      const h = node.harvests[cursor++];
+      const [stateRaw, sourceRaw, holderRaw] = await Promise.all([
+        readRaw(contracts.state, h.id),
+        readRaw(contracts.source, h.id),
+        readRaw(contracts.holder, h.id),
+      ]);
+      const stateOk = stateRaw !== null && abi.decode(['string'], stateRaw)[0] === 'ACTIVE';
+      const sourceOk = sourceRaw !== null && eqId(abi.decode(['uint256'], sourceRaw)[0], nodeId);
+      const kamiOk = holderRaw !== null && eqId(abi.decode(['uint256'], holderRaw)[0], h.kami.id);
+      if (stateOk && sourceOk && kamiOk) verified++;
+      else violations.push({ harvest: h.id, kami: h.kami.index, stateOk, sourceOk, kamiOk });
+    }
+  };
+  await Promise.all(Array.from({ length: 8 }, () => worker()));
 }
 
 // --- negative samples: harvests on OTHER nodes must not verify here ---------

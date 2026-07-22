@@ -1,0 +1,178 @@
+{
+  "gate": "g3d-stateless",
+  "measuredAt": "2026-07-22T18:49:03.047Z",
+  "kamis": [
+    10016,
+    10164,
+    11279
+  ],
+  "comparisons": [
+    {
+      "kami": 10016,
+      "block": 31226236,
+      "checks": {
+        "id": true,
+        "index": true,
+        "name": true,
+        "state": true,
+        "level": true,
+        "hpTotal": true
+      },
+      "stateless": {
+        "id": "0x1de49e6a1933854a87d1d12ef1316c5fbc421049ffcd87d30348cf4e23975bd8",
+        "index": 10016,
+        "name": "Kamigotchi 10016",
+        "state": "HARVESTING",
+        "level": 35,
+        "hp": {
+          "total": 250
+        },
+        "accountId": "0x75dcc56d012391a8ccd1bbc083eb57f28d3c34b0",
+        "blockNumber": 31226236
+      },
+      "daemon": {
+        "id": "0x1de49e6a1933854a87d1d12ef1316c5fbc421049ffcd87d30348cf4e23975bd8",
+        "index": 10016,
+        "name": "Kamigotchi 10016",
+        "state": "HARVESTING",
+        "level": 35,
+        "hp": {
+          "current": 226,
+          "total": 250,
+          "percent": 90
+        },
+        "hpRatePerHr": "-7.75",
+        "cooldownSec": 0,
+        "account": {
+          "index": 2930,
+          "name": "buzz"
+        },
+        "musu": {
+          "accrued": 172,
+          "spotRatePerHr": "+57.25",
+          "avgRatePerHr": "+45.37"
+        },
+        "node": {
+          "index": 86,
+          "name": "Guardian Skull"
+        }
+      },
+      "ok": true
+    },
+    {
+      "kami": 10164,
+      "block": 31226236,
+      "checks": {
+        "id": true,
+        "index": true,
+        "name": true,
+        "state": true,
+        "level": true,
+        "hpTotal": true
+      },
+      "stateless": {
+        "id": "0xeaf09fafe579f604942e495b55b4b4826abcbb7c3a4362376b9f507544db2449",
+        "index": 10164,
+        "name": "Kamigotchi 10164",
+        "state": "HARVESTING",
+        "level": 34,
+        "hp": {
+          "total": 240
+        },
+        "accountId": "0x75dcc56d012391a8ccd1bbc083eb57f28d3c34b0",
+        "blockNumber": 31226236
+      },
+      "daemon": {
+        "id": "0xeaf09fafe579f604942e495b55b4b4826abcbb7c3a4362376b9f507544db2449",
+        "index": 10164,
+        "name": "Kamigotchi 10164",
+        "state": "HARVESTING",
+        "level": 34,
+        "hp": {
+          "current": 92,
+          "total": 240,
+          "percent": 38
+        },
+        "hpRatePerHr": "-15.54",
+        "cooldownSec": 0,
+        "account": {
+          "index": 2930,
+          "name": "buzz"
+        },
+        "musu": {
+          "accrued": 1167,
+          "spotRatePerHr": "+122.93",
+          "avgRatePerHr": "+73.04"
+        },
+        "node": {
+          "index": 86,
+          "name": "Guardian Skull"
+        }
+      },
+      "ok": true
+    },
+    {
+      "kami": 11279,
+      "block": 31226236,
+      "checks": {
+        "id": true,
+        "index": true,
+        "name": true,
+        "state": true,
+        "level": true,
+        "hpTotal": true
+      },
+      "stateless": {
+        "id": "0xbaf425db23309be140618493f3b2bcd8fc4c0b8e7e355ba83f741f8ed88aefd1",
+        "index": 11279,
+        "name": "Kamigotchi 11279",
+        "state": "HARVESTING",
+        "level": 33,
+        "hp": {
+          "total": 250
+        },
+        "accountId": "0xa7baff95d94ce7c250736149bcc3efc124e4cbd3",
+        "blockNumber": 31226236
+      },
+      "daemon": {
+        "id": "0xbaf425db23309be140618493f3b2bcd8fc4c0b8e7e355ba83f741f8ed88aefd1",
+        "index": 11279,
+        "name": "Kamigotchi 11279",
+        "state": "HARVESTING",
+        "level": 33,
+        "hp": {
+          "current": 100,
+          "total": 250,
+          "percent": 40
+        },
+        "hpRatePerHr": "-14.90",
+        "cooldownSec": 0,
+        "account": {
+          "index": 2746,
+          "name": "caw-caw"
+        },
+        "musu": {
+          "accrued": 1314,
+          "spotRatePerHr": "+130.95",
+          "avgRatePerHr": "+78.92"
+        },
+        "node": {
+          "index": 82,
+          "name": "Geometric Cliffs"
+        }
+      },
+      "ok": true
+    }
+  ],
+  "mismatches": 0,
+  "cli": {
+    "exit": 0,
+    "envelopeOk": true,
+    "schemaOk": true
+  },
+  "refusal": {
+    "exit": 5,
+    "ok": true
+  },
+  "match": true
+}

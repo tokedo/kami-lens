@@ -1,0 +1,15 @@
+{
+  "gate": "g3b-node-occupancy",
+  "measuredAt": "2026-07-22T18:47:51.945Z",
+  "pinnedBlock": 31226195,
+  "verifyElapsedMs": 7876,
+  "rpcStateDepthNote": "eth_call state served only ~50-120 blocks deep (measured 2026-07-21: ok@50, reverted@120)",
+  "nodeIndex": 10,
+  "nodeName": "Forest: Insect Node",
+  "activeHarvests": 39,
+  "verified": 39,
+  "violations": [],
+  "negativeSamples": 10,
+  "negativeViolations": [],
+  "match": true
+}

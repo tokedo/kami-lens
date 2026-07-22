@@ -1,0 +1,18 @@
+{
+  "gate": "g3e-degraded",
+  "measuredAt": "2026-07-22T18:53:28.047Z",
+  "stallIntervalMs": 60000,
+  "degradedAfterMs": 60134,
+  "degradedMarkers": [
+    "stream-stalled:60s"
+  ],
+  "checks": {
+    "liveThroughProxy": true,
+    "notDegradedBefore": true,
+    "degradedWithinInterval": true,
+    "statusStaleAfter": true,
+    "queryStillServes": true,
+    "queryStampedStale": true
+  },
+  "match": true
+}

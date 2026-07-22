@@ -1,6 +1,6 @@
 {
   "gate": "g6c-killers",
-  "measuredAt": "2026-07-22T18:30:16.365Z",
+  "measuredAt": "2026-07-22T18:36:15.990Z",
   "totalRanked": 13054,
   "servedRows": 50,
   "joinResolved": 49,
@@ -9,11 +9,11 @@
     "phase": 1,
     "name": "DAYLIGHT",
     "cycleHour": 6,
-    "secondsToNext": 19843,
+    "secondsToNext": 19479,
     "next": "EVENFALL",
-    "at": 1784744957778
+    "at": 1784745321673
   },
-  "phaseClockDeltaMs": -54947,
+  "phaseClockDeltaMs": -39315,
   "getKillerRankingEmptyKeyRows": 0,
   "getBattlesIdlessRows": 0,
   "problems": [],
