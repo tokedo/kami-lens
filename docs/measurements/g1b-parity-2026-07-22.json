@@ -1,0 +1,32 @@
+{
+  "gate": "g1b-parity",
+  "measuredAt": "2026-07-22T21:13:23.563Z",
+  "pinnedBlock": 31230046,
+  "positiveSamples": 540,
+  "negativeSamples": 50,
+  "componentsCovered": 92,
+  "componentsInMirror": 92,
+  "hardFailures": 0,
+  "excusedKamigazeInherited": [
+    {
+      "componentId": "0xeb96d6a560bda13fa9b1f5e6458550803932abff9fe730fa1f8c3a6ddcb67e6b",
+      "entityId": "0x7e5fa16fb58b0a841bd40be0359a05ce936e215fe273eb8edc8f3fdd6b97b08",
+      "mirrorValue": {
+        "value": "0x1058a59"
+      },
+      "proofs": {
+        "absentOnChainAtPinnedBlock": true,
+        "eventsInRetentionWindow": 0,
+        "kamigazeReservesOnFreshFetch": true,
+        "freshServeDataHex": "0000000000000000000000000000000000000000000000000000000001058a59"
+      }
+    }
+  ],
+  "failureDetail": [],
+  "tripwires": {
+    "unknownComponentIds": 0,
+    "unknownComponentSchemas": 0,
+    "decodeFailures": 0,
+    "kamigazeNonceBumps": 0
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "gate": "g2c-clock-skew",
+  "measuredAt": "2026-07-22T20:11:15.380Z",
+  "targetBlock": 31187065,
+  "rows": 1216,
+  "wallDeltaMs": 118293,
+  "nowDeltaMs": 2502,
+  "timeToleranceSec": 4,
+  "skewedOffsetMs": 114671,
+  "unskewedOffsetMs": -1120,
+  "skewWasReal": true,
+  "skewCorrected": true,
+  "mismatches": 0,
+  "mismatchSamples": [],
+  "match": true
+}

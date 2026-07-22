@@ -49,7 +49,6 @@ const LIVE_BUDGET_MS = 300_000;
 const MIN_ENTRIES = 100_000;
 const TARGET_SAMPLES = 500;
 const NEGATIVE_SAMPLES = 50;
-const CALL_SPACING_MS = 75;
 const SPAN_TARGET_BLOCKS = Number(process.env.G1C_MIN_SPAN_BLOCKS ?? 600);
 /** conservative retention floor for excusal check (2): a bit beyond the
  * measured ~1.02 M-block horizon, so the searched window is never smaller
@@ -225,55 +224,73 @@ async function componentCall<T>(cIdx: number, invoke: (c: Contract) => Promise<T
   throw lastError;
 }
 
+// Pooled reads (2026-07-22 lesson, first learned at G6.b): ~600 sequential
+// reads with spacing outlast the RPC's eth_call state window (measured
+// <100 blocks today) and the pinned block ages out mid-gate — every read
+// then fails 'missing revert data' regardless of backend rotation. The
+// pool keeps per-read retry rotation; checks are unchanged.
 type Candidate = { key: number; componentId: string; entityId: string; mirrorValue: unknown };
 const hardFailures: Array<Record<string, unknown>> = [];
 const excusalCandidates: Candidate[] = [];
+const READ_CONCURRENCY = 8;
 let checked = 0;
-for (const key of positives) {
-  const [cIdx, eIdx] = unpackTuple(key);
-  const entityId = frozen.entities[eIdx]!;
-  const componentId = frozen.components[cIdx]!;
-  try {
-    const has: boolean = await componentCall(cIdx, (c) =>
-      c.has(BigInt(entityId), { blockTag: pinnedBlock })
-    );
-    if (!has) {
-      // condition (1) established: absent on-chain at the pinned block
-      excusalCandidates.push({ key, componentId, entityId, mirrorValue: frozen.state.get(key)! });
-    } else {
-      const raw: string = await componentCall(cIdx, (c) =>
-        c.getRaw(BigInt(entityId), { blockTag: pinnedBlock })
-      );
-      const onChain = await decode(componentId, raw);
-      const mirrorValue = frozen.state.get(key)!;
-      if (stableJson(onChain) !== stableJson(mirrorValue)) {
-        hardFailures.push({ kind: 'value-diff', componentId, entityId, mirrorValue, onChain });
+{
+  let cursor = 0;
+  const worker = async (): Promise<void> => {
+    while (cursor < positives.length) {
+      const key = positives[cursor++]!;
+      const [cIdx, eIdx] = unpackTuple(key);
+      const entityId = frozen.entities[eIdx]!;
+      const componentId = frozen.components[cIdx]!;
+      try {
+        const has: boolean = await componentCall(cIdx, (c) =>
+          c.has(BigInt(entityId), { blockTag: pinnedBlock })
+        );
+        if (!has) {
+          // condition (1) established: absent on-chain at the pinned block
+          excusalCandidates.push({ key, componentId, entityId, mirrorValue: frozen.state.get(key)! });
+        } else {
+          const raw: string = await componentCall(cIdx, (c) =>
+            c.getRaw(BigInt(entityId), { blockTag: pinnedBlock })
+          );
+          const onChain = await decode(componentId, raw);
+          const mirrorValue = frozen.state.get(key)!;
+          if (stableJson(onChain) !== stableJson(mirrorValue)) {
+            hardFailures.push({ kind: 'value-diff', componentId, entityId, mirrorValue, onChain });
+          }
+        }
+      } catch (e) {
+        hardFailures.push({ kind: 'unverifiable-rpc-read', componentId, entityId, error: String(e) });
       }
+      checked++;
+      if (checked % 100 === 0) console.log(`[g1.b] ${checked}/${positives.length} positive samples`);
     }
-  } catch (e) {
-    hardFailures.push({ kind: 'unverifiable-rpc-read', componentId, entityId, error: String(e) });
-  }
-  checked++;
-  if (checked % 100 === 0) console.log(`[g1.b] ${checked}/${positives.length} positive samples`);
-  await sleep(CALL_SPACING_MS);
+  };
+  await Promise.all(Array.from({ length: READ_CONCURRENCY }, () => worker()));
 }
 
 let negativeChecked = 0;
-for (const [cIdx, eIdx] of negatives) {
-  const entityId = frozen.entities[eIdx]!;
-  const componentId = frozen.components[cIdx]!;
-  try {
-    const has: boolean = await componentCall(cIdx, (c) =>
-      c.has(BigInt(entityId), { blockTag: pinnedBlock })
-    );
-    if (has) {
-      hardFailures.push({ kind: 'mirror-absent-chain-present', componentId, entityId });
+{
+  let cursor = 0;
+  const worker = async (): Promise<void> => {
+    while (cursor < negatives.length) {
+      const [cIdx, eIdx] = negatives[cursor++]!;
+      const entityId = frozen.entities[eIdx]!;
+      const componentId = frozen.components[cIdx]!;
+      try {
+        const has: boolean = await componentCall(cIdx, (c) =>
+          c.has(BigInt(entityId), { blockTag: pinnedBlock })
+        );
+        if (has) {
+          hardFailures.push({ kind: 'mirror-absent-chain-present', componentId, entityId });
+        }
+      } catch (e) {
+        hardFailures.push({ kind: 'unverifiable-rpc-read', componentId, entityId, error: String(e) });
+      }
+      negativeChecked++;
     }
-  } catch (e) {
-    hardFailures.push({ kind: 'unverifiable-rpc-read', componentId, entityId, error: String(e) });
-  }
-  negativeChecked++;
-  await sleep(CALL_SPACING_MS);
+  };
+  await Promise.all(Array.from({ length: READ_CONCURRENCY }, () => worker()));
 }
 
 // ------------------------- excusal engine (mechanical, per row, no waiver)
