@@ -1,7 +1,7 @@
 {
   "gate": "g5a-cleanroom",
-  "measuredAt": "2026-07-22T14:43:13.835Z",
-  "tarball": "kami-lens-0.1.0.tgz",
+  "measuredAt": "2026-07-22T21:40:57.992Z",
+  "tarball": "kami-lens-0.2.0.tgz",
   "steps": {
     "containerUp": true,
     "install": true,
@@ -12,6 +12,6 @@
     "querySchemaValid": true,
     "queryNonEmpty": true
   },
-  "timeToLiveSeconds": 53,
+  "timeToLiveSeconds": 54,
   "match": true
 }

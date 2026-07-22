@@ -1,8 +1,8 @@
 {
   "gate": "g5b-container",
-  "measuredAt": "2026-07-22T14:45:27.120Z",
+  "measuredAt": "2026-07-22T21:43:20.042Z",
   "image": "kami-lens:g5",
-  "coldSeconds": 70,
+  "coldSeconds": 75,
   "warmSeconds": 25,
   "steps": {
     "imageBuilt": true,
