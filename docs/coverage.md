@@ -148,7 +148,13 @@ docs/measurements/g4*-2026-07-21.json):
   without grpc-status"); resubscription is routine (upstream's 5 s
   cadence) and feed events during a reconnect gap are lost — identical
   to the upstream client's exposure. The feed ring buffer is
-  best-effort recent history, never a complete log.
+  best-effort recent history, never a complete log. *User-observed
+  corroboration (2026-07-22, filed at M5 audit): the official web
+  client left running overnight visibly de-syncs — kamis shown
+  near-starved that were actually fed; a full restart resolves it —
+  the same clean-close/frame-loss exposure playing out in the browser
+  session. kami-lens's mirror heals through Kamigaze gap-fill on
+  resubscribe; only the Kamiden FEED rows carry the loss.*
 - **Feed delivery is partial — measured, not asserted** (2026-07-22).
   Lab-side corroboration of the G4 record window against independent
   chain infrastructure: the feed delivered ~71% of chain movement
