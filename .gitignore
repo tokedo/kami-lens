@@ -1,7 +1,11 @@
 node_modules/
 dist/
 build/
-data/
+# runtime data output — anchored to repo root so it can never swallow a
+# source directory named data/ or Data/ (see src/network/**/[Dd]ata/).
+/data/
+!src/**/data/
+!src/**/Data/
 *.log
 .env
 .env.*
