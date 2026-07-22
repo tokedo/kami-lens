@@ -379,6 +379,18 @@ Never silent gaps.
   vendored-in-repo variant maintained as standing test
   infrastructure.
 - **Single-binary packaging.**
+- **`replayOnto` loud refusal** (0.2.0 audit residual). The gates
+  library replay primitive (`gates/g1/lib.mts`) silently no-ops when
+  the base block already postdates the target; both current consumers
+  (G2.b, G3.c) carry refuse-and-report guards, but the primitive
+  itself should refuse loudly so a future consumer cannot re-create
+  the silent wrong-state comparison the 0.2.0 audit caught in G3.c.
+- **Fixture-set replay-base pinning at capture time** (0.2.0 audit
+  residual). On the next natural G2.b capture event, the new fixture
+  set gets a fresh pinned `replayBase` manifest entry from day one —
+  the recovery rule in the current manifest's `replayBase.note`
+  (gates/fixtures/g2b-observations.json) is the template. A base is
+  pinned when the fixtures are born, never reconstructed after.
 
 ## 7. Upstream tracking protocol
 
