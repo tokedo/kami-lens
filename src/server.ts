@@ -20,7 +20,8 @@ import * as clock from 'clock';
 import { log } from 'utils/logger';
 import { KamiLensDaemon } from './daemon';
 import { buildEnvelope, QueryError, serveQuery } from './queries';
-import { loadSchema } from './queries/registry';
+import { loadSchema, REGISTRY, QueryName } from './queries/registry';
+import { getVersionInfo } from './version';
 
 export const SOCKET_NAME = 'kami-lens.sock';
 
@@ -30,12 +31,17 @@ export function socketPath(dataDir: string): string {
 
 export function buildStatusData(daemon: KamiLensDaemon): Record<string, unknown> {
   const s = daemon.getStatus();
+  const versionInfo = getVersionInfo();
   return {
+    version: versionInfo.version,
+    upstreamPin: versionInfo.upstreamPin,
     state: s.state,
     msg: s.msg,
     percentage: s.percentage,
     liveBlockNumber: s.liveBlockNumber,
     streamSilentMs: s.streamSilentMs,
+    bootstrapMode: s.bootstrapMode,
+    resumeFromBlock: s.resumeFromBlock,
     startedAt: s.startedAt,
     liveAt: s.liveAt,
     checkpoint: s.checkpoint as unknown as Record<string, unknown> | null,
@@ -55,9 +61,16 @@ export function buildStatusData(daemon: KamiLensDaemon): Record<string, unknown>
       ...(s.config.kamigazeUrl ? { kamigazeUrl: s.config.kamigazeUrl } : {}),
       ...(s.config.kamidenUrl ? { kamidenUrl: s.config.kamidenUrl } : {}),
       chatEnabled: s.config.chatEnabled,
+      ...(daemon.config.defaultOperator !== undefined
+        ? { defaultOperator: daemon.config.defaultOperator }
+        : {}),
       dataDir: s.config.dataDir,
       checkpointIntervalMs: s.config.checkpointIntervalMs,
     },
+    // per-key precedence provenance (DESIGN §5; gate G5.c asserts the
+    // flag > env > file > default matrix against this block)
+    configSources: daemon.configSources as unknown as Record<string, string>,
+    configFile: daemon.configFile,
   };
 }
 
@@ -96,7 +109,15 @@ async function handle(daemon: KamiLensDaemon, req: Request): Promise<Record<stri
       kamiden: daemon.kamiden,
       chat: { enabled: daemon.config.chatEnabled, maxBytes: daemon.config.chatMaxBytes },
     };
-    const envelope = await serveQuery(ctx, req.query, req.args ?? [], {
+    // defaultOperator prefill (DESIGN §5): a convenience default for the
+    // operator-argument tools when the argument is omitted — the same
+    // general query, never a special path
+    let args = req.args ?? [];
+    const def = REGISTRY[req.query as QueryName];
+    if (def?.operatorArg && args.length === 0 && daemon.config.defaultOperator !== undefined) {
+      args = [String(daemon.config.defaultOperator)];
+    }
+    const envelope = await serveQuery(ctx, req.query, args, {
       ...opts,
       stale: isStale(daemon),
       mode: 'daemon',

@@ -67,7 +67,10 @@
       "kamidenUrl": "system",
       "worldAddress": "system",
       "degraded": "system",
-      "version": "system"
+      "version": "system",
+      "upstreamPin": "system",
+      "configFile": "system",
+      "bootstrapMode": "system"
     },
     "KamidenStatus": {
       "url": "system"

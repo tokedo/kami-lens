@@ -1,4 +1,5 @@
-// kami-lens public surface. Populated as milestones land (PORT_PLAN.md).
+// kami-lens native module (not a port): the public library surface.
+// Populated as milestones land (PORT_PLAN.md).
 // M0: pure leaf utilities (hash/pack/decode) ported from the upstream pin.
 // M1: the sync daemon (mirror, checkpointing, status).
 // M3: the query surface (serveQuery + registry; the same queries the

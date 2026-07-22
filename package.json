@@ -1,7 +1,7 @@
 {
   "name": "kami-lens",
-  "version": "0.0.0",
-  "description": "Read-only local mirror and query surface for the Kamigotchi world — a headless port of the official client's perception layer.",
+  "version": "0.1.0",
+  "description": "Read-only local mirror and query surface for the Kamigotchi world \u2014 a headless port of the official client's perception layer.",
   "license": "AGPL-3.0-only",
   "type": "module",
   "engines": {
@@ -17,6 +17,7 @@
   },
   "files": [
     "dist",
+    "docs/string-classification.json",
     "LICENSE",
     "README.md",
     "UPSTREAM"
@@ -42,6 +43,7 @@
     "pluralize": "^8.0.0",
     "protobufjs": "^6.11.6",
     "rxjs": "^7.5.5",
+    "smol-toml": "^1.7.0",
     "type-fest": "^2.14.0",
     "viem": "^2.55.4"
   },
@@ -60,5 +62,12 @@
     "typescript-eslint": "^8.0.0",
     "vite-tsconfig-paths": "^5.0.0",
     "vitest": "^3.0.0"
+  },
+  "bin": {
+    "kami-lens": "./dist/cli.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tokedo/kami-lens.git"
   }
 }

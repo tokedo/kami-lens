@@ -1,0 +1,23 @@
+{
+  "gate": "g5d-provenance",
+  "measuredAt": "2026-07-22T14:26:32.711Z",
+  "pin": "ef898fc9350a6085fb080419b12af96c2254e8f3",
+  "checks": {
+    "licenseFile": true,
+    "packageLicense": true,
+    "versionShowsVersion": true,
+    "versionShowsPin": true,
+    "vendorHeadersComplete": true,
+    "noUnmarkedFiles": true
+  },
+  "packageLicense": "AGPL-3.0-only",
+  "versionOutput": "[logger:node] initialized with level: INFO\nkami-lens 0.1.0 (upstream Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3)",
+  "files": {
+    "total": 422,
+    "vendor": 387,
+    "native": 35,
+    "badVendor": [],
+    "unmarked": []
+  },
+  "match": true
+}

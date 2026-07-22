@@ -248,12 +248,24 @@ every gate that says "state hash".
 - **G4.b stream feed cross-check** *(\[live\])*: subscribe and
   buffer; sampled `Kill` events must have mirror-resolvable
   participants and a corresponding mirror state delta within N
-  blocks; `Movements` cross-checked against `RoomIndex` changes.
-  Also verifies both-layer chat exclusion: subscribe with a
-  Messages-excluding topic filter and assert that either no
-  `Message` frames arrive or the ingestion-drop counter accounts for
-  every one that does — the drop must be proven to work when the
-  transport promise fails.
+  blocks; `Movements` cross-checked against `RoomIndex` changes
+  (residual failures get a chain-log proof: the account's
+  `ComponentValueSet(RoomIndex)` sequence over the window must
+  contain the movement's room — fast round-trips outrun any mirror
+  poll). Also verifies both-layer chat exclusion. *(Amended
+  2026-07-22 by decision, lab-approved — a documented pivot on
+  measured reality, replacing "subscribe with a Messages-excluding
+  topic filter": the server has NO topic vocabulary at the pin —
+  every non-empty `topics` list yields zero frames while the
+  proto-documented "empty = all" flows — so a Messages-excluding
+  filter is inexpressible without killing the feeds. The gate
+  instead (1) probes and records the topic-filter behavior as
+  evidence, (2) subscribes upstream-style, and (3) asserts that
+  either no `Message` frames arrive or the ingestion-drop counter
+  accounts for every one that does — the drop proven hermetically
+  through the exact live ingestion path, i.e. proven to work when
+  the transport can promise nothing at all. The requested-topics
+  option stays configurable for a future server vocabulary.)*
 - **G4.c chat plan conformance** *(\[live\] + hermetic parts)*: chat
   query returns paginated `GetRoomMessages`, every body
   envelope-tagged `authored-prose`; withhold-with-receipt fires on

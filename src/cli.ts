@@ -1,15 +1,22 @@
 #!/usr/bin/env node
-// kami-lens native module (not a port): the CLI (DESIGN §3.6/§4.3).
+// kami-lens native module (not a port): the CLI (DESIGN §3.6/§4.3/§5).
 //
-//   kami-lens daemon                      run the sync daemon + query socket
+//   kami-lens daemon [config flags]       run the sync daemon + query socket
 //   kami-lens <query> [args...]           ask the running daemon → JSON
 //   kami-lens kami <index> --stateless    single-kami vitals, no daemon
+//   kami-lens health [config flags]       exit 0 iff the daemon is LIVE
+//                                         (container healthcheck backend)
+//   kami-lens --version                   version + upstream pin
 //
-// Flags: --prose (opt-in authored-prose fields, e.g. account bio),
-//        --no-authored (name-free mode: withhold authored-id with receipt),
-//        --stateless (kami only), --data-dir <path>,
-//        --oversize (chat only: serve oversize bodies verbatim instead of
-//        withheld-with-receipt — DESIGN §3.10 raw-fetch override).
+// Config flags (every mode; precedence flag > env > file > default, §5):
+//   --config <path> --chain-id --world-address --initial-block --rpc-url
+//   --rpc-ws-url --kamigaze-url --kamiden-url --kamiden-buffer-capacity
+//   --chat-enabled true|false --chat-max-bytes --default-operator
+//   --data-dir <path> --checkpoint-interval-ms
+// Query flags: --prose (opt-in authored-prose fields, e.g. account bio),
+//   --no-authored (name-free mode: withhold authored-id with receipt),
+//   --stateless (kami only), --oversize (chat only: serve oversize bodies
+//   verbatim instead of withheld-with-receipt — §3.10 raw-fetch override).
 //
 // Exit codes (documented):
 //   0 success · 1 query error / daemon fatal · 2 usage ·
@@ -21,10 +28,11 @@ import { connect } from 'node:net';
 
 import { buildEnvelope } from './queries';
 import { loadSchema, QUERY_NAMES } from './queries/registry';
-import { resolveConfig } from './config';
+import { KamiLensConfig, parseConfigFlags, resolveConfigDetailed } from './config';
 import { ERR_NO_SNAPSHOT_SOURCE, KamiLensDaemon } from './daemon';
 import { socketPath, startQuerySocket } from './server';
 import { statelessKami } from './stateless';
+import { getVersionInfo } from './version';
 
 const EXIT_QUERY_ERROR = 1;
 const EXIT_USAGE = 2;
@@ -34,17 +42,23 @@ const EXIT_REQUIRES_DAEMON = 5;
 function usage(): never {
   console.error(
     [
-      'usage: kami-lens daemon',
-      '       kami-lens <query> [args...] [--prose] [--no-authored] [--data-dir <path>]',
+      'usage: kami-lens daemon [config flags]',
+      '       kami-lens <query> [args...] [--prose] [--no-authored] [config flags]',
       '       kami-lens kami <index> --stateless',
+      '       kami-lens health [config flags]',
+      '       kami-lens --version',
       `queries: status, ${QUERY_NAMES.join(', ')}`,
+      "config flags: --config <path>, --chain-id, --world-address, --initial-block,",
+      '  --rpc-url, --rpc-ws-url, --kamigaze-url, --kamiden-url,',
+      '  --kamiden-buffer-capacity, --chat-enabled, --chat-max-bytes,',
+      '  --default-operator, --data-dir, --checkpoint-interval-ms',
     ].join('\n')
   );
   process.exit(EXIT_USAGE);
 }
 
-async function runDaemon(): Promise<void> {
-  const daemon = new KamiLensDaemon();
+async function runDaemon(configFlags: Partial<KamiLensConfig> & { configFile?: string }): Promise<void> {
+  const daemon = new KamiLensDaemon({}, configFlags);
 
   daemon.status$.subscribe((status) => {
     console.log(
@@ -132,7 +146,8 @@ async function runClient(
 async function runStateless(
   query: string,
   positional: string[],
-  flags: Set<string>
+  flags: Set<string>,
+  config: KamiLensConfig
 ): Promise<void> {
   if (query !== 'kami') {
     console.error(
@@ -148,7 +163,6 @@ async function runStateless(
   }
   const index = Number(positional[0]);
   if (!Number.isInteger(index) || index < 0) usage();
-  const config = resolveConfig();
   try {
     const data = await statelessKami(config, index);
     const envelope = buildEnvelope(
@@ -175,24 +189,66 @@ async function runStateless(
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   if (argv.length === 0) usage();
-  const [command, ...rest] = argv;
 
-  if (command === 'daemon') return runDaemon();
-
-  // --array (config) and --oversize (chat) are query arguments, not client
-  // flags — they ride through as positionals for the query's parseArgs
-  const flagList = rest.filter((a) => a.startsWith('--') && a !== '--array' && a !== '--oversize');
-  const flags = new Set(flagList);
-  let positional = rest.filter((a) => !flags.has(a));
-  let dataDir = resolveConfig().dataDir;
-  const dd = rest.indexOf('--data-dir');
-  if (dd >= 0 && rest[dd + 1]) {
-    dataDir = rest[dd + 1];
-    positional = positional.filter((a) => a !== rest[dd + 1]);
+  if (argv[0] === '--version' || argv[0] === '-v') {
+    const { version, upstreamPin } = getVersionInfo();
+    console.log(`kami-lens ${version} (upstream Asphodel-OS/kamigotchi @ ${upstreamPin})`);
+    return;
   }
 
-  if (flags.has('--stateless')) return runStateless(command, positional, flags);
-  return runClient(command, positional, flags, dataDir);
+  const [command, ...rest] = argv;
+
+  // config flags are valid in every mode; parse them out first
+  let configFlags: Partial<KamiLensConfig> & { configFile?: string };
+  let remaining: string[];
+  try {
+    ({ flags: configFlags, rest: remaining } = parseConfigFlags(rest));
+  } catch (e) {
+    console.error(`[kami-lens] ${e instanceof Error ? e.message : e}`);
+    process.exit(EXIT_USAGE);
+  }
+
+  if (command === 'daemon') {
+    if (remaining.length > 0) usage();
+    return runDaemon(configFlags);
+  }
+
+  if (command === 'health') {
+    // healthcheck backend (G5.b): one status round-trip; LIVE → 0, else 1
+    const dataDir = resolveConfigDetailed({}, configFlags).config.dataDir;
+    const sock = socketPath(dataDir);
+    const state = await new Promise<string>((resolve) => {
+      const conn = connect(sock);
+      let buffer = '';
+      conn.on('connect', () => conn.write(JSON.stringify({ id: 1, query: 'status' }) + '\n'));
+      conn.on('data', (chunk) => {
+        buffer += chunk.toString('utf8');
+        const nl = buffer.indexOf('\n');
+        if (nl < 0) return;
+        conn.end();
+        try {
+          const resp = JSON.parse(buffer.slice(0, nl)) as { ok: boolean; data?: { state?: string } };
+          resolve(resp.ok ? (resp.data?.state ?? 'UNKNOWN') : 'ERROR');
+        } catch {
+          resolve('ERROR');
+        }
+      });
+      conn.on('error', () => resolve('NO_DAEMON'));
+      setTimeout(() => resolve('TIMEOUT'), 10_000).unref?.();
+    });
+    console.log(state);
+    process.exit(state === 'LIVE' ? 0 : 1);
+  }
+
+  // --array (config query) and --oversize (chat) are query arguments, not
+  // client flags — they ride through as positionals for parseArgs
+  const flagList = remaining.filter((a) => a.startsWith('--') && a !== '--array' && a !== '--oversize');
+  const flags = new Set(flagList);
+  const positional = remaining.filter((a) => !flags.has(a));
+  const resolved = resolveConfigDetailed({}, configFlags).config;
+
+  if (flags.has('--stateless')) return runStateless(command, positional, flags, resolved);
+  return runClient(command, positional, flags, resolved.dataDir);
 }
 
 void main();

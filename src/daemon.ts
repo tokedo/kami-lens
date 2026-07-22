@@ -44,7 +44,7 @@ import { SyncWorkerConfig, isNetworkComponentUpdateEvent } from 'workers/types';
 
 import { setupCacheInvalidationHandler } from 'network/systems/CacheInvalidationSystem';
 
-import { KamiLensConfig, resolveConfig } from './config';
+import { ConfigSource, KamiLensConfig, resolveConfigDetailed } from './config';
 import { KamidenFeeds, KamidenStatus } from './kamiden';
 import { Tripwires, tripwireReport } from './tripwires';
 
@@ -76,6 +76,11 @@ export type DaemonStatus = {
   /** ms since the last live stream event (0 before LIVE); > STREAM_STALL_MS
    * marks the daemon degraded (G3.e) */
   streamSilentMs: number;
+  /** 'warm' = incremental resume from a cached snapshot, 'cold' = full
+   * bootstrap, 'unknown' before the cache probe (G5.b asserts this) */
+  bootstrapMode: 'warm' | 'cold' | 'unknown';
+  /** cached block the warm resume started from (0 when cold) */
+  resumeFromBlock: number;
   /** last Kamigaze-consistent checkpoint (null before first LIVE) */
   checkpoint: CheckpointReport | null;
   checkpointCount: number;
@@ -104,6 +109,10 @@ export type DaemonStatus = {
 
 export class KamiLensDaemon {
   readonly config: KamiLensConfig;
+  /** which precedence level produced each config key (DESIGN §5; G5.c) */
+  readonly configSources: Record<keyof KamiLensConfig, ConfigSource>;
+  /** the config file that was read, if any */
+  readonly configFile: string | null;
 
   private syncStatus: SyncStatus = { state: SyncState.CONNECTING, msg: '', percentage: 0 };
   private worker: ReturnType<typeof createSyncWorker> | null = null;
@@ -122,6 +131,8 @@ export class KamiLensDaemon {
   private checkpointInFlight = false;
   private liveBlockNumber = 0;
   private lastStreamEventAtWallMs = 0;
+  private bootstrapMode: 'warm' | 'cold' | 'unknown' = 'unknown';
+  private resumeFromBlock = 0;
   /** Stream-health surfacing (gate G3.e): once LIVE, a stream silent for
    * longer than this marks the daemon degraded and its answers stale —
    * last-synced state keeps being served, honestly stamped. */
@@ -142,8 +153,15 @@ export class KamiLensDaemon {
    * touch chain sync (DESIGN §3.2). */
   readonly kamiden: KamidenFeeds;
 
-  constructor(overrides: Partial<KamiLensConfig> = {}) {
-    this.config = resolveConfig(overrides);
+  constructor(
+    overrides: Partial<KamiLensConfig> = {},
+    /** CLI flag layer — between overrides and env in precedence (§5) */
+    flags: Partial<KamiLensConfig> & { configFile?: string } = {}
+  ) {
+    const resolved = resolveConfigDetailed(overrides, flags);
+    this.config = resolved.config;
+    this.configSources = resolved.sources;
+    this.configFile = resolved.configFile;
     this.kamiden = new KamidenFeeds({
       url: this.config.kamidenUrl,
       bufferCapacity: this.config.kamidenBufferCapacity,
@@ -158,6 +176,20 @@ export class KamiLensDaemon {
 
   async start(): Promise<void> {
     await this.preflight();
+    // warm/cold marker (G5.b): a cached block means the worker resumes
+    // incrementally from the snapshot; zero means a full bootstrap
+    try {
+      const store = await getStateStore(
+        this.config.chainId,
+        this.config.worldAddress,
+        CACHE_VERSION,
+        this.config.dataDir
+      );
+      this.resumeFromBlock = (await store.get('BlockNumber', 'current')) ?? 0;
+      this.bootstrapMode = this.resumeFromBlock > 0 ? 'warm' : 'cold';
+    } catch {
+      this.bootstrapMode = 'cold';
+    }
     this.bootstrap();
   }
 
@@ -494,6 +526,8 @@ export class KamiLensDaemon {
       percentage: this.syncStatus.percentage,
       liveBlockNumber: this.liveBlockNumber,
       streamSilentMs,
+      bootstrapMode: this.bootstrapMode,
+      resumeFromBlock: this.resumeFromBlock,
       checkpoint: this.lastCheckpoint,
       checkpointCount: this.checkpointCount,
       tripwires,

@@ -1,0 +1,19 @@
+# kami-lens sample compose (DESIGN §5). Zero-config: the baked Yominet
+# defaults reach LIVE with no environment at all. Uncomment `environment`
+# to override any KAMI_LENS_* key; the data volume holds the state cache
+# (disposable by design — DESIGN §3.5) and the query socket
+# (/data/kami-lens.sock; join the volume from another container, or use
+# `docker compose exec kami-lens kami-lens <query> ...`).
+services:
+  kami-lens:
+    build: .
+    # image: ghcr.io/tokedo/kami-lens:latest   # once published
+    restart: unless-stopped
+    volumes:
+      - kami-lens-data:/data
+    # environment:
+    #   KAMI_LENS_CHAT_ENABLED: "false"
+    #   KAMI_LENS_DEFAULT_OPERATOR: "2160"
+
+volumes:
+  kami-lens-data:

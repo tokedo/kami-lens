@@ -68,6 +68,10 @@ export type QueryDef = {
   /** §3.10: invoking this dedicated query IS the authored-prose opt-in
    * (chat) — the envelope keeps prose fields without the --prose flag */
   forcesProse?: boolean;
+  /** first positional is an account index eligible for the configured
+   * defaultOperator prefill when omitted (DESIGN §5 — never a special
+   * path, just a prefilled argument) */
+  operatorArg?: boolean;
   build: (
     ctx: QueryCtx,
     args: Record<string, unknown>,
@@ -95,6 +99,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
   },
   account: {
     name: 'account',
+    operatorArg: true,
     summary: 'account by index or name (bio only with --prose)',
     parseArgs: ([key]) => {
       if (key === undefined) throw new QueryError('BAD_ARGS', 'account needs an index or name');
@@ -114,6 +119,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
   },
   party: {
     name: 'party',
+    operatorArg: true,
     summary: 'account party report: every kami with full vitals',
     parseArgs: ([accountIndex]) => ({ accountIndex: int(accountIndex, 'account index') }),
     stateless: false,
@@ -160,6 +166,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
   },
   trades: {
     name: 'trades',
+    operatorArg: true,
     summary: 'open chain trades; with [accountIndex], kamiden history + open offers',
     parseArgs: ([accountIndex]) => ({
       accountIndex: optInt(accountIndex, 'account index'),
@@ -178,6 +185,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
   },
   quests: {
     name: 'quests',
+    operatorArg: true,
     summary: 'quest registry; with [accountIndex], accepted quests + completion',
     parseArgs: ([accountIndex]) => ({
       accountIndex: optInt(accountIndex, 'account index'),
@@ -188,6 +196,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
   },
   market: {
     name: 'market',
+    operatorArg: true,
     summary: 'KamiSwap listings + bids (kamiden); with [accountIndex], order history',
     parseArgs: ([accountIndex]) => ({
       accountIndex: optInt(accountIndex, 'account index'),
@@ -198,6 +207,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
   },
   portal: {
     name: 'portal',
+    operatorArg: true,
     summary: 'token portal history for an account + open withdrawals (kamiden)',
     parseArgs: ([accountIndex]) => ({ accountIndex: int(accountIndex, 'account index') }),
     stateless: false,
@@ -206,6 +216,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
   },
   transfers: {
     name: 'transfers',
+    operatorArg: true,
     summary: 'item transfer history for an account (kamiden)',
     parseArgs: ([accountIndex]) => ({ accountIndex: int(accountIndex, 'account index') }),
     stateless: false,

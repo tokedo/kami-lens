@@ -55,18 +55,28 @@ export type Envelope<T> = {
   };
 };
 
-const CLASSIFICATION_PATH = path.resolve(
-  import.meta.dirname,
-  '..',
-  '..',
-  'docs',
-  'string-classification.json'
-);
+// The classification artifact lives at <package root>/docs/. This module
+// runs from src/queries/ (tsx dev: root is ../..) or from the dist/
+// bundle (packaged: root is ..) — try both (M5 packaging).
+const CLASSIFICATION_CANDIDATES = [
+  path.resolve(import.meta.dirname, '..', '..', 'docs', 'string-classification.json'),
+  path.resolve(import.meta.dirname, '..', 'docs', 'string-classification.json'),
+];
 
 let classification: Classification | null = null;
 export function loadClassification(): Classification {
-  classification ??= JSON.parse(readFileSync(CLASSIFICATION_PATH, 'utf8')) as Classification;
-  return classification;
+  if (classification) return classification;
+  for (const candidate of CLASSIFICATION_CANDIDATES) {
+    try {
+      classification = JSON.parse(readFileSync(candidate, 'utf8')) as Classification;
+      return classification;
+    } catch {
+      /* try the next layout */
+    }
+  }
+  throw new Error(
+    `string-classification.json not found (tried ${CLASSIFICATION_CANDIDATES.join(', ')}) — packaging defect`
+  );
 }
 
 type SchemaNode = {

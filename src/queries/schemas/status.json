@@ -7,6 +7,8 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
+        "version",
+        "upstreamPin",
         "state",
         "liveBlockNumber",
         "startedAt",
@@ -14,9 +16,16 @@
         "degraded",
         "kamiden",
         "clockOffsetMs",
-        "config"
+        "config",
+        "configSources"
       ],
       "properties": {
+        "version": {
+          "type": "string"
+        },
+        "upstreamPin": {
+          "type": "string"
+        },
         "state": {
           "type": "string"
         },
@@ -100,6 +109,9 @@
             "chatEnabled": {
               "type": "boolean"
             },
+            "defaultOperator": {
+              "type": "number"
+            },
             "dataDir": {
               "type": "string"
             },
@@ -108,7 +120,25 @@
             }
           }
         },
+        "configSources": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "configFile": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "streamSilentMs": {
+          "type": "number"
+        },
+        "bootstrapMode": {
+          "type": "string"
+        },
+        "resumeFromBlock": {
           "type": "number"
         }
       }
@@ -116,20 +146,48 @@
     "KamidenStatus": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["configured", "url", "stream", "buffer", "unary"],
+      "required": [
+        "configured",
+        "url",
+        "stream",
+        "buffer",
+        "unary"
+      ],
       "properties": {
-        "configured": { "type": "boolean" },
-        "url": { "type": ["string", "null"] },
-        "stream": { "$ref": "#/$defs/KamidenStream" },
+        "configured": {
+          "type": "boolean"
+        },
+        "url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "stream": {
+          "$ref": "#/$defs/KamidenStream"
+        },
         "buffer": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["size", "capacity", "evicted", "newestSeq"],
+          "required": [
+            "size",
+            "capacity",
+            "evicted",
+            "newestSeq"
+          ],
           "properties": {
-            "size": { "type": "number" },
-            "capacity": { "type": "number" },
-            "evicted": { "type": "number" },
-            "newestSeq": { "type": "number" }
+            "size": {
+              "type": "number"
+            },
+            "capacity": {
+              "type": "number"
+            },
+            "evicted": {
+              "type": "number"
+            },
+            "newestSeq": {
+              "type": "number"
+            }
           }
         },
         "unary": {
@@ -160,18 +218,51 @@
         "events"
       ],
       "properties": {
-        "state": { "type": "string" },
-        "topics": { "type": "array", "items": { "type": "string" } },
-        "startedAt": { "type": ["string", "null"] },
-        "framesReceived": { "type": "number" },
-        "feedFrames": { "type": "number" },
-        "lastFrameAtWallMs": { "type": "number" },
-        "silentMs": { "type": "number" },
-        "messageFramesDropped": { "type": "number" },
-        "messagesDropped": { "type": "number" },
-        "retries": { "type": "number" },
-        "consecutiveFailures": { "type": "number" },
-        "lastError": { "type": ["string", "null"] },
+        "state": {
+          "type": "string"
+        },
+        "topics": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "startedAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "framesReceived": {
+          "type": "number"
+        },
+        "feedFrames": {
+          "type": "number"
+        },
+        "lastFrameAtWallMs": {
+          "type": "number"
+        },
+        "silentMs": {
+          "type": "number"
+        },
+        "messageFramesDropped": {
+          "type": "number"
+        },
+        "messagesDropped": {
+          "type": "number"
+        },
+        "retries": {
+          "type": "number"
+        },
+        "consecutiveFailures": {
+          "type": "number"
+        },
+        "lastError": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "events": {
           "type": "object",
           "additionalProperties": {

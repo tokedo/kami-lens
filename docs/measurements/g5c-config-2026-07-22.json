@@ -1,0 +1,73 @@
+{
+  "gate": "g5c-config",
+  "measuredAt": "2026-07-22T14:26:01.342Z",
+  "pairs": [
+    {
+      "pair": "flag>env",
+      "expected": 333000,
+      "got": {
+        "value": 333000,
+        "source": "flag"
+      },
+      "ok": true
+    },
+    {
+      "pair": "flag>file",
+      "expected": 333000,
+      "got": {
+        "value": 333000,
+        "source": "flag"
+      },
+      "ok": true
+    },
+    {
+      "pair": "flag>default",
+      "expected": 333000,
+      "got": {
+        "value": 333000,
+        "source": "flag"
+      },
+      "ok": true
+    },
+    {
+      "pair": "env>file",
+      "expected": 222000,
+      "got": {
+        "value": 222000,
+        "source": "env"
+      },
+      "ok": true
+    },
+    {
+      "pair": "env>default",
+      "expected": 222000,
+      "got": {
+        "value": 222000,
+        "source": "env"
+      },
+      "ok": true
+    },
+    {
+      "pair": "file>default",
+      "expected": 111000,
+      "got": {
+        "value": 111000,
+        "source": "file"
+      },
+      "ok": true
+    }
+  ],
+  "statusIntegration": {
+    "ok": true,
+    "checkpointIntervalMs": 333000,
+    "source": "flag",
+    "defaultOperator": 2160,
+    "configFile": "/Users/anatolyzaytsev/kami-lens/gates/.artifacts/g5c-scratch/config-111000.toml"
+  },
+  "noneSemantics": {
+    "ok": true,
+    "kamidenUrl": null,
+    "source": "flag"
+  },
+  "match": true
+}
