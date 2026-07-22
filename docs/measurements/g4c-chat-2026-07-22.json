@@ -1,0 +1,42 @@
+{
+  "gate": "g4c-chat",
+  "measuredAt": "2026-07-22T04:14:03.076Z",
+  "hermeticChecks": {
+    "schemaValid": true,
+    "oversizeWithheld": true,
+    "normalVerbatim": true,
+    "accountJoined": true,
+    "unresolvableBare": true,
+    "bodiesTagged": true,
+    "namesTagged": true,
+    "oversizeOverrideVerbatim": true,
+    "nameFreeKeepsBodies": true,
+    "nameFreeWithholdsNames": true,
+    "killSwitch": true,
+    "neverInReports": true
+  },
+  "hermetic": {
+    "oversizeBytes": 343,
+    "maxBytes": 128,
+    "sweepQueries": 17,
+    "sweepLeaks": []
+  },
+  "live": {
+    "room": 1,
+    "page1Count": 11,
+    "page2Count": 11,
+    "oldestTsPage1": "2025-10-16T21:48:12.396Z",
+    "bodiesChecked": 3,
+    "bodiesTagged": true,
+    "someBodies": true,
+    "page2StrictlyOlder": true,
+    "noOverlap": true,
+    "liveNeverInReports": true
+  },
+  "killSwitch": {
+    "hermetic": true,
+    "live": true,
+    "chainStillServes": true
+  },
+  "match": true
+}
