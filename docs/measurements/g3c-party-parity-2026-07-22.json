@@ -1,6 +1,6 @@
 {
   "gate": "g3c-party-parity",
-  "measuredAt": "2026-07-22T18:48:35.475Z",
+  "measuredAt": "2026-07-22T22:35:52.329Z",
   "fixtures": "gates/fixtures/g2b-observations.json (G2.b protocol, reused)",
   "hygieneSource": "g2b-display-parity-2026-07-21.json rejections",
   "observationBlocks": {

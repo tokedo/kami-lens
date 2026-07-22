@@ -13,6 +13,14 @@
 // staleness window (1 s τ-sweep over [capture − 65 s, capture]). Hygiene:
 // rows the G2.b measurement rejected for on-chain actions inside the
 // window are skipped here by that record (cited, not recomputed).
+//
+// Replay base (2026-07-22 audit finding): the base is the fixture set's
+// OWN pinned snapshot (manifest replayBase — file + expected block), not
+// the shared mutable c2.v8snap, which later gate runs refresh past the
+// observation blocks; replayOnto silently no-ops backward and the gate
+// would compare head-state under a frozen capture clock. Guard: refuse
+// and report when the pin is absent, the artifact is missing, its block
+// differs from the pin, or it postdates any observation block.
 
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -24,7 +32,6 @@ import { KamiCache } from '../../src/app/cache/kami/base';
 import { getKamiAccount } from '../../src/app/cache/kami';
 import { queryByIndex as queryKamiByIndex } from '../../src/network/shapes/Kami/queries';
 import {
-  ARTIFACTS_DIR,
   REPO_ROOT,
   cloneStateCache,
   fail,
@@ -50,9 +57,22 @@ type PartyRow = {
 type Screenshot = { file: string; capturedAtMs: number; views: { party?: PartyRow[] } };
 
 const FIXTURES = path.join(REPO_ROOT, 'gates', 'fixtures', 'g2b-observations.json');
-const SNAPSHOT = path.join(ARTIFACTS_DIR, 'c2.v8snap');
 if (!existsSync(FIXTURES)) fail('G3.c', { reason: 'fixtures missing', expected: FIXTURES });
-const fixture = JSON.parse(readFileSync(FIXTURES, 'utf8')) as { screenshots: Screenshot[] };
+const fixture = JSON.parse(readFileSync(FIXTURES, 'utf8')) as {
+  replayBase?: { file: string; blockNumber: number };
+  screenshots: Screenshot[];
+};
+if (!fixture.replayBase) {
+  fail('G3.c', { reason: 'fixtures manifest lacks the replayBase pin — refusing to guess a base' });
+}
+const SNAPSHOT = path.join(REPO_ROOT, fixture.replayBase!.file);
+if (!existsSync(SNAPSHOT)) {
+  fail('G3.c', {
+    reason: 'pinned replay-base artifact missing — a lost base means a fresh capture event (operator decision), never a substitute base',
+    expected: SNAPSHOT,
+    pinnedBlock: fixture.replayBase!.blockNumber,
+  });
+}
 
 // hygiene: G2.b's recorded rejections
 const g2bMeasurements = readFileSync(
@@ -71,6 +91,25 @@ const provider = makeProvider(config);
 const fetchWorldEvents = makeFetchWorldEvents(provider, config);
 
 const distinctBlocks = [...new Set(Object.values(g2b.observationBlocks))].sort((a, b) => a - b);
+// --- the loud precondition guard (refuse-and-report, never a silent
+// wrong-state comparison): the base must be the pinned block and must
+// predate every observation block, or replayOnto cannot reach them.
+if (baseCache.blockNumber !== fixture.replayBase!.blockNumber) {
+  fail('G3.c', {
+    reason: 'replay-base artifact does not match its manifest pin',
+    artifactBlock: baseCache.blockNumber,
+    pinnedBlock: fixture.replayBase!.blockNumber,
+    file: fixture.replayBase!.file,
+  });
+}
+if (baseCache.blockNumber > distinctBlocks[0]) {
+  fail('G3.c', {
+    reason:
+      'replay base postdates the earliest observation block — a forward replay cannot reach the fixtures; refusing the comparison',
+    baseBlock: baseCache.blockNumber,
+    earliestObservationBlock: distinctBlocks[0],
+  });
+}
 const mirrors = new Map<number, ReturnType<typeof buildMirror>>();
 {
   let rolling = cloneStateCache(baseCache);

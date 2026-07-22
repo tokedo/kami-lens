@@ -63,7 +63,6 @@ import { queryByIndex as queryKamiByIndex } from '../../src/network/shapes/Kami/
 import { getRateDisplay } from '../../src/utils/numbers';
 import { MUSU_INDEX } from '../../src/constants/items';
 import {
-  ARTIFACTS_DIR,
   REPO_ROOT,
   cloneStateCache,
   fail,
@@ -82,7 +81,9 @@ import { buildMirror } from './lib.mts';
 const EXCLUDED_KAMI_INDEXES = new Set([17379, 17992, 20042]);
 
 const FIXTURES = path.join(REPO_ROOT, 'gates', 'fixtures', 'g2b-observations.json');
-const SNAPSHOT = path.join(ARTIFACTS_DIR, 'c2.v8snap');
+// The replay base is the fixture set's OWN pinned snapshot (manifest
+// replayBase entry — 2026-07-22 audit finding), never the shared mutable
+// c2.v8snap, which later gate runs refresh past the observation blocks.
 
 type Hp = { current: number; total: number; percent?: number };
 type PartyRow = {
@@ -126,19 +127,36 @@ if (!existsSync(FIXTURES)) {
 }
 const fixture = JSON.parse(readFileSync(FIXTURES, 'utf8')) as {
   schema: string;
+  replayBase?: { file: string; blockNumber: number };
   screenshots: Screenshot[];
 };
 if (fixture.schema !== 'g2b-screenshot-transcription-v2') {
   fail('G2.b', { reason: 'unexpected fixture schema', got: fixture.schema });
 }
+if (!fixture.replayBase) {
+  fail('G2.b', { reason: 'fixtures manifest lacks the replayBase pin — refusing to guess a base' });
+}
+const SNAPSHOT = path.join(REPO_ROOT, fixture.replayBase!.file);
 if (!existsSync(SNAPSHOT)) {
-  fail('G2.b', { reason: 'mirror snapshot missing (run G1 / the daemon first)', expected: SNAPSHOT });
+  fail('G2.b', {
+    reason: 'pinned replay-base artifact missing — a lost base means a fresh capture event (operator decision), never a substitute base',
+    expected: SNAPSHOT,
+    pinnedBlock: fixture.replayBase!.blockNumber,
+  });
 }
 
 // --- 1. derive observation blocks (RPC bisection over block timestamps) -----
 const config = resolveConfig();
 const provider = makeProvider(config);
 const baseCache = await loadCacheFromSnapshotFile(SNAPSHOT, config);
+if (baseCache.blockNumber !== fixture.replayBase!.blockNumber) {
+  fail('G2.b', {
+    reason: 'replay-base artifact does not match its manifest pin',
+    artifactBlock: baseCache.blockNumber,
+    pinnedBlock: fixture.replayBase!.blockNumber,
+    file: fixture.replayBase!.file,
+  });
+}
 
 async function blockTs(n: number): Promise<number> {
   const b = await provider.getBlock(n);
@@ -168,6 +186,16 @@ console.log('[g2.b] derived observation blocks:', Object.fromEntries(obsBlocks))
 
 // --- 2. build mirrors: basis + one per distinct observation block -----------
 const distinctBlocks = [...new Set(obsBlocks.values())].sort((a, b) => a - b);
+// loud precondition (refuse-and-report, never a silent wrong-state
+// comparison): the base must predate every observation block or the
+// forward replay cannot reach the fixtures
+if (baseCache.blockNumber > distinctBlocks[0]) {
+  fail('G2.b', {
+    reason: 'replay base postdates the earliest observation block — refusing the comparison',
+    baseBlock: baseCache.blockNumber,
+    earliestObservationBlock: distinctBlocks[0],
+  });
+}
 const basisMirror = buildMirror(baseCache);
 const obsMirrors = new Map<number, ReturnType<typeof buildMirror>>();
 {

@@ -3,6 +3,11 @@
   "recordedBy": "hand-captured by operator (original, unedited official-client screenshots); session-transcribed machine-side from the images (audit: sourceScreenshot per row; uncertain reads flagged; any post-comparison correction is noted in transcriptionCorrections)",
   "recordedAt": "2026-07-21",
   "captureTimeSource": "original filename timestamps (Screenshot 2026-07-21 at 9.15.SS AM, host local = UTC-7), cross-checked against file mtimes (+2 s write lag); originals renamed g2b-01..04 after transcription",
+  "replayBase": {
+    "file": "gates/.artifacts/g2b-base.v8snap",
+    "blockNumber": 31181765,
+    "note": "Pinned per-fixture-set replay base (2026-07-22 audit finding): this fixture set replays forward from exactly this snapshot block — the base the original G2.b/G3.c passes used. The artifact is machine-local (not committed) and immutable by convention: no gate refreshes this filename. Consumers refuse-and-report when the file is missing, its block differs from this pin, or it postdates any observation block — never a silent wrong-state comparison. Preserved from c2-overnight.v8snap; a lost artifact means a fresh capture event (new screenshots + transcription + a new pin here), an operator decision."
+  },
   "originals": [
     { "file": "g2b-01.png", "originalFilename": "Screenshot 2026-07-21 at 9.15.36 AM.png", "mtimeEpochS": 1784650538 },
     { "file": "g2b-02.png", "originalFilename": "Screenshot 2026-07-21 at 9.15.38 AM.png", "mtimeEpochS": 1784650540 },
