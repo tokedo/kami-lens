@@ -37,6 +37,9 @@
         "description": {
           "type": "string"
         },
+        "attacker": {
+          "$ref": "#/$defs/Attacker"
+        },
         "harvests": {
           "type": "array",
           "items": {
@@ -66,6 +69,105 @@
         },
         "account": {
           "$ref": "#/$defs/AccountRef"
+        },
+        "vitals": {
+          "$ref": "#/$defs/HarvestVitals"
+        },
+        "liquidation": {
+          "$ref": "#/$defs/Liquidation"
+        }
+      }
+    },
+    "HarvestVitals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hp",
+        "hpRatePerHr",
+        "musuAccrued",
+        "cooldownSec"
+      ],
+      "properties": {
+        "hp": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "current",
+            "total",
+            "percent"
+          ],
+          "properties": {
+            "current": {
+              "type": "number"
+            },
+            "total": {
+              "type": "number"
+            },
+            "percent": {
+              "type": "number"
+            }
+          }
+        },
+        "hpRatePerHr": {
+          "type": "string"
+        },
+        "musuAccrued": {
+          "type": "number"
+        },
+        "cooldownSec": {
+          "type": "number"
+        }
+      }
+    },
+    "Liquidation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eligible",
+        "threshold",
+        "spoils",
+        "salvage",
+        "recoil"
+      ],
+      "properties": {
+        "eligible": {
+          "type": "boolean"
+        },
+        "threshold": {
+          "type": "number"
+        },
+        "spoils": {
+          "type": "number"
+        },
+        "salvage": {
+          "type": "number"
+        },
+        "recoil": {
+          "type": "number"
+        }
+      }
+    },
+    "Attacker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "index",
+        "name",
+        "cooldownSec"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "index": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "cooldownSec": {
+          "type": "number"
         }
       }
     },

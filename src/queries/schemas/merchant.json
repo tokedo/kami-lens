@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kami-lens/schemas/merchant.json",
+  "$ref": "#/$defs/Merchant",
+  "$defs": {
+    "Merchant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["merchants"],
+      "properties": {
+        "merchants": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Npc"
+          }
+        },
+        "listings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Listing"
+          }
+        }
+      }
+    },
+    "Npc": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "name", "roomIndex"],
+      "properties": {
+        "index": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "roomIndex": {
+          "type": "number"
+        }
+      }
+    },
+    "Listing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "item", "payItem", "value", "balance", "startTime", "requirements"],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "item": {
+          "$ref": "#/$defs/InventoryItem"
+        },
+        "payItem": {
+          "$ref": "#/$defs/ItemRef"
+        },
+        "value": {
+          "type": "number"
+        },
+        "balance": {
+          "type": "number"
+        },
+        "startTime": {
+          "type": "number"
+        },
+        "buy": {
+          "$ref": "#/$defs/Pricing"
+        },
+        "sell": {
+          "$ref": "#/$defs/Pricing"
+        },
+        "buyPrice": {
+          "type": "number"
+        },
+        "sellPrice": {
+          "type": "number"
+        },
+        "requirements": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "Pricing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "period": {
+          "type": "number"
+        },
+        "decay": {
+          "type": "number"
+        },
+        "rate": {
+          "type": "number"
+        },
+        "scale": {
+          "type": "number"
+        }
+      }
+    },
+    "InventoryItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "index", "name", "type"],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "index": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      }
+    },
+    "ItemRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "name"],
+      "properties": {
+        "index": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

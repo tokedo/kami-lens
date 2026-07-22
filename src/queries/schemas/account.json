@@ -14,6 +14,7 @@
         "operatorAddress",
         "roomIndex",
         "musu",
+        "stamina",
         "reputation",
         "kamis"
       ],
@@ -38,6 +39,22 @@
         },
         "musu": {
           "type": "number"
+        },
+        "stamina": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "current",
+            "total"
+          ],
+          "properties": {
+            "current": {
+              "type": "number"
+            },
+            "total": {
+              "type": "number"
+            }
+          }
         },
         "reputation": {
           "type": "object",

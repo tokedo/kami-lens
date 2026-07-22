@@ -2,7 +2,10 @@
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
  * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
  * path:     packages/client/src/app/cache/kami/calcs/liquidation.ts
- * changes:  none
+ * changes:  calcSalvage exported (upstream keeps it module-private; its UI
+ *           previews only spoils/recoil). Visibility-only — no formula
+ *           change; the query surface serves the salvage side of the
+ *           liquidation preview through it.
  */
 
 import cdf from '@stdlib/stats-base-dists-normal-cdf';
@@ -80,7 +83,10 @@ export const calcThreshold = (attacker: Kami, defender: Kami): number => {
 };
 
 // calculate the salvage of a kami having its current harvest liquidated
-const calcSalvage = (kami: Kami, balance?: number): number => {
+// (kami-lens: exported for the query surface's liquidation preview —
+// visibility-only change, formula untouched; upstream keeps it private
+// because its UI shows only spoils/recoil)
+export const calcSalvage = (kami: Kami, balance?: number): number => {
   if (!kami.harvest) return 0;
   if (!kami.config) return 0;
 

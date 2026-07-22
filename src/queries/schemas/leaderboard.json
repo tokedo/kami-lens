@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kami-lens/schemas/leaderboard.json",
+  "$ref": "#/$defs/Leaderboard",
+  "$defs": {
+    "Leaderboard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "epoch", "itemIndex", "rows"],
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "epoch": {
+          "type": "number"
+        },
+        "itemIndex": {
+          "type": "number"
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ScoreRow"
+          }
+        }
+      }
+    },
+    "ScoreRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rank", "account", "value"],
+      "properties": {
+        "rank": {
+          "type": "number"
+        },
+        "account": {
+          "$ref": "#/$defs/AccountIdRef"
+        },
+        "value": {
+          "type": "number"
+        }
+      }
+    },
+    "AccountIdRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "index": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kami-lens/schemas/phase.json",
+  "$ref": "#/$defs/Phase",
+  "$defs": {
+    "Phase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["phase", "name", "cycleHour", "secondsToNext", "next", "at"],
+      "properties": {
+        "phase": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "cycleHour": {
+          "type": "number"
+        },
+        "secondsToNext": {
+          "type": "number"
+        },
+        "next": {
+          "type": "string"
+        },
+        "at": {
+          "type": "number"
+        }
+      }
+    }
+  }
+}

@@ -43,7 +43,7 @@ import { quests as explorerQuests } from 'network/explorer/quests';
 import { trades as explorerTrades } from 'network/explorer/trades/trades';
 import { getAccountByID, getAccountByIndex } from 'network/shapes/Account';
 import { getItemByIndex } from 'network/shapes/Item';
-import { getKami as getShapeKami } from 'network/shapes/Kami';
+import { getKamiByName, getKami as getShapeKami } from 'network/shapes/Kami';
 import { queryByIndex as queryKamiEntityByIndex } from 'network/shapes/Kami/queries';
 import { getRoomByIndex } from 'network/shapes/Room';
 
@@ -701,6 +701,63 @@ export async function transfersQuery(
       amount: t.Amount,
     })),
   };
+}
+
+// ------------------------------------------------------------- killers
+
+export type KillerRowOut = {
+  rank: number;
+  /** the service's kami name, verbatim (authored-id) */
+  name: string;
+  /** the service's Value string, verbatim */
+  kills: string;
+  /** mirror join by name (names are unique at the pin); absent when the
+   * name no longer resolves — the verbatim row stands either way */
+  kamiId?: string;
+  kamiIndex?: number;
+};
+
+export type KillersOut = {
+  /** every ranked row the service returned (rows is a size-capped slice —
+   * the cap is the explicit size argument, never silent) */
+  totalRanked: number;
+  size: number;
+  rows: KillerRowOut[];
+};
+
+/** Killer rankings (0.2.0): GetKillsByKami passthrough — the one
+ * non-ApiKey-gated kami-level kills ranking the service exposes at the
+ * pin (defined-but-uncalled by the web client, served with observed
+ * semantics recorded by gate, the GetOpenOffers precedent). Rows arrive
+ * ranked (kill count descending, server-defined all-time window — the
+ * request takes no parameters); rank is the 1-based service position.
+ * A time-windowed ranking is NOT servable without an API key at this pin:
+ * GetKillerRanking is ApiKey-gated (empty-key calls answer empty),
+ * GetBattles rejects id-less enumeration, and the mirror holds no kill
+ * entities (IsKill is never registered) — recorded in coverage. */
+export async function killersQuery(
+  ctx: QueryCtx,
+  args: { size?: number }
+): Promise<KillersOut> {
+  const kamiden = requireKamiden(ctx, 'killers');
+  const mirror = ctx.mirror;
+  const res = await kamiden.unary('GetKillsByKami', (c) => c.getKillsByKami({}));
+  const ranked = res.Rows ?? [];
+  const size = Math.max(0, args.size ?? 50);
+  const rows: KillerRowOut[] = ranked.slice(0, size).map((r, i) => {
+    const row: KillerRowOut = { rank: i + 1, name: r.Name, kills: r.Value };
+    try {
+      const match = getKamiByName(mirror.world, mirror.components, r.Name).find((k) => k.index);
+      if (match) {
+        row.kamiId = match.id;
+        row.kamiIndex = match.index;
+      }
+    } catch {
+      /* unresolvable name — serve the verbatim row bare */
+    }
+    return row;
+  });
+  return { totalRanked: ranked.length, size: rows.length, rows };
 }
 
 // ---------------------------------------------------------------- feed

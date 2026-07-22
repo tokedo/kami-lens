@@ -226,6 +226,48 @@
     },
     "Withheld": {
       "reason": "system"
+    },
+    "InventoryItem": {
+      "id": "system",
+      "name": "registry",
+      "type": "system"
+    },
+    "Room": {
+      "name": "registry",
+      "description": "registry"
+    },
+    "RoomAccount": {
+      "id": "system",
+      "name": "authored-id"
+    },
+    "Npc": {
+      "name": "registry"
+    },
+    "Listing": {
+      "id": "system",
+      "requirements": "registry"
+    },
+    "Pricing": {
+      "type": "system"
+    },
+    "Phase": {
+      "name": "system",
+      "next": "system"
+    },
+    "Leaderboard": {
+      "type": "system"
+    },
+    "KillerRow": {
+      "name": "authored-id",
+      "kills": "system",
+      "kamiId": "system"
+    },
+    "HarvestVitals": {
+      "hpRatePerHr": "system"
+    },
+    "Attacker": {
+      "id": "system",
+      "name": "authored-id"
     }
   }
 }

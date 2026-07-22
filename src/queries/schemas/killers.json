@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kami-lens/schemas/killers.json",
+  "$ref": "#/$defs/Killers",
+  "$defs": {
+    "Killers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["totalRanked", "size", "rows"],
+      "properties": {
+        "totalRanked": {
+          "type": "number"
+        },
+        "size": {
+          "type": "number"
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KillerRow"
+          }
+        }
+      }
+    },
+    "KillerRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rank", "name", "kills"],
+      "properties": {
+        "rank": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "kills": {
+          "type": "string"
+        },
+        "kamiId": {
+          "type": "string"
+        },
+        "kamiIndex": {
+          "type": "number"
+        }
+      }
+    }
+  }
+}

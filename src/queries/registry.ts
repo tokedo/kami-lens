@@ -16,12 +16,17 @@ import path from 'node:path';
 import {
   accountQuery,
   configQuery,
+  inventoryQuery,
   itemQuery,
   itemsQuery,
   kamiQuery,
+  leaderboardQuery,
+  merchantQuery,
   nodeQuery,
   partyQuery,
+  phaseQuery,
   QueryError,
+  roomQuery,
 } from './build';
 import { EnvelopeOptions, QuerySchema } from './envelope';
 import {
@@ -29,6 +34,7 @@ import {
   battlesQuery,
   chatQuery,
   feedQuery,
+  killersQuery,
   marketQuery,
   portalQuery,
   QueryCtx,
@@ -45,6 +51,12 @@ export type QueryName =
   | 'item'
   | 'items'
   | 'config'
+  | 'inventory'
+  | 'room'
+  | 'merchant'
+  | 'phase'
+  | 'leaderboard'
+  | 'killers'
   | 'battles'
   | 'trades'
   | 'auctions'
@@ -111,11 +123,25 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
   },
   node: {
     name: 'node',
-    summary: 'node with its ACTIVE harvests (discovery query)',
-    parseArgs: ([index]) => ({ index: int(index, 'node index') }),
+    summary:
+      'node with its ACTIVE harvests; --with-vitals [attackerKamiIndex] adds occupant vitals + liquidation preview',
+    parseArgs: (positional) => {
+      const rest = positional.filter((p) => p !== '--with-vitals');
+      const withVitals = rest.length !== positional.length;
+      const [index, attacker] = rest;
+      if (attacker !== undefined && !withVitals) {
+        throw new QueryError('BAD_ARGS', 'an attacker kami argument needs --with-vitals');
+      }
+      return {
+        index: int(index, 'node index'),
+        withVitals,
+        attacker: optInt(attacker, 'attacker kami index'),
+      };
+    },
     stateless: false,
     kamiden: false,
-    build: (ctx, a) => nodeQuery(ctx.mirror, a as { index: number }),
+    build: (ctx, a) =>
+      nodeQuery(ctx.mirror, a as { index: number; withVitals?: boolean; attacker?: number }),
   },
   party: {
     name: 'party',
@@ -152,6 +178,63 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     stateless: false,
     kamiden: false,
     build: (ctx, a) => configQuery(ctx.mirror, a as { name: string; array?: boolean }),
+  },
+  inventory: {
+    name: 'inventory',
+    operatorArg: true,
+    summary: 'any-account item inventory by index or name',
+    parseArgs: ([key]) => {
+      if (key === undefined) throw new QueryError('BAD_ARGS', 'inventory needs an account index or name');
+      return /^\d+$/.test(key) ? { index: Number(key) } : { name: key };
+    },
+    stateless: false,
+    kamiden: false,
+    build: (ctx, a) => inventoryQuery(ctx.mirror, a as { index?: number; name?: string }),
+  },
+  room: {
+    name: 'room',
+    summary: 'room occupancy: accounts (and their kamis) currently in the room',
+    parseArgs: ([index]) => ({ index: int(index, 'room index') }),
+    stateless: false,
+    kamiden: false,
+    build: (ctx, a) => roomQuery(ctx.mirror, a as { index: number }),
+  },
+  merchant: {
+    name: 'merchant',
+    summary: 'NPC merchants; with [npcIndex], the full listing catalog with prices',
+    parseArgs: ([index]) => ({ index: optInt(index, 'npc index') }),
+    stateless: false,
+    kamiden: false,
+    build: (ctx, a) => merchantQuery(ctx.mirror, a as { index?: number }),
+  },
+  phase: {
+    name: 'phase',
+    summary: 'world day/night phase (36-hour cycle) + seconds to the next flip',
+    parseArgs: () => ({}),
+    stateless: false,
+    kamiden: false,
+    build: () => phaseQuery(),
+  },
+  leaderboard: {
+    name: 'leaderboard',
+    summary: "mirror Score leaderboard ([type] [epoch] [itemIndex]; defaults COLLECT 1 1)",
+    parseArgs: ([type, epoch, itemIndex]) => ({
+      type: type ?? 'COLLECT',
+      epoch: optInt(epoch, 'epoch') ?? 1,
+      itemIndex: optInt(itemIndex, 'item index') ?? 1,
+    }),
+    stateless: false,
+    kamiden: false,
+    build: (ctx, a) =>
+      leaderboardQuery(ctx.mirror, a as { type: string; epoch: number; itemIndex: number }),
+  },
+  killers: {
+    name: 'killers',
+    summary: 'killer rankings: kamis by kills, service order ([size], default 50; kamiden)',
+    parseArgs: ([size]) => ({ size: optInt(size, 'size') }),
+    stateless: false,
+    kamiden: true,
+    build: (ctx, a) => killersQuery(ctx, a as { size?: number }),
   },
   battles: {
     name: 'battles',

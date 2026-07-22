@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kami-lens/schemas/inventory.json",
+  "$ref": "#/$defs/Inventory",
+  "$defs": {
+    "Inventory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["account", "items"],
+      "properties": {
+        "account": {
+          "$ref": "#/$defs/AccountRef"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InventoryRow"
+          }
+        }
+      }
+    },
+    "InventoryRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["balance", "item"],
+      "properties": {
+        "balance": {
+          "type": "number"
+        },
+        "item": {
+          "$ref": "#/$defs/InventoryItem"
+        }
+      }
+    },
+    "InventoryItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "index", "name", "type"],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "index": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      }
+    },
+    "AccountRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "name"],
+      "properties": {
+        "index": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

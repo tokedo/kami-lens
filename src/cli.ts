@@ -240,9 +240,12 @@ async function main(): Promise<void> {
     process.exit(state === 'LIVE' ? 0 : 1);
   }
 
-  // --array (config query) and --oversize (chat) are query arguments, not
-  // client flags — they ride through as positionals for parseArgs
-  const flagList = remaining.filter((a) => a.startsWith('--') && a !== '--array' && a !== '--oversize');
+  // --array (config), --oversize (chat) and --with-vitals (node) are query
+  // arguments, not client flags — they ride through as positionals for
+  // parseArgs
+  const flagList = remaining.filter(
+    (a) => a.startsWith('--') && a !== '--array' && a !== '--oversize' && a !== '--with-vitals'
+  );
   const flags = new Set(flagList);
   const positional = remaining.filter((a) => !flags.has(a));
   const resolved = resolveConfigDetailed({}, configFlags).config;

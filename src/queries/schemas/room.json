@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kami-lens/schemas/room.json",
+  "$ref": "#/$defs/Room",
+  "$defs": {
+    "Room": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "name", "description", "accounts"],
+      "properties": {
+        "index": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "accounts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RoomAccount"
+          }
+        }
+      }
+    },
+    "RoomAccount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "index", "name", "kamis"],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "index": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "kamis": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KamiRef"
+          }
+        }
+      }
+    },
+    "KamiRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "index", "name"],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "index": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
