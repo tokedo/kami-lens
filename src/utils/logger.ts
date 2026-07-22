@@ -7,8 +7,12 @@
  *           globalScope pick become globalThis; the default level comes from
  *           process.env.KAMI_LENS_LOG_LEVEL instead of
  *           import.meta.env.VITE_LOG_LEVEL; the "[logger:<context>]" banner
- *           logs context "node". The LogLevel enum, level gating, timestamp
- *           format, and the log/log.time API are verbatim.
+ *           logs context "node" and goes to STDERR (M5 — the CLI's stdout
+ *           is a JSON contract; upstream's console.log target is a browser
+ *           console where the distinction does not exist; gate G5.a caught
+ *           the banner corrupting piped query output). The LogLevel enum,
+ *           level gating, timestamp format, and the log/log.time API are
+ *           verbatim.
  */
 
 export enum LogLevel {
@@ -36,7 +40,7 @@ const DEFAULT_LEVEL =
 let currentLevel: LogLevel = DEFAULT_LEVEL;
 
 // Debug: show what level was loaded
-console.log(`[logger:node] initialized with level: ${LEVEL_NAMES[currentLevel]}`);
+console.error(`[logger:node] initialized with level: ${LEVEL_NAMES[currentLevel]}`);
 
 type GlobalLogControls = {
   setLogLevel: (level: string) => void;
