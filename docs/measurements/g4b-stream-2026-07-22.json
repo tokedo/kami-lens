@@ -1,19 +1,19 @@
 {
   "gate": "g4b-stream",
-  "measuredAt": "2026-07-22T04:13:10.429Z",
+  "measuredAt": "2026-07-22T20:08:40.676Z",
   "windowS": 3600,
-  "polls": 669,
+  "polls": 359,
   "streamState": "live",
-  "framesReceived": 182,
-  "feedFrames": 182,
-  "retries": 67,
+  "framesReceived": 90,
+  "feedFrames": 90,
+  "retries": 34,
   "eventCounts": {
-    "movement": 36,
-    "harvestEnd": 358,
-    "kill": 34,
+    "movement": 9,
+    "harvestEnd": 200,
+    "kill": 1,
     "trade": 1,
-    "kamiCast": 2,
-    "droptableReveal": 4,
+    "kamiCast": 0,
+    "droptableReveal": 1,
     "sacrificeReveal": 0,
     "kamiMarketList": 0,
     "kamiMarketBuy": 0,
@@ -21,174 +21,22 @@
     "kamiMarketAccept": 0,
     "kamiMarketCancel": 0
   },
-  "killsChecked": 34,
-  "killsOk": 34,
+  "killsChecked": 1,
+  "killsOk": 1,
   "killChecks": [
     {
-      "victim": 9830,
-      "killer": 14118,
+      "victim": 17992,
+      "killer": 16899,
       "isDeath": false,
       "stateAfter": "DEAD",
-      "blockAtCheck": 31201497,
-      "ok": true
-    },
-    {
-      "victim": 340,
-      "killer": 7031,
-      "isDeath": false,
-      "stateAfter": "DEAD",
-      "blockAtCheck": 31201608,
-      "ok": true
-    },
-    {
-      "victim": 16811,
-      "killer": 12649,
-      "isDeath": false,
-      "stateAfter": "DEAD",
-      "blockAtCheck": 31202436,
-      "ok": true
-    },
-    {
-      "victim": 13761,
-      "killer": 11224,
-      "isDeath": false,
-      "stateAfter": "DEAD",
-      "blockAtCheck": 31202441,
-      "ok": true
-    },
-    {
-      "victim": 13612,
-      "killer": 12225,
-      "isDeath": false,
-      "stateAfter": "DEAD",
-      "blockAtCheck": 31202441,
-      "ok": true
-    },
-    {
-      "victim": 17962,
-      "killer": 6058,
-      "isDeath": false,
-      "stateAfter": "DEAD",
-      "blockAtCheck": 31202441,
-      "ok": true
-    },
-    {
-      "victim": 16025,
-      "killer": 6245,
-      "isDeath": false,
-      "stateAfter": "DEAD",
-      "blockAtCheck": 31202441,
-      "ok": true
-    },
-    {
-      "victim": 18543,
-      "killer": 12649,
-      "isDeath": false,
-      "stateAfter": "DEAD",
-      "blockAtCheck": 31202487,
-      "ok": true
-    },
-    {
-      "victim": 11743,
-      "killer": 11224,
-      "isDeath": false,
-      "stateAfter": "DEAD",
-      "blockAtCheck": 31202495,
-      "ok": true
-    },
-    {
-      "victim": 17315,
-      "killer": 12225,
-      "isDeath": false,
-      "stateAfter": "DEAD",
-      "blockAtCheck": 31202499,
-      "ok": true
-    },
-    {
-      "victim": 19272,
-      "killer": 12649,
-      "isDeath": false,
-      "stateAfter": "DEAD",
-      "blockAtCheck": 31202519,
-      "ok": true
-    },
-    {
-      "victim": 18096,
-      "killer": 11224,
-      "isDeath": false,
-      "stateAfter": "DEAD",
-      "blockAtCheck": 31202525,
-      "ok": true
-    },
-    {
-      "victim": 15270,
-      "killer": 12225,
-      "isDeath": false,
-      "stateAfter": "DEAD",
-      "blockAtCheck": 31202531,
-      "ok": true
-    },
-    {
-      "victim": 13536,
-      "killer": 6058,
-      "isDeath": false,
-      "stateAfter": "DEAD",
-      "blockAtCheck": 31202533,
-      "ok": true
-    },
-    {
-      "victim": 10160,
-      "killer": 12649,
-      "isDeath": false,
-      "stateAfter": "DEAD",
-      "blockAtCheck": 31202581,
-      "ok": true
-    },
-    {
-      "victim": 4751,
-      "killer": 11224,
-      "isDeath": false,
-      "stateAfter": "DEAD",
-      "blockAtCheck": 31202585,
-      "ok": true
-    },
-    {
-      "victim": 18238,
-      "killer": 12225,
-      "isDeath": false,
-      "stateAfter": "DEAD",
-      "blockAtCheck": 31202591,
-      "ok": true
-    },
-    {
-      "victim": 12941,
-      "killer": 12649,
-      "isDeath": false,
-      "stateAfter": "DEAD",
-      "blockAtCheck": 31202639,
-      "ok": true
-    },
-    {
-      "victim": 3295,
-      "killer": 11224,
-      "isDeath": false,
-      "stateAfter": "DEAD",
-      "blockAtCheck": 31202645,
-      "ok": true
-    },
-    {
-      "victim": 16363,
-      "killer": 12225,
-      "isDeath": false,
-      "stateAfter": "DEAD",
-      "blockAtCheck": 31202651,
+      "blockAtCheck": 31228124,
       "ok": true
     }
   ],
-  "movesObserved": 36,
+  "movesObserved": 9,
   "verifiedMoves": 5,
   "chainVerifiedMoves": [],
-  "supersededMoves": 31,
+  "supersededMoves": 4,
   "supersededUnseen": 0,
   "moveDeadlineMs": 90000,
   "movesFailed": [],
@@ -203,8 +51,8 @@
         "error": ""
       },
       "[]": {
-        "frames": 2,
-        "feeds": 2,
+        "frames": 3,
+        "feeds": 3,
         "messages": 0,
         "error": "/kamiden.KamidenService/SubscribeToStream UNKNOWN: Response closed without grpc-status (Headers only)"
       }

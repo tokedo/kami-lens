@@ -106,6 +106,10 @@ const fixtureKamiden = {
         return { Transfers: [] };
       case 'GetAuctionBuys':
         return { AuctionBuys: [] };
+      case 'GetKillsByKami':
+        // 0.2.0 killers passthrough — plain rows; the sentinel appears
+        // ONLY in chat (the sweep's leak premise)
+        return { Rows: [{ Name: 'Fixture Killer', Value: '3' }, { Name: 'K2', Value: '1' }] };
       default:
         throw new Error(`fixture has no response for ${method}`);
     }
@@ -226,6 +230,18 @@ sweepArgs.portal = [[String(accountIndex)]];
 sweepArgs.transfers = [[String(accountIndex)]];
 sweepArgs.trades = [[], [String(accountIndex)]];
 sweepArgs.quests = [[], [String(accountIndex)]];
+// 0.2.0 surface — swept with real args so none is silently BAD_ARGS-skipped
+const sweepRoom = (
+  (await serveQuery(mirror, 'account', [String(accountIndex)], { stale: false, mode: 'daemon' }))
+    .data as { roomIndex: number }
+).roomIndex;
+sweepArgs.inventory = [[String(accountIndex)]];
+sweepArgs.room = [[String(sweepRoom)]];
+sweepArgs.merchant = [[], ['1']];
+sweepArgs.phase = [[]];
+sweepArgs.leaderboard = [[]];
+sweepArgs.killers = [[]];
+sweepArgs.node = [['62'], ['62', '--with-vitals']];
 
 let sweepQueries = 0;
 const sweepLeaks: Record<string, unknown>[] = [];
@@ -246,7 +262,7 @@ for (const name of QUERY_NAMES) {
     }
   }
 }
-hermeticChecks.neverInReports = sweepLeaks.length === 0 && sweepQueries >= 14;
+hermeticChecks.neverInReports = sweepLeaks.length === 0 && sweepQueries >= 22;
 
 if (!Object.values(hermeticChecks).every(Boolean)) {
   fail('G4.c', { reason: 'hermetic chat-plan checks failed', hermeticChecks, sweepLeaks });
