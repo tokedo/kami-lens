@@ -26,7 +26,7 @@ design session 2 (2026-07-20) — untrusted-text policy in DESIGN
 
 | Item | Backing state | Source | Status | Gate |
 |---|---|---|---|---|
-| header/clock (day/night phase) | block timestamp + phase constants | chain + code | planned | G2.b |
+| header/clock (day/night phase) | block timestamp + phase constants | chain + code | planned | G2.b; the dedicated `phase` query (0.2.0) adds G6.a + `test/phase.test.ts` |
 | menu | UI navigation chrome, no world state | — | out-of-scope | — |
 | notifications | client-local derivations: quest completability, kamiden reveal events (`DTRevealerSystem`) | chain + kamiden | **deferred** — every input is served (quests G3.a, gacha/reveal G3.a, feed G4.b); the derived "alerts" digest needs its own design pass (DESIGN §6) | — |
 | action queue | local tx queue (requires acting) | — | out-of-scope (read-only) | — |
@@ -41,16 +41,16 @@ design session 2 (2026-07-20) — untrusted-text policy in DESIGN
 | kami sheet: battles tab | kamiden `GetBattles` + `GetBattleStats` | kamiden | planned | G4.a |
 | node (occupants, ally/enemy threat, scavenge) | `shapes/Node/harvests` mirror query, liquidation calcs, `shapes/Scavenge` | chain | planned | G3.b |
 | map | `shapes/Room`, `shapes/Portal`, room constants | chain + code | planned | G3.a |
-| inventory | `shapes/Inventory` | chain | planned | G3.a |
+| inventory | `shapes/Inventory` | chain | planned | G3.a; dedicated any-account `inventory` query (0.2.0): G6.a + G6.b |
 | inventory: transfer-history tab | kamiden `GetItemTransfers` | kamiden | planned | G4.a |
 | chat | kamiden `GetRoomMessages` — dedicated opt-in query; no stream ingestion (topic filter + ingestion drop); oversize withhold-with-receipt; config kill-switch (DESIGN §3.10) | kamiden | planned | G4.c |
 | crafting | `shapes/Recipe` | chain | planned | G3.a |
-| merchant | `shapes/Npc`, `shapes/Listing` | chain | planned | G3.a |
+| merchant | `shapes/Npc`, `shapes/Listing` | chain | planned | G3.a; dedicated `merchant` query (0.2.0): G6.a + G6.b |
 | marketplace (KamiSwap) | kamiden `GetKamiMarketListings/Bids/History` + `shapes/Listing` | chain + kamiden | planned | G3.a + G4.a |
 | trading | `shapes/Trade` + kamiden `GetTradeHistory`/`GetOpenOffers` | chain + kamiden | planned | G3.a + G4.a |
 | quests | `shapes/Quest` + `shapes/Conditional` evaluation | chain | planned | G3.a |
 | goal | `shapes/Goals` | chain | planned | G3.a |
-| leaderboard | `shapes/Score` + `constants/leaderboards` (kamiden ranking RPCs exist but are ApiKey-gated and uncalled by the client at this pin) | chain + code | planned | G3.a |
+| leaderboard | `shapes/Score` + `constants/leaderboards` (kamiden ranking RPCs exist but are ApiKey-gated and uncalled by the client at this pin) | chain + code | planned | G3.a; dedicated `leaderboard` query (0.2.0): G6.a + G6.b |
 | gacha / reveal (incl. the `lootBox` droptable-reveal UI — no component of its own) | `shapes/Gacha`, `shapes/Commit` (block-driven commit-reveal) | chain | planned | G3.a |
 | gacha: auction price chart | kamiden `GetAuctionBuys` | kamiden | planned | G4.a |
 | account | `shapes/Account` (stamina, room, friends, reputation) | chain | planned | G3.a |
@@ -66,7 +66,7 @@ design session 2 (2026-07-20) — untrusted-text policy in DESIGN
 | Item | Backing state | Source | Status | Gate |
 |---|---|---|---|---|
 | battle/kill feed | kamiden stream `Feed`, daemon ring buffer served as pull query | kamiden | planned | G4.b |
-| room presence (other accounts) | `RoomIndex == here` mirror query | chain | planned | G3.b |
+| room presence (other accounts) | `RoomIndex == here` mirror query | chain | planned | dedicated `room` query (0.2.0): G3.a + G6.b |
 
 ## Standing caveats
 
@@ -99,9 +99,11 @@ formula-class hand review (DESIGN §7).
 | `registry` | item/quest/skill/goal/room/node names & descriptions, NPC dialogue trees, `constants/**` display text (incl. `constants/leaderboards` titles) |
 | `system` | addresses, entity/order/commit IDs, enum & state labels, `MediaURI` values, numeric amounts serialized as proto strings |
 
-Known but unserved: kamiden `RankRow.KamiName`/`OwnerName` and
-`LeaderboardRow.Name` (`authored-id`; their RPCs are ApiKey-gated or
-uncalled and kami-lens does not serve them).
+Known but unserved: kamiden `RankRow.KamiName`/`OwnerName`
+(`authored-id`; `RankRow` is dead proto surface — referenced by no RPC at
+the pin). `LeaderboardRow.Name` is **served since 0.2.0** by the `killers`
+query (`KillerRow.name`, `authored-id`, classified above) — the flip from
+unserved got the mandated hand review with the 0.2.0 change set.
 - `code`-sourced rows change only via a pin advance and are diffed by
   the tracking protocol's coverage-affecting bucket (DESIGN §7).
 
@@ -186,6 +188,79 @@ docs/measurements/g4*-2026-07-21.json):
   threshold default is a kami-lens implementation parameter (upstream
   has no receive-side cap; its 200-char limit is send-side input
   validation only).
+
+## 0.2.0 query surface (2026-07-22)
+
+Served queries added at 0.2.0 (all envelope-wrapped, schema-checked,
+string-classified; gates G6.a/b/c plus the extended G3.a/G3.f):
+
+- **`inventory <accountIndex|name>`** — any-account item inventory
+  (counts + item identity), rows through the inventory modal's own prep
+  (`cleanInventories`: zero balances dropped, ascending item index).
+  Verified on-chain per row via the deterministic `inventory.instance`
+  hash (G6.b).
+- **`room <roomIndex>`** — room occupancy: the `RoomIndex == here`
+  reverse lookup (the "room presence" row below), each account joined
+  with its kamis. Chain cross-check + negative samples in G6.b.
+- **`node <index> [attackerKamiIndex] --with-vitals`** — extends the node
+  query (identity-only default unchanged) with per-occupant computed
+  vitals (HP now/total/percent, HP rate, accrued MUSU, cooldown) and,
+  with an attacker kami argument (any kami — a general argument), the
+  pairwise liquidation preview the client's LiquidateButton computes:
+  `canLiquidate`, threshold, spoils/salvage, recoil. `calcSalvage` is
+  exported for this (visibility-only port change, documented in the file
+  header — upstream previews only spoils/recoil).
+- **`merchant [npcIndex]`** — NPC enumeration; with an index, the full
+  chain listing catalog with unit prices via the client's own calcs
+  (GDA clock-corrected). Prices never vary by viewer; requirement gating
+  is served as interpreted text, not silently applied. Listing
+  value/balance/item chain-verified per row (G6.b).
+- **`phase`** — world day/night phase (36-hour cycle, 12-hour phases,
+  DAYLIGHT/EVENFALL/MOONSIDE) from the ported `getPhaseOf` on the
+  corrected clock, plus seconds-to-next-flip. **Measured note:** the
+  cycle is pure pinned code anchored at the Unix epoch — no `is.config`
+  input exists at this pin, so phase-constant changes arrive as pin
+  advances, not config reads. Vector tests in `test/phase.test.ts`;
+  boundary arithmetic gated in G6.a.
+- **`leaderboard [type] [epoch] [itemIndex]`** — the client leaderboard
+  modal's mirror Score query verbatim (`getScoresByFilter`, value-sorted,
+  1-based ranks, holders joined to accounts). Defaults are the modal's
+  own (`COLLECT`, epoch 1, MUSU). Sampled rows chain-verified via the
+  `is.score` hash (G6.b). **Observed at the pin (2026-07-22):**
+  `LIQUIDATE` scores live at item index 0 (542 rows) while the client's
+  filter pins index to MUSU (=1) on type change — the modal's LIQUIDATE
+  view is empty (an upstream quirk, served faithfully; the general query
+  reaches the real rows). `FEED` has no score rows at any probed
+  epoch/index. `TOTAL_SPENT`/`COLLECT` live at index 1, epoch 1.
+- **`killers [size]`** — killer rankings: kamiden `GetKillsByKami`
+  passthrough (kami-level kill counts, service-ranked), names verbatim
+  (`authored-id`, name-free mode withholds with receipt), mirror
+  name-joins add kami id/index (names are unique at the pin; joins
+  round-trip-verified in G6.c). The RPC is defined-but-uncalled by the
+  web client at the pin — served with observed semantics recorded per
+  gate run, the `GetOpenOffers` precedent. Size cap is an explicit
+  argument (default 50) with `totalRanked` always served — never a
+  silent cap.
+- **`account`** now serves `stamina` (current via `calcCurrentStamina` —
+  the Clock fixture's display value — plus the stat total). Additive
+  field; recompute-checked in G6.a.
+
+**Deferred, explicitly — windowed killer rankings.** A kill ranking over
+a caller-chosen time window is not servable from any non-gated source at
+this pin, measured 2026-07-22 (gate G6.c records the evidence each run):
+the one windowed ranking RPC (`GetKillerRanking`, StartBlock/EndBlock)
+is ApiKey-gated and answers empty to an empty key; id-less `GetBattles`
+enumeration answers empty; the mirror registers no `IsKill` component
+(the ECS kill shapes are dead code at the pin); and the stream feed
+buffer is measured-lossy (~50–71 % delivery, see the M4 caveats) — an
+aggregate built on it would not be gate-grade. The served `killers`
+ranking is the service's own all-time window. Not a silent gap: this row
+is the record.
+
+Shape-stability note: 0.2.0 changes to pre-existing outputs are strictly
+additive (`account.stamina`; optional `vitals`/`liquidation`/`attacker`
+on the node answer, absent without the new flag). No existing field
+moved, renamed, or changed type.
 
 ## Maintenance
 
