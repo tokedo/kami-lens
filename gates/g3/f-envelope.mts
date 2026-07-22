@@ -127,6 +127,12 @@ for (const idx of kamiIndexes) {
 }
 if (!anAccount) throw new Error('no sampled kami with an owning account');
 
+// the sampled account's room — a real occupancy answer for the room case
+const accountRoom = (
+  (await serveQuery(mirror, 'account', [String(anAccount)], { stale: false, mode: 'daemon' }))
+    .data as { roomIndex: number }
+).roomIndex;
+
 const CASES: { query: string; args: string[]; opts?: { prose?: boolean; noAuthored?: boolean } }[] = [
   { query: 'kami', args: [firstKami] },
   { query: 'account', args: [String(anAccount)] },
@@ -141,6 +147,17 @@ const CASES: { query: string; args: string[]; opts?: { prose?: boolean; noAuthor
   { query: 'quests', args: [String(anAccount)] },
   { query: 'trades', args: [] },
   { query: 'auctions', args: [] },
+  // 0.2.0 chain surface (killers is kamiden-backed — its envelope is
+  // asserted live by G6 with this same derivation)
+  { query: 'inventory', args: [String(anAccount)] },
+  { query: 'room', args: [String(accountRoom)] },
+  { query: 'merchant', args: [] },
+  { query: 'merchant', args: ['1'] },
+  { query: 'phase', args: [] },
+  { query: 'leaderboard', args: [] },
+  { query: 'leaderboard', args: ['LIQUIDATE', '1', '0'] },
+  { query: 'node', args: ['62', '--with-vitals'] },
+  { query: 'node', args: ['62', firstKami, '--with-vitals'] },
 ];
 
 const mismatches: Record<string, unknown>[] = [];

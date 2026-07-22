@@ -14,6 +14,7 @@ import { loadSchema, QUERY_NAMES } from '../../src/queries/registry';
 import { buildStatusData } from '../../src/server';
 import { query as queryKamis } from '../../src/network/shapes/Kami/queries';
 import { getAllNodes } from '../../src/network/shapes/Node';
+import { getAllRooms } from '../../src/network/shapes/Room';
 import { getKamiIndex } from '../../src/network/shapes/utils/component';
 import {
   ARTIFACTS_DIR,
@@ -96,6 +97,39 @@ await check('quests', []);
 for (const a of [...accountIndexes].slice(0, 3)) await check('quests', [String(a)]);
 await check('trades', []);
 await check('auctions', []);
+// 0.2.0 chain surface: inventory / room / merchant / phase / leaderboard /
+// node vitals+liquidation (killers is kamiden-backed — validated live, G6)
+for (const a of [...accountIndexes].slice(0, 10)) await check('inventory', [String(a)]);
+for (const r of getAllRooms(world, components).filter((room) => room.index)) {
+  await check('room', [String(r.index)]);
+}
+const merchantsEnv = await check('merchant', []);
+for (const m of (merchantsEnv.data as { merchants: { index: number }[] }).merchants) {
+  await check('merchant', [String(m.index)]);
+}
+await check('phase', []);
+for (const lbArgs of [[], ['LIQUIDATE', '1', '0'], ['TOTAL_SPENT'], ['NO_SUCH_TYPE']]) {
+  await check('leaderboard', lbArgs);
+}
+// vitals variant on a bounded busy node (~20 occupants) + an attacker pairing
+{
+  const sized = [] as { index: number; count: number }[];
+  for (const n of nodes) {
+    const env = await serveQuery(mirror, 'node', [String(n.index)], { stale: false, mode: 'daemon' });
+    sized.push({ index: n.index, count: (env.data as { harvests: unknown[] }).harvests.length });
+  }
+  const busy = sized
+    .filter((s) => s.count > 1)
+    .sort((a, b) => Math.abs(a.count - 20) - Math.abs(b.count - 20))[0];
+  if (busy) {
+    const vitalsEnv = await check('node', [String(busy.index), '--with-vitals']);
+    const occupants = (vitalsEnv.data as { harvests: { kami: { index: number } }[] }).harvests;
+    const attacker = occupants.map((h) => h.kami.index).find((i) => i > 0);
+    if (attacker !== undefined) {
+      await check('node', [String(busy.index), String(attacker), '--with-vitals']);
+    }
+  }
+}
 // status: contract on an unstarted daemon
 {
   const daemon = new KamiLensDaemon({ dataDir: path.join(ARTIFACTS_DIR, 'g3a-void') });
