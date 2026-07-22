@@ -1,0 +1,39 @@
+{
+  "gate": "g4b-feed-delivery",
+  "measuredAt": "2026-07-22T14:43:17.039Z",
+  "windowMs": 900000,
+  "startBlock": 31219242,
+  "endBlock": 31219551,
+  "streamRetries": 18,
+  "framesReceived": 34,
+  "feedEvents": {
+    "movement": 3,
+    "harvestEnd": 78,
+    "kill": 0,
+    "trade": 0,
+    "kamiCast": 0,
+    "droptableReveal": 0,
+    "sacrificeReveal": 0,
+    "kamiMarketList": 0,
+    "kamiMarketBuy": 1,
+    "kamiMarketOffer": 0,
+    "kamiMarketAccept": 0,
+    "kamiMarketCancel": 0
+  },
+  "chain": {
+    "roomIndexWrites": 3,
+    "stateWrites": {
+      "ACTIVE": 249,
+      "HARVESTING": 249,
+      "INACTIVE": 163,
+      "RESTING": 168,
+      "FILLED": 1
+    }
+  },
+  "delivery": {
+    "movements": 1,
+    "harvestEnds": 0.48,
+    "kills": null
+  },
+  "note": "feed event model vs chain writes is not 1:1 (portal-class moves; multi-write txs); measured, not asserted"
+}

@@ -149,6 +149,25 @@ docs/measurements/g4*-2026-07-21.json):
   cadence) and feed events during a reconnect gap are lost — identical
   to the upstream client's exposure. The feed ring buffer is
   best-effort recent history, never a complete log.
+- **Feed delivery is partial — measured, not asserted** (2026-07-22).
+  Lab-side corroboration of the G4 record window against independent
+  chain infrastructure: the feed delivered ~71% of chain movement
+  writes and ~50% of harvest-ends (45 kills / 51 moves on-chain vs
+  34 / 36 served — every served event chain-true; the gap is
+  reconnect-window loss plus event-model asymmetry, e.g. portal-class
+  moves emit no `Movement`). Own fresh block-anchored probe
+  (docs/measurements/g4b-feed-delivery-2026-07-22.json): movements
+  3/3, harvest-ends 78/163 ≈ 48%. Consumers needing completeness must
+  read chain state (the mirror), not the feed.
+- **Liquidation chain signature** (verified by engine-decoded logs on a
+  G4-confirmed kill, 2026-07-22): one tx writes the victim's HARVEST
+  entity (`hashArgs(['harvest', kamiID])` — id verified byte-exact):
+  `State → 'INACTIVE'`, `Value → 0`; AND the victim kami:
+  `State → 'DEAD'` (a literal string write), Health sync, Experience.
+  Caution for chain-side detectors: engine string components do NOT
+  decode with plain `abi.decode(['string'])` — it throws, and a
+  try/catch filter silently reports zero events (the trap that
+  produced an earlier false "no DEAD writes" reading).
 - **Kamiden unary history depth is recorded per gate run, never
   asserted** — service retention is unverified (the same epistemic
   status as `GetEventsSince`).
