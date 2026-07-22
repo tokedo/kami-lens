@@ -1,0 +1,18 @@
+{
+  "gate": "g5b-container",
+  "measuredAt": "2026-07-22T14:45:27.120Z",
+  "image": "kami-lens:g5",
+  "coldSeconds": 70,
+  "warmSeconds": 25,
+  "steps": {
+    "imageBuilt": true,
+    "containerUp": true,
+    "coldHealthy": true,
+    "coldMode": true,
+    "warmHealthy": true,
+    "warmMode": true,
+    "warmResumeBlock": true,
+    "warmBeatsCold": true
+  },
+  "match": true
+}
