@@ -37,15 +37,13 @@ try {
 
 let coldSeconds = -1;
 try {
-  // container with ONLY node:20 + the tarball
-  run('docker', [
-    'run', '-d', '--name', CONTAINER,
-    '-v', `${path.join(REPO_ROOT, tarball)}:/pkg/${tarball}:ro`,
-    'node:20-slim', 'sleep', 'infinity',
-  ]);
+  // container with ONLY node:20 + the tarball (docker cp, not a bind
+  // mount — colima's shared-folder mounts go stale across re-packs)
+  run('docker', ['run', '-d', '--name', CONTAINER, 'node:20-slim', 'sleep', 'infinity']);
   steps.containerUp = true;
+  run('docker', ['cp', path.join(REPO_ROOT, tarball), `${CONTAINER}:/pkg.tgz`]);
 
-  run('docker', ['exec', CONTAINER, 'npm', 'install', '-g', `/pkg/${tarball}`], 300_000);
+  run('docker', ['exec', CONTAINER, 'npm', 'install', '-g', '/pkg.tgz'], 300_000);
   steps.install = true;
 
   const version = run('docker', ['exec', CONTAINER, 'kami-lens', '--version']);

@@ -13,7 +13,7 @@
 // (G3.e: degraded honesty — serve last-synced state, say so).
 
 import { createServer, Server, Socket } from 'node:net';
-import { unlinkSync } from 'node:fs';
+import { mkdirSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 
 import * as clock from 'clock';
@@ -131,6 +131,9 @@ async function handle(daemon: KamiLensDaemon, req: Request): Promise<Record<stri
 
 /** Start the query socket. Returns the server; close() to stop. */
 export function startQuerySocket(daemon: KamiLensDaemon, dataDir: string): Server {
+  // zero-config first boot: the data dir may not exist yet — the socket
+  // must not silently fail to listen (G5.a caught exactly this)
+  mkdirSync(dataDir, { recursive: true });
   const sock = socketPath(dataDir);
   try {
     unlinkSync(sock);

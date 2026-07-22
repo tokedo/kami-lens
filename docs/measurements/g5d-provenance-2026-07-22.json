@@ -1,6 +1,6 @@
 {
   "gate": "g5d-provenance",
-  "measuredAt": "2026-07-22T14:26:32.711Z",
+  "measuredAt": "2026-07-22T14:27:26.215Z",
   "pin": "ef898fc9350a6085fb080419b12af96c2254e8f3",
   "checks": {
     "licenseFile": true,
