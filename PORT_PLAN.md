@@ -253,12 +253,13 @@ every gate that says "state hash".
   `ComponentValueSet(RoomIndex)` sequence over the window must
   contain the movement's room — fast round-trips outrun any mirror
   poll). Also verifies both-layer chat exclusion. *(Amended
-  2026-07-22 by decision, lab-approved — a documented pivot on
-  measured reality, replacing "subscribe with a Messages-excluding
-  topic filter": the server has NO topic vocabulary at the pin —
-  every non-empty `topics` list yields zero frames while the
-  proto-documented "empty = all" flows — so a Messages-excluding
-  filter is inexpressible without killing the feeds. The gate
+  2026-07-22 by decision, approved on the record — a documented
+  pivot on measured reality, replacing "subscribe with a
+  Messages-excluding topic filter": the server has NO topic
+  vocabulary at the pin — every non-empty `topics` list yields zero
+  frames while the proto-documented "empty = all" flows — so a
+  Messages-excluding filter is inexpressible without killing the
+  feeds. The gate
   instead (1) probes and records the topic-filter behavior as
   evidence, (2) subscribes upstream-style, and (3) asserts that
   either no `Message` frames arrive or the ingestion-drop counter

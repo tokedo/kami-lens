@@ -12,52 +12,68 @@ perception inventory in
 (mirrored ECS state), `code` (data shipped in the pinned client
 source, e.g. room constants), `kamiden` (game-team feed service —
 derived/historical, not in ECS). *Status* for the release:
-`planned` (v1 target), `deferred` (explicitly postponed, with
-reason), `out-of-scope` (excluded by DESIGN non-goals), `TBD`
-(undecided — must be resolved before the release ships). *Gate* names
-the PORT_PLAN gate that verifies the row end-to-end.
+`served (<gate>)` (in the release and verified end-to-end by that
+gate), `not served` (in scope, no query at this version — never a
+silent gap), `planned` (a target of a later version), `deferred`
+(explicitly postponed, with reason), `out-of-scope` (excluded by
+DESIGN non-goals), `TBD` (undecided — must be resolved before the
+release ships). *Gate* names the PORT_PLAN gate that verifies the row
+end-to-end.
 
-Status below reflects **v1 as designed, pre-implementation**
-(2026-07-20). No release has shipped yet. All TBDs were resolved in
-design session 2 (2026-07-20) — untrusted-text policy in DESIGN
-§3.10, Kamiden milestone in PORT_PLAN M4.
+Status below reflects **0.2.0** (2026-07-22): implemented, with gates
+G0–G6 green against the pinned upstream commit and the live game
+(dated evidence in `docs/measurements/`). The release act itself is
+held — nothing published to npm or a container registry yet. No `TBD`
+remains; the last were resolved in design session 2 (2026-07-20) —
+untrusted-text policy in DESIGN §3.10, Kamiden milestone in PORT_PLAN
+M4.
+
+Per the Maintenance rule below, a row reads `served (<gate>)` once the
+gate that verifies it end-to-end has passed. Five rows are **not**
+served at 0.2.0 and say so instead of carrying a gate they do not
+have — crafting, goal, gacha/reveal, dialogue/questDialogue, and
+operator gas balance: their upstream shapes are ported into the mirror
+but no query reaches them, so no gate does either (G3.a iterates the
+served query set only). A sixth, map, is served in part — room
+identity and occupancy, not the exit/portal graph. Named here rather
+than left as an implied `planned`.
 
 ## Fixtures (always-on HUD)
 
 | Item | Backing state | Source | Status | Gate |
 |---|---|---|---|---|
-| header/clock (day/night phase) | block timestamp + phase constants | chain + code | planned | G2.b; the dedicated `phase` query (0.2.0) adds G6.a + `test/phase.test.ts` |
+| header/clock (day/night phase) | block timestamp + phase constants | chain + code | served (G2.b, G6.a) | G2.b; the dedicated `phase` query (0.2.0) adds G6.a + `test/phase.test.ts` |
 | menu | UI navigation chrome, no world state | — | out-of-scope | — |
-| notifications | client-local derivations: quest completability, kamiden reveal events (`DTRevealerSystem`) | chain + kamiden | **deferred** — every input is served (quests G3.a, gacha/reveal G3.a, feed G4.b); the derived "alerts" digest needs its own design pass (DESIGN §6) | — |
+| notifications | client-local derivations: quest completability, kamiden reveal events (`DTRevealerSystem`) | chain + kamiden | **deferred** — the served inputs are quests (G3.a) and feed (G4.b); the reveal input is itself unserved (see the gacha/reveal row), and the derived "alerts" digest needs its own design pass (DESIGN §6) | — |
 | action queue | local tx queue (requires acting) | — | out-of-scope (read-only) | — |
-| sync/loading state | `component.LoadingState` → daemon status | chain | planned | G3.e |
+| sync/loading state | `component.LoadingState` → daemon status | chain | served (G3.e) | G3.e |
 
 ## Modals
 
 | Item | Backing state | Source | Status | Gate |
 |---|---|---|---|---|
-| party | own kamis: calcHealth, state, cooldown, output | chain | planned | G3.c |
-| kami sheet (stats/traits/skills/equipment) | `shapes/Kami/*`, `shapes/Skill` | chain | planned | G2.a, G2.b |
-| kami sheet: battles tab | kamiden `GetBattles` + `GetBattleStats` | kamiden | planned | G4.a |
-| node (occupants, ally/enemy threat, scavenge) | `shapes/Node/harvests` mirror query, liquidation calcs, `shapes/Scavenge` | chain | planned | G3.b |
-| map | `shapes/Room`, `shapes/Portal`, room constants | chain + code | planned | G3.a |
-| inventory | `shapes/Inventory` | chain | planned | G3.a; dedicated any-account `inventory` query (0.2.0): G6.a + G6.b |
-| inventory: transfer-history tab | kamiden `GetItemTransfers` | kamiden | planned | G4.a |
-| chat | kamiden `GetRoomMessages` — dedicated opt-in query; no stream ingestion (topic filter + ingestion drop); oversize withhold-with-receipt; config kill-switch (DESIGN §3.10) | kamiden | planned | G4.c |
-| crafting | `shapes/Recipe` | chain | planned | G3.a |
-| merchant | `shapes/Npc`, `shapes/Listing` | chain | planned | G3.a; dedicated `merchant` query (0.2.0): G6.a + G6.b |
-| marketplace (KamiSwap) | kamiden `GetKamiMarketListings/Bids/History` + `shapes/Listing` | chain + kamiden | planned | G3.a + G4.a |
-| trading | `shapes/Trade` + kamiden `GetTradeHistory`/`GetOpenOffers` | chain + kamiden | planned | G3.a + G4.a |
-| quests | `shapes/Quest` + `shapes/Conditional` evaluation | chain | planned | G3.a |
-| goal | `shapes/Goals` | chain | planned | G3.a |
-| leaderboard | `shapes/Score` + `constants/leaderboards` (kamiden ranking RPCs exist but are ApiKey-gated and uncalled by the client at this pin) | chain + code | planned | G3.a; dedicated `leaderboard` query (0.2.0): G6.a + G6.b |
-| gacha / reveal (incl. the `lootBox` droptable-reveal UI — no component of its own) | `shapes/Gacha`, `shapes/Commit` (block-driven commit-reveal) | chain | planned | G3.a |
-| gacha: auction price chart | kamiden `GetAuctionBuys` | kamiden | planned | G4.a |
-| account | `shapes/Account` (stamina, room, friends, reputation) | chain | planned | G3.a |
+| party | own kamis: calcHealth, state, cooldown, output | chain | served (G3.c) | G3.c |
+| kami sheet (stats/traits/skills/equipment) | `shapes/Kami/*`, `shapes/Skill` | chain | served (G2.a, G2.b) | G2.a, G2.b |
+| kami sheet: battles tab | kamiden `GetBattles` + `GetBattleStats` | kamiden | served (G4.a) | G4.a |
+| node (occupants, ally/enemy threat, scavenge) | `shapes/Node/harvests` mirror query, liquidation calcs, `shapes/Scavenge` | chain | served (G3.b) | G3.b |
+| map | `shapes/Room`, `shapes/Portal`, room constants | chain + code | served **in part** (G3.a, G6.b) — the `room` query serves room identity + occupancy; the exit/portal graph is unserved at 0.2.0 | G3.a; the `room` query (0.2.0) adds G6.b |
+| inventory | `shapes/Inventory` | chain | served (G3.a, G6.a, G6.b) | G3.a; dedicated any-account `inventory` query (0.2.0): G6.a + G6.b |
+| inventory: transfer-history tab | kamiden `GetItemTransfers` | kamiden | served (G4.a) | G4.a |
+| chat | kamiden `GetRoomMessages` — dedicated opt-in query; no stream ingestion (topic filter + ingestion drop); oversize withhold-with-receipt; config kill-switch (DESIGN §3.10) | kamiden | served (G4.c) | G4.c |
+| crafting | `shapes/Recipe` | chain | **not served at 0.2.0** — shapes ported, mirror-only, no dedicated query | — |
+| merchant | `shapes/Npc`, `shapes/Listing` | chain | served (G3.a, G6.a, G6.b) | G3.a; dedicated `merchant` query (0.2.0): G6.a + G6.b |
+| marketplace (KamiSwap) | kamiden `GetKamiMarketListings/Bids/History` + `shapes/Listing` | chain + kamiden | served (G3.a, G4.a) | G3.a + G4.a |
+| trading | `shapes/Trade` + kamiden `GetTradeHistory`/`GetOpenOffers` | chain + kamiden | served (G3.a, G4.a) | G3.a + G4.a |
+| quests | `shapes/Quest` + `shapes/Conditional` evaluation | chain | served (G3.a) | G3.a |
+| goal | `shapes/Goals` | chain | **not served at 0.2.0** — shapes ported, mirror-only, no dedicated query | — |
+| leaderboard | `shapes/Score` + `constants/leaderboards` (kamiden ranking RPCs exist but are ApiKey-gated and uncalled by the client at this pin) | chain + code | served (G3.a, G6.a, G6.b) | G3.a; dedicated `leaderboard` query (0.2.0): G6.a + G6.b |
+| gacha / reveal (incl. the `lootBox` droptable-reveal UI — no component of its own) | `shapes/Gacha`, `shapes/Commit` (block-driven commit-reveal) | chain | **not served at 0.2.0** — shapes ported, mirror-only, no dedicated query (the auction side is served, next row) | — |
+| gacha: auction price chart | kamiden `GetAuctionBuys` | kamiden | served (G4.a) | G4.a |
+| account | `shapes/Account` (stamina, room, friends, reputation) | chain | served (G3.a, G6.a) | G3.a |
 | bridges: wallet flows (`bridge`, `bridgeERC20`, `bridgeERC721`) | wagmi/Initia wallet operations (requires acting) | — | out-of-scope (read-only) | — |
-| bridges: deposit/withdrawal history | kamiden `GetTokenDeposits`/`GetTokenWithdrawals`/`GetOpenWithdrawals` | kamiden | planned | G4.a |
-| dialogue / questDialogue | code-shipped dialogue trees + `shapes/Quest`/room state | chain + code | planned | G3.a |
-| operator gas balance | `eth_getBalance(operator)` (shown by FundOperator/header) | chain | planned | G3.a |
+| bridges: deposit/withdrawal history | kamiden `GetTokenDeposits`/`GetTokenWithdrawals`/`GetOpenWithdrawals` | kamiden | served (G4.a) | G4.a |
+| dialogue / questDialogue | code-shipped dialogue trees + `shapes/Quest`/room state | chain + code | **not served at 0.2.0** — dialogue trees ported with the pin, no dedicated query (`quests` serves name/description only) | — |
+| operator gas balance | `eth_getBalance(operator)` (shown by FundOperator/header) | chain | **not served at 0.2.0** — no balance read on any query path | — |
 | acting flows: kamiSend, naming (incl. its emaBoard UI), kamiPortal, kamiAdoptionAgency, operatorFund, templeOfTheWheel, obol, presale | acting UIs; their read-side state is served by general queries over the ported `app/cache`/shapes (account, kami, item, config, listings) | — | out-of-scope (read-only) | — |
 | studio, help, settings | chrome; no world state (shader viewer, static copy, local prefs — verified by import audit) | — | out-of-scope | — |
 
@@ -65,15 +81,15 @@ design session 2 (2026-07-20) — untrusted-text policy in DESIGN
 
 | Item | Backing state | Source | Status | Gate |
 |---|---|---|---|---|
-| battle/kill feed | kamiden stream `Feed`, daemon ring buffer served as pull query | kamiden | planned | G4.b |
-| room presence (other accounts) | `RoomIndex == here` mirror query | chain | planned | dedicated `room` query (0.2.0): G3.a + G6.b |
+| battle/kill feed | kamiden stream `Feed`, daemon ring buffer served as pull query | kamiden | served (G4.b) | G4.b |
+| room presence (other accounts) | `RoomIndex == here` mirror query | chain | served (G3.a, G6.b) | dedicated `room` query (0.2.0): G3.a + G6.b |
 
 ## Standing caveats
 
 - Player-authored strings, measured at the pin: account and kami
   names (≤16 bytes, unique, non-empty), account bio (≤140 bytes of
   free text — surfaced by `shapes/Account` friend/request/blocked
-  cards inside planned rows), chat messages (no on-chain length cap;
+  cards inside served rows), chat messages (no on-chain length cap;
   the web client's 200-char limit is send-side input validation
   only). Kamiden payloads otherwise carry no player-authored text:
   feed/trade/market/portal messages are IDs, indices, and amounts;
@@ -158,7 +174,7 @@ docs/measurements/g4*-2026-07-21.json):
   session. kami-lens's mirror heals through Kamigaze gap-fill on
   resubscribe; only the Kamiden FEED rows carry the loss.*
 - **Feed delivery is partial — measured, not asserted** (2026-07-22).
-  Lab-side corroboration of the G4 record window against independent
+  Independent corroboration of the G4 record window against separate
   chain infrastructure: the feed delivered ~71% of chain movement
   writes and ~50% of harvest-ends (45 kills / 51 moves on-chain vs
   34 / 36 served — every served event chain-true; the gap is
@@ -266,5 +282,8 @@ moved, renamed, or changed type.
 
 Per release: resolve every `TBD` to `planned`/`deferred`/
 `out-of-scope`; flip `planned` to a gate reference once its gate
-passes; on a pin advance, add rows for any new modal/fixture found by
-the classified diff — served or explicitly deferred, never silent.
+passes — and only when that gate actually reaches the row, otherwise
+the row reads `not served` with an empty *Gate* cell rather than
+borrowing a gate that does not cover it; on a pin advance, add rows
+for any new modal/fixture found by the classified diff — served or
+explicitly deferred, never silent.

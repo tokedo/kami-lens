@@ -1,8 +1,8 @@
 # kami-lens — Design
 
 Status: **v1 — settled** (2026-07-20; untrusted-text policy §3.10 and
-Kamiden scope settled in design session 2, same date; §3.7 parity
-reference standard amended 2026-07-21, decision D56). Evidence base:
+Kamiden scope settled in design session 2, same date; §3.7
+parity-reference standard amended 2026-07-21). Evidence base:
 [docs/upstream-client-architecture.md](docs/upstream-client-architecture.md)
 (study of the official client at upstream commit `ef898fc9`),
 re-verified claim-by-claim against a fresh clone on 2026-07-20 (see
@@ -144,11 +144,11 @@ are inside the target; longitudinal reconstruction is not. The chat
 pane is inside the target, served under the untrusted-text policy
 (§3.10).
 
-**Amendment D56 (2026-07-21; wording revised same day).** The parity
-reference standard is the **community-standard environment**: the
-official web client plus widely-used community tooling (the
-account/room-tracker class) — not the web client alone. Specific
-tool precedents are cited in the private record that owns this
+**Parity-reference amendment (2026-07-21; wording revised same day).**
+The parity reference standard is the **community-standard
+environment**: the official web client plus widely-used community
+tooling (the account/room-tracker class) — not the web client alone.
+Specific tool precedents are cited in the record that owns this
 decision; the public principle stands on "widely-used community
 tooling" alone. This section's earlier "web-client parity"
 phrasing for sync/history is superseded accordingly. Consumers get
@@ -165,7 +165,12 @@ against the official client.
 Projection uses stream `blockTimestamp` offset-correction, not naive
 wall clock (the web client uses `Date.now()`; a daemon must not
 assume a synced clock). Unit care: stream `blockTimestamp` is uint32
-**seconds**; Kamiden timestamps are **milliseconds**.
+**seconds**; Kamiden timestamps are **milliseconds**. Operatively at
+the pin: the Kamigaze stream's `blockTimestamp` arrives as 0 (the
+server never populates it), so the offset anchors on RPC-fetched
+header timestamps of blocks the stream has delivered — the stream tap
+stays armed, and a populated field would simply win as the fresher
+observation.
 
 ### 3.9 License: AGPL-3.0
 
@@ -290,6 +295,7 @@ Measured RPC constraints (public Yominet endpoint, 2026-07-20):
 | `eth_getLogs` cost at recent density | ~23 s per 10 k-block range |
 | log retention | trailing ~1.02 M blocks ≈ 25 days |
 | behavior beyond retention | empty result, HTTP 200 — not an error |
+| `eth_call` historical state depth | ≈ 50–120 blocks (measured 2026-07-21: ok at head−50, reverted at head−120) |
 
 Consequences: RPC gap-fill of a one-day outage (~41 k blocks) costs
 roughly two minutes in 10 k-block chunks; an outage beyond the
@@ -299,6 +305,18 @@ re-snapshot. Because pruned ranges return empty success, the sync
 layer treats "empty result from an old range" as suspect, never as
 proof of no events. The retention window is remeasured as a
 PORT_PLAN gate.
+
+The state-depth limit is a separate constraint from log retention and
+binds the *gates*, not the sync layer: chain cross-checks must pin
+their `eth_call` reads close to head, because a read much deeper than
+~50 blocks back reverts on the archive-less public endpoint. Every
+chain-verifying gate therefore verifies against a freshly pinned
+recent block — healing the mirror to it in two stages and batching the
+verification reads through a pool — rather than against the block a
+fixture was captured at. The depth is recorded per gate run (`g3b-*`,
+`g6b-*` measurements) and consumed as a constraint; it is never
+asserted, since it is the endpoint operator's pruning policy, not our
+contract.
 
 ### 4.2 Projection layer
 

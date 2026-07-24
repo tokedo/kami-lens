@@ -67,7 +67,15 @@ for the study of the official client this is built from.
 
 ## Status
 
-Design phase. No runnable code yet.
+**0.2.0, pre-release.** Daemon, CLI, and library are implemented and
+gate-verified: gates G0–G6 pass against the pinned upstream commit and
+the live game, with dated evidence in `docs/measurements/`. The
+contract registry is [SPEC.md](SPEC.md); per-surface coverage — what
+is served, what is deferred, what is out of scope — is
+[docs/coverage.md](docs/coverage.md).
+
+No release act has been performed: nothing is published to npm or a
+container registry yet. Build and run it from this repository.
 
 ## License
 

@@ -143,6 +143,6 @@
   "transcriptionCorrections": [
     "g2b-04 inventory grid marked gridIllegible after a focused re-read (2026-07-21): 12 dense rows with small numerals; row-boundary slips confirmed (a card missed near the row-2/3 boundary) and single digits ambiguous at capture resolution (e.g. 8 vs 6). Counts are excluded from the strict comparison rather than corrected toward the mirror; the musu balance (2,428,360) is unambiguous in frame and stays strictly compared. Strict grid coverage stands on g2b-01/02/03.",
     "g2b-02 inventory cell 19 (read '3') was pre-flagged uncertain and stays excluded rather than corrected; cells 18-20 excluded via uncertainCells.",
-    "g2b-02 row 11279 musuRatePerHr corrected +88.58 → +88.56 (2026-07-21 lab audit): a 4x zoom of the row (g2b-02-row11279-zoom4x.png, machine-local with the other originals) reads +88.56 unambiguously — the original read survived two passes as a single-glyph 6/8 confusion at capture resolution. With the correction, both rate strings cohere at one common render instant inside the client's staleness window, as the sweep requires."
+    "g2b-02 row 11279 musuRatePerHr corrected +88.58 → +88.56 (2026-07-21 review): a 4x zoom of the row (g2b-02-row11279-zoom4x.png, machine-local with the other originals) reads +88.56 unambiguously — the original read survived two passes as a single-glyph 6/8 confusion at capture resolution. With the correction, both rate strings cohere at one common render instant inside the client's staleness window, as the sweep requires."
   ]
 }

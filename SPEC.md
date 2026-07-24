@@ -1,6 +1,6 @@
 ---
 module: kami-lens
-version: 1
+version: 2
 describes: 0.2.0 (a0a3e1e)
 ---
 
@@ -65,7 +65,7 @@ of it. *Needs* is what must be reachable for a non-error answer:
 | Daemon socket, CLI, and library serve the same answers because all three enter through `serveQuery` over one `REGISTRY`. | structural (`src/queries/index.ts`); G3.d compares the stateless CLI answer against the daemon's for the same kami at the same block |
 | Queries are general: any account, kami, node, or room is an argument — there is no privileged "own" path. `defaultOperator` is a prefill for an argument, never a special path. | structural (`REGISTRY.operatorArg`, `src/queries/registry.ts`); DESIGN §3.6, §5 |
 | A discovery answer (`room`, `node` occupancy, `inventory`, `leaderboard`, `merchant`) exists only via the mirror, but every element of it is chain-checkable. | G3.b, G6.b (pinned `eth_call` reads per row, plus negative samples) |
-| Documented CLI exit codes: 0 success · 1 query error / daemon fatal · 2 usage · 3 `ERR_NO_SNAPSHOT_SOURCE` · 4 daemon unreachable · 5 `REQUIRES_DAEMON`. | G1.e (3), G3.d (5); the rest `unenforced` — no gate asserts codes 1/2/4 |
+| Documented CLI exit codes: 0 success · 1 query error / daemon fatal · 2 usage · 3 `ERR_NO_SNAPSHOT_SOURCE` · 4 daemon unreachable · 5 `REQUIRES_DAEMON`. | G3.d (5). Codes 1/2/3/4 are numerically **unenforced** — no gate asserts an exit status for them, and the 3-mapping is structural (`src/cli.ts`). G1.e enforces the *refusal* on the library path: the `ERR_NO_SNAPSHOT_SOURCE` marker on the `daemon.start()` throw, plus never-LIVE |
 | Documented query error codes: `NOT_FOUND`, `BAD_ARGS`, `KAMIDEN_UNAVAILABLE`, `CHAT_DISABLED`. | structural (`QueryError`, `src/queries/build.ts`); `CHAT_DISABLED` gated by G4.c; `KAMIDEN_UNAVAILABLE` **unenforced** (see §2, Kamiden) |
 
 ### 1.2 Response envelope
@@ -144,7 +144,7 @@ kami-lens makes about it.
 | **Clock discipline:** projection reads offset-corrected stream block time, never the wall clock. | `test/clock.test.ts` — including a static scan asserting the projection trees carry no naive `Date.now()` reads; G2.c (±120 s skewed container must produce identical projections) |
 | **Undecodable rows are skipped, counted, and surfaced — never fatal.** Upstream aborts the whole sync attempt; the port drops the row and increments a tripwire. | `test/decode-skip.test.ts` (snapshot and stream paths, separately); tripwire counters in `status` |
 | **Tripwires are surfaced, not silent:** unknown `componentId`, decode failures, and Kamigaze nonce bumps are each counted and shown in daemon status. | `src/tripwires.ts`; `status` schema validated by G3.a; DESIGN §7 |
-| **Refuse-and-report cold start.** Without a snapshot source and without an RPC whose log history covers the world's full span, the daemon exits non-zero with `ERR_NO_SNAPSHOT_SOURCE` rather than reaching LIVE over a hollow world. | G1.e (exit code 3 + marker) |
+| **Refuse-and-report cold start.** Without a snapshot source and without an RPC whose log history covers the world's full span, the daemon exits non-zero with `ERR_NO_SNAPSHOT_SOURCE` rather than reaching LIVE over a hollow world. | G1.e (refusal marker + never-LIVE; numeric CLI code unasserted) |
 | **Degraded state is honest.** With Kamigaze unreachable mid-session, status reports the degraded state within one stall interval and queries still serve last-synced state stamped `stale: true`. | G3.e (live daemon behind a proxy that is killed mid-session) |
 | **Chat is excluded from stream ingestion at the ingestion point**, not merely by transport promise: the drop is proven hermetically through the exact live ingestion path. | G4.b (either zero `Message` frames or the drop counter accounts for every one); G4.c |
 | **Clean-room install → live answers, zero config.** `npm pack` → install in a fresh `node:20` container → `kami-lens daemon` with no config file reaches LIVE → a sample query returns schema-valid JSON, every step exit-code-checked. | G5.a; G5.b (container lifecycle, warm restart beats cold, healthcheck) |
@@ -215,7 +215,7 @@ upstream type defect that vite never typechecks, kept as
 | **Acting.** Read-only; never signs or submits transactions. | DESIGN §2; §3 row 1 above |
 | **History and analytics** beyond what the client shows a player in-session. | DESIGN §2, §3.7 |
 | **A hosted service.** No central deployment, no API keys, no accounts. | DESIGN §2; README principle 2 |
-| **Oracle/investigator-grade analytics.** The parity reference is the community-standard environment (official client plus widely-used community tooling); exposure beyond it stays out. | DESIGN §3.7 (amendment D56) |
+| **Oracle/investigator-grade analytics.** The parity reference is the community-standard environment (official client plus widely-used community tooling); exposure beyond it stays out. | DESIGN §3.7 (2026-07-21 amendment) |
 | **Notifications digest ("alerts").** Every input is served; the derived digest needs its own design pass. Deferred, with a coverage row. | DESIGN §6; docs/coverage.md |
 | **Windowed killer rankings.** Not servable from any non-gated source at the pin — the one windowed RPC is ApiKey-gated, id-less `GetBattles` answers empty, `IsKill` is unregistered, and the stream feed is measured-lossy. The served `killers` ranking is the service's own all-time window. | G6.c records the evidence each run |
 | **SQLite persistence.** Upgrade trigger: sustained checkpoint cost (serialize > ~2 s, or observable stalls). | DESIGN §6 |
@@ -230,3 +230,4 @@ upstream type defect that vite never typechecks, kept as
 | Version | Describes | Change |
 |---|---|---|
 | 1 | 0.2.0 (`a0a3e1e`, pin `ef898fc9`) | First registry. Enumerates the 22-query surface plus `status` and the stateless variant; the envelope; the four-class taint model; pin semantics; 15 consumed-contract rows; 18 invariants; 8 preserved quirks + 34 type holes across 14 files; 10 divergences; 1 unenforced residual; 10 non-goals. |
+| 2 | 0.2.0 (`a0a3e1e`, pin `ef898fc9`) | Registry corrections from the independent audit of v1. Exit-code enforcement restated to what the gate actually asserts (§1.1, §3: G1.e proves the `ERR_NO_SNAPSHOT_SOURCE` refusal marker and never-LIVE on the library path; codes 1/2/3/4 numerically unenforced, the 3-mapping structural). Non-goal §5 parity-reference cite made self-contained. No claim added or withdrawn; the described artifact is unchanged. |
