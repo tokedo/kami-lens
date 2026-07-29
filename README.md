@@ -79,4 +79,6 @@ container registry yet. Build and run it from this repository.
 
 ## License
 
-AGPL-3.0 — see [LICENSE](LICENSE).
+kami-lens is AGPL-3.0 — see [LICENSE](LICENSE).
+
+Copyright (C) 2026 Anatoly Zaytsev (tokedo).
