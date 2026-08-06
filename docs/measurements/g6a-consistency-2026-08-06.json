@@ -1,0 +1,18 @@
+{
+  "gate": "g6a-consistency",
+  "measuredAt": "2026-08-06T21:35:55.562Z",
+  "snapshotBlock": 31230648,
+  "nodeIndex": 80,
+  "counts": {
+    "vitalsCompared": 29,
+    "liquidationRows": 29,
+    "staminaChecked": 10,
+    "inventoriesChecked": 10,
+    "listingsChecked": 16,
+    "phaseChecked": 1,
+    "leaderboardsChecked": 3
+  },
+  "problems": [],
+  "problemCount": 0,
+  "match": true
+}

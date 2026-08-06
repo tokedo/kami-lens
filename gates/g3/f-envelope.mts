@@ -158,6 +158,11 @@ const CASES: { query: string; args: string[]; opts?: { prose?: boolean; noAuthor
   { query: 'leaderboard', args: ['LIQUIDATE', '1', '0'] },
   { query: 'node', args: ['62', '--with-vitals'] },
   { query: 'node', args: ['62', firstKami, '--with-vitals'] },
+  // 0.3.0 surface: the roster is name-free BY CONSTRUCTION, so its derived
+  // list must be empty in both modes — the derivation proves it rather
+  // than the shape being asserted by hand
+  { query: 'roster', args: [String(anAccount)] },
+  { query: 'roster', args: [String(anAccount)], opts: { noAuthored: true } },
 ];
 
 const mismatches: Record<string, unknown>[] = [];

@@ -73,6 +73,7 @@ for (const a of accountIndexes) {
   await check('account', [String(a)]);
   await check('account', [String(a)], { prose: true });
   await check('party', [String(a)]);
+  await check('roster', [String(a)]);
 }
 // nodes: all
 for (const n of nodes) await check('node', [String(n.index)]);
@@ -82,6 +83,12 @@ const itemsEnv = await serveQuery(mirror, 'items', [], { stale: false, mode: 'da
 for (const item of (itemsEnv.data as { items: { index: number }[] }).items.slice(0, 50)) {
   await check('item', [String(item.index)]);
 }
+// pool enrichment (0.3.0): every item that trades in a pool, so the
+// enriched single-item answer is validated and not only the bare one
+const pooledIndexes = new Set<number>(
+  (itemsEnv.data as { pools?: { items: number[] }[] }).pools?.flatMap((p) => p.items) ?? []
+);
+for (const index of pooledIndexes) await check('item', [String(index)]);
 // config: known fields
 for (const name of ['HARVEST_EFFICACY_BOOST', 'KAMI_STANDARD_COOLDOWN']) {
   try {
@@ -94,6 +101,8 @@ for (const name of ['HARVEST_EFFICACY_BOOST', 'KAMI_STANDARD_COOLDOWN']) {
 // mirror in their no-service form — the kamiden-argument variants are
 // validated live by G4.a
 await check('quests', []);
+// with an account, every registry row carries account-relative state and
+// accepted rows carry per-objective progress (0.3.0)
 for (const a of [...accountIndexes].slice(0, 3)) await check('quests', [String(a)]);
 await check('trades', []);
 await check('auctions', []);

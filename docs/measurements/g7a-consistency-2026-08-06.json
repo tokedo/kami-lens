@@ -1,0 +1,58 @@
+{
+  "gate": "g7a-consistency",
+  "measuredAt": "2026-08-06T21:35:19.818Z",
+  "snapshotBlock": 31230648,
+  "accountsSampled": 25,
+  "counts": {
+    "questAnswers": 12,
+    "objectivesChecked": 831,
+    "rostersChecked": 25,
+    "rosterRowsChecked": 3037,
+    "poolsServed": 0,
+    "vendorChecked": 1
+  },
+  "questRowsWithAccount": 2256,
+  "questAccountAnswerMeanMs": 16.3,
+  "registryObjectivesScanned": 198,
+  "objectivesWithForComponent": 0,
+  "compaction": {
+    "measured": true,
+    "accountIndex": 3053,
+    "kamis": 1053,
+    "rosterBytes": 49388,
+    "partyBytes": 281951,
+    "rosterMarginalBytesPerKami": 46.85,
+    "partyMarginalBytesPerKami": 267.71,
+    "marginalRatio": 0.175,
+    "threshold": 0.25,
+    "projectedAt150": {
+      "roster": 7080,
+      "party": 40209
+    }
+  },
+  "poolsServed": 0,
+  "vacuous": [
+    "pools: the fixture snapshot holds no pool entities — G7.b carries this evidence"
+  ],
+  "pools": [],
+  "newbieVendor": {
+    "displayedKamiIndices": [
+      2919,
+      2953,
+      2974
+    ],
+    "poolSize": 901,
+    "cycleStart": 1773163103,
+    "cycleSeconds": 172800,
+    "secondsToNextRotation": 70984
+  },
+  "tripwires": {
+    "unknownComponentIds": 0,
+    "unknownComponentSchemas": 0,
+    "decodeFailures": 0,
+    "kamigazeNonceBumps": 0
+  },
+  "problems": [],
+  "problemCount": 0,
+  "match": true
+}
