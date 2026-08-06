@@ -44,6 +44,14 @@ import { trades as explorerTrades } from 'network/explorer/trades/trades';
 import { getAccountByID, getAccountByIndex } from 'network/shapes/Account';
 import { getItemByIndex } from 'network/shapes/Item';
 import { getKamiByName, getKami as getShapeKami } from 'network/shapes/Kami';
+import {
+  canRepeatQuest,
+  meetsObjectives,
+  meetsRequirements,
+  parseQuestObjectives,
+  parseQuestRequirements,
+} from 'network/shapes/Quest';
+import type { Objective as QuestObjective } from 'network/shapes/Quest';
 import { queryByIndex as queryKamiEntityByIndex } from 'network/shapes/Kami/queries';
 import { getRoomByIndex } from 'network/shapes/Room';
 
@@ -427,12 +435,58 @@ export async function auctionsQuery(
 
 // -------------------------------------------------------------- quests
 
+export type QuestObjectiveOut = {
+  name: string;
+  /** what the objective counts, e.g. an item total or a reputation score */
+  type: string;
+  /** the raw handler/operator pair the world stores, e.g. INC_MIN */
+  logic: string;
+  /** the registry index the type is counted against, where it has one */
+  index?: number;
+  /** the threshold to reach; absent for objectives with no numeric target */
+  required?: number;
+  /** progress toward that threshold, on the basis named below; absent for
+   * objectives with no numeric progress, and for a finished quest (whose
+   * objectives stop being evaluated) */
+  current?: number;
+  met: boolean;
+  /** how `current` is measured:
+   *  · since-acceptance — accrual counted from the moment the quest was
+   *    accepted, NOT a balance: spending what you accrued does not
+   *    un-count it, and holding a balance from before acceptance does not
+   *    count toward it;
+   *  · current — the present value: a balance, a level, a score;
+   *  · boolean — a condition that is met or not, with nothing to count;
+   *  · unknown — a handler this version does not evaluate. */
+  basis: 'since-acceptance' | 'current' | 'boolean' | 'unknown';
+};
+
+export type QuestAccountStateOut = {
+  accepted: boolean;
+  complete: boolean;
+  requirementsMet: boolean;
+  /** present only when accepted */
+  objectivesMet?: boolean;
+  /** present only for a finished repeatable quest: whether its cooldown
+   * has elapsed */
+  repeatAvailable?: boolean;
+  /** instance times, present only when accepted */
+  startTime?: number;
+  endTime?: number;
+  /** present only when accepted — see the pre-acceptance note on the
+   * builder below */
+  objectives?: QuestObjectiveOut[];
+};
+
 export type QuestRegistryOut = {
   index: number;
   name: string;
   description: string;
   repeatable: boolean;
   repeatDuration?: number;
+  /** account-relative state (0.3.0), present on every registry row when the
+   * query is given an account */
+  account?: QuestAccountStateOut;
 };
 
 export type QuestAcceptedOut = {
@@ -446,41 +500,129 @@ export type QuestAcceptedOut = {
 export type QuestsOut = {
   registry: QuestRegistryOut[];
   account?: { index: number; name: string };
+  /** RETAINED, REDUNDANT: since 0.3.0 every registry row carries the same
+   * acceptance facts (and more) in its `account` block. This list is kept
+   * so that answers stay shape-compatible for consumers written against
+   * earlier versions; new consumers should read the registry rows. */
   accepted?: QuestAcceptedOut[];
 };
 
-/** Quest modal (M3 deferral record): the quest registry, and per-account
- * accepted quests with completion state via the ported explorer. */
+/** How `current` is measured, read off the handler the world stores. */
+function objectiveBasis(logic: string): QuestObjectiveOut['basis'] {
+  const handler = (logic ?? '').split('_')[0];
+  if (handler === 'INC' || handler === 'DEC') return 'since-acceptance';
+  if (handler === 'CURR') return 'current';
+  if (handler === 'BOOL') return 'boolean';
+  return 'unknown';
+}
+
+/** Number() coercion throughout: the mirror decodes some numeric components
+ * as hex strings; the served surface is honest numbers. */
+function toObjectiveOut(objective: QuestObjective): QuestObjectiveOut {
+  const status = objective.status;
+  return {
+    name: objective.name,
+    type: objective.target.type,
+    logic: objective.logic,
+    ...(objective.target.index !== undefined ? { index: Number(objective.target.index) } : {}),
+    ...(status?.target !== undefined ? { required: Number(status.target) } : {}),
+    ...(status?.current !== undefined ? { current: Number(status.current) } : {}),
+    met: status?.completable ?? false,
+    basis: objectiveBasis(objective.logic),
+  };
+}
+
+/** Quests: the registry, and — given an account — where that account stands
+ * on every quest in it, in one read.
+ *
+ * ACCOUNT-RELATIVE STATE is served as the facts that discriminate it rather
+ * than as a single label: `accepted` and `complete` separate the three
+ * states an account can be in on a quest (never accepted / accepted and
+ * unfinished / already finished), and `objectivesMet` separates an
+ * unfinished quest whose work is done from one whose work is not. The four
+ * combinations are exhaustive and mutually exclusive, so any consumer
+ * vocabulary maps onto them without loss:
+ *   !accepted                              → never accepted
+ *   accepted && complete                   → already finished
+ *   accepted && !complete && objectivesMet → unfinished, work done
+ *   accepted && !complete && !objectivesMet→ unfinished, work outstanding
+ * `requirementsMet` answers, for a quest not yet accepted, whether it can
+ * be accepted at all.
+ *
+ * The field is deliberately named `objectivesMet` and NOT "completable":
+ * it is this layer's evaluation of the objectives it can read, not a
+ * promise that submitting the finish transaction will succeed. A consumer
+ * that needs that guarantee must ask the chain to simulate the act. Saying
+ * "completable" here would be claiming knowledge this surface does not
+ * have.
+ *
+ * PROGRESS IS SERVED FOR ACCEPTED QUESTS ONLY, and this is a correctness
+ * requirement rather than a thrift. Accrual-type objectives count from a
+ * snapshot taken when the quest is accepted; with no snapshot yet recorded
+ * the comparison runs against zero, so an account's entire lifetime total
+ * reads as if it were progress and an objective can appear satisfied before
+ * the quest is even taken. (The game's own quest-detail panel renders that
+ * artefact as a checkmark, which the accepted-quest counter then
+ * contradicts once the quest is taken and the counter restarts at zero.)
+ * Serving that number would hand a consumer a figure the world does not
+ * hold. Unaccepted rows therefore carry the objective's type and threshold
+ * and no progress at all. */
 export function questsQuery(ctx: QueryCtx, args: { accountIndex?: number }): QuestsOut {
   const mirror = ctx.mirror;
-  const explorer = explorerQuests(mirror.world, mirror.components);
-  const registry: QuestRegistryOut[] = explorer
-    .all()
-    .filter((q) => q.index)
-    .map((q) => ({
-      index: q.index,
-      name: q.name,
-      description: q.description,
-      repeatable: q.repeatable,
-      ...(q.repeatDuration ? { repeatDuration: Number(q.repeatDuration) } : {}),
-    }));
+  const { world, components } = mirror;
+  const explorer = explorerQuests(world, components);
+  const all = explorer.all().filter((q) => q.index);
+  const toRegistryRow = (q: (typeof all)[number]): QuestRegistryOut => ({
+    index: q.index,
+    name: q.name,
+    description: q.description,
+    repeatable: q.repeatable,
+    ...(q.repeatDuration ? { repeatDuration: Number(q.repeatDuration) } : {}),
+  });
 
-  const out: QuestsOut = { registry };
-  if (args.accountIndex !== undefined) {
-    const account = accountByIndexOrThrow(mirror, args.accountIndex);
-    out.account = { index: account.index, name: account.name };
-    // Number() coercion: upstream's Quest shape casts StartTime/LastTime
-    // to number, but the mirror decodes them as hex strings ("0x6821abae")
-    // — phantom types at the pin; the served surface is honest seconds
-    out.accepted = explorer.getForAccount(args.accountIndex).map((q) => ({
+  if (args.accountIndex === undefined) return { registry: all.map(toRegistryRow) };
+
+  const account = accountByIndexOrThrow(mirror, args.accountIndex);
+  const accepted = explorer.getForAccount(args.accountIndex);
+  const instances = new Map<number, (typeof accepted)[number]>();
+  for (const instance of accepted) instances.set(instance.index, instance);
+
+  const registry = all.map((q) => {
+    const row = toRegistryRow(q);
+    // requirements are account-relative conditions on the registry quest
+    parseQuestRequirements(world, components, account, q);
+    const state: QuestAccountStateOut = {
+      accepted: instances.has(q.index),
+      complete: false,
+      requirementsMet: meetsRequirements(q),
+    };
+    const instance = instances.get(q.index);
+    if (instance) {
+      // objectives are evaluated on the INSTANCE: the acceptance snapshot
+      // hangs off the instance entity, not the registry entry
+      parseQuestObjectives(world, components, account, instance);
+      state.complete = instance.complete;
+      state.objectivesMet = meetsObjectives(instance);
+      state.startTime = Number(instance.startTime);
+      state.endTime = Number(instance.endTime);
+      state.objectives = instance.objectives.map(toObjectiveOut);
+      if (instance.complete && q.repeatable) state.repeatAvailable = canRepeatQuest(instance);
+    }
+    row.account = state;
+    return row;
+  });
+
+  return {
+    registry,
+    account: { index: account.index, name: account.name },
+    accepted: accepted.map((q) => ({
       index: q.index,
       name: q.name,
       complete: q.complete,
       startTime: Number(q.startTime),
       endTime: Number(q.endTime),
-    }));
-  }
-  return out;
+    })),
+  };
 }
 
 // -------------------------------------------------------------- market

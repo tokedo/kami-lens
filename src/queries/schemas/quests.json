@@ -10,7 +10,11 @@
       "properties": {
         "registry": { "type": "array", "items": { "$ref": "#/$defs/QuestRegistry" } },
         "account": { "$ref": "#/$defs/AccountRef" },
-        "accepted": { "type": "array", "items": { "$ref": "#/$defs/QuestAccepted" } }
+        "accepted": {
+          "type": "array",
+          "description": "RETAINED, REDUNDANT: every registry row now carries the same acceptance facts, and more, in its account block. Kept so answers stay shape-compatible with consumers written against earlier versions.",
+          "items": { "$ref": "#/$defs/QuestAccepted" }
+        }
       }
     },
     "QuestRegistry": {
@@ -22,7 +26,53 @@
         "name": { "type": "string" },
         "description": { "type": "string" },
         "repeatable": { "type": "boolean" },
-        "repeatDuration": { "type": "number" }
+        "repeatDuration": { "type": "number" },
+        "account": { "$ref": "#/$defs/QuestAccountState" }
+      }
+    },
+    "QuestAccountState": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Where one account stands on one quest, served as the facts that discriminate it rather than as a single label. The four combinations are exhaustive and mutually exclusive, so any consumer vocabulary maps on without loss: !accepted = never accepted; accepted && complete = already finished; accepted && !complete && objectivesMet = unfinished with the work done; accepted && !complete && !objectivesMet = unfinished with work outstanding. requirementsMet answers whether a quest not yet accepted can be accepted at all.",
+      "required": ["accepted", "complete", "requirementsMet"],
+      "properties": {
+        "accepted": { "type": "boolean" },
+        "complete": { "type": "boolean" },
+        "requirementsMet": { "type": "boolean" },
+        "objectivesMet": {
+          "type": "boolean",
+          "description": "This layer's evaluation of the objectives it can read — NOT a promise that the finishing transaction will succeed. A consumer needing that guarantee must have the chain simulate the act. The field is not named 'completable' for exactly this reason."
+        },
+        "repeatAvailable": { "type": "boolean" },
+        "startTime": { "type": "number" },
+        "endTime": { "type": "number" },
+        "objectives": {
+          "type": "array",
+          "description": "Present only for accepted quests. Accrual objectives count from a snapshot taken at acceptance; before acceptance no snapshot exists and the comparison would run against zero, reading an account's lifetime total as if it were progress. Serving that would hand out a number the world does not hold, so unaccepted rows carry thresholds without progress.",
+          "items": { "$ref": "#/$defs/QuestObjective" }
+        }
+      }
+    },
+    "QuestObjective": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "type", "logic", "met", "basis"],
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "logic": { "type": "string" },
+        "index": { "type": "number" },
+        "required": { "type": "number" },
+        "current": {
+          "type": "number",
+          "description": "Progress on the basis named below. Absent where there is nothing to count (boolean objectives) and for a finished quest, whose objectives stop being evaluated. No number is synthesized in either case."
+        },
+        "met": { "type": "boolean" },
+        "basis": {
+          "type": "string",
+          "description": "since-acceptance = accrual counted from the moment of acceptance, not a balance: spending what you accrued does not un-count it, and a balance held before acceptance does not count toward it. current = the present value (a balance, a level, a score). boolean = met or not, with nothing to count. unknown = a handler this version does not evaluate.",
+          "enum": ["since-acceptance", "current", "boolean", "unknown"]
+        }
       }
     },
     "QuestAccepted": {

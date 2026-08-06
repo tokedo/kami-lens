@@ -36,6 +36,69 @@
         },
         "rarity": {
           "type": "number"
+        },
+        "pools": {
+          "type": "array",
+          "description": "swap venues trading this item; an empty array means none",
+          "items": {
+            "$ref": "#/$defs/Pool"
+          }
+        }
+      }
+    },
+    "Pool": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A constant-product swap venue between two items. Facts only: reserves, fee, share supply, creation time. No swap quote is served — see impliedRate.",
+      "required": ["id", "items", "reserves", "feeBps", "lpSupply", "startTime"],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "description": "the traded pair, item registry indices, low index first",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "reserves": {
+          "type": "array",
+          "description": "reserve held of each item, positionally aligned to items",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "feeBps": {
+          "type": "number",
+          "description": "swap fee in basis points; 10000 = 100%"
+        },
+        "lpSupply": {
+          "type": "number"
+        },
+        "startTime": {
+          "type": "number"
+        },
+        "disabled": {
+          "type": "boolean"
+        },
+        "impliedRate": {
+          "type": "object",
+          "description": "PURE RESERVE RATIO — fee-exclusive and impact-exclusive. A valuation of current depth, NOT a swap quote: a real swap moves along the curve and pays feeBps. Omitted when either reserve is zero.",
+          "additionalProperties": false,
+          "required": ["item0PerItem1", "item1PerItem0"],
+          "properties": {
+            "item0PerItem1": {
+              "type": "number"
+            },
+            "item1PerItem0": {
+              "type": "number"
+            }
+          }
         }
       }
     }

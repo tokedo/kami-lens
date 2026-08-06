@@ -27,6 +27,7 @@ import {
   phaseQuery,
   QueryError,
   roomQuery,
+  rosterQuery,
 } from './build';
 import { EnvelopeOptions, QuerySchema } from './envelope';
 import {
@@ -48,6 +49,7 @@ export type QueryName =
   | 'account'
   | 'node'
   | 'party'
+  | 'roster'
   | 'item'
   | 'items'
   | 'config'
@@ -151,6 +153,15 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     stateless: false,
     kamiden: false,
     build: (ctx, a) => partyQuery(ctx.mirror, a as { accountIndex: number }),
+  },
+  roster: {
+    name: 'roster',
+    operatorArg: true,
+    summary: 'compact roster: one line per kami (index, state, hp) + where the account is',
+    parseArgs: ([accountIndex]) => ({ accountIndex: int(accountIndex, 'account index') }),
+    stateless: false,
+    kamiden: false,
+    build: (ctx, a) => rosterQuery(ctx.mirror, a as { accountIndex: number }),
   },
   item: {
     name: 'item',

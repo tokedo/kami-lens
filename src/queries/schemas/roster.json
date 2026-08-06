@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kami-lens/schemas/roster.json",
+  "$comment": "Compact roster. Carries no authored strings by design — no kami names, no account name — so its untrusted path list is always empty and the answer is identical in name-free mode. Identities are indices. Full per-kami detail lives on the party query.",
+  "$ref": "#/$defs/Roster",
+  "$defs": {
+    "Roster": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["account", "kamis"],
+      "properties": {
+        "account": { "$ref": "#/$defs/RosterAccount" },
+        "kamis": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/RosterKami" }
+        }
+      }
+    },
+    "RosterAccount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "roomIndex"],
+      "properties": {
+        "index": { "type": "number" },
+        "roomIndex": {
+          "type": "number",
+          "description": "the room the account itself is standing in"
+        }
+      }
+    },
+    "RosterKami": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "state", "hp"],
+      "properties": {
+        "index": { "type": "number" },
+        "state": { "type": "string" },
+        "hp": {
+          "type": "array",
+          "description": "[current, total] — percent is the consumer's division",
+          "items": { "type": "number" },
+          "minItems": 2,
+          "maxItems": 2
+        }
+      }
+    }
+  }
+}

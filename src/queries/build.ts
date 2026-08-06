@@ -32,7 +32,9 @@ import {
   canLiquidate,
 } from 'app/cache/kami/calcs';
 import { calcListingBuyPrice, calcListingSellPrice } from 'app/cache/npc';
-import { EntityIndex, World } from 'engine/recs';
+import { EntityIndex, HasValue, World, getComponentValue, runQuery } from 'engine/recs';
+import { formatEntityID } from 'engine/utils';
+import { id as keccakOfString } from 'ethers';
 import { Components } from 'network/';
 import {
   getAccount,
@@ -47,16 +49,18 @@ import { getConfigFieldValue, getConfigFieldValueArray } from 'network/shapes/Co
 // getHarvestKami (Harvest/kami.ts), NOT getHarvest's {kami:true} option —
 // that option is a dormant upstream defect (see Harvest/types.ts header).
 import { getHarvest, getHarvestKami } from 'network/shapes/Harvest';
-import { getAllItems, getItemByIndex } from 'network/shapes/Item';
+import { getAllItems, getItemBalance, getItemByIndex } from 'network/shapes/Item';
 import { getKami as getShapeKami } from 'network/shapes/Kami';
 import { queryByIndex as queryKamiByIndex } from 'network/shapes/Kami/queries';
 import { Listing } from 'network/shapes/Listing';
 import { getNodeByIndex } from 'network/shapes/Node';
 import { queryHarvests } from 'network/shapes/Node/harvests';
 import { queryByIndex as queryNodeEntityByIndex } from 'network/shapes/Node/queries';
+import { getDisplayedKamiIndices } from 'network/shapes/NewbieVendor/queries';
 import { getAllNPCs, getNPCByIndex } from 'network/shapes/Npc';
 import { getRoomByIndex } from 'network/shapes/Room';
 import { getScoresByFilter } from 'network/shapes/Score';
+import { getIsDisabled } from 'network/shapes/utils/component';
 import { getRateDisplay } from 'utils/numbers';
 import { getPhaseName, getPhaseOf } from 'utils/time';
 
@@ -75,19 +79,32 @@ export class QueryError extends Error {
   }
 }
 
+// Force a full projection refresh on every read. The windows are staleness
+// limits in seconds, compared with a strict `updateDelta > window`, so a
+// window of 0 does NOT mean "always": two reads of the same kami inside the
+// same millisecond give updateDelta === 0, the comparison is false, and the
+// sub-object is skipped. That is harmless upstream, where the cache is
+// never cleared and the sub-object is simply still there — but this layer
+// clears the cache before each read to force freshness, and a cleared entry
+// is rebuilt WITHOUT its optional sub-objects. The two together produced a
+// kami with no stats at all, i.e. an answer reporting zero health for a
+// healthy kami, whenever two queries touched the same kami in the same
+// millisecond. -1 restores the intended meaning: refresh unconditionally.
+// (Found by the 0.3 gate that asserts the compact roster and the party
+// report agree — they disagreed, and the party report was the wrong one.)
 const KAMI_REFRESH = {
-  live: 0,
-  base: 0,
-  bonuses: 0,
-  config: 0,
-  flags: 0,
-  harvest: 0,
-  progress: 0,
-  rerolls: 0,
-  skills: 0,
-  stats: 0,
-  time: 0,
-  traits: 0,
+  live: -1,
+  base: -1,
+  bonuses: -1,
+  config: -1,
+  flags: -1,
+  harvest: -1,
+  progress: -1,
+  rerolls: -1,
+  skills: -1,
+  stats: -1,
+  time: -1,
+  traits: -1,
 };
 
 // ---------------------------------------------------------------- kami
@@ -341,6 +358,51 @@ export function partyQuery(mirror: Mirror, args: { accountIndex: number }): Part
   return { account: { index: account.index, name: account.name }, kamis };
 }
 
+// --------------------------------------------------------------- roster
+
+export type RosterOut = {
+  /** no account name: the roster is deliberately name-free (see below) */
+  account: { index: number; roomIndex: number };
+  kamis: { index: number; state: string; hp: number[] }[];
+};
+
+/** Compact roster (0.3.0): one line per kami — index, state, [hp, hpTotal] —
+ * plus where the account itself is standing. Sized to stay readable at
+ * large rosters where the full party report does not; full detail (names,
+ * rates, accrued MUSU, cooldowns, node) stays on the party query, which is
+ * unchanged.
+ *
+ * PROPERTY WORTH RELYING ON: this answer carries no authored strings at
+ * all — no kami names, no account name — so its untrusted list is always
+ * empty and it is identical in name-free mode. Identities are indices,
+ * which is what a consumer joins on anyway.
+ *
+ * Compaction is a payload property, not a latency one: every row goes
+ * through the SAME per-kami projection the party report uses, and is then
+ * projected down. That is deliberate — computing the compact rows by a
+ * cheaper path of their own would let the two answers drift apart, and a
+ * roster that disagrees with the party report about a kami's health is
+ * worse than no roster. (It did, in the first run of the gate that now
+ * asserts the agreement: the projection cache is shared, and refreshing it
+ * once per answer rather than once per kami produced different health than
+ * the party report for the same kami at the same block.) */
+export function rosterQuery(mirror: Mirror, args: { accountIndex: number }): RosterOut {
+  const { world, components } = mirror;
+  const account = getAccountByIndex(world, components, args.accountIndex, { kamis: true });
+  if (!account.index) {
+    throw new QueryError('NOT_FOUND', `account ${args.accountIndex} not in mirror`);
+  }
+  const kamis = (account.kamis ?? []).map((k) => {
+    const vitals = buildKamiVitals(mirror, k.entity);
+    return {
+      index: vitals.index,
+      state: vitals.state,
+      hp: [vitals.hp.current, vitals.hp.total],
+    };
+  });
+  return { account: { index: account.index, roomIndex: account.roomIndex }, kamis };
+}
+
 // ---------------------------------------------------------------- item
 
 export type ItemOut = {
@@ -351,6 +413,9 @@ export type ItemOut = {
   description: string;
   for: string;
   rarity: number;
+  /** pools trading this item (0.3.0); present on the single-item answer,
+   * an empty array when the item trades in none */
+  pools?: PoolOut[];
 };
 
 function toItemOut(item: {
@@ -376,15 +441,90 @@ function toItemOut(item: {
 export function itemQuery(mirror: Mirror, args: { index: number }): ItemOut {
   const item = getItemByIndex(mirror.world, mirror.components, args.index);
   if (!item || !item.index) throw new QueryError('NOT_FOUND', `item ${args.index} not in mirror`);
-  return toItemOut(item);
+  const pools = poolsQuery(mirror).filter((p) => p.items.includes(args.index));
+  return { ...toItemOut(item), pools };
 }
 
-export function itemsQuery(mirror: Mirror): { items: ItemOut[] } {
+export function itemsQuery(mirror: Mirror): { items: ItemOut[]; pools: PoolOut[] } {
   const items = getAllItems(mirror.world, mirror.components)
     .filter((i) => i.index)
     .sort((a, b) => a.index - b.index)
     .map(toItemOut);
-  return { items };
+  return { items, pools: poolsQuery(mirror) };
+}
+
+// --------------------------------------------------------------- pools
+
+export type PoolOut = {
+  /** pool entity id */
+  id: string;
+  /** the traded pair, item registry indices, canonically sorted low first */
+  items: number[];
+  /** reserve of each item, positionally aligned to `items` */
+  reserves: number[];
+  /** swap fee in basis points (10000 = 100%) */
+  feeBps: number;
+  /** total liquidity-provider shares outstanding */
+  lpSupply: number;
+  /** pool creation timestamp, seconds */
+  startTime: number;
+  /** present and true when the pool is paused */
+  disabled?: boolean;
+  /** PURE RESERVE RATIO — excludes the fee and excludes price impact.
+   * It is a valuation of the current depth, NOT a swap quote: an actual
+   * swap moves along the constant-product curve and pays feeBps. Omitted
+   * when either reserve is zero. */
+  impliedRate?: { item0PerItem1: number; item1PerItem0: number };
+};
+
+/** Item pools (0.3.0) — the constant-product item-swap venues that exist as
+ * world state.
+ *
+ * FACTS ONLY, deliberately. The reserves, the fee, the share supply and the
+ * creation time are read out of the mirror and are chain-verifiable per row.
+ * The swap-output formula is NOT served: the pinned client carries no pool
+ * module, so there is no upstream implementation to be faithful to and no
+ * differential gate that could catch a transcription error in one. A
+ * consumer holding the two reserves and the fee has everything the formula
+ * consumes. Quoting arrives with a pin whose client ships the pool module.
+ *
+ * Discovery is mirror-only: the entity-type component carries no on-chain
+ * reverse index, so "which pools exist" is answerable from the local mirror
+ * and not from a chain read — while every row it returns is chain-checkable
+ * one entity at a time. Reserves are ordinary inventory balances held by the
+ * pool entity itself, read through the same deterministic
+ * inventory-instance path every other balance uses. */
+export function poolsQuery(mirror: Mirror): PoolOut[] {
+  const { world, components } = mirror;
+  const { EntityType, Keys, Rate, StartTime, Value } = components;
+  const entities = Array.from(runQuery([HasValue(EntityType, { value: 'POOL' })]));
+
+  const pools: PoolOut[] = [];
+  for (const entity of entities) {
+    const id = world.entities[entity];
+    const keys = (getComponentValue(Keys, entity)?.value ?? []) as unknown as number[];
+    // a pool is a pair; anything else is not a shape this version serves
+    if (!Array.isArray(keys) || keys.length !== 2) continue;
+    const items = keys.map((k) => Number(k));
+    const reserves = items.map((index) => getItemBalance(world, components, id, index));
+    const pool: PoolOut = {
+      id,
+      items,
+      reserves,
+      feeBps: Number(getComponentValue(Rate, entity)?.value ?? 0),
+      lpSupply: Number(getComponentValue(Value, entity)?.value ?? 0),
+      startTime: Number(getComponentValue(StartTime, entity)?.value ?? 0),
+    };
+    if (getIsDisabled(components, entity)) pool.disabled = true;
+    if (reserves[0] > 0 && reserves[1] > 0) {
+      pool.impliedRate = {
+        item0PerItem1: reserves[0] / reserves[1],
+        item1PerItem0: reserves[1] / reserves[0],
+      };
+    }
+    pools.push(pool);
+  }
+  return pools.sort((a, b) => a.items[0] - b.items[0] || a.items[1] - b.items[1]);
 }
 
 // -------------------------------------------------------------- config
@@ -512,10 +652,57 @@ export type ListingOut = {
   requirements: string[];
 };
 
+export type NewbieVendorOut = {
+  /** the kami indices purchasable RIGHT NOW — the display window */
+  displayedKamiIndices: number[];
+  /** how many kami indices the vendor holds in total */
+  poolSize: number;
+  /** cycle anchor, seconds */
+  cycleStart: number;
+  /** rotation period, seconds */
+  cycleSeconds: number;
+  /** seconds until the display window advances */
+  secondsToNextRotation: number;
+};
+
 export type MerchantOut = {
   merchants: { index: number; name: string; roomIndex: number }[];
   listings?: ListingOut[];
+  /** the starter vendor's rotating display window (0.3.0), served on the
+   * merchant enumeration */
+  newbieVendor?: NewbieVendorOut;
 };
+
+// The vendor entity id, the same derivation the projection layer uses
+// (network/shapes/NewbieVendor/queries.ts).
+const NEWBIE_VENDOR_ID = formatEntityID(keccakOfString('newbie.vendor'));
+
+/** The starter vendor sells only the kamis in its current display window,
+ * and rejects a purchase outside it. The window is world state — a stored
+ * pool of indices, a stored cycle anchor and a configured period — so it is
+ * readable BEFORE the attempt rather than discoverable only by failing one.
+ * The window itself comes from the projection layer's own cycle
+ * computation; the surrounding facts are read off the same entity. */
+function newbieVendorState(mirror: Mirror): NewbieVendorOut | undefined {
+  const { world, components } = mirror;
+  const entity = world.entityToIndex.get(NEWBIE_VENDOR_ID);
+  if (entity === undefined) return undefined;
+  const pool = (getComponentValue(components.Values, entity)?.value ?? []) as unknown as number[];
+  const cycleStart = Number(getComponentValue(components.StartTime, entity)?.value ?? 0);
+  const cycleSeconds = Number(getConfigFieldValue(world, components, 'NEWBIE_VENDOR_CYCLE') ?? 0);
+  const now = Math.floor(clock.now() / 1000);
+  const elapsed = cycleSeconds > 0 && now > cycleStart ? (now - cycleStart) % cycleSeconds : 0;
+  return {
+    // Number() coercion: the mirror decodes this numeric array as hex
+    // strings; the served surface is honest numbers (the same phantom-type
+    // handling the quest instance times get)
+    displayedKamiIndices: getDisplayedKamiIndices(world, components).map((i) => Number(i)),
+    poolSize: Array.isArray(pool) ? pool.length : 0,
+    cycleStart,
+    cycleSeconds,
+    secondsToNextRotation: cycleSeconds > 0 ? cycleSeconds - elapsed : 0,
+  };
+}
 
 function toListingOut(mirror: Mirror, listing: Listing): ListingOut {
   const { world, components } = mirror;
@@ -575,7 +762,8 @@ export function merchantQuery(mirror: Mirror, args: { index?: number }): Merchan
       .filter((npc) => npc.index)
       .sort((a, b) => a.index - b.index)
       .map((npc) => ({ index: npc.index, name: npc.name, roomIndex: npc.roomIndex }));
-    return { merchants };
+    const newbieVendor = newbieVendorState(mirror);
+    return { merchants, ...(newbieVendor ? { newbieVendor } : {}) };
   }
   const npc = getNPCByIndex(world, components, args.index, { listings: true });
   if (!npc || !npc.index) {

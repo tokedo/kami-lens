@@ -19,6 +19,42 @@
           "items": {
             "$ref": "#/$defs/Listing"
           }
+        },
+        "newbieVendor": {
+          "$ref": "#/$defs/NewbieVendor"
+        }
+      }
+    },
+    "NewbieVendor": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The starter vendor's rotating display window. It sells only the kamis currently displayed and rejects a purchase outside that set, so the window is served as readable state rather than being discoverable only by a failed attempt.",
+      "required": [
+        "displayedKamiIndices",
+        "poolSize",
+        "cycleStart",
+        "cycleSeconds",
+        "secondsToNextRotation"
+      ],
+      "properties": {
+        "displayedKamiIndices": {
+          "type": "array",
+          "description": "the kami indices purchasable right now",
+          "items": {
+            "type": "number"
+          }
+        },
+        "poolSize": {
+          "type": "number"
+        },
+        "cycleStart": {
+          "type": "number"
+        },
+        "cycleSeconds": {
+          "type": "number"
+        },
+        "secondsToNextRotation": {
+          "type": "number"
         }
       }
     },
