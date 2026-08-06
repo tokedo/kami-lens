@@ -1,0 +1,24 @@
+{
+  "gate": "g6b-chain-crosscheck",
+  "measuredAt": "2026-08-06T22:38:28.170Z",
+  "pinnedBlock": 31782405,
+  "headAfterVerify": 31782416,
+  "blocksBehindAtEnd": 11,
+  "verifyElapsedMs": 8298,
+  "reads": 126,
+  "concurrency": 8,
+  "accountIndex": 2160,
+  "roomIndex": 25,
+  "sampling": "inventory/room/merchant exhaustive for the sampled entities; leaderboard top-10 + every 200th per board",
+  "counts": {
+    "inventoryRows": 14,
+    "roomOccupants": 16,
+    "roomNegatives": 5,
+    "listings": 16,
+    "scores:COLLECT": 17,
+    "scores:LIQUIDATE": 12
+  },
+  "violations": [],
+  "violationCount": 0,
+  "match": true
+}
