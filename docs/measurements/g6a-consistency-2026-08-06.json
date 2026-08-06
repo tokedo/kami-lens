@@ -1,11 +1,11 @@
 {
   "gate": "g6a-consistency",
-  "measuredAt": "2026-08-06T21:35:55.562Z",
-  "snapshotBlock": 31230648,
+  "measuredAt": "2026-08-06T22:32:53.755Z",
+  "snapshotBlock": 31782245,
   "nodeIndex": 80,
   "counts": {
-    "vitalsCompared": 29,
-    "liquidationRows": 29,
+    "vitalsCompared": 31,
+    "liquidationRows": 31,
     "staminaChecked": 10,
     "inventoriesChecked": 10,
     "listingsChecked": 16,

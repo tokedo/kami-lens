@@ -1,7 +1,7 @@
 {
   "gate": "g3f-envelope",
-  "measuredAt": "2026-08-06T21:36:11.082Z",
-  "snapshotBlock": 31230648,
+  "measuredAt": "2026-08-06T22:32:48.514Z",
+  "snapshotBlock": 31782245,
   "cases": 23,
   "mismatches": [],
   "nameFreeChecks": {

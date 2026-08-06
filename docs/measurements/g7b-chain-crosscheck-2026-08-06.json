@@ -1,37 +1,11 @@
 {
-  "gate": "g7a-consistency",
-  "measuredAt": "2026-08-06T22:34:08.442Z",
-  "snapshotBlock": 31782245,
-  "accountsSampled": 25,
-  "counts": {
-    "questAnswers": 12,
-    "objectivesChecked": 833,
-    "rostersChecked": 25,
-    "rosterRowsChecked": 2998,
-    "poolsServed": 6,
-    "vendorChecked": 1
-  },
-  "questRowsWithAccount": 2244,
-  "questAccountAnswerMeanMs": 14.8,
-  "registryObjectivesScanned": 198,
-  "objectivesWithForComponent": 0,
-  "compaction": {
-    "measured": true,
-    "accountIndex": 3053,
-    "kamis": 1050,
-    "rosterBytes": 49250,
-    "partyBytes": 281150,
-    "rosterMarginalBytesPerKami": 46.86,
-    "partyMarginalBytesPerKami": 267.71,
-    "marginalRatio": 0.175,
-    "threshold": 0.25,
-    "projectedAt150": {
-      "roster": 7080,
-      "party": 40210
-    }
-  },
+  "gate": "g7b-chain-crosscheck",
+  "measuredAt": "2026-08-06T22:34:42.528Z",
+  "pinnedBlock": 31782321,
+  "servedAtBlock": 31782321,
+  "headAfterVerify": 31782337,
+  "blocksBehindAtEnd": 16,
   "poolsServed": 6,
-  "vacuous": [],
   "pools": [
     {
       "id": "0x756d631b9b01b8047bd966a57c660900aa51f205d4400c3bd1c3f82c61273b3f",
@@ -39,11 +13,11 @@
         1,
         2
       ],
-      "feeBps": 30,
       "reserves": [
         2122803,
         2079936
-      ]
+      ],
+      "feeBps": 30
     },
     {
       "id": "0x1bde161d8506c5e6aa7d4edb0e3ef415fc23289aad12a4fe8c594458b24c9296",
@@ -51,11 +25,11 @@
         1,
         100
       ],
-      "feeBps": 30,
       "reserves": [
         19253824,
         54708
-      ]
+      ],
+      "feeBps": 30
     },
     {
       "id": "0x10753fe7ffeb9c05aabdb985f8c12c1d84b7c88195ca8682a7e56d2532bd7b48",
@@ -63,11 +37,11 @@
         1,
         1001
       ],
-      "feeBps": 30,
       "reserves": [
         1006392,
         527145
-      ]
+      ],
+      "feeBps": 30
     },
     {
       "id": "0xbe7995a3a678b770f4a4bc2adb8ad731c8a62c7feb63cbbc9e4dc1af6eedd03b",
@@ -75,11 +49,11 @@
         1,
         1002
       ],
-      "feeBps": 30,
       "reserves": [
         147188,
         74513
-      ]
+      ],
+      "feeBps": 30
     },
     {
       "id": "0x657317a1349a30bd7d857a1c4f5b581a470d5f36f54e414c0de46760c6c9fd7c",
@@ -87,11 +61,11 @@
         1,
         1004
       ],
-      "feeBps": 30,
       "reserves": [
         2290115,
         6110
-      ]
+      ],
+      "feeBps": 30
     },
     {
       "id": "0xfe69a21d39e77148c76186b297965adb666e55c6991e0ab190a19b6cf1f60eea",
@@ -99,13 +73,14 @@
         1,
         1005
       ],
-      "feeBps": 30,
       "reserves": [
         325756,
         39491
-      ]
+      ],
+      "feeBps": 30
     }
   ],
+  "entityTypeReverseLookup": "unavailable: Error: missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xb361be4600000000000000000000",
   "newbieVendor": {
     "displayedKamiIndices": [
       2919,
@@ -115,15 +90,16 @@
     "poolSize": 898,
     "cycleStart": 1773163103,
     "cycleSeconds": 172800,
-    "secondsToNextRotation": 67455
+    "secondsToNextRotation": 67423,
+    "chainPoolSize": 898
   },
-  "tripwires": {
-    "unknownComponentIds": 0,
-    "unknownComponentSchemas": 0,
-    "decodeFailures": 0,
-    "kamigazeNonceBumps": 0
+  "counts": {
+    "poolsVerified": 6,
+    "reservesVerified": 12,
+    "negativeSamples": 12,
+    "vendorVerified": 1
   },
-  "problems": [],
-  "problemCount": 0,
+  "violations": [],
+  "violationCount": 0,
   "match": true
 }

@@ -20,10 +20,13 @@
 //     populates it, so a nonzero count would mean objectives are being
 //     evaluated against the wrong holder and is a finding, not a pass/
 //     fail condition this version can act on;
-//   · roster vs party: every roster row agrees field-for-field with the
-//     full party report for the same kami at the same block, and the
-//     roster carries no authored strings (its untrusted list is empty
-//     and name-free mode changes nothing);
+//   · roster vs party: every roster row agrees with the full party report
+//     for the same kami — state and health maximum exactly, projected
+//     health within the ±2 the other cross-query checks allow, since the
+//     two answers are evaluated at two instants and health accrues
+//     continuously — and the roster carries no authored strings (its
+//     untrusted list is empty, and name-free mode neither withholds a
+//     field nor raises a receipt);
 //   · roster compaction (prediction 3): marginal bytes per kami, roster
 //     vs party, measured at the fixture's largest roster and asserted
 //     against the frozen threshold below;
@@ -72,6 +75,7 @@ const mirror = { world, components, blockNumber: cache.blockNumber };
 const problems: Record<string, unknown>[] = [];
 const counts: Record<string, number> = {};
 const note = (area: string, n = 1) => (counts[area] = (counts[area] ?? 0) + n);
+const close = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol;
 
 async function serve(query: string, args: string[], opts = {}): Promise<unknown> {
   return (await serveQuery(mirror, query, args, { stale: false, mode: 'daemon', ...opts })).data;
@@ -260,9 +264,23 @@ for (const accountIndex of accountIndexes) {
   if (rosterEnv.untrusted.length !== 0) {
     problems.push({ area: 'roster', reason: 'roster volunteered an authored string', accountIndex, untrusted: rosterEnv.untrusted });
   }
+  // Name-free mode must change NOTHING about this answer: no field
+  // withheld, no receipt raised, no roster row added or dropped. Health is
+  // a continuous projection and the two calls are not simultaneous, so the
+  // comparison is structural — the same kamis in the same states, with the
+  // same maxima — plus the receipt and untrusted-list properties. Comparing
+  // projected health across two instants would be testing the clock.
   const nameFree = await envelope('roster', [String(accountIndex)], { noAuthored: true });
-  if (JSON.stringify(nameFree.data) !== JSON.stringify(roster)) {
-    problems.push({ area: 'roster', reason: 'name-free mode changed a name-free answer', accountIndex });
+  const shapeOf = (r: RosterOut) =>
+    JSON.stringify({
+      account: r.account,
+      kamis: r.kamis.map((k) => ({ index: k.index, state: k.state, total: k.hp[1] })),
+    });
+  if (shapeOf(nameFree.data as RosterOut) !== shapeOf(roster)) {
+    problems.push({ area: 'roster', reason: 'name-free mode changed the answer', accountIndex });
+  }
+  if (nameFree.untrusted.length !== 0 || nameFree.meta.suppressed !== undefined) {
+    problems.push({ area: 'roster', reason: 'name-free mode raised a receipt on a name-free answer', accountIndex, untrusted: nameFree.untrusted, suppressed: nameFree.meta.suppressed });
   }
   if (roster.account.index !== accountIndex) {
     problems.push({ area: 'roster', reason: 'account index echo wrong', accountIndex });
@@ -285,7 +303,12 @@ for (const accountIndex of accountIndexes) {
     if (row.state !== full.state) {
       problems.push({ area: 'roster', reason: 'state differs from the party report', accountIndex, kami: row.index });
     }
-    if (row.hp[0] !== full.hp.current || row.hp[1] !== full.hp.total) {
+    // The health MAXIMUM is a stat and must match exactly. Current health
+    // is a continuous projection evaluated at two different instants, so it
+    // is toleranced the way the other cross-query checks tolerance it (±2)
+    // — the failure this guards against is a wrong health, not a health
+    // that moved by a tick between two calls.
+    if (row.hp[1] !== full.hp.total || !close(row.hp[0], full.hp.current, 2)) {
       problems.push({ area: 'roster', reason: 'hp differs from the party report', accountIndex, kami: row.index, roster: row.hp, party: full.hp });
     }
   }

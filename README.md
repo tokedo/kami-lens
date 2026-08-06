@@ -68,8 +68,10 @@ for the study of the official client this is built from.
 ## Status
 
 **0.3.0, pre-release.** Daemon, CLI, and library are implemented and
-gate-verified: gates G0–G7 pass against the pinned upstream commit and
-the live game, with dated evidence in `docs/measurements/`. The
+gate-verified against the pinned upstream commit and the live game,
+with dated per-run evidence in `docs/measurements/`. The verification
+suite is G0–G7; every run writes its own dated record, and the record
+— not this paragraph — is what a given release rests on. The
 contract registry is [SPEC.md](SPEC.md); per-surface coverage — what
 is served, what is deferred, what is out of scope — is
 [docs/coverage.md](docs/coverage.md).

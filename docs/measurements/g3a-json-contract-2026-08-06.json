@@ -1,8 +1,8 @@
 {
   "gate": "g3a-json-contract",
-  "measuredAt": "2026-08-06T21:36:04.552Z",
-  "snapshotBlock": 31230648,
-  "validated": 674,
+  "measuredAt": "2026-08-06T22:32:42.929Z",
+  "snapshotBlock": 31782245,
+  "validated": 681,
   "kamisSampled": 300,
   "accountsSampled": 40,
   "nodesSampled": 64,
