@@ -234,6 +234,58 @@ otherwise carry no player text — names render via mirror joins.
   headline: tagging does not make injection safe; a consumer that
   feeds authored text to an LLM context does so knowingly.
 
+### 3.11 What a reader must be able to read before it acts (0.3)
+
+Settled with the 0.3 surface additions. **A failure must never cite state
+the reader could not have read through the query surface beforehand.**
+
+An action refused because of some condition — a purchase rejected because
+the item was not on offer this cycle, an objective that turns out not to
+have been counting what it appeared to be counting — is only fair to the
+reader if that condition was readable in advance. Where it was not, the
+gap is a defect in this surface rather than an inconvenience of the world:
+the reader is being asked to discover state by failing, and a machine
+reader will simply fail again.
+
+Two consequences that are easy to get backwards:
+
+- **A missing pane is not a missing surface.** That the reference client
+  displays something is good evidence that it matters and is worth
+  serving. That the reference client does *not* display something is no
+  evidence at all that it should be withheld. Panes are one product's
+  editorial choices; this is a query surface, and the two are not the same
+  object. Where the world holds a fact a reader needs before acting,
+  serving it is in scope even if no pane shows it. (§3.7's parity standard
+  is unchanged: it fixes the *ceiling* of exposure. This fixes the floor.)
+- **Serving a truth surface is not mirroring a pane.** Where a pane and
+  the state beneath it disagree, the state wins and the disagreement gets
+  documented. The case that settled this: the reference client's
+  quest-detail panel can render an accrual objective as already satisfied
+  for a quest the account has not accepted — accrual is measured from a
+  snapshot taken at acceptance, and with no snapshot yet written the
+  comparison runs against zero, so a lifetime total reads as progress. The
+  client's own accepted-quest counter contradicts it the moment the quest
+  is taken. Copying that checkmark would be mirroring a pane; refusing to
+  serve progress before acceptance is serving the truth surface.
+
+**Predictions ride with the change.** Every 0.3 addition carries a
+falsifiable statement of the behaviour it should produce, recorded beside
+the change and checked by a gate. A claim that cannot fail is not a claim,
+and a surface addition whose value is asserted rather than demonstrated is
+how a query surface accumulates fields nobody can rely on.
+
+**One consequence for pin semantics, stated rather than left implicit.**
+Item pools are world state that arrived after the pinned client. Their
+rows are therefore served with no lineage to the pin at all: no ported
+module implements them, and no display-parity comparison is even possible
+because the pinned client has no pool pane to compare against. Part of the
+served surface is now pin-dated (code lineage, §7) and part is world-dated
+(state that exists whether or not the pinned client knows about it). That
+is deliberate and follows directly from the principle above, but it must
+be visible: the coverage row says so, and quoting — as opposed to serving
+pool facts — is deferred to §6 precisely because it is the part that would
+need the code lineage.
+
 ## 4. Architecture
 
 ### 4.1 Sync layer
@@ -396,6 +448,16 @@ Never silent gaps.
   pin advance; what is deferred is only the continuous,
   vendored-in-repo variant maintained as standing test
   infrastructure.
+- **Item-pool swap quoting.** Pool FACTS are served at 0.3 (reserves,
+  fee, share supply, creation time, and a fee-exclusive reserve-ratio
+  valuation). The swap-output formula is not: the pinned client carries no
+  pool module, so porting it would mean transcribing contract math with no
+  upstream implementation to be faithful to and no differential gate able
+  to catch a transcription error — the two properties §3.3 and the G2.a
+  gate exist to guarantee. Quoting arrives with a pin whose client ships
+  the pool module, at which point the differential gate covers it for
+  free. A reader holding both reserves and the fee has everything the
+  formula consumes in the meantime.
 - **Single-binary packaging.**
 - **`replayOnto` loud refusal** (0.2.0 audit residual). The gates
   library replay primitive (`gates/g1/lib.mts`) silently no-ops when

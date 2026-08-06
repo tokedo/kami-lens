@@ -1,7 +1,7 @@
 ---
 module: kami-lens
-version: 2
-describes: 0.2.0 (a0a3e1e)
+version: 3
+describes: 0.3.0
 ---
 
 # kami-lens — Contract Registry
@@ -27,7 +27,7 @@ push.
 
 ### 1.1 Query surface
 
-Twenty-two named queries, plus `status` and one stateless variant.
+Twenty-three named queries, plus `status` and one stateless variant.
 The authority for what a release serves is the zero-TBD table in
 [docs/coverage.md](docs/coverage.md); this table is the contract form
 of it. *Needs* is what must be reachable for a non-error answer:
@@ -38,15 +38,16 @@ of it. *Needs* is what must be reachable for a non-error answer:
 | `kami <index>` | single-kami vitals (HP now/total/%, state, cooldown, output) | mirror *or* stateless | G3.a, G3.d, G2.a, G2.b |
 | `account <index\|name>` | account identity, room, stamina (current + total), friends, reputation; bio only under `--prose` | mirror | G3.a, G6.a |
 | `party [accountIndex]` | every kami of an account with full vitals | mirror | G3.c |
+| `roster [accountIndex]` | compact roster: one line per kami (index, state, `[hp, hpTotal]`) + the account's room | mirror | G3.a, G3.f, G7.a |
 | `node <index> [attacker] [--with-vitals]` | node + ACTIVE harvests; with the flag, occupant vitals and the pairwise liquidation preview | mirror | G3.b, G6.a, G6.b |
 | `room <index>` | room occupancy: accounts present, each joined with its kamis | mirror | G3.a, G6.b |
 | `inventory <accountIndex\|name>` | any-account item inventory (zero balances dropped, ascending item index) | mirror | G6.a, G6.b |
-| `merchant [npcIndex]` | NPC enumeration; with an index, the listing catalog with GDA clock-corrected unit prices | mirror | G6.a, G6.b |
-| `item <index>` / `items` | item registry row / the full registry | mirror | G3.a |
+| `merchant [npcIndex]` | NPC enumeration (with the starter vendor's display window); with an index, the listing catalog with GDA clock-corrected unit prices | mirror | G6.a, G6.b, G7.a, G7.b |
+| `item <index>` / `items` | item registry row / the full registry; both carry item-pool state — pool set, reserves, fee, share supply, reserve-ratio valuation | mirror | G3.a, G7.a, G7.b |
 | `config <name> [--array]` | one `is.config` field value | mirror | G3.a |
 | `phase` | day/night phase (36 h cycle, 12 h phases) + seconds to the next flip | mirror | G6.a, `test/phase.test.ts` |
 | `leaderboard [type] [epoch] [itemIndex]` | mirror `Score` leaderboard, value-sorted, 1-based ranks, holders joined | mirror | G6.a, G6.b |
-| `quests [accountIndex]` | quest registry; with an account, accepted quests + completion | mirror | G3.a |
+| `quests [accountIndex]` | quest registry; with an account, every row carries that account's state (accepted / complete / requirements met / objectives met) and accepted rows carry per-objective progress | mirror | G3.a, G7.a |
 | `trades [accountIndex]` | open chain trades; with an account, Kamiden history + open offers | mirror (+kamiden for history) | G3.a, G4.a |
 | `auctions [itemIndex]` | chain auctions with current GDA price; with an item, Kamiden buy history | mirror (+kamiden for buys) | G3.a, G4.a |
 | `killers [size]` | killer rankings (`GetKillsByKami`), service-ranked, mirror name-joins; `totalRanked` always served | mirror + kamiden | G6.c |
@@ -63,6 +64,8 @@ of it. *Needs* is what must be reachable for a non-error answer:
 |---|---|
 | Every query above validates against a checked-in JSON schema in `src/queries/schemas/`; schema drift fails the gate. | G3.a (validates all of `QUERY_NAMES` + `status` + `kami-stateless`) |
 | Daemon socket, CLI, and library serve the same answers because all three enter through `serveQuery` over one `REGISTRY`. | structural (`src/queries/index.ts`); G3.d compares the stateless CLI answer against the daemon's for the same kami at the same block |
+| A quest answer never reports progress on a quest the account has not accepted, and never synthesizes a number where the world holds none (boolean objectives, and the objectives of a finished quest, carry `met` and no counters). | G7.a (the pre-acceptance guard and the no-synthesis checks, over every served objective) |
+| Item-pool rows are FACTS ONLY — reserves, fee, share supply, creation time, and a fee-exclusive reserve-ratio valuation. No swap quote is served at this pin. | structural (`poolsQuery`, `src/queries/build.ts`); DESIGN §6 (quoting deferred to a pin whose client ships the pool module) |
 | Queries are general: any account, kami, node, or room is an argument — there is no privileged "own" path. `defaultOperator` is a prefill for an argument, never a special path. | structural (`REGISTRY.operatorArg`, `src/queries/registry.ts`); DESIGN §3.6, §5 |
 | A discovery answer (`room`, `node` occupancy, `inventory`, `leaderboard`, `merchant`) exists only via the mirror, but every element of it is chain-checkable. | G3.b, G6.b (pinned `eth_call` reads per row, plus negative samples) |
 | Documented CLI exit codes: 0 success · 1 query error / daemon fatal · 2 usage · 3 `ERR_NO_SNAPSHOT_SOURCE` · 4 daemon unreachable · 5 `REQUIRES_DAEMON`. | G3.d (5). Codes 1/2/3/4 are numerically **unenforced** — no gate asserts an exit status for them, and the 3-mapping is structural (`src/cli.ts`). G1.e enforces the *refusal* on the library path: the `ERR_NO_SNAPSHOT_SOURCE` marker on the `daemon.start()` throw, plus never-LIVE |
@@ -86,8 +89,10 @@ of it. *Needs* is what must be reachable for a non-error answer:
 | Fail-safe: a string field not listed in the artifact resolves to `authored-prose` — the strictest class. New upstream fields arrive untrusted. | `test/envelope.test.ts` ("falls back to authored-prose for unclassified strings"); `classification.default` in the artifact |
 | `authored-prose` is never volunteered: pruned from every default output, report, and aggregate. Opt-in only (`--prose`, or the dedicated `chat` query). | G3.f; G4.c (fixture-seeded sweep of every non-chat query asserts zero message bodies anywhere in output); `test/envelope.test.ts` |
 | `authored-id` is inline by default and **always** tagged. | G3.f; `test/envelope.test.ts` |
+| The compact `roster` answer carries no authored strings at all: its `untrusted` list is always empty and the answer is byte-identical in name-free mode. | G3.f (both modes, derived not asserted); G7.a |
 | `authored-id` is parity-bounded — names appear only where the official client shows names, never in novel aggregations. | **unenforced** — a review-time property of the checked-in schemas; no gate asserts name placement. G2.b compares displayed values, not which fields carry names |
 | Name-free mode (`--no-authored`) is first-class: value deleted, path recorded in `meta.suppressed`, stable IDs kept for joins. | G3.f; G6.c (asserts `rows[].name` absent and receipted on `killers`); `test/envelope.test.ts` |
+| Classified types added at 0.3.0: `QuestObjective` (`name` registry; `type`/`logic`/`basis` system), `Pool` (`id` system), `RosterKami` (`state` system). | G3.f |
 | The classification artifact is keyed by schema `$def` type × property, so a new query reusing a classified type inherits its classes. | structural (`classifyPaths`, `src/queries/envelope.ts`); G3.f |
 | Changing the classification artifact gets the same mandatory hand review as a formula-affecting diff. | DESIGN §7 (process, not script) — `unenforced` by machine |
 
@@ -162,7 +167,7 @@ kami-lens makes about it.
 Parity **requires** these. A rework must not "fix" them; fixing one is
 a parity break, not a cleanup.
 
-**Eight behavioral quirks:**
+**Ten behavioral quirks:**
 
 | # | Quirk | Where |
 |---|---|---|
@@ -174,6 +179,8 @@ a parity break, not a cleanup.
 | 6 | The chat cache paginates **backward** from `messages[0]` and prepends, while `getLastTimestamp` reads from the array tail. | `src/app/cache/chat/chat.ts` |
 | 7 | `cleanInventories`' comment claims it removes MUSU; its code does not — the removal lives in the modal's item-grid filter. The port applies both steps, in that order. | `src/queries/build.ts`; asserted in `gates/g2/b-display-parity.mts` |
 | 8 | The leaderboard modal pins `itemIndex` to MUSU on a type change, so its LIQUIDATE view renders empty although 542 rows live at index 0. Served faithfully; the general `leaderboard` query reaches the real rows. | docs/coverage.md, 0.2.0 section; G6.b |
+| 9 | Objective evaluation short-circuits on a finished quest: it returns "met" with no counters at all, so a completed quest's objectives carry no numbers. Preserved — the served surface reports `met` and omits `current`/`required` rather than back-filling them. | `src/network/shapes/Quest/objective.ts`; asserted by G7.a |
+| 10 | The deterministic-id helper caches on the joined ARGUMENTS only, ignoring the argument TYPES, so hashing the same arguments under two different typings returns the first typing's id for both. Latent upstream (no call site hashes one argument list under two typings); it is a live trap for any new deterministic id, since a wrong typing can be masked by an earlier correct one in the same process. | `src/network/shapes/utils/IDs.ts` (`hashArgs`, the `IDStore` key) |
 
 **Thirty-four preserved type holes across fourteen files:** each is an
 upstream type defect that vite never typechecks, kept as
@@ -198,6 +205,9 @@ upstream type defect that vite never typechecks, kept as
 | **`calcSalvage` exported** (upstream keeps it module-private; its UI previews only spoils and recoil). | The node liquidation preview serves the salvage side. Visibility-only — no formula change. | G2.a (formula identity); file banner |
 | **Periodic checkpointing** where upstream persists the state cache exactly once per session. | A daemon has no page-reload cycle (DESIGN §3.5). | G1.d (warm restart converges to the same state hash and beats cold time-to-LIVE) |
 | **`Date.now()` → `clock.now()`** at every projection call site. | Clock discipline (DESIGN §3.8). | `test/clock.test.ts` static scan; G2.c |
+| **Numeric progress served for objective types the reference client hides.** Its quest card suppresses the `[current/required]` readout for three types; the served surface carries the numbers for every type that has them. | Truth surface over pane mirroring (DESIGN §3.11): the pane's suppression is an editorial choice, and a machine reader needs the number to decide. | structural (`toObjectiveOut`, `src/queries/feeds.ts`); G7.a asserts the numbers against a recompute |
+| **Progress withheld before acceptance**, where the reference client's quest-detail panel renders such an objective as satisfied. | The client's own accepted-quest counter contradicts it; the number is an artefact of a snapshot that does not exist yet (DESIGN §3.11). | G7.a (the pre-acceptance guard) |
+| **Projection refresh windows forced unconditional.** The windows are staleness limits compared with a strict greater-than, so zero did not mean "always": two reads of one kami inside the same millisecond skipped the refresh, and since this layer clears the cache before each read — upstream never does — the rebuilt entry was served without its optional sub-objects, reporting zero health for a healthy kami. | A port defect is fatal, not preserved (DESIGN §4.1). The interaction is this port's, since the cache clear is. | `KAMI_REFRESH` (`src/queries/build.ts`); G7.a asserts roster and party agree field-for-field, which is what caught it |
 | **Port hygiene** (DESIGN §4.1): replay floor seeded from snapshot/initial block; explicit no-stream mode for gap-fill; the dead `maybeThrow` test helper not lifted; tolerant `componentIDs.json` parse; browser-only `mode: 'cors'` dropped. | Upstream artifacts that are defects rather than behavior. | G1.a, G1.c; G0 |
 
 ### 4.3 Known residual — unenforced
@@ -230,4 +240,5 @@ upstream type defect that vite never typechecks, kept as
 | Version | Describes | Change |
 |---|---|---|
 | 1 | 0.2.0 (`a0a3e1e`, pin `ef898fc9`) | First registry. Enumerates the 22-query surface plus `status` and the stateless variant; the envelope; the four-class taint model; pin semantics; 15 consumed-contract rows; 18 invariants; 8 preserved quirks + 34 type holes across 14 files; 10 divergences; 1 unenforced residual; 10 non-goals. |
+| 3 | 0.3.0 (pin `ef898fc9`) | Four perception additions and one investigation, under DESIGN §3.11 (a failure must never cite state the reader could not have read beforehand). New `roster` query (23rd) with the empty-untrusted-list property. `quests` gains account-relative state per registry row and per-objective progress for accepted quests, with progress withheld before acceptance. `item`/`items` gain item-pool state by enrichment — facts only, no swap quote. `merchant` gains the starter-vendor display window, and the coverage row that had wrongly claimed that read side was already served is split out and corrected. Three classified types, two preserved-quirk rows (9, 10), three divergence rows, one gate (G7.a hermetic + G7.b live). One 0.2.0 defect fixed: the projection refresh windows could serve a kami with no stats when two reads landed in the same millisecond. |
 | 2 | 0.2.0 (`a0a3e1e`, pin `ef898fc9`) | Registry corrections from the independent audit of v1. Exit-code enforcement restated to what the gate actually asserts (§1.1, §3: G1.e proves the `ERR_NO_SNAPSHOT_SOURCE` refusal marker and never-LIVE on the library path; codes 1/2/3/4 numerically unenforced, the 3-mapping structural). Non-goal §5 parity-reference cite made self-contained. No claim added or withdrawn; the described artifact is unchanged. |

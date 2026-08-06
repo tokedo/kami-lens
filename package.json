@@ -1,6 +1,6 @@
 {
   "name": "kami-lens",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Read-only local mirror and query surface for the Kamigotchi world \u2014 a headless port of the official client's perception layer.",
   "author": "Anatoly Zaytsev (tokedo)",
   "license": "AGPL-3.0-only",

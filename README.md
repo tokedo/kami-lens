@@ -67,12 +67,17 @@ for the study of the official client this is built from.
 
 ## Status
 
-**0.2.0, pre-release.** Daemon, CLI, and library are implemented and
-gate-verified: gates G0–G6 pass against the pinned upstream commit and
+**0.3.0, pre-release.** Daemon, CLI, and library are implemented and
+gate-verified: gates G0–G7 pass against the pinned upstream commit and
 the live game, with dated evidence in `docs/measurements/`. The
 contract registry is [SPEC.md](SPEC.md); per-surface coverage — what
 is served, what is deferred, what is out of scope — is
 [docs/coverage.md](docs/coverage.md).
+
+0.3.0 adds per-objective quest progress, account-relative quest state,
+item-pool state, a compact roster query, and the starter vendor's
+display window — under one principle: a failure must never cite state
+the reader could not have read beforehand (DESIGN §3.11).
 
 No release act has been performed: nothing is published to npm or a
 container registry yet. Build and run it from this repository.

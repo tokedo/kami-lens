@@ -74,7 +74,8 @@ than left as an implied `planned`.
 | bridges: deposit/withdrawal history | kamiden `GetTokenDeposits`/`GetTokenWithdrawals`/`GetOpenWithdrawals` | kamiden | served (G4.a) | G4.a |
 | dialogue / questDialogue | code-shipped dialogue trees + `shapes/Quest`/room state | chain + code | **not served at 0.2.0** — dialogue trees ported with the pin, no dedicated query (`quests` serves name/description only) | — |
 | operator gas balance | `eth_getBalance(operator)` (shown by FundOperator/header) | chain | **not served at 0.2.0** — no balance read on any query path | — |
-| acting flows: kamiSend, naming (incl. its emaBoard UI), kamiPortal, kamiAdoptionAgency, operatorFund, templeOfTheWheel, obol, presale | acting UIs; their read-side state is served by general queries over the ported `app/cache`/shapes (account, kami, item, config, listings) | — | out-of-scope (read-only) | — |
+| acting flows: kamiSend, naming (incl. its emaBoard UI), kamiPortal, operatorFund, templeOfTheWheel, obol, presale | acting UIs; their read-side state is served by general queries over the ported `app/cache`/shapes (account, kami, item, config, listings) | — | out-of-scope (read-only) | — |
+| starter-vendor purchase flow (`kamiAdoptionAgency`) | the vendor entity's kami pool + cycle anchor (`Values`, `TimeStart`) and the `NEWBIE_VENDOR_CYCLE` config, through the ported display-window computation | chain + code | **the act is out-of-scope (read-only); its read side is served since 0.3.0** by `merchant`'s `newbieVendor` block | G7.a, G7.b |
 | studio, help, settings | chrome; no world state (shader viewer, static copy, local prefs — verified by import audit) | — | out-of-scope | — |
 
 ## Not modal-bound but player-visible
@@ -83,6 +84,7 @@ than left as an implied `planned`.
 |---|---|---|---|---|
 | battle/kill feed | kamiden stream `Feed`, daemon ring buffer served as pull query | kamiden | served (G4.b) | G4.b |
 | room presence (other accounts) | `RoomIndex == here` mirror query | chain | served (G3.a, G6.b) | dedicated `room` query (0.2.0): G3.a + G6.b |
+| item pools (constant-product item swap venues) | pool entities (`EntityType == POOL`, `Keys`, `Rate`, `Value`, `TimeStart`, optional `IsDisabled`) plus the pool's own inventory rows as reserves | chain | served (G7.a, G7.b) since 0.3.0 — **facts only** (reserves, fee, share supply, creation time, reserve-ratio valuation); no swap quote, see the 0.3.0 section | G7.b (chain cross-check per row). **G2.b display parity is structurally unavailable for this row** — pools postdate the pinned client, which has no pool pane to compare against, so G7.b is this row's whole evidence |
 
 ## Standing caveats
 
@@ -277,6 +279,131 @@ Shape-stability note: 0.2.0 changes to pre-existing outputs are strictly
 additive (`account.stamina`; optional `vitals`/`liquidation`/`attacker`
 on the node answer, absent without the new flag). No existing field
 moved, renamed, or changed type.
+
+## 0.3.0 query surface (2026-08-06)
+
+Four perception additions and one investigation, all chain-sourced. The
+principle they share is DESIGN §3.11: **a failure must never cite state the
+reader could not have read through the query surface beforehand.** Each
+carries a falsifiable prediction, checked by a gate, recorded below with
+the change.
+
+- **Per-objective quest progress.** Every objective of an accepted quest is
+  served as `[current/required]` with its `type`, its stored `logic`, and a
+  `basis` naming how progress is measured: `since-acceptance` (accrual
+  counted from the moment of acceptance — spending what you accrued does
+  not un-count it, and a balance held beforehand does not count toward it),
+  `current` (a present value), `boolean` (met or not, nothing to count), or
+  `unknown` (a handler this version does not evaluate). **Progress is
+  served for accepted quests only**, and that is correctness rather than
+  thrift: accrual is measured against a snapshot written at acceptance, so
+  before acceptance the comparison runs against zero and an account's
+  lifetime total reads as progress. The reference client's quest-detail
+  panel renders exactly that artefact as a checkmark, which its own
+  accepted-quest counter then contradicts once the quest is taken; serving
+  it would hand a reader a figure the world does not hold (DESIGN §3.11).
+  Nothing is synthesized where the world holds no number: boolean
+  objectives carry no `current`, and a finished quest's objectives carry
+  none either, because the projection stops evaluating them once the quest
+  is complete (preserved upstream behaviour — §4.1 quirk 9).
+  *Prediction: a reader holding an accrual objective sees its counter
+  advance between reads as the underlying total rises, with `required`
+  unchanged; and no unaccepted quest ever reports progress. G7.a asserts
+  the recompute identity and the pre-acceptance guard over every served
+  objective; the between-reads leg is G7.b's, at two pinned blocks.*
+- **Account-relative quest state.** Every registry row carries an `account`
+  block when the query is given an account, so one read answers which
+  quests are the account's and where they stand: `accepted`, `complete`,
+  `requirementsMet`, and — for accepted quests — `objectivesMet`, the
+  instance times, and the objectives above. The three-way ambiguity
+  (never accepted / accepted and unfinished / already finished) is fully
+  discriminated here, with `objectivesMet` splitting the middle case
+  further. The field is deliberately **not** called "completable": it is
+  this layer's evaluation of the objectives it can read, not a promise
+  that the finishing transaction will succeed, and a reader needing that
+  guarantee must have the chain simulate the act. The pre-existing
+  `accepted` list is retained and now redundant, so answers stay
+  shape-compatible with consumers written against earlier versions.
+  *Prediction: a redundant accept attempt becomes distinguishable from
+  state ignorance — the served state answers before the act. G7.a checks
+  `accepted`/`complete` against the mirror's own accepted-quest and
+  completion queries in both directions, over every registry row for
+  every sampled account.*
+- **Item pools, by payload enrichment.** `items` serves the whole pool set;
+  `item <index>` serves the pools trading that item (an empty array when
+  none — never an omitted field). Each row: the pair, both reserves, the
+  fee in basis points, the LP share supply, the creation time, a disabled
+  flag when paused, and an `impliedRate` that is the **pure reserve ratio,
+  fee-exclusive and impact-exclusive** — a valuation of current depth,
+  explicitly not a swap quote. No new query: pools are keyed by item
+  indices and reserve item balances, so the item registry queries are their
+  natural home. **Facts only, deliberately.** The swap-output formula is
+  not served: the pinned client carries no pool module, so there is no
+  upstream implementation to be faithful to and no differential gate that
+  could catch a transcription error in one (DESIGN §6 names quoting as
+  deferred to a pin whose client ships the module). Discovery is
+  mirror-only — the entity-type component has no on-chain reverse index, a
+  fact G7.b probes and records each run — while every served row is
+  chain-checkable one entity at a time.
+  *Prediction: pool state is readable in the same session that would swap —
+  a single answer, read once, carries reserves and fee that are true at the
+  block it names. G7.b verifies every served row against pinned chain reads
+  (type, pair, fee, supply, creation time, both reserves) and samples
+  unpooled pairs for absence, so an omission from the served set is visible
+  too.*
+- **`roster [accountIndex]` — the compact roster.** One line per kami:
+  index, state, `[hp, hpTotal]`, plus the room the account itself is in.
+  Full detail stays on `party`, unchanged. The answer carries **no authored
+  strings at all** — no kami names, no account name — so its untrusted list
+  is always empty and it is byte-identical in name-free mode; identities
+  are indices, which is what a reader joins on. Compaction is a payload
+  property, not a latency one: every row goes through the same per-kami
+  projection the party report uses and is then projected down, so the two
+  answers cannot drift apart.
+  *Prediction: the compact payload's marginal cost per kami stays at or
+  under a quarter of the party report's. Measured at 0.175 over a
+  1,053-kami roster (46.9 vs 267.7 bytes per kami; 7.1 kB vs 40.2 kB
+  projected at 150 kami); the threshold is frozen at 0.25 in G7.a, and
+  raising it is a deliberate act.*
+- **Starter-vendor display window (the investigation).** The vendor sells
+  only the kamis in its current rotating window and rejects a purchase
+  outside it. That window is world state — a stored pool of kami indices, a
+  stored cycle anchor, a configured period — and the display computation
+  was already ported but reached by no query, while this table asserted
+  its read side was covered by general queries. It was not. `merchant` now
+  serves `newbieVendor`: the displayed indices, the pool size, the cycle
+  anchor and period, and the seconds to the next rotation. The row above is
+  split out of the acting-flows blanket row accordingly.
+  *Prediction: the reason a purchase would be refused is readable before
+  attempting it. G7.a checks the window is sized by the cycle rule and the
+  countdown lies inside one period; G7.b checks the served pool size and
+  cycle anchor against the vendor entity on-chain and that every displayed
+  kami is really in the on-chain pool.*
+
+**Not served at 0.3.0, unchanged:** crafting, goal, gacha/reveal,
+dialogue/questDialogue, operator gas balance, and the exit/portal graph
+half of map. The 0.2.0 rows stand as written.
+
+Shape-stability note: 0.3.0 changes to pre-existing outputs are strictly
+additive (`account` on quest registry rows; `pools` on the item answers;
+`newbieVendor` on the merchant enumeration). No existing field moved,
+renamed, or changed type, and the redundant `accepted` list was kept rather
+than removed for exactly that reason.
+
+**Defect found and fixed by the new gate, affecting 0.2.0 answers.** The
+projection cache is cleared before each read to force freshness, and a
+cleared entry is rebuilt without its optional sub-objects; the refresh
+windows are staleness limits compared with a strict greater-than, so a
+window of zero did not mean "always" — two reads of the same kami inside
+the same millisecond skipped the refresh entirely. The result was a kami
+served with no stats at all, i.e. zero health reported for a healthy kami,
+whenever two queries touched the same kami in the same millisecond. This
+reached `kami`, `party` and `node --with-vitals` at 0.2.0. Fixed in the
+refresh constant (a native module, not ported code — upstream never clears
+this cache, so the interaction is this port's to own, and a port defect is
+fatal rather than preserved, DESIGN §4.1). Found because G7.a asserts the
+compact roster and the party report agree field-for-field: they disagreed,
+and the party report was the wrong one.
 
 ## Maintenance
 
