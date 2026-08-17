@@ -65,9 +65,31 @@ See [DESIGN.md](DESIGN.md) for the full design and
 [docs/upstream-client-architecture.md](docs/upstream-client-architecture.md)
 for the study of the official client this is built from.
 
+## Configuration
+
+Every setting resolves through one precedence chain — CLI flag > `KAMI_LENS_*`
+env var > TOML config file > baked Yominet default — and the daemon's `status`
+answer reports each effective value *and which level decided it*. See
+DESIGN §5 for the full list; the one setting that changes what queries
+return:
+
+| Setting | Flag / env / TOML | Default | What it does |
+|---|---|---|---|
+| Payload enrichment | `--enrich true` · `KAMI_LENS_ENRICH=true` · `enrich = true` | `false` | Serves the client-tooltip facts inline where a result names an item or a room: item description, chain-derived use/equip effects, interpreted use requirements, quest rewards, and resolved room refs (DESIGN §3.12). Results only — no query, request field, or schema field changes with it, and with the flag off every answer is byte-identical to 0.3.0. |
+
+```
+kami-lens daemon --enrich true      # the daemon decides the surface
+kami-lens inventory 2160            # every client of that daemon sees it
+```
+
+Enrichment is a **daemon** setting: one daemon serves one surface, and no
+request field can ask for a different one. Booleans are strict — `true` or
+`false`; anything else (including `1`) fails loudly at startup rather than
+being guessed at.
+
 ## Status
 
-**0.3.0, pre-release.** Daemon, CLI, and library are implemented and
+**0.4.0, pre-release.** Daemon, CLI, and library are implemented and
 gate-verified against the pinned upstream commit and the live game,
 with dated per-run evidence in `docs/measurements/`. The verification
 suite is G0–G7; every run writes its own dated record, and the record
@@ -76,7 +98,13 @@ contract registry is [SPEC.md](SPEC.md); per-surface coverage — what
 is served, what is deferred, what is out of scope — is
 [docs/coverage.md](docs/coverage.md).
 
-0.3.0 adds per-objective quest progress, account-relative quest state,
+0.4.0 adds optional payload enrichment (above): the facts a client shows
+in a tooltip — what an item does, what using it requires, what a quest
+pays, which room an index names — served inline in the results that name
+those things, from the chain and deployed config only (DESIGN §3.12).
+Off by default, and off is the 0.3.0 surface exactly.
+
+0.3.0 added per-objective quest progress, account-relative quest state,
 item-pool state, a compact roster query, and the starter vendor's
 display window — under one principle: a failure must never cite state
 the reader could not have read beforehand (DESIGN §3.11).

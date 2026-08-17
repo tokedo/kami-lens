@@ -1,7 +1,7 @@
 ---
 module: kami-lens
-version: 3
-describes: 0.3.0
+version: 4
+describes: 0.4.0
 ---
 
 # kami-lens — Contract Registry
@@ -41,13 +41,13 @@ of it. *Needs* is what must be reachable for a non-error answer:
 | `roster [accountIndex]` | compact roster: one line per kami (index, state, `[hp, hpTotal]`) + the account's room | mirror | G3.a, G3.f, G7.a |
 | `node <index> [attacker] [--with-vitals]` | node + ACTIVE harvests; with the flag, occupant vitals and the pairwise liquidation preview | mirror | G3.b, G6.a, G6.b |
 | `room <index>` | room occupancy: accounts present, each joined with its kamis | mirror | G3.a, G6.b |
-| `inventory <accountIndex\|name>` | any-account item inventory (zero balances dropped, ascending item index) | mirror | G6.a, G6.b |
+| `inventory <accountIndex\|name>` | any-account item inventory (zero balances dropped, ascending item index); under `enrich`, each row also carries the item's description, its use/equip effects and its use requirements | mirror | G6.a, G6.b, G3.a, G3.f, G3.g |
 | `merchant [npcIndex]` | NPC enumeration (with the starter vendor's display window); with an index, the listing catalog with GDA clock-corrected unit prices | mirror | G6.a, G6.b, G7.a, G7.b |
-| `item <index>` / `items` | item registry row / the full registry; both carry item-pool state — pool set, reserves, fee, share supply, reserve-ratio valuation | mirror | G3.a, G7.a, G7.b |
+| `item <index>` / `items` | item registry row / the full registry; both carry item-pool state — pool set, reserves, fee, share supply, reserve-ratio valuation; under `enrich`, also effects, use requirements and the stored registry flags | mirror | G3.a, G7.a, G7.b, G3.f, G3.g |
 | `config <name> [--array]` | one `is.config` field value | mirror | G3.a |
 | `phase` | day/night phase (36 h cycle, 12 h phases) + seconds to the next flip | mirror | G6.a, `test/phase.test.ts` |
 | `leaderboard [type] [epoch] [itemIndex]` | mirror `Score` leaderboard, value-sorted, 1-based ranks, holders joined | mirror | G6.a, G6.b |
-| `quests [accountIndex]` | quest registry; with an account, every row carries that account's state (accepted / complete / requirements met / objectives met) and accepted rows carry per-objective progress | mirror | G3.a, G7.a |
+| `quests [accountIndex]` | quest registry; with an account, every row carries that account's state (accepted / complete / requirements met / objectives met) and accepted rows carry per-objective progress; under `enrich`, every registry row also carries its rewards | mirror | G3.a, G7.a, G3.f, G3.g |
 | `trades [accountIndex]` | open chain trades; with an account, Kamiden history + open offers | mirror (+kamiden for history) | G3.a, G4.a |
 | `auctions [itemIndex]` | chain auctions with current GDA price; with an item, Kamiden buy history | mirror (+kamiden for buys) | G3.a, G4.a |
 | `killers [size]` | killer rankings (`GetKillsByKami`), service-ranked, mirror name-joins; `totalRanked` always served | mirror + kamiden | G6.c |
@@ -57,7 +57,7 @@ of it. *Needs* is what must be reachable for a non-error answer:
 | `transfers <accountIndex>` | item transfer history | mirror + kamiden | G4.a |
 | `feed [sinceSeq] [type]` | buffered stream feed events | mirror + kamiden | G4.b |
 | `chat <roomIndex> [beforeMs] [size] [--oversize]` | paginated `GetRoomMessages`; invoking it *is* the prose opt-in | mirror + kamiden | G4.c |
-| `status` | sync state, block lag, effective config + its source level, tripwire counters, per-feed degradation | daemon | G3.a, G3.e |
+| `status` | sync state, block lag, effective config + its source level (including `enrich`), tripwire counters, per-feed degradation | daemon | G3.a, G3.e, G5.c |
 | `kami <index> --stateless` | discrete vitals via deterministic IDs + `GetterSystem` views, no daemon | RPC only | G3.d |
 
 | Claim | Enforcement |
@@ -93,6 +93,7 @@ of it. *Needs* is what must be reachable for a non-error answer:
 | `authored-id` is parity-bounded — names appear only where the official client shows names, never in novel aggregations. | **unenforced** — a review-time property of the checked-in schemas; no gate asserts name placement. G2.b compares displayed values, not which fields carry names |
 | Name-free mode (`--no-authored`) is first-class: value deleted, path recorded in `meta.suppressed`, stable IDs kept for joins. | G3.f; G6.c (asserts `rows[].name` absent and receipted on `killers`); `test/envelope.test.ts` |
 | Classified types added at 0.3.0: `QuestObjective` (`name` registry; `type`/`logic`/`basis` system), `Pool` (`id` system), `RosterKami` (`state` system). | G3.f |
+| Classified at 0.4.0 (§3.12 enrichment): `description` added to `ItemRef`, `RoomRef` and `InventoryItem` (all `registry`); new types `AlloText` (`name`/`description` registry), `AlloOut` (`type` system), `ItemRequirement` (`text` registry, `type` system). All are registry-class game content read from the mirror's own registries — hand-reviewed with the change set, as the artifact requires. | G3.f (derivation + presence, both modes); `test/envelope.test.ts` |
 | The classification artifact is keyed by schema `$def` type × property, so a new query reusing a classified type inherits its classes. | structural (`classifyPaths`, `src/queries/envelope.ts`); G3.f |
 | Changing the classification artifact gets the same mandatory hand review as a formula-affecting diff. | DESIGN §7 (process, not script) — `unenforced` by machine |
 
@@ -107,6 +108,27 @@ of it. *Needs* is what must be reachable for a non-error answer:
 | A pin advance only lands after live parity gates re-pass against the running game — the diff says where to look, the gate says we got it right. | DESIGN §7; G2.a/G2.b are `[live]`-anchored |
 | A lens-version advance may add queries and may add fields; 0.2.0 moved, renamed, and retyped nothing. | docs/coverage.md shape-stability note; **unenforced** — no gate asserts additive-only schema evolution across versions |
 | `code`-sourced data (room constants, phase constants, the 180 s cooldown fallback, leaderboard titles) changes only via a pin advance, never via a config read. | DESIGN §3.3; docs/coverage.md; phase specifically: `test/phase.test.ts` + G6.a |
+
+### 1.5 Payload enrichment (`enrich`, 0.4.0)
+
+The one runtime switch that changes what queries return. Rationale in
+DESIGN §3.12; the per-surface population map in
+[docs/coverage.md](docs/coverage.md).
+
+| Claim | Enforcement |
+|---|---|
+| Enrichment is a DAEMON-level config key (`--enrich` / `KAMI_LENS_ENRICH` / `enrich`), default **false**, resolved and provenance-reported through the same precedence chain as every other key. No request field, no query argument, and no CLI query flag carries it: one daemon serves one surface. | G5.c (boolean pairwise in both polarities, default-off, and the status/`configSources` surfacing); structural (`Request`, `src/server.ts`; `QueryCtx`, `src/queries/feeds.ts`) |
+| A non-boolean value fails loudly rather than being guessed at — `KAMI_LENS_ENRICH=1` is a startup error, not "on". | G5.c |
+| **With the flag off, every query answers byte-identically to 0.3.0** at the same block. The single exception is `status`, which gains exactly `config.enrich` and `configSources.enrich`. | G3.g (25 cases at one snapshot block against captures from a 0.3.0 checkout: 25,061 leaves compared byte-for-byte in wire form, 207 masked as clock-dependent — the mask derived by perturbing the pinned clock, never hand-listed — plus the status diff asserted as exactly those two added keys, with `status.version` asserted to equal the built version rather than masked) |
+| Enrichment is **additive and optional in the schemas**: flag-off and flag-on answers are both valid instances of the same checked-in schema. No field moved, was renamed, or changed type. | G3.a (both modes, same schemas, 815 validations of which 134 enriched) |
+| Every string enrichment adds is `registry` game content, classified in `docs/string-classification.json`, so nothing it serves is ever volunteered prose or an authored id. | G3.f (enriched cases, derivation independent); `test/envelope.test.ts` |
+| An enriched field is really present with the flag on and really absent with it off — the check that catches a MISSING classification entry, which the fail-safe would otherwise turn into a silently deleted field. | G3.f (presence set, 16 assertions, both directions) |
+| Sources are chain or deployed config only: `Description` components, the item's Allo and Conditional registries, the quest's reward Allos, the room registry. No catalog, document, or authored file is read. | structural (`itemEnrichment`, `toAlloOut`, `toItemRequirementOut`, `roomRefOut`, `src/queries/build.ts`); DESIGN §3.12 |
+| Interpreted text is the pinned client's own (`parseAllo`, `parseConditionalText`), served verbatim including its quirks, and always beside the RAW facts it came from (type, index, value), grouped per raw allocation because the interpreter fans out. Where the pin interprets nothing, the raw facts stand alone. | structural (`AlloOut.entries`, `ItemRequirement.text`); G2.a (the interpreters are pinned-upstream code) |
+| A quest objective's bare index is resolved for target types `ROOM` and `ITEM` **only** — the two the pinned client resolves against a registry itself. Other index-bearing types (`ITEM_BURN`, `CRAFT_ITEM`, `SCAV_CLAIM_NODE`, `HARVEST_TIME`, `MOVE`) keep the bare index. | structural (`objectiveRef`, `src/queries/feeds.ts`); DESIGN §3.12. The restraint is deliberate: the item and room index spaces OVERLAP at low indices (room 3 resolves to an item named "None", room 25 to a passport), so resolving a type the pin does not interpret would attach a plausible wrong name |
+| The compact `roster` keeps every roster guarantee under enrichment: its room ref is `{index, name}` only, it is FIXED overhead (no per-kami cost), the untrusted list stays empty and the answer stays byte-identical in name-free mode. | G7.a (measured both modes: +46 bytes fixed, marginal 46.86 B/kami unchanged, ratio 0.175 against the frozen 0.25) |
+| Enrichment adds no mirror read: every fact it serves is already computed on the path that answers today and discarded at the projection. | structural (`Inventory.item`, `Listing.item`/`payItem` are full item shapes; `getQuest` computes rewards for every registry row); measured in docs/coverage.md 0.4.0 |
+| The harness and any other envelope consumer need no change: the flag alters values inside `data`, never the envelope shape, the query names, or the schemas. | structural; kami-harness SPEC P5 (envelope pass-through, verbatim) |
 
 ---
 
@@ -241,4 +263,5 @@ upstream type defect that vite never typechecks, kept as
 |---|---|---|
 | 1 | 0.2.0 (`a0a3e1e`, pin `ef898fc9`) | First registry. Enumerates the 22-query surface plus `status` and the stateless variant; the envelope; the four-class taint model; pin semantics; 15 consumed-contract rows; 18 invariants; 8 preserved quirks + 34 type holes across 14 files; 10 divergences; 1 unenforced residual; 10 non-goals. |
 | 3 | 0.3.0 (pin `ef898fc9`) | Four perception additions and one investigation, under DESIGN §3.11 (a failure must never cite state the reader could not have read beforehand). New `roster` query (23rd) with the empty-untrusted-list property. `quests` gains account-relative state per registry row and per-objective progress for accepted quests, with progress withheld before acceptance. `item`/`items` gain item-pool state by enrichment — facts only, no swap quote. `merchant` gains the starter-vendor display window, and the coverage row that had wrongly claimed that read side was already served is split out and corrected. Three classified types, two preserved-quirk rows (9, 10), three divergence rows, one gate (G7.a hermetic + G7.b live). One 0.2.0 defect fixed: the projection refresh windows could serve a kami with no stats when two reads landed in the same millisecond. |
+| 4 | 0.4.0 (pin `ef898fc9`) | Payload enrichment (DESIGN §3.12): the client-tooltip facts served inline where a result names an item or a room — item description, chain-derived use/equip effects, interpreted use requirements, quest rewards, resolved room refs — behind a daemon-level `enrich` flag, default off, with flag-off answers byte-identical to 0.3.0 except two `status` provenance keys. New §1.5 (12 claims); one new gate part (G3.g flag-off identity, hermetic, clock mask derived from baseline disagreement); G3.a/G3.f gain both-mode cases and a presence set that closes the fail-safe blind spot; G5.c gains the boolean matrix; G7.a gains the enriched-roster leg. Six classification additions. No query added, no request field added, no schema field moved, renamed, or retyped. |
 | 2 | 0.2.0 (`a0a3e1e`, pin `ef898fc9`) | Registry corrections from the independent audit of v1. Exit-code enforcement restated to what the gate actually asserts (§1.1, §3: G1.e proves the `ERR_NO_SNAPSHOT_SOURCE` refusal marker and never-LIVE on the library path; codes 1/2/3/4 numerically unenforced, the 3-mapping structural). Non-goal §5 parity-reference cite made self-contained. No claim added or withdrawn; the described artifact is unchanged. |

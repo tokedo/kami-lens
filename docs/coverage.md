@@ -114,7 +114,7 @@ formula-class hand review (DESIGN §7).
 |---|---|
 | `authored-id` | kami `Name`, account `Name` (≤16 bytes, unique, non-empty; **no charset restriction**) — inline by default, always envelope-tagged, withheld in name-free mode |
 | `authored-prose` | account bio (≤140 bytes); chat `Message.Message` (unbounded) — never volunteered; opt-in only |
-| `registry` | item/quest/skill/goal/room/node names & descriptions, NPC dialogue trees, `constants/**` display text (incl. `constants/leaderboards` titles) |
+| `registry` | item/quest/skill/goal/room/node names & descriptions, NPC dialogue trees, `constants/**` display text (incl. `constants/leaderboards` titles); since 0.4.0 also the interpreted text the pinned client derives from registry allocations and conditions — item effect lines, quest reward lines, item use-requirement text (§3.12 enrichment) |
 | `system` | addresses, entity/order/commit IDs, enum & state labels, `MediaURI` values, numeric amounts serialized as proto strings |
 
 Known but unserved: kamiden `RankRow.KamiName`/`OwnerName`
@@ -404,6 +404,150 @@ this cache, so the interaction is this port's to own, and a port defect is
 fatal rather than preserved, DESIGN §4.1). Found because G7.a asserts the
 compact roster and the party report agree field-for-field: they disagreed,
 and the party report was the wrong one.
+
+## 0.4.0 query surface (2026-08-17)
+
+One addition, behind one flag: **the facts a client shows in a tooltip,
+served inline where a result names an item or a room and says nothing else
+about it** (DESIGN §3.12). Nothing new is queryable — no query, no request
+field, no schema field moved or retyped — and with the flag off every answer
+is the 0.3.0 answer byte-for-byte.
+
+**The flag.** `enrich`, a daemon-level config key (`--enrich true` /
+`KAMI_LENS_ENRICH=true` / `enrich = true`), default **false**, resolved and
+provenance-reported like every other key and surfaced in `status.config`.
+Booleans are strict: `1` is a startup error, not "on". One daemon serves one
+surface — no request field carries enrichment, so a client cannot ask for a
+different one, and the CLI's query path (a socket client) decides nothing.
+
+**What each surface gains, and what it deliberately does not** (the
+population map — enrichment is payload, and history rows repeat the same 70
+rooms and 177 items page after page):
+
+| Surface | Under `enrich` | Not enriched, on purpose |
+|---|---|---|
+| `inventory` rows, `merchant` listing items | item `description`, `effects.use` / `effects.equip` (one row per raw allo), `requirements` (raw target + interpreted text) | — |
+| `item` / `items` | `effects`, `requirements`, `is` (the stored `tradeable`/`disabled` flags); `description` was already served | — |
+| `merchant` `payItem` | `description` only — a payment currency is identity, not a use decision | its effects |
+| `quests` registry rows | `rewards`: one row per raw reward allo (type/index/value) with the pinned client's interpretation beside it | — |
+| `quests` objectives | `room` for target type `ROOM`, `item` for target type `ITEM` | every other index-bearing target type (see below) |
+| `account`, `node` | `room`: the bare `roomIndex` resolved to `{index, name, description}` | — |
+| `roster` | `room`: `{index, name}` only — the compact answer stays compact | the description (one `room` read away) |
+| `trades` open rows and open offers, `auctions` lots | item `description` — these are decision surfaces | — |
+| `feed`, `battles`, `portal`, `transfers` | nothing | descriptions on history rows: the same names recur every page, and one `item`/`room` read serves them |
+
+The optional properties exist in every copy of the shared `ItemRef` and
+`RoomRef` `$def`s, so the schemas stay uniform and a later population change
+is a one-line code change rather than a schema change.
+
+**Two restraints worth stating, because both look like omissions.**
+
+- **A quest objective's index is resolved only for target types `ROOM` and
+  `ITEM`** — the two the pinned client resolves against a registry itself
+  (`Conditional/interpretation.ts`'s ROOM branch; `getFromDescription`,
+  which dispatches on `type === 'ITEM'` exactly). Types that carry an index
+  the pin never interprets — `ITEM_BURN` (51 objectives at this pin),
+  `DROPTABLE_ITEM_TOTAL` (18), `CRAFT_ITEM` (14), `SCAV_CLAIM_NODE` (30),
+  `HARVEST_TIME` (36), `MOVE` (4) — keep the bare index. This is not
+  thrift: **the item and room index spaces overlap at low indices** (room 3
+  resolves to an item literally named "None", room 25 to a passport), so
+  resolving a type the pin does not interpret would attach a plausible wrong
+  name. The objective's own `name` already reads "Give 3 Scrap Metal", and a
+  bare index a reader can join is worth more than a name it cannot trust.
+  At this pin that means 29 room refs and 0 item refs on objectives; the
+  `ITEM` path is live for a registry that adds one.
+- **Interpreted requirement text is served with its raw target beside it**
+  (`{type, index, value, text}`), not as the flat `string[]` the
+  `Listing.requirements` precedent uses. Reason, measured: of the 53 item
+  USE conditions at this pin, **48 are `KAMI_CAN_EAT` with index 0, whose
+  interpreted text is the bare word "None"** — indistinguishable, without
+  the target beside it, from a real requirement. The remaining five are 4
+  `STATE` ("Is  DEAD ", "Is  RESTING " — upstream's double and trailing
+  spaces, verbatim) and 1 `ROOM` ("At Burning Room"). `Listing.requirements`
+  itself is unchanged.
+
+**Cost, measured on the fixture at block 31,782,245** (177 registry items,
+187 registry quests, 70 rooms). Enrichment adds **no mirror read**: every
+fact is already computed on the path that answers today and thrown away at
+the projection (`Inventory.item` is a full item shape; so are
+`Listing.item`/`payItem`; `getQuest` computes rewards for every registry
+row). What it adds is a parse and bytes:
+
+| Answer | Today | Enriched |
+|---|---|---|
+| `items` (whole registry) | 6.8 ms, 50,830 B | +2.9 ms parse, +21,129 B (**+41.6 %**, 119 B/row) |
+| one item read | 0.003 ms | +0.001 ms |
+| `inventory`, 12 accounts / 468 rows | 72,067 B | +91,221 B (**+127 %**, 195 B/row) |
+| `quests` (registry form) | 15.1 ms, 99,889 B | +2.9 ms parse, +32,961 B (**+33.0 %**); 186/187 rows carry ≥1 reward |
+| `merchant <npc>` (9 / 7 listings) | 3,497 / 2,791 B | ≈ +1.1 / +0.9 kB |
+| `roster`, 1,050 kamis | 49,250 B | 49,296 B (**+46 B, fixed**) |
+
+Registry facts behind those numbers: 65/177 items carry USE effects, 36/177
+carry EQUIP effects, 53 USE conditions in total; effect allo types include
+`STAT` (33), `BONUS` (17 use + 36 equip), `XP` (15), `ITEM` (8),
+`ITEM_DROPTABLE` (5), `STATE` (4). Item descriptions average 104.6 B (max
+268), room descriptions 126.7 B (max 313).
+
+**The `app/cache` note.** `parseConditionalText` resolves a ROOM target
+through `app/cache/room`, a permanent memo with no invalidation. That path
+is not new — `merchant` has reached it since 0.2.0 through
+`Listing.requirements` — and item USE requirements now reach it too, for
+exactly one condition in the registry ("At Burning Room"). Recorded rather
+than diverted: it is upstream's own path, and the alternative is a port
+divergence. The item memo (`app/cache/item`) is deliberately **not** adopted:
+enrichment needs no cache (0.001 ms/item), and a permanent memo would make a
+registry edit — a new item, a changed effect, a `disabled` flip — invisible
+for a daemon's whole lifetime, which is the same class of defect the forced
+`KAMI_REFRESH` windows exist to prevent.
+
+**Predictions, each falsifiable, each with the gate that checks it:**
+
+- **Flag off is a no-op.** Every query except `status` answers byte-identically
+  to 0.3.0 at the same block; `status` differs by exactly `config.enrich` and
+  `configSources.enrich`. *Falsifier: any unmasked leaf differing, any key
+  added or removed, or a third status key. G3.g — 25 cases at one snapshot
+  block against captures from a 0.3.0 checkout: 25,061 leaves compared
+  byte-for-byte, zero mismatches, zero keys added or removed anywhere but
+  `status`; 207 leaves masked as clock-dependent, the mask derived by
+  perturbing the pinned clock (a leaf that moves when the clock moves is the
+  clock's, a leaf that does not is the code's) rather than hand-listed;
+  `status.version` asserted equal to the built version instead of masked.
+  G3.a additionally scans every flag-off answer for enrichment-only shapes
+  and finds none.*
+- **One inventory read answers "is this useful to me?"** With the flag on,
+  every held row whose registry item has a USE or EQUIP allo carries its
+  effect text, and every gated row its raw-plus-interpreted requirement — no
+  second call and no document. *Falsifier: a row whose upstream item has a
+  non-empty `effects`/`requirements.use` and whose served row lacks the
+  matching non-empty field. G3.f's presence set (16 assertions, both
+  directions); G3.a validates 134 enriched answers against the same schemas.*
+- **Quest rewards are readable before acceptance.** 186/187 registry rows
+  carry at least one reward group naming raw `type`/`index`/`value` plus the
+  pinned client's interpretation. *Falsifier: a registry quest with rewards
+  on-chain and no reward group served.*
+- **Enrichment is payload, not reads.** It makes no mirror read the flag-off
+  answer did not already make; the parse costs ≤5 ms on the whole registry
+  and ≤1.5 ms on an inventory answer. *Falsifier: a read-count or timing
+  increase beyond the parse step. Basis: the table above.*
+- **The compact roster stays compact and stays name-free.** The room ref is
+  fixed overhead, not a per-kami cost, and a room NAME is registry content
+  rather than an authored id, so the empty untrusted list and name-free
+  byte-identity survive the flag. *Measured under enrich: +46 B fixed,
+  marginal 46.86 B/kami — unchanged to six decimals — ratio 0.175 against
+  the threshold frozen at 0.25; untrusted `[]`; name-free answer identical.
+  G7.a asserts all four, and fails if enrichment charges any per-kami cost.*
+
+Shape-stability note: 0.4.0 changes to pre-existing outputs are strictly
+additive and optional (`description` on `ItemRef`/`RoomRef`/`InventoryItem`;
+`effects`/`requirements`/`is` on the item answers; `rewards` and objective
+refs on `quests`; `room` on `account`/`node`/`roster`; `enrich` in
+`status.config`). No existing field moved, was renamed, or changed type, and
+every addition is absent unless the daemon runs with the flag — which is why
+flag-off byte identity is provable at all.
+
+**Not served at 0.4.0, unchanged:** crafting, goal, gacha/reveal,
+dialogue/questDialogue, operator gas balance, and the exit/portal graph half
+of map. The 0.2.0 and 0.3.0 rows stand as written.
 
 ## Maintenance
 

@@ -286,6 +286,75 @@ be visible: the coverage row says so, and quoting — as opposed to serving
 pool facts — is deferred to §6 precisely because it is the part that would
 need the code lineage.
 
+### 3.12 Payload enrichment — the tooltip facts, inline (0.4)
+
+Settled with the 0.4.0 surface. **Where a result names an item or a room and
+says nothing else about it, the reader is one lookup short of a decision it
+could have made from the same answer.**
+
+A human client shows a tooltip on hover: hold a Ramen Bowl and the interface
+tells you it restores health, that using it needs the kami resting, and what
+the quest you are on pays. A machine reader got the name and the balance and
+had to know, in advance, that a second read existed and was worth making.
+Runs of the reference agent showed the predictable outcome — items held
+unused, experience unspent, rewards unread — not because the facts were
+secret but because they were one path-guess away.
+
+So the facts move to where they are read. `inventory` rows and merchant
+listings carry the item's description, what USE and EQUIP allocate, and what
+USE requires; `item`/`items` carry the same plus the stored registry flags;
+quest registry rows carry their rewards; a bare `roomIndex` on `account`,
+`node` and `roster` resolves to the room; an `ItemRef` on a decision surface
+carries the item's description.
+
+Four constraints make it safe to do:
+
+- **Chain or deployed config only.** Descriptions come from the mirror's
+  `Description` components, effects from the item's own Allo registry,
+  requirements from its Conditional registry, rewards from the quest's
+  reward Allos. Nothing is read from a document, a catalog, or a
+  lab-authored file: the lens ships what the world holds, and knowledge
+  that lives in prose stays the consumer's own business (the scaffold's, for
+  an agent).
+- **Results only, behind a daemon flag.** No new query, no new request
+  field, no schema field that moves or changes type. `enrich` is config —
+  one daemon serves one surface, and a caller cannot ask for a different
+  one. Default off, and off is **byte-identical to 0.3.0** (G3.g proves it
+  leaf by leaf against a pre-change baseline) with one named exception:
+  `status` gains `config.enrich` and `configSources.enrich`, because a
+  switch you can only see when it is on is not provenance.
+- **Nothing derived that the pin does not implement.** Interpreted text is
+  the pinned client's own (`parseAllo`, `parseConditionalText`), served
+  verbatim including its quirks, and always beside the raw facts it was
+  derived from — type, index, value — grouped per raw allocation, because
+  the interpreter fans out and a flat list of parsed lines would not
+  correspond to what the world stores. Where the pin interprets nothing,
+  the raw facts stand alone. This is the pools rule (§3.11) applied to
+  text: serve the facts, do not invent the formula. It is also why a quest
+  objective's index resolves for target types `ROOM` and `ITEM` and no
+  others — the pinned client resolves exactly those two against a registry,
+  the item and room index spaces overlap at low indices, and a plausible
+  wrong name is worse than a bare index.
+- **The classification artifact is not optional.** Every string the flag
+  adds is `registry` game content, entered in
+  `docs/string-classification.json` with the mandated hand review. This is
+  load-bearing, not bookkeeping: the fail-safe resolves an unlisted string
+  to `authored-prose`, and the envelope then DELETES it from every default
+  answer — silently, and invisibly to a gate that only compares derived
+  path lists against present ones. G3.f therefore asserts each enriched
+  field is present with the flag on and absent with it off.
+
+**Enrichment is payload, not reads.** Every fact above is already computed
+on the path that serves the answer today and thrown away at the projection —
+`Inventory.item` is a full item shape, `Listing.item` and `Listing.payItem`
+are too, `getQuest` computes rewards for every registry row. Measured on the
+0.4.0 fixture: the whole-registry parse costs 2.9 ms against a 6.8 ms
+answer, a per-item parse 0.001 ms. What it does cost is bytes, so the
+population map is deliberate: decision surfaces are enriched (what you
+hold, what you can buy, what a quest pays, where you are), history rows are
+not (`feed`, `battles`, `portal`, `transfers` — the same 70 rooms and 177
+items recur page after page, and the description is one read away).
+
 ## 4. Architecture
 
 ### 4.1 Sync layer
