@@ -29,7 +29,13 @@
 //     field nor raises a receipt);
 //   · roster compaction (prediction 3): marginal bytes per kami, roster
 //     vs party, measured at the fixture's largest roster and asserted
-//     against the frozen threshold below;
+//     against the frozen threshold below — and, since 0.4.0, measured a
+//     SECOND time with the §3.12 enrichment flag on, because the roster is
+//     the one place enrichment touches an answer whose compactness and
+//     name-freeness are contract: the room ref it adds is fixed overhead
+//     (no per-kami cost) and a room NAME is registry content, so both the
+//     threshold and the empty-untrusted/name-free-identical properties must
+//     survive the flag;
 //   · pools: internal coherence of the served rows (sorted pair, aligned
 //     reserves, fee in range, implied rate is the reserve ratio and is
 //     absent when a reserve is zero), and item-vs-items agreement;
@@ -42,6 +48,7 @@ import path from 'node:path';
 import { resolveConfig } from '../../src/config';
 import { serveQuery } from '../../src/queries';
 import { getAccountByIndex } from '../../src/network/shapes/Account';
+import { getRoomByIndex } from '../../src/network/shapes/Room';
 import { quests as explorerQuests } from '../../src/network/explorer/quests';
 import {
   getQuestObjectives,
@@ -250,9 +257,18 @@ type PartyOut = {
   kamis: { index: number; state: string; hp: { current: number; total: number } }[];
 };
 type RosterOut = {
-  account: { index: number; roomIndex: number };
+  account: { index: number; roomIndex: number; room?: { index: number; name: string } };
   kamis: { index: number; state: string; hp: number[] }[];
 };
+
+/** §3.12 enriched serving, for the roster leg below. */
+async function serveEnriched(query: string, args: string[], opts = {}) {
+  return serveQuery({ mirror, enrich: true }, query, args, {
+    stale: false,
+    mode: 'daemon',
+    ...opts,
+  });
+}
 
 let largest = { accountIndex: 0, kamis: 0 };
 for (const accountIndex of accountIndexes) {
@@ -315,6 +331,41 @@ for (const accountIndex of accountIndexes) {
   if (roster.kamis.length > largest.kamis) largest = { accountIndex, kamis: roster.kamis.length };
 }
 
+// --- §3.12: the enriched roster keeps every roster guarantee ----------------
+const enrichedRoster: Record<string, unknown> = { measured: false };
+if (largest.kamis > 0) {
+  const accountIndex = largest.accountIndex;
+  const env = await serveEnriched('roster', [String(accountIndex)]);
+  const roster = env.data as RosterOut;
+  const nameFree = await serveEnriched('roster', [String(accountIndex)], { noAuthored: true });
+  const account = getAccountByIndex(world, components, accountIndex);
+  const room = roster.account.room;
+  enrichedRoster.measured = true;
+  enrichedRoster.accountIndex = accountIndex;
+  enrichedRoster.room = room ?? null;
+  enrichedRoster.untrusted = env.untrusted;
+
+  if (env.untrusted.length !== 0) {
+    problems.push({ area: 'roster/enrich', reason: 'enriched roster volunteered an authored string', untrusted: env.untrusted });
+  }
+  if (JSON.stringify(nameFree.data) !== JSON.stringify(roster)) {
+    problems.push({ area: 'roster/enrich', reason: 'name-free mode changed the enriched answer' });
+  }
+  if (nameFree.meta.suppressed !== undefined || nameFree.untrusted.length !== 0) {
+    problems.push({ area: 'roster/enrich', reason: 'name-free mode raised a receipt on a name-free answer' });
+  }
+  if (!room || room.index !== account.roomIndex) {
+    problems.push({ area: 'roster/enrich', reason: 'enriched roster room does not resolve the account roomIndex', room, roomIndex: account.roomIndex });
+  }
+  // {index, name} only: the compact answer must not grow a description
+  if (room && Object.keys(room).sort().join(',') !== 'index,name') {
+    problems.push({ area: 'roster/enrich', reason: 'enriched roster room is not {index, name}', room });
+  }
+  if (room && room.name !== (getRoomByIndex(world, components, account.roomIndex)?.name ?? '')) {
+    problems.push({ area: 'roster/enrich', reason: 'enriched roster room name disagrees with the room shape', room });
+  }
+}
+
 // --- prediction 3: marginal bytes per kami ----------------------------------
 const bytes = (v: unknown) => Buffer.byteLength(JSON.stringify(v), 'utf8');
 let compaction: Record<string, unknown> = { measured: false };
@@ -341,6 +392,24 @@ if (largest.kamis > 0) {
       party: Math.round(partyEmpty + partyMarginal * 150),
     },
   };
+  // the same measurement with the §3.12 flag on: the room ref is fixed
+  // overhead, so the MARGINAL cost per kami must not move at all
+  const enriched = (await serveEnriched('roster', [String(largest.accountIndex)])).data as RosterOut;
+  const enrichedEmpty = bytes({ ...enriched, kamis: [] });
+  const enrichedMarginal = (bytes(enriched) - enrichedEmpty) / largest.kamis;
+  const enrichedRatio = enrichedMarginal / partyMarginal;
+  compaction.enriched = {
+    rosterBytes: bytes(enriched),
+    fixedOverheadDeltaBytes: enrichedEmpty - rosterEmpty,
+    rosterMarginalBytesPerKami: Number(enrichedMarginal.toFixed(2)),
+    marginalRatio: Number(enrichedRatio.toFixed(4)),
+  };
+  if (!(enrichedRatio <= ROSTER_MARGINAL_BYTES_MAX_RATIO)) {
+    problems.push({ area: 'roster/enrich', reason: 'compaction prediction falsified under enrich', compaction });
+  }
+  if (Number(enrichedMarginal.toFixed(6)) !== Number(rosterMarginal.toFixed(6))) {
+    problems.push({ area: 'roster/enrich', reason: 'enrichment charged a PER-KAMI cost; it must be fixed overhead only', compaction });
+  }
   if (!(ratio <= ROSTER_MARGINAL_BYTES_MAX_RATIO)) {
     problems.push({ area: 'roster', reason: 'compaction prediction falsified', compaction });
   }
@@ -462,6 +531,7 @@ await writeMeasurement('g7a-consistency', {
   registryObjectivesScanned,
   objectivesWithForComponent,
   compaction,
+  enrichedRoster,
   poolsServed: itemsAnswer.pools.length,
   vacuous,
   pools: itemsAnswer.pools.map((p) => ({ id: p.id, items: p.items, feeBps: p.feeBps, reserves: p.reserves })),

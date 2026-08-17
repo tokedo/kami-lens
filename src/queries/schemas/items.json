@@ -66,7 +66,23 @@
           "items": {
             "$ref": "#/$defs/Pool"
           }
-        }
+        },
+        "effects": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "§3.12 (enrich): what USE and EQUIP allocate, one row per raw allo.",
+          "required": ["use", "equip"],
+          "properties": {
+            "use": { "type": "array", "items": { "$ref": "#/$defs/AlloOut" } },
+            "equip": { "type": "array", "items": { "$ref": "#/$defs/AlloOut" } }
+          }
+        },
+        "requirements": {
+          "type": "array",
+          "description": "§3.12 (enrich): what USE requires. Empty array = the registry stores no USE condition.",
+          "items": { "$ref": "#/$defs/ItemRequirement" }
+        },
+        "is": { "$ref": "#/$defs/ItemFlags" }
       }
     },
     "Pool": {
@@ -133,6 +149,50 @@
             }
           }
         }
+      }
+    },
+    "AlloText": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The pinned client's own interpretation of one allocation, projected to {name, description}. `image` is never served: two shapes files carry the module NAMESPACE of a png import there rather than a URL (SPEC §4.1 quirk 2).",
+      "required": ["name", "description"],
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    },
+    "AlloOut": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "One RAW allocation the world stores (type, index, value) with the pinned client's interpretation of it beside it. Grouped per raw allo deliberately: the interpreter fans out — a BONUS allo yields one entry per bonus, a droptable allo one consolidated entry — so a flat parsed list would have no positional correspondence to what the world holds. `entries` is empty when this pin interprets the shape not at all; the raw facts still stand.",
+      "required": ["type", "index", "value", "entries"],
+      "properties": {
+        "type": { "type": "string" },
+        "index": { "type": "number" },
+        "value": { "type": "number" },
+        "entries": { "type": "array", "items": { "$ref": "#/$defs/AlloText" } }
+      }
+    },
+    "ItemRequirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "One USE requirement: the raw condition target plus the pinned client's interpreted text. Grouped rather than a bare string because 48 of the 53 item conditions at this pin are KAMI_CAN_EAT with index 0, whose text is the single word \"None\" — indistinguishable, without the target beside it, from a real requirement. Text is verbatim, upstream spacing quirks included.",
+      "required": ["type", "index", "value", "text"],
+      "properties": {
+        "type": { "type": "string" },
+        "index": { "type": "number" },
+        "value": { "type": "number" },
+        "text": { "type": "string" }
+      }
+    },
+    "ItemFlags": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Registry flags the world stores on the item.",
+      "required": ["tradeable", "disabled"],
+      "properties": {
+        "tradeable": { "type": "boolean" },
+        "disabled": { "type": "boolean" }
       }
     }
   }

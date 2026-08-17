@@ -56,7 +56,7 @@ import { queryByIndex as queryKamiEntityByIndex } from 'network/shapes/Kami/quer
 import { getRoomByIndex } from 'network/shapes/Room';
 
 import type { BufferedFeedEvent, FeedEventType, KamidenFeeds } from '../kamiden';
-import { Mirror, QueryError } from './build';
+import { AlloOut, Mirror, QueryError, toAlloOut } from './build';
 
 // ------------------------------------------------------------- context
 
@@ -67,6 +67,12 @@ export type QueryCtx = {
   mirror: Mirror;
   kamiden?: KamidenFeeds;
   chat?: { enabled: boolean; maxBytes: number };
+  /** §3.12 payload enrichment, a DAEMON-level decision (config `enrich`,
+   * default false). It rides on the context and not on the request because
+   * no caller may choose its own surface: one daemon serves one surface,
+   * and `undefined` — every library and gate call site that passes a bare
+   * Mirror — means off. */
+  enrich?: boolean;
 };
 
 function requireKamiden(ctx: QueryCtx, what: string): KamidenFeeds {
@@ -130,7 +136,15 @@ function kamiIdRef(mirror: Mirror, rawId: string): IdRef {
   return ref;
 }
 
-export type RoomRef = { index: number; name: string };
+export type RoomRef = {
+  index: number;
+  name: string;
+  /** §3.12 (enrich): populated only where the room is the reader's own
+   * context (`account`, `node`, `room`), never on history rows — the same
+   * 70 rooms recur across a feed or battle page, and the description is one
+   * `room <index>` read away */
+  description?: string;
+};
 
 function roomRef(mirror: Mirror, index: number): RoomRef {
   try {
@@ -141,14 +155,27 @@ function roomRef(mirror: Mirror, index: number): RoomRef {
   }
 }
 
-export type ItemRef = { index: number; name: string };
+export type ItemRef = {
+  index: number;
+  name: string;
+  /** §3.12 (enrich): populated on the DECISION surfaces (open trades and
+   * offers, auction lots, merchant payment currency), not on history rows
+   * (`portal`, `transfers`, `feed`, `battles`), where the same item names
+   * recur page after page */
+  description?: string;
+};
 
-function itemRef(mirror: Mirror, index: number): ItemRef {
+function itemRef(mirror: Mirror, index: number, enrich = false): ItemRef {
   try {
     const item = getItemByIndex(mirror.world, mirror.components, index);
-    return { index, name: item?.name ?? '' };
+    return {
+      index,
+      name: item?.name ?? '',
+      ...(enrich ? { description: item?.description ?? '' } : {}),
+    };
   } catch {
-    return { index, name: '' }; // item index the mirror has no registry row for
+    // item index the mirror has no registry row for
+    return { index, name: '', ...(enrich ? { description: '' } : {}) };
   }
 }
 
@@ -275,19 +302,19 @@ export type TradesOut = {
   openOffers?: TradeHistoryOut[];
 };
 
-function toTradeHistoryOut(mirror: Mirror, t: KamidenTrade): TradeHistoryOut {
+function toTradeHistoryOut(mirror: Mirror, t: KamidenTrade, enrich = false): TradeHistoryOut {
   return {
     tradeId: t.TradeId,
     maker: accountIdRef(mirror, t.MakerId),
     taker: accountIdRef(mirror, t.TakerId),
     buyOrder: t.BuyOrderIndices.map((itemIndex, i) => ({
       itemIndex,
-      item: itemRef(mirror, itemIndex),
+      item: itemRef(mirror, itemIndex, enrich),
       amount: t.BuyOrderAmounts[i] ?? '',
     })),
     sellOrder: t.SellOrderIndices.map((itemIndex, i) => ({
       itemIndex,
-      item: itemRef(mirror, itemIndex),
+      item: itemRef(mirror, itemIndex, enrich),
       amount: t.SellOrderAmounts[i] ?? '',
     })),
     timestamps: {
@@ -311,6 +338,7 @@ export async function tradesQuery(
   args: { accountIndex?: number }
 ): Promise<TradesOut> {
   const mirror = ctx.mirror;
+  const enrich = ctx.enrich === true;
   const explorer = explorerTrades(mirror.world, mirror.components);
   const open: TradeChainOut[] = explorer
     .all()
@@ -328,7 +356,11 @@ export async function tradesQuery(
       ...(t.buyOrder
         ? {
             buyOrder: {
-              items: t.buyOrder.items.map((i) => ({ index: i.index, name: i.name })),
+              items: t.buyOrder.items.map((i) => ({
+                index: i.index,
+                name: i.name,
+                ...(enrich ? { description: i.description ?? '' } : {}),
+              })),
               amounts: (t.buyOrder.amounts ?? []).map(Number),
             },
           }
@@ -336,7 +368,11 @@ export async function tradesQuery(
       ...(t.sellOrder
         ? {
             sellOrder: {
-              items: t.sellOrder.items.map((i) => ({ index: i.index, name: i.name })),
+              items: t.sellOrder.items.map((i) => ({
+                index: i.index,
+                name: i.name,
+                ...(enrich ? { description: i.description ?? '' } : {}),
+              })),
               amounts: (t.sellOrder.amounts ?? []).map(Number),
             },
           }
@@ -352,11 +388,13 @@ export async function tradesQuery(
     const history = await kamiden.unary('GetTradeHistory', (c) =>
       c.getTradeHistory({ AccountId: accountId, Timestamp: '0' })
     );
+    // history rows stay lean; OPEN OFFERS are a decision surface and get
+    // the item descriptions (§3.12 population map)
     out.history = history.Trades.map((t) => toTradeHistoryOut(mirror, t));
     const offers = await kamiden.unary('GetOpenOffers', (c) =>
       c.getOpenOffers({ AccountId: accountId, Timestamp: '0' })
     );
-    out.openOffers = offers.Trades.map((t) => toTradeHistoryOut(mirror, t));
+    out.openOffers = offers.Trades.map((t) => toTradeHistoryOut(mirror, t, enrich));
   }
   return out;
 }
@@ -396,16 +434,29 @@ export async function auctionsQuery(
   args: { itemIndex?: number }
 ): Promise<AuctionsOut> {
   const mirror = ctx.mirror;
+  const enrich = ctx.enrich === true;
   const explorer = explorerAuctions(mirror.world, mirror.components);
   const all = explorer.all();
   const rows: AuctionOut[] = all
     .filter((a) => a.auctionItem?.index)
     .map((a) => ({
       ...(a.auctionItem
-        ? { auctionItem: { index: a.auctionItem.index, name: a.auctionItem.name } }
+        ? {
+            auctionItem: {
+              index: a.auctionItem.index,
+              name: a.auctionItem.name,
+              ...(enrich ? { description: a.auctionItem.description ?? '' } : {}),
+            },
+          }
         : {}),
       ...(a.paymentItem
-        ? { paymentItem: { index: a.paymentItem.index, name: a.paymentItem.name } }
+        ? {
+            paymentItem: {
+              index: a.paymentItem.index,
+              name: a.paymentItem.name,
+              ...(enrich ? { description: a.paymentItem.description ?? '' } : {}),
+            },
+          }
         : {}),
       params: a.params,
       supply: a.supply,
@@ -459,6 +510,17 @@ export type QuestObjectiveOut = {
    *  · boolean — a condition that is met or not, with nothing to count;
    *  · unknown — a handler this version does not evaluate. */
   basis: 'since-acceptance' | 'current' | 'boolean' | 'unknown';
+  /** §3.12 (enrich): the objective's bare `index`, resolved — but ONLY for
+   * the two target types the pinned client itself resolves against a
+   * registry (`ROOM` via its own room lookup, `ITEM` via
+   * getFromDescription). Types like ITEM_BURN or SCAV_CLAIM_NODE carry an
+   * index this pin never interprets, and the item and room index spaces
+   * OVERLAP at low indices — room 3 resolves to an item literally named
+   * "None", room 25 to a passport — so resolving them would attach a
+   * plausible wrong name. Their `index` is served bare, as before, and the
+   * objective's own `name` already reads "Give 3 Scrap Metal". */
+  item?: { index: number; name: string; description?: string };
+  room?: { index: number; name: string };
 };
 
 export type QuestAccountStateOut = {
@@ -484,6 +546,10 @@ export type QuestRegistryOut = {
   description: string;
   repeatable: boolean;
   repeatDuration?: number;
+  /** §3.12 (enrich): what completing it pays, one row per raw reward allo
+   * with upstream's interpretation beside it. Already computed by `getQuest`
+   * for every registry row today and discarded at the projection. */
+  rewards?: AlloOut[];
   /** account-relative state (0.3.0), present on every registry row when the
    * query is given an account */
   account?: QuestAccountStateOut;
@@ -518,7 +584,35 @@ function objectiveBasis(logic: string): QuestObjectiveOut['basis'] {
 
 /** Number() coercion throughout: the mirror decodes some numeric components
  * as hex strings; the served surface is honest numbers. */
-function toObjectiveOut(objective: QuestObjective): QuestObjectiveOut {
+/** §3.12: resolve the objective's target index, for the two types the
+ * pinned client resolves itself and no others (see the QuestObjectiveOut
+ * note). An index that resolves to nothing adds no field at all. */
+function objectiveRef(
+  mirror: Mirror,
+  objective: QuestObjective
+): Pick<QuestObjectiveOut, 'item' | 'room'> {
+  const type = objective.target?.type ?? '';
+  const raw = objective.target?.index;
+  if (raw === undefined) return {};
+  const index = Number(raw);
+  if (type === 'ITEM') {
+    const item = getItemByIndex(mirror.world, mirror.components, index);
+    if (!item?.index) return {};
+    return { item: { index, name: item.name, description: item.description ?? '' } };
+  }
+  if (type === 'ROOM') {
+    const room = getRoomByIndex(mirror.world, mirror.components, index);
+    if (!room?.index) return {};
+    return { room: { index, name: room.name } };
+  }
+  return {};
+}
+
+function toObjectiveOut(
+  objective: QuestObjective,
+  mirror?: Mirror,
+  enrich = false
+): QuestObjectiveOut {
   const status = objective.status;
   return {
     name: objective.name,
@@ -529,6 +623,7 @@ function toObjectiveOut(objective: QuestObjective): QuestObjectiveOut {
     ...(status?.current !== undefined ? { current: Number(status.current) } : {}),
     met: status?.completable ?? false,
     basis: objectiveBasis(objective.logic),
+    ...(enrich && mirror ? objectiveRef(mirror, objective) : {}),
   };
 }
 
@@ -569,6 +664,7 @@ function toObjectiveOut(objective: QuestObjective): QuestObjectiveOut {
  * and no progress at all. */
 export function questsQuery(ctx: QueryCtx, args: { accountIndex?: number }): QuestsOut {
   const mirror = ctx.mirror;
+  const enrich = ctx.enrich === true;
   const { world, components } = mirror;
   const explorer = explorerQuests(world, components);
   const all = explorer.all().filter((q) => q.index);
@@ -578,6 +674,7 @@ export function questsQuery(ctx: QueryCtx, args: { accountIndex?: number }): Que
     description: q.description,
     repeatable: q.repeatable,
     ...(q.repeatDuration ? { repeatDuration: Number(q.repeatDuration) } : {}),
+    ...(enrich ? { rewards: (q.rewards ?? []).map((a) => toAlloOut(mirror, a)) } : {}),
   });
 
   if (args.accountIndex === undefined) return { registry: all.map(toRegistryRow) };
@@ -605,7 +702,7 @@ export function questsQuery(ctx: QueryCtx, args: { accountIndex?: number }): Que
       state.objectivesMet = meetsObjectives(instance);
       state.startTime = Number(instance.startTime);
       state.endTime = Number(instance.endTime);
-      state.objectives = instance.objectives.map(toObjectiveOut);
+      state.objectives = instance.objectives.map((o) => toObjectiveOut(o, mirror, enrich));
       if (instance.complete && q.repeatable) state.repeatAvailable = canRepeatQuest(instance);
     }
     row.account = state;

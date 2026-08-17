@@ -12,7 +12,11 @@
 //   --config <path> --chain-id --world-address --initial-block --rpc-url
 //   --rpc-ws-url --kamigaze-url --kamiden-url --kamiden-buffer-capacity
 //   --chat-enabled true|false --chat-max-bytes --default-operator
-//   --data-dir <path> --checkpoint-interval-ms
+//   --enrich true|false --data-dir <path> --checkpoint-interval-ms
+// The enrichment flag (§3.12) is a DAEMON setting: `kami-lens daemon
+// --enrich true` decides the surface every client of that daemon sees. Given
+// to a query invocation it parses and does nothing — the query path is a
+// socket client, and no request field carries enrichment.
 // Query flags: --prose (opt-in authored-prose fields, e.g. account bio),
 //   --no-authored (name-free mode: withhold authored-id with receipt),
 //   --stateless (kami only), --oversize (chat only: serve oversize bodies
@@ -51,6 +55,7 @@ function usage(): never {
       "config flags: --config <path>, --chain-id, --world-address, --initial-block,",
       '  --rpc-url, --rpc-ws-url, --kamigaze-url, --kamiden-url,',
       '  --kamiden-buffer-capacity, --chat-enabled, --chat-max-bytes,',
+      '  --enrich true|false (DAEMON-side payload enrichment, §3.12),',
       '  --default-operator, --data-dir, --checkpoint-interval-ms',
     ].join('\n')
   );

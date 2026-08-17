@@ -5,7 +5,10 @@
 // as library exports" is a table property, not a promise.
 //
 // M4: builders take a QueryCtx ({mirror, kamiden?, chat?}) and may be
-// async (Kamiden unary passthroughs). Chain-only builders keep using just
+// async (Kamiden unary passthroughs). 0.4.0 adds `enrich` to that context —
+// the §3.12 payload-enrichment flag, threaded here rather than read from a
+// module global so a library caller passing a bare Mirror gets the flag-off
+// surface by construction. Chain-only builders keep using just
 // ctx.mirror. The chat entry is subject to the §3.10 kill-switch, enforced
 // inside its builder (CHAT_DISABLED) so the removal is an explicit,
 // documented answer rather than a silent absence.
@@ -121,7 +124,8 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     },
     stateless: false,
     kamiden: false,
-    build: (ctx, a, o) => accountQuery(ctx.mirror, a as { index?: number; name?: string }, o),
+    build: (ctx, a, o) =>
+      accountQuery(ctx.mirror, a as { index?: number; name?: string }, o, ctx.enrich),
   },
   node: {
     name: 'node',
@@ -143,7 +147,11 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     stateless: false,
     kamiden: false,
     build: (ctx, a) =>
-      nodeQuery(ctx.mirror, a as { index: number; withVitals?: boolean; attacker?: number }),
+      nodeQuery(
+        ctx.mirror,
+        a as { index: number; withVitals?: boolean; attacker?: number },
+        ctx.enrich
+      ),
   },
   party: {
     name: 'party',
@@ -161,7 +169,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     parseArgs: ([accountIndex]) => ({ accountIndex: int(accountIndex, 'account index') }),
     stateless: false,
     kamiden: false,
-    build: (ctx, a) => rosterQuery(ctx.mirror, a as { accountIndex: number }),
+    build: (ctx, a) => rosterQuery(ctx.mirror, a as { accountIndex: number }, ctx.enrich),
   },
   item: {
     name: 'item',
@@ -169,7 +177,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     parseArgs: ([index]) => ({ index: int(index, 'item index') }),
     stateless: false,
     kamiden: false,
-    build: (ctx, a) => itemQuery(ctx.mirror, a as { index: number }),
+    build: (ctx, a) => itemQuery(ctx.mirror, a as { index: number }, ctx.enrich),
   },
   items: {
     name: 'items',
@@ -177,7 +185,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     parseArgs: () => ({}),
     stateless: false,
     kamiden: false,
-    build: (ctx) => itemsQuery(ctx.mirror),
+    build: (ctx) => itemsQuery(ctx.mirror, ctx.enrich),
   },
   config: {
     name: 'config',
@@ -200,7 +208,8 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     },
     stateless: false,
     kamiden: false,
-    build: (ctx, a) => inventoryQuery(ctx.mirror, a as { index?: number; name?: string }),
+    build: (ctx, a) =>
+      inventoryQuery(ctx.mirror, a as { index?: number; name?: string }, ctx.enrich),
   },
   room: {
     name: 'room',
@@ -216,7 +225,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     parseArgs: ([index]) => ({ index: optInt(index, 'npc index') }),
     stateless: false,
     kamiden: false,
-    build: (ctx, a) => merchantQuery(ctx.mirror, a as { index?: number }),
+    build: (ctx, a) => merchantQuery(ctx.mirror, a as { index?: number }, ctx.enrich),
   },
   phase: {
     name: 'phase',

@@ -1,5 +1,5 @@
 {
-  "$comment": "Machine form of the per-pin string classification (DESIGN \u00a73.10; prose rationale and the canonical class definitions live in docs/coverage.md 'String classification'). Keyed by named schema $def \u00d7 property. Every string-valued path in a query output schema resolves here via its owning $def type; a string property NOT listed resolves to the fail-safe default authored-prose (never volunteered \u2014 pruned from default output and refused without opt-in). Changes get formula-class hand review (DESIGN \u00a77). Gate G3.f derives every query's untrusted path list from (output schema \u00d7 this artifact) and fails on divergence from the emitted envelope.",
+  "$comment": "Machine form of the per-pin string classification (DESIGN \u00a73.10; prose rationale and the canonical class definitions live in docs/coverage.md 'String classification'). Keyed by named schema $def \u00d7 property. Every string-valued path in a query output schema resolves here via its owning $def type; a string property NOT listed resolves to the fail-safe default authored-prose (never volunteered \u2014 pruned from default output and refused without opt-in). Changes get formula-class hand review (DESIGN \u00a77). Gate G3.f derives every query's untrusted path list from (output schema \u00d7 this artifact) and fails on divergence from the emitted envelope. 0.4.0 (\u00a73.12 payload enrichment) adds: description on ItemRef, RoomRef and InventoryItem; the AlloText/AlloOut pair (interpreted item effects and quest rewards); ItemRequirement (interpreted USE requirements). Every one is registry-class game content read from the mirror's own registries, hand-reviewed with the 0.4.0 change set: they carry no player-authored text, and the fail-safe would otherwise resolve each to authored-prose and DELETE it from every default answer.",
   "pin": "ef898fc9350a6085fb080419b12af96c2254e8f3",
   "default": "authored-prose",
   "types": {
@@ -101,10 +101,12 @@
       "name": "authored-id"
     },
     "RoomRef": {
-      "name": "registry"
+      "name": "registry",
+      "description": "registry"
     },
     "ItemRef": {
-      "name": "registry"
+      "name": "registry",
+      "description": "registry"
     },
     "Kill": {
       "bounty": "system",
@@ -230,7 +232,8 @@
     "InventoryItem": {
       "id": "system",
       "name": "registry",
-      "type": "system"
+      "type": "system",
+      "description": "registry"
     },
     "Room": {
       "name": "registry",
@@ -280,6 +283,17 @@
     },
     "RosterKami": {
       "state": "system"
+    },
+    "AlloText": {
+      "name": "registry",
+      "description": "registry"
+    },
+    "AlloOut": {
+      "type": "system"
+    },
+    "ItemRequirement": {
+      "type": "system",
+      "text": "registry"
     }
   }
 }

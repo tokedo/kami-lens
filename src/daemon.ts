@@ -102,6 +102,7 @@ export type DaemonStatus = {
     kamigazeUrl?: string;
     kamidenUrl?: string;
     chatEnabled: boolean;
+    enrich: boolean;
     dataDir: string;
     checkpointIntervalMs: number;
   };
@@ -511,6 +512,7 @@ export class KamiLensDaemon {
       kamigazeUrl,
       kamidenUrl,
       chatEnabled,
+      enrich,
       dataDir,
       checkpointIntervalMs,
     } = this.config;
@@ -549,6 +551,7 @@ export class KamiLensDaemon {
         kamigazeUrl,
         kamidenUrl,
         chatEnabled,
+        enrich,
         dataDir,
         checkpointIntervalMs,
       },

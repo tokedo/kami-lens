@@ -25,6 +25,10 @@
         "roomIndex": {
           "type": "number",
           "description": "the room the account itself is standing in"
+        },
+        "room": {
+          "$ref": "#/$defs/RoomRef",
+          "description": "§3.12 (enrich): roomIndex resolved. On roster, {index, name} only — the compact answer stays compact."
         }
       }
     },
@@ -42,6 +46,17 @@
           "minItems": 2,
           "maxItems": 2
         }
+      }
+    },
+    "RoomRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "§3.12 (enrich): a room index resolved to its registry name and description. Present only when the daemon runs with enrich=true. An index the mirror has no room for keeps the index and answers with empty strings.",
+      "required": ["index", "name"],
+      "properties": {
+        "index": { "type": "number" },
+        "name": { "type": "string" },
+        "description": { "type": "string" }
       }
     }
   }

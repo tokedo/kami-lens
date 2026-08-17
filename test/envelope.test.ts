@@ -110,6 +110,100 @@ describe('buildEnvelope (§3.10 composition)', () => {
     expect(env.untrusted).toEqual([]);
   });
 
+  // §3.12 payload enrichment (0.4.0). Every field the flag adds is a STRING
+  // the fail-safe would otherwise resolve to authored-prose and DELETE from
+  // the answer — so these assertions are what keeps the enriched surface
+  // reachable at all, not decoration.
+  it('classifies every enriched item field as registry game content', () => {
+    const inv = classifyPaths(loadSchema('inventory'));
+    expect(inv.get('items[].item.description')).toBe('registry');
+    expect(inv.get('items[].item.effects.use[].entries[].name')).toBe('registry');
+    expect(inv.get('items[].item.effects.use[].entries[].description')).toBe('registry');
+    expect(inv.get('items[].item.effects.equip[].entries[].description')).toBe('registry');
+    expect(inv.get('items[].item.requirements[].text')).toBe('registry');
+    // the raw allo/condition facts beside the text are enum-ish system labels
+    expect(inv.get('items[].item.effects.use[].type')).toBe('system');
+    expect(inv.get('items[].item.requirements[].type')).toBe('system');
+  });
+
+  it('classifies enriched quest rewards, objective refs and room refs', () => {
+    const quests = classifyPaths(loadSchema('quests'));
+    expect(quests.get('registry[].rewards[].entries[].name')).toBe('registry');
+    expect(quests.get('registry[].rewards[].entries[].description')).toBe('registry');
+    expect(quests.get('registry[].rewards[].type')).toBe('system');
+    expect(quests.get('registry[].account.objectives[].room.name')).toBe('registry');
+    expect(quests.get('registry[].account.objectives[].item.description')).toBe('registry');
+
+    for (const [query, path] of [
+      ['account', 'room.description'],
+      ['node', 'room.description'],
+      ['roster', 'account.room.name'],
+      ['trades', 'open[].buyOrder.items[].description'],
+      ['auctions', 'auctions[].auctionItem.description'],
+      ['merchant', 'listings[].payItem.description'],
+    ] as const) {
+      expect(classifyPaths(loadSchema(query)).get(path)).toBe('registry');
+    }
+  });
+
+  it('keeps enriched fields in the answer and off the untrusted list', () => {
+    const data = {
+      account: { index: 9, name: 'buzz' },
+      items: [
+        {
+          balance: 2,
+          item: {
+            id: '0x1',
+            index: 11204,
+            name: 'Ambrosia',
+            type: 'FOOD',
+            description: 'A honeyed draught.',
+            effects: {
+              use: [
+                {
+                  type: 'XP',
+                  index: 0,
+                  value: 1000,
+                  entries: [{ name: 'XP', description: '+1000 XP' }],
+                },
+              ],
+              equip: [],
+            },
+            requirements: [
+              { type: 'KAMI_CAN_EAT', index: 0, value: 0, text: 'None' },
+            ],
+          },
+        },
+      ],
+    };
+    const env = buildEnvelope(data, loadSchema('inventory'), META);
+    const row = env.data.items[0].item;
+    expect(row.description).toBe('A honeyed draught.');
+    expect(row.effects.use[0].entries[0].description).toBe('+1000 XP');
+    expect(row.requirements[0].text).toBe('None');
+    // registry class: never volunteered-prose, never a name — the only
+    // authored string in an enriched inventory answer is the account name
+    expect(env.untrusted).toEqual(['account.name']);
+    expect(env.meta.suppressed).toBeUndefined();
+  });
+
+  it('an enriched roster still carries no authored string at all', () => {
+    const data = {
+      account: { index: 9, roomIndex: 12, room: { index: 12, name: 'Scrap Confluence' } },
+      kamis: [{ index: 1, state: 'RESTING', hp: [10, 20] }],
+    };
+    const env = buildEnvelope(structuredClone(data), loadSchema('roster'), META);
+    expect(env.untrusted).toEqual([]);
+    const nameFree = buildEnvelope(structuredClone(data), loadSchema('roster'), META, {
+      noAuthored: true,
+    });
+    // byte-identical in name-free mode: a room NAME is registry content, not
+    // an authored id, so there is nothing to withhold and no receipt to raise
+    expect(JSON.stringify(nameFree.data)).toBe(JSON.stringify(data));
+    expect(nameFree.meta.suppressed).toBeUndefined();
+    expect(nameFree.untrusted).toEqual([]);
+  });
+
   it('does not claim schema paths absent from the data', () => {
     const data = {
       id: '0x1',

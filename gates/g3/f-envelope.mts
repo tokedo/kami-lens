@@ -6,6 +6,15 @@
 // and its own presence check over real query outputs. Also asserts the
 // name-free mode: authored-id values absent, suppression receipts present,
 // stable IDs intact.
+//
+// 0.4.0 adds the §3.12 enriched cases AND a PRESENCE assertion set, which
+// closes a blind spot rather than adding coverage for its own sake: an
+// unclassified new string resolves to authored-prose and buildEnvelope
+// DELETES it, so a missing classification entry would make the field vanish
+// — and a vanished field is absent from the data, hence excluded from the
+// presence-filtered derivation, hence invisible to the comparison above.
+// The path list below therefore asserts that each enriched field is really
+// THERE in the enriched answer. A missing classification entry fails here.
 
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -133,7 +142,12 @@ const accountRoom = (
     .data as { roomIndex: number }
 ).roomIndex;
 
-const CASES: { query: string; args: string[]; opts?: { prose?: boolean; noAuthored?: boolean } }[] = [
+const CASES: {
+  query: string;
+  args: string[];
+  opts?: { prose?: boolean; noAuthored?: boolean };
+  enrich?: boolean;
+}[] = [
   { query: 'kami', args: [firstKami] },
   { query: 'account', args: [String(anAccount)] },
   { query: 'account', args: [String(anAccount)], opts: { prose: true } },
@@ -163,12 +177,68 @@ const CASES: { query: string; args: string[]; opts?: { prose?: boolean; noAuthor
   // than the shape being asserted by hand
   { query: 'roster', args: [String(anAccount)] },
   { query: 'roster', args: [String(anAccount)], opts: { noAuthored: true } },
+  // 0.4.0 §3.12: every query the enrichment flag touches, flag ON — the
+  // derivation must still match exactly, i.e. every enriched string must be
+  // classified `registry` (neither volunteered-prose nor an authored id)
+  { query: 'inventory', args: [String(anAccount)], enrich: true },
+  { query: 'item', args: ['1'], enrich: true },
+  { query: 'items', args: [], enrich: true },
+  { query: 'quests', args: [], enrich: true },
+  { query: 'quests', args: [String(anAccount)], enrich: true },
+  { query: 'account', args: [String(anAccount)], enrich: true },
+  { query: 'account', args: [String(anAccount)], opts: { prose: true }, enrich: true },
+  { query: 'node', args: ['62'], enrich: true },
+  { query: 'merchant', args: ['1'], enrich: true },
+  { query: 'trades', args: [], enrich: true },
+  { query: 'auctions', args: [], enrich: true },
+  { query: 'room', args: [String(accountRoom)], enrich: true },
+  { query: 'roster', args: [String(anAccount)], enrich: true },
+  { query: 'roster', args: [String(anAccount)], opts: { noAuthored: true }, enrich: true },
+];
+
+/** The §3.12 fields that MUST be present in an enriched answer. A field
+ * whose classification entry is missing is deleted by the fail-safe, so its
+ * absence here is exactly the bug this list exists to catch. */
+const ENRICHED_PRESENCE: { query: string; args: string[]; paths: string[] }[] = [
+  {
+    query: 'inventory',
+    args: [String(anAccount)],
+    paths: ['items[].item.description'],
+  },
+  {
+    query: 'items',
+    args: [],
+    paths: [
+      'items[].effects.use[].type',
+      'items[].effects.use[].entries[].name',
+      'items[].effects.use[].entries[].description',
+      'items[].requirements[].text',
+      'items[].is.tradeable',
+    ],
+  },
+  {
+    query: 'quests',
+    args: [],
+    paths: ['registry[].rewards[].type', 'registry[].rewards[].entries[].description'],
+  },
+  {
+    query: 'account',
+    args: [String(anAccount)],
+    paths: ['room.index', 'room.name', 'room.description'],
+  },
+  { query: 'node', args: ['62'], paths: ['room.name', 'room.description'] },
+  { query: 'roster', args: [String(anAccount)], paths: ['account.room.name'] },
+  {
+    query: 'merchant',
+    args: ['1'],
+    paths: ['listings[].item.description', 'listings[].payItem.description'],
+  },
 ];
 
 const mismatches: Record<string, unknown>[] = [];
 let compared = 0;
 for (const c of CASES) {
-  const envelope = await serveQuery(mirror, c.query, c.args, {
+  const envelope = await serveQuery(c.enrich ? { mirror, enrich: true } : mirror, c.query, c.args, {
     ...c.opts,
     stale: false,
     mode: 'daemon',
@@ -179,6 +249,27 @@ for (const c of CASES) {
   compared++;
   if (JSON.stringify(derived) !== JSON.stringify(envelope.untrusted)) {
     mismatches.push({ ...c, derived, emitted: envelope.untrusted });
+  }
+}
+
+// --- §3.12 presence: the fail-safe would have deleted an unclassified field
+const missingEnriched: Record<string, unknown>[] = [];
+let presenceChecked = 0;
+for (const c of ENRICHED_PRESENCE) {
+  const enriched = await serveQuery({ mirror, enrich: true }, c.query, c.args, {
+    stale: false,
+    mode: 'daemon',
+  });
+  const bare = await serveQuery(mirror, c.query, c.args, { stale: false, mode: 'daemon' });
+  for (const p of c.paths) {
+    presenceChecked++;
+    if (!present(enriched.data, p)) {
+      missingEnriched.push({ query: c.query, args: c.args, path: p, reason: 'absent when enriched' });
+    }
+    // and the mirror image: the same path must NOT be there with the flag off
+    if (present(bare.data, p)) {
+      missingEnriched.push({ query: c.query, args: c.args, path: p, reason: 'present when flag off' });
+    }
   }
 }
 
@@ -208,11 +299,18 @@ await writeMeasurement('g3f-envelope', {
   cases: compared,
   mismatches,
   nameFreeChecks,
-  match: mismatches.length === 0 && nameFreeOk,
+  enrichedPresenceChecked: presenceChecked,
+  enrichedPresenceProblems: missingEnriched,
+  match: mismatches.length === 0 && nameFreeOk && missingEnriched.length === 0,
 });
 
-if (mismatches.length > 0 || !nameFreeOk) {
-  fail('G3.f', { reason: 'envelope divergence', mismatches, nameFreeChecks });
+if (mismatches.length > 0 || !nameFreeOk || missingEnriched.length > 0) {
+  fail('G3.f', {
+    reason: 'envelope divergence or an enriched field that is not where it must be',
+    mismatches,
+    nameFreeChecks,
+    missingEnriched,
+  });
 }
-pass('G3.f', { cases: compared, nameFreeChecks });
+pass('G3.f', { cases: compared, nameFreeChecks, enrichedPresence: presenceChecked });
 process.exit(0);

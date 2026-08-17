@@ -61,6 +61,10 @@ export function buildStatusData(daemon: KamiLensDaemon): Record<string, unknown>
       ...(s.config.kamigazeUrl ? { kamigazeUrl: s.config.kamigazeUrl } : {}),
       ...(s.config.kamidenUrl ? { kamidenUrl: s.config.kamidenUrl } : {}),
       chatEnabled: s.config.chatEnabled,
+      // the §3.12 enrichment flag, always surfaced (a switch you can only
+      // see when it is on is not provenance) — the ONE key by which a
+      // flag-off 0.4.0 answer differs from 0.3.0 (G3.g)
+      enrich: s.config.enrich,
       ...(daemon.config.defaultOperator !== undefined
         ? { defaultOperator: daemon.config.defaultOperator }
         : {}),
@@ -108,6 +112,10 @@ async function handle(daemon: KamiLensDaemon, req: Request): Promise<Record<stri
       mirror,
       kamiden: daemon.kamiden,
       chat: { enabled: daemon.config.chatEnabled, maxBytes: daemon.config.chatMaxBytes },
+      // §3.12: enrichment is a DAEMON-level decision — no request field
+      // carries it, so no caller can ask for a different surface than the
+      // one this daemon was started with
+      enrich: daemon.config.enrich,
     };
     // defaultOperator prefill (DESIGN §5): a convenience default for the
     // operator-argument tools when the argument is omitted — the same

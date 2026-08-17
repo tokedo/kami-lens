@@ -51,6 +51,13 @@ export type KamiLensConfig = {
    * bodies are withheld-with-receipt (DESIGN §3.10 — never truncated;
    * explicit oversize opt-in serves them verbatim) */
   chatMaxBytes: number;
+  /** payload enrichment (DESIGN §3.12, 0.4.0): serve the client-tooltip
+   * facts inline where a result names an item or a room without prose —
+   * item description, chain-derived use/equip effects, interpreted use
+   * requirements, quest rewards, room name/description on bare-index refs.
+   * RESULTS ONLY: no query, request field, or schema field changes with it.
+   * Default false, and false answers byte-identically to 0.3.0 (G3.g). */
+  enrich: boolean;
   /** optional account index prefilled into the operator-argument queries
    * when the argument is omitted (DESIGN §5 — a convenience prefill for
    * the general tools, never a special path) */
@@ -117,6 +124,7 @@ const FILE_KEYS: Record<string, { field: keyof KamiLensConfig; type: 'number' | 
   kamiden_buffer_capacity: { field: 'kamidenBufferCapacity', type: 'number' },
   chat_enabled: { field: 'chatEnabled', type: 'boolean' },
   chat_max_bytes: { field: 'chatMaxBytes', type: 'number' },
+  enrich: { field: 'enrich', type: 'boolean' },
   default_operator: { field: 'defaultOperator', type: 'number' },
   data_dir: { field: 'dataDir', type: 'string' },
   checkpoint_interval_ms: { field: 'checkpointIntervalMs', type: 'number' },
@@ -133,6 +141,7 @@ const ENV_KEYS: Record<string, keyof KamiLensConfig> = {
   KAMI_LENS_KAMIDEN_BUFFER_CAPACITY: 'kamidenBufferCapacity',
   KAMI_LENS_CHAT_ENABLED: 'chatEnabled',
   KAMI_LENS_CHAT_MAX_BYTES: 'chatMaxBytes',
+  KAMI_LENS_ENRICH: 'enrich',
   KAMI_LENS_DEFAULT_OPERATOR: 'defaultOperator',
   KAMI_LENS_DATA_DIR: 'dataDir',
   KAMI_LENS_CHECKPOINT_INTERVAL_MS: 'checkpointIntervalMs',
@@ -146,7 +155,7 @@ const NUMBER_FIELDS = new Set<keyof KamiLensConfig>([
   'defaultOperator',
   'checkpointIntervalMs',
 ]);
-const BOOLEAN_FIELDS = new Set<keyof KamiLensConfig>(['chatEnabled']);
+const BOOLEAN_FIELDS = new Set<keyof KamiLensConfig>(['chatEnabled', 'enrich']);
 /** URL keys accept the literal 'none' = explicitly unset at that level */
 const NONEABLE_FIELDS = new Set<keyof KamiLensConfig>(['kamigazeUrl', 'kamidenUrl', 'wsRpcUrl']);
 
@@ -279,6 +288,7 @@ export function resolveConfigDetailed(
     kamidenBufferCapacity: take('kamidenBufferCapacity', 4096),
     chatEnabled: take('chatEnabled', true),
     chatMaxBytes: take('chatMaxBytes', 4096),
+    enrich: take('enrich', false),
     defaultOperator: take<number | undefined>('defaultOperator', undefined),
     dataDir: take('dataDir', getDataDir()),
     checkpointIntervalMs: take('checkpointIntervalMs', 10 * 60 * 1000),
@@ -306,6 +316,7 @@ export const CONFIG_FLAGS: Record<string, keyof KamiLensConfig | 'configFile'> =
   '--kamiden-buffer-capacity': 'kamidenBufferCapacity',
   '--chat-enabled': 'chatEnabled',
   '--chat-max-bytes': 'chatMaxBytes',
+  '--enrich': 'enrich',
   '--default-operator': 'defaultOperator',
   '--data-dir': 'dataDir',
   '--checkpoint-interval-ms': 'checkpointIntervalMs',

@@ -77,7 +77,11 @@
       "required": ["index", "name"],
       "properties": {
         "index": { "type": "number" },
-        "name": { "type": "string" }
+        "name": { "type": "string" },
+        "description": {
+          "type": "string",
+          "description": "\u00a73.12 (enrich): the item's registry description. Present only when the daemon runs with enrich=true AND this ref is on a decision surface (open trades and offers, auction lots, merchant payment currency) \u2014 history rows keep the bare name."
+        }
       }
     },
     "AccountRef": {

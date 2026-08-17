@@ -8,10 +8,18 @@
 #   G3.d [live]      stateless equivalence + REQUIRES_DAEMON refusal
 #   G3.e [live]      degraded-state honesty (proxy-kill, stale stamping)
 #   G3.f [hermetic]  envelope conformance (schema × classification)
+#   G3.g [hermetic]  flag-off identity — the §3.12 enrichment flag off must
+#                    answer byte-identically to 0.3.0 (clock mask derived
+#                    from two pre-change baseline captures; `status` is the
+#                    one named exception, by exactly two keys)
 #
 # Needs: gates/.artifacts/c2.v8snap (mirror snapshot), the g2b fixtures +
 # measurement (G3.c), and gates/.artifacts/overnight-data for the live
-# daemon runs (G3.d/e run daemons sequentially on that data dir).
+# daemon runs (G3.d/e run daemons sequentially on that data dir). G3.g
+# additionally needs its two baseline captures
+# (gates/.artifacts/kd-flagoff-base{1,2}.json), taken from the pre-change
+# tree with `--capture base1|base2`; it refuses rather than compares if they
+# are missing or were taken at a different snapshot block.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -25,6 +33,9 @@ $TSX gates/g3/a-json-contract.mts
 
 step "G3.f envelope conformance (hermetic)"
 $TSX gates/g3/f-envelope.mts
+
+step "G3.g flag-off identity (hermetic)"
+$TSX gates/g3/g-flag-off-identity.mts
 
 step "G3.b node occupancy cross-check (live)"
 $TSX gates/g3/b-node-occupancy.mts

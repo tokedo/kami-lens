@@ -44,12 +44,16 @@ import {
   queryRoomAccounts,
 } from 'network/shapes/Account';
 import { queryByIndex as queryAccountEntityByIndex } from 'network/shapes/Account/queries';
+import { parseAllo } from 'network/shapes/Allo';
+import type { Allo } from 'network/shapes/Allo';
 import { parseConditionalText } from 'network/shapes/Conditional';
+import type { Condition } from 'network/shapes/Conditional';
 import { getConfigFieldValue, getConfigFieldValueArray } from 'network/shapes/Config';
 // getHarvestKami (Harvest/kami.ts), NOT getHarvest's {kami:true} option —
 // that option is a dormant upstream defect (see Harvest/types.ts header).
 import { getHarvest, getHarvestKami } from 'network/shapes/Harvest';
 import { getAllItems, getItemBalance, getItemByIndex } from 'network/shapes/Item';
+import type { Item as ShapeItem } from 'network/shapes/Item';
 import { getKami as getShapeKami } from 'network/shapes/Kami';
 import { queryByIndex as queryKamiByIndex } from 'network/shapes/Kami/queries';
 import { Listing } from 'network/shapes/Listing';
@@ -69,6 +73,133 @@ export type Mirror = {
   components: Components;
   blockNumber: number;
 };
+
+// ------------------------------------------------------- §3.12 enrichment
+//
+// The client-tooltip facts, served inline where a result names an item or a
+// room without prose. Behind the daemon's `enrich` flag: every helper below
+// is reached only from a `...(enrich ? … : {})` spread placed LAST in its
+// object literal, so a flag-off answer is byte-identical to 0.3.0 (G3.g).
+//
+// SOURCES ARE CHAIN OR DEPLOYED CONFIG ONLY. Descriptions come from the
+// mirror's Description components; effects from the item's own Allo
+// registry; requirements from its Conditional registry; quest rewards from
+// the reward Allos. No catalog, no authored document.
+
+/** One interpreted line of an allo — upstream's own `DetailedEntity`,
+ * projected to {name, description}. `image` is NEVER served: two shapes
+ * files carry the module NAMESPACE of a png import there rather than a URL
+ * (SPEC §4.1 quirk 2), so it is not a string at all. */
+export type AlloText = { name: string; description: string };
+
+/** One RAW allo with its interpreted text beside it, grouped per allo
+ * deliberately: `parseAllo` fans out — a BONUS allo yields one entity per
+ * bonus, a droptable allo yields one consolidated entity — so a flat parsed
+ * list has no positional correspondence to the allos the world stores.
+ * Grouping keeps type/index/value joined to the text upstream derives from
+ * them and invents no pairing. */
+export type AlloOut = {
+  type: string;
+  index: number;
+  value: number;
+  /** upstream's interpretation of this one allo; empty when this pin's
+   * interpreter has none for the shape (the raw facts still stand) */
+  entries: AlloText[];
+};
+
+export function toAlloOut(mirror: Mirror, allo: Allo): AlloOut {
+  const { world, components } = mirror;
+  let entries: AlloText[] = [];
+  try {
+    const parsed = parseAllo(world, components, allo);
+    entries = (Array.isArray(parsed) ? parsed : [parsed])
+      .filter((d) => d)
+      .map((d) => ({ name: d.name ?? '', description: d.description ?? '' }));
+  } catch {
+    /* an allo shape this pin cannot interpret — serve the raw facts alone */
+  }
+  return {
+    type: allo.type,
+    index: Number(allo.index ?? 0),
+    value: Number(allo.value ?? 0),
+    entries,
+  };
+}
+
+/** One USE requirement: the raw condition target plus upstream's own
+ * interpreted text. Grouped rather than the flat `string[]` of
+ * `Listing.requirements` because 48 of the 53 item conditions at this pin
+ * are `KAMI_CAN_EAT` with index 0, whose text is the bare word "None" —
+ * indistinguishable, without the target beside it, from a real requirement.
+ * Text is verbatim including upstream's spacing quirks ("Is  DEAD "). */
+export type ItemRequirementOut = { type: string; index: number; value: number; text: string };
+
+export function toItemRequirementOut(mirror: Mirror, con: Condition): ItemRequirementOut {
+  const { world, components } = mirror;
+  let text = '';
+  try {
+    text = parseConditionalText(world, components, con);
+  } catch {
+    text = con.target?.type ?? '';
+  }
+  return {
+    type: con.target?.type ?? '',
+    index: Number(con.target?.index ?? 0),
+    value: Number(con.target?.value ?? 0),
+    text,
+  };
+}
+
+/** The three item facts an inventory row cannot answer "is this useful to
+ * me?" without. All three are already computed by `getItem` on every read
+ * and discarded at today's projections — this adds no mirror read. */
+export type ItemEnrichment = {
+  description: string;
+  effects: { use: AlloOut[]; equip: AlloOut[] };
+  requirements: ItemRequirementOut[];
+};
+
+export function itemEnrichment(mirror: Mirror, item: ShapeItem): ItemEnrichment {
+  return {
+    description: item.description ?? '',
+    effects: {
+      use: (item.effects?.use ?? []).map((a) => toAlloOut(mirror, a)),
+      equip: (item.effects?.equip ?? []).map((a) => toAlloOut(mirror, a)),
+    },
+    requirements: (item.requirements?.use ?? []).map((c) => toItemRequirementOut(mirror, c)),
+  };
+}
+
+/** Description only, for an item named in passing (a payment currency, an
+ * auction lot, a trade order line) — identity, not a use decision. */
+export function itemDescription(mirror: Mirror, index: number): { description: string } {
+  try {
+    const item = getItemByIndex(mirror.world, mirror.components, index);
+    return { description: item?.description ?? '' };
+  } catch {
+    return { description: '' };
+  }
+}
+
+/** A room named only by index, resolved to the name (and, where the answer
+ * is the reader's own context rather than a history row, the description).
+ * Unresolvable indices keep the index and answer with empty strings, the
+ * same shape `roomRef` already uses for a room the mirror has no entity
+ * for. */
+export type RoomRefOut = { index: number; name: string; description?: string };
+
+export function roomRefOut(mirror: Mirror, index: number, withDescription = true): RoomRefOut {
+  let name = '';
+  let description = '';
+  try {
+    const room = getRoomByIndex(mirror.world, mirror.components, index);
+    name = room?.name ?? '';
+    description = room?.description ?? '';
+  } catch {
+    /* a room index the mirror has no entity for */
+  }
+  return { index, name, ...(withDescription ? { description } : {}) };
+}
 
 export class QueryError extends Error {
   constructor(
@@ -175,12 +306,16 @@ export type AccountOut = {
   reputation: { agency: number; mina: number; nursery: number };
   kamis: { id: string; index: number; name: string; state: string }[];
   bio?: string;
+  /** §3.12 (enrich): `roomIndex` resolved — where the account is standing,
+   * by name and description rather than by bare index */
+  room?: RoomRefOut;
 };
 
 export function accountQuery(
   mirror: Mirror,
   args: { index?: number; name?: string },
-  opts: { prose?: boolean } = {}
+  opts: { prose?: boolean } = {},
+  enrich = false
 ): AccountOut {
   const { world, components } = mirror;
   // config: calcCurrentStamina reads config.stamina.recovery (the Clock
@@ -213,6 +348,7 @@ export function accountQuery(
       state: k.state,
     })),
     ...(opts.prose && account.bio !== undefined ? { bio: account.bio } : {}),
+    ...(enrich ? { room: roomRefOut(mirror, account.roomIndex) } : {}),
   };
 }
 
@@ -243,6 +379,8 @@ export type NodeOut = {
   affinity: string[];
   roomIndex: number;
   description: string;
+  /** §3.12 (enrich): `roomIndex` resolved — the room this node sits in */
+  room?: RoomRefOut;
   /** echoed with the attacker-kami argument (vitals mode only) */
   attacker?: { id: string; index: number; name: string; cooldownSec: number };
   harvests: {
@@ -265,7 +403,8 @@ export type NodeOut = {
  * not its own target). */
 export function nodeQuery(
   mirror: Mirror,
-  args: { index: number; withVitals?: boolean; attacker?: number }
+  args: { index: number; withVitals?: boolean; attacker?: number },
+  enrich = false
 ): NodeOut {
   const { world, components } = mirror;
   const node = getNodeByIndex(world, components, args.index);
@@ -336,6 +475,7 @@ export function nodeQuery(
     affinity: Array.isArray(node.affinity) ? node.affinity : [node.affinity].filter(Boolean),
     roomIndex: node.roomIndex,
     description: node.description ?? '',
+    ...(enrich ? { room: roomRefOut(mirror, node.roomIndex) } : {}),
     ...(attackerOut ? { attacker: attackerOut } : {}),
     harvests,
   };
@@ -361,8 +501,13 @@ export function partyQuery(mirror: Mirror, args: { accountIndex: number }): Part
 // --------------------------------------------------------------- roster
 
 export type RosterOut = {
-  /** no account name: the roster is deliberately name-free (see below) */
-  account: { index: number; roomIndex: number };
+  /** no account name: the roster is deliberately name-free (see below).
+   * §3.12 (enrich) adds `room` — {index, name} only, NO description: the
+   * addition is fixed overhead (+46 bytes measured), so the compaction
+   * property is untouched, and a room NAME is `registry` class, not
+   * authored, so the empty-untrusted-list and name-free byte-identity
+   * guarantees hold in enriched mode too. */
+  account: { index: number; roomIndex: number; room?: RoomRefOut };
   kamis: { index: number; state: string; hp: number[] }[];
 };
 
@@ -386,7 +531,11 @@ export type RosterOut = {
  * asserts the agreement: the projection cache is shared, and refreshing it
  * once per answer rather than once per kami produced different health than
  * the party report for the same kami at the same block.) */
-export function rosterQuery(mirror: Mirror, args: { accountIndex: number }): RosterOut {
+export function rosterQuery(
+  mirror: Mirror,
+  args: { accountIndex: number },
+  enrich = false
+): RosterOut {
   const { world, components } = mirror;
   const account = getAccountByIndex(world, components, args.accountIndex, { kamis: true });
   if (!account.index) {
@@ -400,7 +549,15 @@ export function rosterQuery(mirror: Mirror, args: { accountIndex: number }): Ros
       hp: [vitals.hp.current, vitals.hp.total],
     };
   });
-  return { account: { index: account.index, roomIndex: account.roomIndex }, kamis };
+  return {
+    account: {
+      index: account.index,
+      roomIndex: account.roomIndex,
+      // {index, name} only — see the RosterOut note
+      ...(enrich ? { room: roomRefOut(mirror, account.roomIndex, false) } : {}),
+    },
+    kamis,
+  };
 }
 
 // ---------------------------------------------------------------- item
@@ -416,6 +573,12 @@ export type ItemOut = {
   /** pools trading this item (0.3.0); present on the single-item answer,
    * an empty array when the item trades in none */
   pools?: PoolOut[];
+  /** §3.12 (enrich): what USE and EQUIP do, one row per raw allo */
+  effects?: { use: AlloOut[]; equip: AlloOut[] };
+  /** §3.12 (enrich): what USE requires, raw target + interpreted text */
+  requirements?: ItemRequirementOut[];
+  /** §3.12 (enrich): registry flags the world stores on the item */
+  is?: { tradeable: boolean; disabled: boolean };
 };
 
 function toItemOut(item: {
@@ -438,18 +601,39 @@ function toItemOut(item: {
   };
 }
 
-export function itemQuery(mirror: Mirror, args: { index: number }): ItemOut {
+/** §3.12: the registry facts `getItem` already computed and `toItemOut`
+ * discarded — effects, USE requirements, and the two stored flags. */
+function itemRegistryEnrichment(
+  mirror: Mirror,
+  item: ShapeItem
+): Pick<ItemOut, 'effects' | 'requirements' | 'is'> {
+  const { effects, requirements } = itemEnrichment(mirror, item);
+  return {
+    effects,
+    requirements,
+    is: { tradeable: item.is?.tradeable ?? false, disabled: item.is?.disabled ?? false },
+  };
+}
+
+export function itemQuery(mirror: Mirror, args: { index: number }, enrich = false): ItemOut {
   const item = getItemByIndex(mirror.world, mirror.components, args.index);
   if (!item || !item.index) throw new QueryError('NOT_FOUND', `item ${args.index} not in mirror`);
   const pools = poolsQuery(mirror).filter((p) => p.items.includes(args.index));
-  return { ...toItemOut(item), pools };
+  return {
+    ...toItemOut(item),
+    pools,
+    ...(enrich ? itemRegistryEnrichment(mirror, item) : {}),
+  };
 }
 
-export function itemsQuery(mirror: Mirror): { items: ItemOut[]; pools: PoolOut[] } {
+export function itemsQuery(
+  mirror: Mirror,
+  enrich = false
+): { items: ItemOut[]; pools: PoolOut[] } {
   const items = getAllItems(mirror.world, mirror.components)
     .filter((i) => i.index)
     .sort((a, b) => a.index - b.index)
-    .map(toItemOut);
+    .map((i) => ({ ...toItemOut(i), ...(enrich ? itemRegistryEnrichment(mirror, i) : {}) }));
   return { items, pools: poolsQuery(mirror) };
 }
 
@@ -550,7 +734,18 @@ export type InventoryOut = {
   account: { index: number; name: string };
   items: {
     balance: number;
-    item: { id: string; index: number; name: string; type: string };
+    item: {
+      id: string;
+      index: number;
+      name: string;
+      type: string;
+      /** §3.12 (enrich): the tooltip facts — what it is, what using or
+       * equipping it does, and what using it requires. `Inventory.item` is
+       * a FULL item shape, so none of this costs a further read. */
+      description?: string;
+      effects?: { use: AlloOut[]; equip: AlloOut[] };
+      requirements?: ItemRequirementOut[];
+    };
   }[];
 };
 
@@ -560,7 +755,8 @@ export type InventoryOut = {
  * hides MUSU as UI layout, not as a data rule. */
 export function inventoryQuery(
   mirror: Mirror,
-  args: { index?: number; name?: string }
+  args: { index?: number; name?: string },
+  enrich = false
 ): InventoryOut {
   const { world, components } = mirror;
   const account =
@@ -582,6 +778,7 @@ export function inventoryQuery(
         index: inv.item.index,
         name: inv.item.name,
         type: inv.item.type,
+        ...(enrich ? itemEnrichment(mirror, inv.item) : {}),
       },
     })),
   };
@@ -636,8 +833,20 @@ export function roomQuery(mirror: Mirror, args: { index: number }): RoomOut {
 
 export type ListingOut = {
   id: string;
-  item: { id: string; index: number; name: string; type: string };
-  payItem: { index: number; name: string };
+  item: {
+    id: string;
+    index: number;
+    name: string;
+    type: string;
+    /** §3.12 (enrich): the same tooltip facts an inventory row carries —
+     * this is the surface where an item is BOUGHT, so "what does it do"
+     * belongs here (`Listing.item` is a full item shape) */
+    description?: string;
+    effects?: { use: AlloOut[]; equip: AlloOut[] };
+    requirements?: ItemRequirementOut[];
+  };
+  /** the payment currency: description only (identity, not a use decision) */
+  payItem: { index: number; name: string; description?: string };
   value: number;
   balance: number;
   startTime: number;
@@ -704,7 +913,7 @@ function newbieVendorState(mirror: Mirror): NewbieVendorOut | undefined {
   };
 }
 
-function toListingOut(mirror: Mirror, listing: Listing): ListingOut {
+function toListingOut(mirror: Mirror, listing: Listing, enrich = false): ListingOut {
   const { world, components } = mirror;
   const requirements = listing.requirements.map((con) => {
     try {
@@ -720,8 +929,13 @@ function toListingOut(mirror: Mirror, listing: Listing): ListingOut {
       index: listing.item.index,
       name: listing.item.name,
       type: listing.item.type,
+      ...(enrich ? itemEnrichment(mirror, listing.item) : {}),
     },
-    payItem: { index: listing.payItem.index, name: listing.payItem.name },
+    payItem: {
+      index: listing.payItem.index,
+      name: listing.payItem.name,
+      ...(enrich ? { description: listing.payItem.description ?? '' } : {}),
+    },
     value: listing.value,
     balance: listing.balance,
     startTime: listing.startTime,
@@ -755,7 +969,11 @@ function toListingOut(mirror: Mirror, listing: Listing): ListingOut {
  * merchant modal displays; sell served where the pricing side exists).
  * The catalog is unfiltered — requirement gating is per-viewer visibility,
  * served as interpreted text, never applied silently. */
-export function merchantQuery(mirror: Mirror, args: { index?: number }): MerchantOut {
+export function merchantQuery(
+  mirror: Mirror,
+  args: { index?: number },
+  enrich = false
+): MerchantOut {
   const { world, components } = mirror;
   if (args.index === undefined) {
     const merchants = getAllNPCs(world, components)
@@ -771,7 +989,7 @@ export function merchantQuery(mirror: Mirror, args: { index?: number }): Merchan
   }
   return {
     merchants: [{ index: npc.index, name: npc.name, roomIndex: npc.roomIndex }],
-    listings: npc.listings.map((l) => toListingOut(mirror, l)),
+    listings: npc.listings.map((l) => toListingOut(mirror, l, enrich)),
   };
 }
 

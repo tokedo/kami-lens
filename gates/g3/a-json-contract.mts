@@ -4,6 +4,15 @@
 // query (every kami/account/node touched by the samples). The status
 // query's contract is validated on an unstarted daemon (its shape is
 // state-independent); kami-stateless is validated live in G3.d.
+//
+// 0.4.0: every query the §3.12 enrichment flag touches is validated in BOTH
+// modes against the SAME schema — the enriched fields are optional, so a
+// flag-off answer and a flag-on answer are both legal instances (the
+// account/--prose pattern). The flag-off answers additionally carry a
+// tripwire: no `effects` key, no `entries`-shaped allo row and no
+// `text`-shaped requirement row may appear anywhere in them. That is a
+// coarse check by design — G3.g proves flag-off identity exactly, leaf by
+// leaf, against a 0.3.0 baseline.
 
 import Ajv from 'ajv/dist/2020';
 
@@ -43,6 +52,30 @@ const nodes = getAllNodes(world, components).filter((n) => n.index);
 type Failure = { query: string; args: unknown; errors: unknown };
 const failures: Failure[] = [];
 let validated = 0;
+let enrichedValidated = 0;
+
+/** §3.12 tripwire: shapes that exist ONLY under the enrichment flag. */
+function enrichmentHits(value: unknown, at = '', hits: string[] = []): string[] {
+  if (Array.isArray(value)) {
+    value.forEach((v, i) => enrichmentHits(v, `${at}[${i}]`, hits));
+    return hits;
+  }
+  if (value !== null && typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+    const keys = Object.keys(obj);
+    if (keys.includes('effects')) hits.push(`${at}.effects`);
+    if (keys.includes('entries') && keys.includes('type') && keys.includes('value')) {
+      hits.push(`${at} (AlloOut)`);
+    }
+    if (keys.includes('text') && keys.includes('type') && keys.includes('index')) {
+      hits.push(`${at} (ItemRequirement)`);
+    }
+    for (const [k, v] of Object.entries(obj)) enrichmentHits(v, at ? `${at}.${k}` : k, hits);
+    return hits;
+  }
+  return hits;
+}
+const flagOffEnrichmentHits: Record<string, string[]> = {};
 
 async function check(query: string, args: string[], opts: { prose?: boolean; noAuthored?: boolean } = {}) {
   const envelope = await serveQuery(mirror, query, args, { ...opts, stale: false, mode: 'daemon' });
@@ -51,6 +84,30 @@ async function check(query: string, args: string[], opts: { prose?: boolean; noA
   if (!valid) {
     if (failures.length < 10) failures.push({ query, args, errors: ajv.errors });
     else failures.push({ query, args, errors: 'suppressed' });
+  }
+  const hits = enrichmentHits(envelope.data);
+  if (hits.length > 0) flagOffEnrichmentHits[`${query} ${args.join(' ')}`] = hits.slice(0, 5);
+  return envelope;
+}
+
+/** The same query, same schema, with the daemon-level enrichment flag on. */
+async function checkEnriched(
+  query: string,
+  args: string[],
+  opts: { prose?: boolean; noAuthored?: boolean } = {}
+) {
+  const envelope = await serveQuery({ mirror, enrich: true }, query, args, {
+    ...opts,
+    stale: false,
+    mode: 'daemon',
+  });
+  const valid = ajv.validate(query, envelope.data);
+  validated++;
+  enrichedValidated++;
+  if (!valid) {
+    if (failures.length < 10) {
+      failures.push({ query: `${query} [enrich]`, args, errors: ajv.errors });
+    } else failures.push({ query: `${query} [enrich]`, args, errors: 'suppressed' });
   }
   return envelope;
 }
@@ -139,6 +196,37 @@ for (const lbArgs of [[], ['LIQUIDATE', '1', '0'], ['TOTAL_SPENT'], ['NO_SUCH_TY
     }
   }
 }
+// --- §3.12 enriched mode: the same schemas, the flag on -------------------
+{
+  const accs = [...accountIndexes].slice(0, 5);
+  for (const a of accs) {
+    await checkEnriched('inventory', [String(a)]);
+    await checkEnriched('account', [String(a)]);
+    await checkEnriched('account', [String(a)], { prose: true });
+    await checkEnriched('roster', [String(a)]);
+    await checkEnriched('roster', [String(a)], { noAuthored: true });
+    await checkEnriched('quests', [String(a)]);
+  }
+  await checkEnriched('quests', []);
+  await checkEnriched('items', []);
+  for (const item of (itemsEnv.data as { items: { index: number }[] }).items.slice(0, 50)) {
+    await checkEnriched('item', [String(item.index)]);
+  }
+  for (const index of pooledIndexes) await checkEnriched('item', [String(index)]);
+  await checkEnriched('trades', []);
+  await checkEnriched('auctions', []);
+  const merchants = await checkEnriched('merchant', []);
+  for (const m of (merchants.data as { merchants: { index: number }[] }).merchants) {
+    await checkEnriched('merchant', [String(m.index)]);
+  }
+  for (const n of nodes.slice(0, 20)) await checkEnriched('node', [String(n.index)]);
+  for (const r of getAllRooms(world, components)
+    .filter((room) => room.index)
+    .slice(0, 20)) {
+    await checkEnriched('room', [String(r.index)]);
+  }
+}
+
 // status: contract on an unstarted daemon
 {
   const daemon = new KamiLensDaemon({ dataDir: path.join(ARTIFACTS_DIR, 'g3a-void') });
@@ -152,19 +240,35 @@ for (const lbArgs of [[], ['LIQUIDATE', '1', '0'], ['TOTAL_SPENT'], ['NO_SUCH_TY
   if (!ajv.validate('status', envelope.data)) failures.push({ query: 'status', args: [], errors: ajv.errors });
 }
 
+const flagOffLeaks = Object.keys(flagOffEnrichmentHits).length;
+
 await writeMeasurement('g3a-json-contract', {
   snapshotBlock: cache.blockNumber,
   validated,
+  enrichedValidated,
   kamisSampled: Math.min(300, kamiIndexes.length),
   accountsSampled: accountIndexes.size,
   nodesSampled: nodes.length,
   failures: failures.length,
   failureSamples: failures.slice(0, 10),
-  match: failures.length === 0 && validated > 300,
+  flagOffEnrichmentHits,
+  match: failures.length === 0 && validated > 300 && enrichedValidated > 50 && flagOffLeaks === 0,
 });
 
-if (failures.length > 0 || validated <= 300) {
-  fail('G3.a', { reason: 'schema validation failures', failures: failures.slice(0, 10), validated });
+if (failures.length > 0 || validated <= 300 || enrichedValidated <= 50 || flagOffLeaks > 0) {
+  fail('G3.a', {
+    reason: 'schema validation failures or enrichment leaked into a flag-off answer',
+    failures: failures.slice(0, 10),
+    validated,
+    enrichedValidated,
+    flagOffEnrichmentHits,
+  });
 }
-pass('G3.a', { validated, kamis: Math.min(300, kamiIndexes.length), accounts: accountIndexes.size, nodes: nodes.length });
+pass('G3.a', {
+  validated,
+  enriched: enrichedValidated,
+  kamis: Math.min(300, kamiIndexes.length),
+  accounts: accountIndexes.size,
+  nodes: nodes.length,
+});
 process.exit(0);

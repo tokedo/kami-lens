@@ -211,7 +211,34 @@ every gate that says "state hash".
   from (checked-in output schema × the per-pin string-classification
   artifact in docs/coverage.md); hand-maintained divergence fails CI.
   Also asserts name-free mode: `authored-id` values absent,
-  suppression receipts present, stable IDs intact.
+  suppression receipts present, stable IDs intact. *0.4.0 adds the
+  enriched-mode cases plus a PRESENCE set: an unclassified new string
+  is deleted by the fail-safe and would therefore pass the derivation
+  comparison by being absent, so each enriched field is asserted to be
+  there with the flag on and not there with it off.*
+- **G3.g flag-off identity** *(hermetic, added 0.4.0)*: with the
+  §3.12 `enrich` flag off, every query must answer exactly what the
+  reference release answered at the same block. The clock mask is
+  **derived by perturbing the clock**, not hand-listed: every capture
+  pins the §3.8 clock, baselines are taken from a checkout of the
+  reference release at two DIFFERENT pins (`--capture base1`,
+  `--capture base2 --pin-offset 86400`), and any leaf that moves with
+  the pin is clock-dependent by construction and excluded from the
+  value comparison. Everything else must match exactly, and the KEY
+  SET must match exactly in every case — which is what catches an
+  accidentally unconditional field or a reordered object. Both sides
+  are compared in JSON WIRE FORM, since a builder may assign an
+  optional field as `undefined` (a key that exists in memory and
+  vanishes on serialization). `status` is the one named exception: it
+  must differ by exactly `config.enrich` + `configSources.enrich`, and
+  its `version` must equal the built package version (asserted, not
+  masked). Refuses rather than compares if a baseline is missing, is at
+  a different snapshot block, if none shares the verify run's pin, if
+  none differs from it, or if two baselines disagree on key set.
+  *(Two rejected designs are recorded in the gate header: a mask from
+  two same-instant runs misses piecewise-constant values, and a shared
+  pin cannot align continuous-time values because pinning offsets the
+  clock without stopping it.)*
 
 ## M4 — Kamiden feeds
 
