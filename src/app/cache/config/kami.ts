@@ -2,7 +2,14 @@
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
  * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
  * path:     packages/client/src/app/cache/config/kami.ts
- * changes:  none
+ * changes:  isFalseyAST and isFalseyEfficacy treat a NON-FINITE value as
+ *           falsey (SPEC §4.2, "the config re-read guard sees NaN"). Upstream
+ *           compares each value against 0, and NaN === 0 is false — so the
+ *           one poison shape that matters, an unhydrated config structuring
+ *           to NaN, reads as a HEALTHY config and is stamped as good, while
+ *           the harmless eight-zeros shape correctly triggers a re-read. The
+ *           guard was inverted for exactly the case it exists to catch.
+ *           Bodies otherwise verbatim.
  */
 
 import { World } from 'engine/recs';
@@ -142,12 +149,17 @@ const structureAST = (config: number[]): AsphoAST => {
   };
 };
 
+/** Falsey OR unusable. A config value that is not a finite number cannot be
+ * computed with, and treating it as healthy is what made the poison permanent
+ * (§4.2). */
+const unusable = (v: number) => !Number.isFinite(v) || v === 0;
+
 const isFalseyAST = (node: AsphoAST) => {
   return (
-    node.nudge.value === 0 &&
-    node.ratio.value === 0 &&
-    node.shift.value === 0 &&
-    node.boost.value === 0
+    unusable(node.nudge.value) &&
+    unusable(node.ratio.value) &&
+    unusable(node.shift.value) &&
+    unusable(node.boost.value)
   );
 };
 
@@ -177,5 +189,10 @@ const structureEfficacy = (config: number[]): Efficacy => {
 };
 
 const isFalseyEfficacy = (efficacy: Efficacy) => {
-  return efficacy.base === 0 && efficacy.up === 0 && efficacy.down === 0 && efficacy.special === 0;
+  return (
+    unusable(efficacy.base) &&
+    unusable(efficacy.up) &&
+    unusable(efficacy.down) &&
+    unusable(efficacy.special)
+  );
 };

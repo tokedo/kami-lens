@@ -4,3 +4,4 @@ gates/.artifacts
 docs/measurements
 *.log
 .git
+*.tgz

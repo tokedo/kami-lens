@@ -1,6 +1,6 @@
 {
   "gate": "g6d-gas-balance",
-  "measuredAt": "2026-08-25T21:39:38.226Z",
+  "measuredAt": "2026-08-25T22:41:30.255Z",
   "snapshotBlock": 31782245,
   "rpcUrl": "https://jsonrpc-yominet-1.anvil.asia-southeast.initia.xyz",
   "accounts": [
@@ -14,49 +14,49 @@
   "samples": [
     {
       "accountIndex": 2160,
-      "chainBlock": 32569785,
+      "chainBlock": 32571185,
       "mirrorBlock": 31782245,
-      "blockSkew": 787540,
-      "operatorWei": "60344935141530507",
+      "blockSkew": 788940,
+      "operatorWei": "60246493156530493",
       "ownerWei": "261101649754033544"
     },
     {
       "accountIndex": 78,
-      "chainBlock": 32569785,
+      "chainBlock": 32571187,
       "mirrorBlock": 31782245,
-      "blockSkew": 787540,
+      "blockSkew": 788942,
       "operatorWei": "726836306243496",
       "ownerWei": "373193175447596"
     },
     {
       "accountIndex": 232,
-      "chainBlock": 32569788,
+      "chainBlock": 32571189,
       "mirrorBlock": 31782245,
-      "blockSkew": 787543,
+      "blockSkew": 788944,
       "operatorWei": "1126095761160",
       "ownerWei": "1514582380456657"
     },
     {
       "accountIndex": 1020,
-      "chainBlock": 32569788,
+      "chainBlock": 32571189,
       "mirrorBlock": 31782245,
-      "blockSkew": 787543,
+      "blockSkew": 788944,
       "operatorWei": "5607514639991513",
       "ownerWei": "19021495334334025"
     },
     {
       "accountIndex": 430,
-      "chainBlock": 32569788,
+      "chainBlock": 32571189,
       "mirrorBlock": 31782245,
-      "blockSkew": 787543,
+      "blockSkew": 788944,
       "operatorWei": "3459689477488520",
       "ownerWei": "3135736790372969"
     },
     {
       "accountIndex": 587,
-      "chainBlock": 32569788,
+      "chainBlock": 32571189,
       "mirrorBlock": 31782245,
-      "blockSkew": 787543,
+      "blockSkew": 788944,
       "operatorWei": "25083025909955959",
       "ownerWei": "9975841584998852"
     }

@@ -12,6 +12,14 @@ export type Tripwires = {
   decodeFailures: number;
   /** Kamigaze nonce changed against a previously synced nonce (full reload forced) */
   kamigazeNonceBumps: number;
+  /** a projected value reached the serialization boundary as NaN/Infinity, or
+   * as the string "NaN" (§3.14). JSON.stringify turns a non-finite number into
+   * `null`, which reads to a consumer as a real answer — the failure that
+   * served null HP for six days. The answer is refused, not repaired. */
+  nonFiniteValues: number;
+  /** the kami config block was unusable when vitals were asked for, so the
+   * answer was refused rather than computed from NaN (§3.14) */
+  configUnavailable: number;
 };
 
 export const tripwires: Tripwires = {
@@ -19,6 +27,8 @@ export const tripwires: Tripwires = {
   unknownComponentSchemas: 0,
   decodeFailures: 0,
   kamigazeNonceBumps: 0,
+  nonFiniteValues: 0,
+  configUnavailable: 0,
 };
 
 export function tripwireReport(): Tripwires {

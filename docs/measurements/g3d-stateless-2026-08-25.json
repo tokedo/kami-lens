@@ -1,0 +1,189 @@
+{
+  "gate": "g3d-stateless",
+  "measuredAt": "2026-08-25T22:38:20.701Z",
+  "kamis": [
+    10016,
+    10164,
+    11279
+  ],
+  "comparisons": [
+    {
+      "kami": 10016,
+      "block": 32571132,
+      "checks": {
+        "id": true,
+        "index": true,
+        "name": true,
+        "state": true,
+        "level": true,
+        "xp": true,
+        "hpTotal": true
+      },
+      "stateless": {
+        "id": "0x1de49e6a1933854a87d1d12ef1316c5fbc421049ffcd87d30348cf4e23975bd8",
+        "index": 10016,
+        "name": "Kamigotchi 10016",
+        "state": "RESTING",
+        "level": 35,
+        "xp": 162616,
+        "hp": {
+          "total": 250
+        },
+        "accountId": "0x75dcc56d012391a8ccd1bbc083eb57f28d3c34b0",
+        "blockNumber": 32571132
+      },
+      "daemon": {
+        "id": "0x1de49e6a1933854a87d1d12ef1316c5fbc421049ffcd87d30348cf4e23975bd8",
+        "index": 10016,
+        "name": "Kamigotchi 10016",
+        "state": "RESTING",
+        "level": 35,
+        "xp": 162616,
+        "xpRequired": 100678,
+        "levelUpReady": true,
+        "skillPoints": 0,
+        "hp": {
+          "current": 165,
+          "total": 250,
+          "percent": 66
+        },
+        "hpRatePerHr": "+28.98",
+        "cooldownSec": 0,
+        "account": {
+          "index": 2930,
+          "name": "buzz"
+        }
+      },
+      "ok": true
+    },
+    {
+      "kami": 10164,
+      "block": 32571132,
+      "checks": {
+        "id": true,
+        "index": true,
+        "name": true,
+        "state": true,
+        "level": true,
+        "xp": true,
+        "hpTotal": true
+      },
+      "stateless": {
+        "id": "0xeaf09fafe579f604942e495b55b4b4826abcbb7c3a4362376b9f507544db2449",
+        "index": 10164,
+        "name": "Kamigotchi 10164",
+        "state": "HARVESTING",
+        "level": 34,
+        "xp": 146933,
+        "hp": {
+          "total": 240
+        },
+        "accountId": "0x75dcc56d012391a8ccd1bbc083eb57f28d3c34b0",
+        "blockNumber": 32571132
+      },
+      "daemon": {
+        "id": "0xeaf09fafe579f604942e495b55b4b4826abcbb7c3a4362376b9f507544db2449",
+        "index": 10164,
+        "name": "Kamigotchi 10164",
+        "state": "HARVESTING",
+        "level": 34,
+        "xp": 146933,
+        "xpRequired": 79966,
+        "levelUpReady": false,
+        "levelUpBlockedBy": "NOT_RESTING",
+        "skillPoints": 0,
+        "hp": {
+          "current": 152,
+          "total": 240,
+          "percent": 63
+        },
+        "hpRatePerHr": "-12.14",
+        "cooldownSec": 0,
+        "account": {
+          "index": 2930,
+          "name": "buzz"
+        },
+        "musu": {
+          "accrued": 695,
+          "spotRatePerHr": "+96.06",
+          "avgRatePerHr": "+59.60"
+        },
+        "node": {
+          "index": 86,
+          "name": "Guardian Skull"
+        }
+      },
+      "ok": true
+    },
+    {
+      "kami": 11279,
+      "block": 32571132,
+      "checks": {
+        "id": true,
+        "index": true,
+        "name": true,
+        "state": true,
+        "level": true,
+        "xp": true,
+        "hpTotal": true
+      },
+      "stateless": {
+        "id": "0xbaf425db23309be140618493f3b2bcd8fc4c0b8e7e355ba83f741f8ed88aefd1",
+        "index": 11279,
+        "name": "Kamigotchi 11279",
+        "state": "HARVESTING",
+        "level": 33,
+        "xp": 89073,
+        "hp": {
+          "total": 250
+        },
+        "accountId": "0xa28c41bf86747cc5ca2077eb2e47527014f1c893",
+        "blockNumber": 32571132
+      },
+      "daemon": {
+        "id": "0xbaf425db23309be140618493f3b2bcd8fc4c0b8e7e355ba83f741f8ed88aefd1",
+        "index": 11279,
+        "name": "Kamigotchi 11279",
+        "state": "HARVESTING",
+        "level": 33,
+        "xp": 89073,
+        "xpRequired": 63516,
+        "levelUpReady": false,
+        "levelUpBlockedBy": "NOT_RESTING",
+        "skillPoints": 0,
+        "hp": {
+          "current": 235,
+          "total": 250,
+          "percent": 94
+        },
+        "hpRatePerHr": "-5.08",
+        "cooldownSec": 0,
+        "account": {
+          "index": 3122,
+          "name": "cpeon"
+        },
+        "musu": {
+          "accrued": 126,
+          "spotRatePerHr": "+44.62",
+          "avgRatePerHr": "+32.38"
+        },
+        "node": {
+          "index": 86,
+          "name": "Guardian Skull"
+        }
+      },
+      "ok": true
+    }
+  ],
+  "mismatches": 0,
+  "cli": {
+    "exit": 0,
+    "envelopeOk": true,
+    "schemaOk": true
+  },
+  "refusal": {
+    "exit": 5,
+    "ok": true
+  },
+  "match": true
+}

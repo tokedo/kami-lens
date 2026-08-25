@@ -459,6 +459,87 @@ returning a *different answer*, silently. Queries now declare their own
 argument vocabulary and an undeclared option is a usage error. Fail loudly,
 never lie (§3.1) applies to the arguments as much as to the answers.
 
+### 3.14 An answer must not be able to lie (0.5)
+
+Settled with the 0.5.0 correctness pass. **Where a surface cannot tell the
+truth it must refuse, not substitute something that looks like an answer.**
+
+§3.11 fixed what must be readable; §3.12 moved facts to where they are read;
+§3.13 made answers affordable. This one is about the answers that were
+*already wrong* and did not look it. Four of them shipped for months, and
+each cost a reader real time, because each was indistinguishable from a
+legitimate reading:
+
+- **`null` that means "the computation broke".** A config read that landed
+  before its component hydrated structured to NaN, JSON rendered NaN as
+  `null`, and every harvesting kami's HP came back `null` — for one arm, for
+  six days, 856 rows to 2. The poison was permanent because the cache stored
+  the sentinel and never re-fetched it, and the guard meant to force a
+  re-read compared against zero, which NaN is not. The shape that self-healed
+  was the harmless one; the shape that mattered sailed through.
+- **`NOT_FOUND` that means "we looked you up wrongly".** Accounts that
+  plainly existed answered "not in mirror" when addressed by name — because
+  the name cache stored a match only when there was more than one, so the
+  ordinary case of exactly one was never cached and the lookup returned its
+  own miss. By owner address it failed twice over, matching a raw string
+  against a value the mirror stores normalised.
+- **`0` that means "no such thing".** `config <name>` read a name the world
+  has never defined and answered zero. An agent invented a plausible
+  configuration family, queried it, and had its invention confirmed; it
+  carried the false model for about twenty sessions.
+- **A number that is not the number.** A packed uint256 coerced through
+  `Number()` served `1.35e+68`; an entity id in a condition value did the
+  same. §1.2 already said values are verbatim or absent — this applies it
+  where a lossy cast had quietly opted out.
+
+The rule that covers all four, and the one worth carrying forward: **the
+failure modes of a query are part of its contract.** A surface gets to answer,
+or to name why it cannot. It does not get to answer something else. So a
+non-finite value now refuses at the serialization boundary with a counted
+tripwire rather than becoming `null`; vitals refuse while the config block is
+unusable; a config name the world does not hold answers `NOT_FOUND`, which is
+already this surface's word for "no such thing"; and a value that will not fit
+a JSON number is absent from the field that would have lied about it, with the
+verbatim form served beside it.
+
+Refusing is a real cost and it is worth being honest about that too: a query
+that used to return something now returns an error, and a consumer that
+treated any 200 as success will see failures it did not see before. That is
+the point. With the cache guards and the re-read fix in place the refusal
+paths should be nearly unreachable — they exist to make the remaining
+unreachable case loud rather than plausible.
+
+**One thing this section deliberately does not do.** Three of these four were
+defects in VENDORED files carrying `changes: none`. §4.1's doctrine is that
+upstream defects are excused with proof and port defects are fatal — but a
+faithful port of a defect that produces a *silently wrong answer* is not
+fidelity, it is the defect with our name on it. Each fix lands as a documented
+divergence in §4.2 naming the upstream path, on the precedent set at 0.3.0
+when the refresh-window interaction was fixed rather than preserved. Parity is
+with what the client *shows a player*, not with the way it happens to break.
+
+### 3.15 What a block number promises
+
+`meta.blockNumber` is a **lower bound**, and saying so is the whole of the
+contract. It is the highest block whose updates the mirror had applied when
+the answer began building, captured at dispatch — so a long answer can
+include state from later blocks, never earlier ones. It does not mean the
+mirror has seen every block up to that number, and it does not advance for a
+block that produced no world events.
+
+Two consequences a reader has to know:
+
+- **A write is not visible until the mirror has ingested the block carrying
+  it.** There is no read-your-writes guarantee here and no mechanism that
+  waits for one; a consumer that has just submitted a transaction and wants
+  to see its effect must compare `meta.blockNumber` against the block its
+  receipt names.
+- **A Kamiden-sourced answer's `blockNumber` describes the MIRROR, not the
+  feed.** `market`, `trades` history, `battles`, `portal` and `transfers`
+  carry rows from a service with its own independent lag, joined against
+  mirror state. The stamp is honest about the join; it says nothing about how
+  fresh the service's rows are.
+
 ## 4. Architecture
 
 ### 4.1 Sync layer

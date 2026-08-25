@@ -45,7 +45,8 @@
           "additionalProperties": false,
           "required": [
             "current",
-            "total"
+            "total",
+            "raw"
           ],
           "properties": {
             "current": {
@@ -53,6 +54,10 @@
             },
             "total": {
               "type": "number"
+            },
+            "raw": {
+              "type": "number",
+              "description": "§4.2 (0.5.0): the recovery accrual WITHOUT the display clamp — the same quantity the chain's VIEW getter LibAccount.getCurrentStamina returns, and the number its error text quotes. NOT A SPENDABLE BUDGET: the chain caps at `total` when it syncs before charging (LibStat.calcSync), so `current` is the honest allowance. Served to explain a discrepancy that previously had no explanation — an arm saw 209-212 in an error beside a served 100/100 and stopped trusting the maximum."
             }
           }
         },

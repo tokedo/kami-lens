@@ -127,15 +127,28 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
   account: {
     name: 'account',
     operatorArg: true,
-    summary: 'account by index or name (bio only with --prose; gas balance when an RPC is configured)',
+    summary:
+      'account by index, name or 0x-address (bio only with --prose; gas balance when an RPC is configured)',
     parseArgs: ([key]) => {
-      if (key === undefined) throw new QueryError('BAD_ARGS', 'account needs an index or name');
+      if (key === undefined) {
+        throw new QueryError('BAD_ARGS', 'account needs an index, a name or an address');
+      }
+      // §3.14: an address is a third lookup key. Without this an address went
+      // down the NAME path, matched nothing, and answered NOT_FOUND — which a
+      // reader cannot tell from "this account does not exist".
+      if (/^0x[0-9a-fA-F]{40}$/.test(key)) return { address: key };
       return /^\d+$/.test(key) ? { index: Number(key) } : { name: key };
     },
     stateless: false,
     kamiden: false,
     build: (ctx, a, o) =>
-      accountQuery(ctx.mirror, a as { index?: number; name?: string }, o, ctx.enrich, ctx.rpc),
+      accountQuery(
+        ctx.mirror,
+        a as { index?: number; name?: string; address?: string },
+        o,
+        ctx.enrich,
+        ctx.rpc
+      ),
   },
   node: {
     name: 'node',

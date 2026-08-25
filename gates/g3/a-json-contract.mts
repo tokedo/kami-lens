@@ -168,12 +168,34 @@ const pooledIndexes = new Set<number>(
   (itemsEnv.data as { pools?: { items: number[] }[] }).pools?.flatMap((p) => p.items) ?? []
 );
 for (const index of pooledIndexes) await check('item', [String(index)]);
-// config: known fields
-for (const name of ['HARVEST_EFFICACY_BOOST', 'KAMI_STANDARD_COOLDOWN']) {
+// config: real fields only, both forms (§3.14)
+//
+// NOTE, and it is the whole point of the 0.5.0 config change: this block used
+// to fall back to 'KAMI_REROLL_FEE', a key this world does not define. It
+// "passed" because the query answered `{value: 0}` for it — the gate was
+// itself reading a nonexistent field as a settled zero, exactly the way an
+// agent did for twenty sessions. It now fails loudly, so the gate asks for
+// keys that exist and asserts the refusal separately.
+for (const name of ['KAMI_STANDARD_COOLDOWN', 'KAMI_HARV_INTENSITY', 'KAMI_TREE_REQ']) {
+  await check('config', [name]);
+  await check('config', [name, '--array']);
+}
+// …and a name the world does not hold must REFUSE, on both forms, rather
+// than confirm itself
+for (const args of [
+  ['DEFINITELY_NOT_A_CONFIG_KEY'],
+  ['DEFINITELY_NOT_A_CONFIG_KEY', '--array'],
+  ['POOL_ENABLED'],
+]) {
+  let refused = false;
   try {
-    await check('config', [name]);
-  } catch {
-    await check('config', ['KAMI_REROLL_FEE']);
+    await serveQuery(mirror, 'config', args, { stale: false, mode: 'daemon' });
+  } catch (e) {
+    refused = (e as { code?: string }).code === 'NOT_FOUND';
+  }
+  validated++;
+  if (!refused) {
+    failures.push({ query: 'config', args, errors: 'a nonexistent config field did not answer NOT_FOUND' });
   }
 }
 // M4 chain-only listings (the M3-deferred trio): hermetic on the snapshot

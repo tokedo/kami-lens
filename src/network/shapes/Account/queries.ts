@@ -2,7 +2,18 @@
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
  * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
  * path:     packages/client/src/network/shapes/Account/queries.ts
- * changes:  none
+ * changes:  two fixes to the entity-resolution caches (SPEC §4.2, "account
+ *           lookup by name and by owner"). (1) queryByName and queryByOwner
+ *           cached only when MORE THAN ONE entity matched (`length > 1`), so
+ *           the ordinary case of exactly one match was never cached and the
+ *           function returned the cache miss — `undefined` — every time; both
+ *           now use `length > 0`, which is what queryByIndex and
+ *           queryByOperator alongside them already do. (2) queryByOwner
+ *           matched the raw address string against a component the mirror
+ *           stores in MUD's normalised form, so it matched nothing at all; it
+ *           now formats the address first, exactly as queryByOperator does
+ *           (upstream's own TODO on this function asks for it). Bodies
+ *           otherwise verbatim.
  */
 
 import { EntityIndex, HasValue, QueryFragment, runQuery, World } from 'engine/recs';
@@ -63,7 +74,10 @@ export const queryByName = (comps: Components, name: string) => {
     const results = query(comps, { name });
     const length = results.length;
     if (length != 1) console.warn(`found ${length} entities for account name: ${name}`);
-    if (length > 1) NameCache.set(name, results[0]);
+    // `> 0`, not upstream's `> 1`: one match is the NORMAL case, and refusing
+    // to cache it made this function return undefined for every uniquely
+    // named account — i.e. every real one (§4.2)
+    if (length > 0) NameCache.set(name, results[0]);
   }
   return NameCache.get(name);
 };
@@ -93,10 +107,17 @@ export const queryByOperator = (comps: Components, operator: string, debug = fal
 // todo: query directly! accID = formatEntityID(ownerAddr)
 export const queryByOwner = (comps: Components, owner: string) => {
   if (!OwnerCache.has(owner)) {
-    const results = query(comps, { owner });
+    // format first (§4.2): the mirror stores this component in MUD's
+    // normalised form — lower-cased, and with the leading zero of an odd
+    // nibble dropped — so a raw-string match finds nothing whatever the
+    // caller passes. queryByOperator has always done this; the TODO above
+    // asks for it here.
+    const formatted = formatEntityID(owner);
+    const results = query(comps, { owner: formatted });
     const length = results.length;
     if (length != 1) console.warn(`found ${length} entities for account owner: ${owner}`);
-    if (length > 1) OwnerCache.set(owner, results[0]);
+    // `> 0`, not upstream's `> 1` — see queryByName
+    if (length > 0) OwnerCache.set(owner, results[0]);
   }
   return OwnerCache.get(owner);
 };

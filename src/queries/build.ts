@@ -10,6 +10,7 @@
 
 import * as clock from 'clock';
 
+import { tripwires } from '../tripwires';
 import { calcCurrentStamina } from 'app/cache/account';
 import { cleanInventories } from 'app/cache/inventory';
 import {
@@ -44,6 +45,8 @@ import {
   getAccountByID,
   getAccountByIndex,
   getAccountByName,
+  getAccountByOperator,
+  getAccountByOwner,
   queryRoomAccounts,
 } from 'network/shapes/Account';
 import { queryByIndex as queryAccountEntityByIndex } from 'network/shapes/Account/queries';
@@ -72,6 +75,7 @@ import { getRegistrySkills, getSkillByIndex } from 'network/shapes/Skill';
 import { parseBonusText } from 'network/shapes/Bonus';
 import { getScoresByFilter } from 'network/shapes/Score';
 import { getIsDisabled } from 'network/shapes/utils/component';
+import { getEntityByHash } from 'network/shapes/utils';
 import { getRateDisplay } from 'utils/numbers';
 import { getPhaseName, getPhaseOf } from 'utils/time';
 
@@ -139,7 +143,14 @@ export function toAlloOut(mirror: Mirror, allo: Allo): AlloOut {
  * are `KAMI_CAN_EAT` with index 0, whose text is the bare word "None" —
  * indistinguishable, without the target beside it, from a real requirement.
  * Text is verbatim including upstream's spacing quirks ("Is  DEAD "). */
-export type ItemRequirementOut = { type: string; index: number; value: number; text: string };
+/** §1.2 (verbatim values), corrected at 0.5.0: `value` is a STRING. A
+ * condition's value is not always a count — a gate's is an entity id, and
+ * `Number()` on an id-sized uint returns 2.65e+76, a number the world does
+ * not hold and nothing can join on. Item conditions are index-shaped and
+ * small at this pin, so the coercion was latent rather than wrong here; it
+ * is still the same defect, and it is fixed in the same place the room-exit
+ * shape fixed it. */
+export type ItemRequirementOut = { type: string; index: number; value: string; text: string };
 
 /** One condition the world stores, with the pinned client's own interpretation
  * of it beside the raw target. Shared by item USE requirements (0.4.0), room
@@ -156,7 +167,8 @@ export function toConditionOut(mirror: Mirror, con: Condition): ItemRequirementO
   return {
     type: con.target?.type ?? '',
     index: Number(con.target?.index ?? 0),
-    value: Number(con.target?.value ?? 0),
+    // verbatim, never coerced — see the ItemRequirementOut note
+    value: String(con.target?.value ?? 0),
     text,
   };
 }
@@ -316,10 +328,42 @@ export function skillRegistryIndex(mirror: Mirror): Map<number, SkillRefOut> {
 
 export class QueryError extends Error {
   constructor(
-    readonly code: 'NOT_FOUND' | 'BAD_ARGS' | 'KAMIDEN_UNAVAILABLE' | 'CHAT_DISABLED',
+    readonly code:
+      | 'NOT_FOUND'
+      | 'BAD_ARGS'
+      | 'KAMIDEN_UNAVAILABLE'
+      | 'CHAT_DISABLED'
+      /** §3.14: the kami config block is unusable, so any vitals computed
+       * from it would be NaN. Refused rather than served. */
+      | 'CONFIG_UNAVAILABLE'
+      /** §3.14: a non-finite value reached the serialization boundary, where
+       * JSON would have turned it into a plausible-looking `null`. */
+      | 'NOT_FINITE',
     message: string
   ) {
     super(message);
+  }
+}
+
+// ------------------------------------------------- §3.14 honest vitals (0.5.0)
+
+/** Is this kami config block computable? A config that structured to NaN — an
+ * unhydrated read — makes every value derived from it NaN, and JSON turns NaN
+ * into `null`: an answer a reader cannot tell from a real zero. The daemon
+ * refuses vitals until the block is real (SPEC §3.14, tripwire
+ * `configUnavailable`). With the cache guards in place this should be
+ * unreachable outside the first moments of a cold boot. */
+export function assertKamiConfigUsable(kami: { config?: unknown }): void {
+  const cfg = kami.config as
+    | { harvest?: { intensity?: { nudge?: { value?: number } } } }
+    | undefined;
+  const probe = cfg?.harvest?.intensity?.nudge?.value;
+  if (cfg === undefined || probe === undefined || !Number.isFinite(probe)) {
+    tripwires.configUnavailable += 1;
+    throw new QueryError(
+      'CONFIG_UNAVAILABLE',
+      'the kami config block has not hydrated: vitals would be computed from NaN and served as null. Retry once the daemon reports LIVE.'
+    );
   }
 }
 
@@ -382,6 +426,7 @@ export function buildKamiVitals(mirror: Mirror, entity: EntityIndex): KamiVitals
   const { world, components } = mirror;
   KamiCache.clear();
   const kami = getKami(world, components, entity, KAMI_REFRESH);
+  assertKamiConfigUsable(kami);
   const hp = calcHealth(kami);
   const total = kami.stats?.health.total ?? 0;
   const owner = getKamiAccount(world, components, entity);
@@ -426,9 +471,20 @@ export type AccountOut = {
   operatorAddress: string;
   roomIndex: number;
   musu: number;
-  /** current = calcCurrentStamina (recovery-adjusted, the Clock fixture's
-   * display value); total = the stat's computed cap (0.2.0 addition) */
-  stamina: { current: number; total: number };
+  /** current = calcCurrentStamina (recovery-adjusted, CLAMPED to total — the
+   * SPENDABLE figure); total = the stat's computed cap (0.2.0); raw = the
+   * same accrual without the clamp (0.5.0).
+   *
+   * §4.2, and read the direction carefully. The chain's *view* getter
+   * `LibAccount.getCurrentStamina` returns `sync + recovered` unclamped, and
+   * that is the number its error text quotes — which is why one arm saw
+   * "209–212" beside a served `100/100` and stopped trusting the maximum. But
+   * the chain CLAMPS on the write path: `LibStat.calcSync` caps at the total,
+   * and a spend is synced before it is charged. So `current` is the honest
+   * budget and `raw` is NOT spendable. It is served to explain the
+   * discrepancy — an unexplained mismatch is what made the arm distrust a
+   * correct answer — and never as a spending allowance. */
+  stamina: { current: number; total: number; raw: number };
   reputation: { agency: number; mina: number; nursery: number };
   kamis: { id: string; index: number; name: string; state: string }[];
   bio?: string;
@@ -461,6 +517,17 @@ export type GasOut = {
   blockNumber: number;
 };
 
+/** How far behind reported head the balance read is pinned.
+ *
+ * The public endpoint is load-balanced, and the node that answers
+ * `eth_getBalance` is not always the node that answered `eth_blockNumber` a
+ * moment earlier: reading at the exact head returns "requested height is
+ * greater than the latest block height" whenever the second node is a block
+ * or two behind. A few blocks of lag costs nothing — the mirror this answer
+ * is served beside can be hundreds of thousands of blocks older — and the
+ * block actually used is reported, so the reader is never guessing. */
+const GAS_BLOCK_LAG = 4;
+
 /** Read native balances for both of an account's addresses at one pinned
  * block. Returns undefined on any failure — the caller omits the block. */
 export async function gasOf(
@@ -469,7 +536,8 @@ export async function gasOf(
   ownerAddress: string
 ): Promise<GasOut | undefined> {
   try {
-    const blockNumber = await rpc.blockNumber();
+    const head = await rpc.blockNumber();
+    const blockNumber = Math.max(0, head - GAS_BLOCK_LAG);
     const [operator, owner] = await Promise.all([
       rpc.nativeBalance(operatorAddress, blockNumber),
       rpc.nativeBalance(ownerAddress, blockNumber),
@@ -499,7 +567,7 @@ export type NativeBalanceReader = {
 
 export async function accountQuery(
   mirror: Mirror,
-  args: { index?: number; name?: string },
+  args: { index?: number; name?: string; address?: string },
   opts: { prose?: boolean } = {},
   enrich = false,
   rpc?: NativeBalanceReader
@@ -508,15 +576,31 @@ export async function accountQuery(
   // config: calcCurrentStamina reads config.stamina.recovery (the Clock
   // fixture fetches the account the same way)
   const options = { kamis: true, config: true, ...(opts.prose ? { bio: true } : {}) };
+  // §3.14: an ADDRESS is a third lookup key. An account holds two of them and
+  // a caller rarely knows which it has, so both are tried — owner first, then
+  // operator. Added because a real reader tried exactly this and got
+  // NOT_FOUND: the address went down the NAME path, matched nothing, and the
+  // answer was indistinguishable from "no such account".
+  const byAddress = (): ReturnType<typeof getAccountByOwner> | undefined => {
+    const owned = getAccountByOwner(world, components, args.address!, options);
+    if (owned.index) return owned;
+    const operated = getAccountByOperator(world, components, args.address!, options);
+    return operated.index ? operated : owned;
+  };
   const account =
     args.index !== undefined
       ? getAccountByIndex(world, components, args.index, options)
       : args.name !== undefined
         ? getAccountByName(world, components, args.name, options)
-        : undefined;
-  if (!account) throw new QueryError('BAD_ARGS', 'account query needs index or name');
+        : args.address !== undefined
+          ? byAddress()
+          : undefined;
+  if (!account) throw new QueryError('BAD_ARGS', 'account query needs an index, a name or an address');
   if (!account.index) {
-    throw new QueryError('NOT_FOUND', `account ${args.index ?? args.name} not in mirror`);
+    throw new QueryError(
+      'NOT_FOUND',
+      `account ${args.index ?? args.name ?? args.address} not in mirror`
+    );
   }
   const gas = rpc
     ? await gasOf(rpc, account.operatorAddress, account.ownerAddress)
@@ -529,7 +613,11 @@ export async function accountQuery(
     operatorAddress: account.operatorAddress,
     roomIndex: account.roomIndex,
     musu: account.coin,
-    stamina: { current: calcCurrentStamina(account), total: account.stamina.total },
+    stamina: {
+      current: calcCurrentStamina(account),
+      total: account.stamina.total,
+      raw: rawStamina(account),
+    },
     reputation: account.reputation,
     kamis: (account.kamis ?? []).map((k) => ({
       id: k.id,
@@ -541,6 +629,24 @@ export async function accountQuery(
     ...(enrich ? { room: roomRefOut(mirror, account.roomIndex) } : {}),
     ...(gas ? { gas } : {}),
   };
+}
+
+/** The account's stamina accrual with NO clamp — the same quantity the
+ * chain's VIEW getter returns, and the one its error strings quote (§4.2).
+ * Not a spendable budget: the chain caps at `total` when it syncs before a
+ * charge. Computed here, in native query code, rather than by touching the
+ * ported `calcCurrentStamina` — the clamp is the client's behaviour and
+ * parity with it is not a defect to fix. */
+function rawStamina(account: {
+  config?: { stamina?: { recovery?: number } };
+  time: { action: number };
+  stamina: { sync: number };
+}): number {
+  if (!account.config) return account.stamina.sync;
+  const recoveryPeriod = account.config.stamina?.recovery ?? 60;
+  const timeDelta = clock.now() / 1000 - account.time.action;
+  const recovered = Math.floor(timeDelta / recoveryPeriod);
+  return Math.max(0, account.stamina.sync + recovered);
 }
 
 // ---------------------------------------------------------------- node
@@ -683,6 +789,7 @@ export function nodeQuery(
     };
     if (args.withVitals && kami) {
       const occupant = getKami(world, components, kami.entity, KAMI_REFRESH);
+      assertKamiConfigUsable(occupant);
       const hp = calcHealth(occupant);
       const leveling = levelingOf(mirror, occupant);
       row.vitals = {
@@ -1153,17 +1260,69 @@ export function poolsQuery(mirror: Mirror): PoolOut[] {
 
 export type ConfigOut = {
   name: string;
+  /** the stored value as a number — present ONLY when it is exactly
+   * representable as one. Unchanged for every field where it ever meant
+   * anything (`KAMI_STANDARD_COOLDOWN` is still `180`).
+   *
+   * §1.2, corrected at 0.5.0: a config Value component holds a uint256, and
+   * several fields PACK eight uint32s into one. Coerced with `Number()`,
+   * `KAMI_HARV_INTENSITY` used to serve `1.347997333357532e+68` — a float
+   * with no relationship to anything the world holds. A value that does not
+   * fit is now ABSENT here rather than wrong, and `valueRaw` carries it. */
   value?: number;
+  /** the stored value VERBATIM, as a decimal string, always. For a packed
+   * field this is the only honest scalar form; `--array` unpacks it. */
+  valueRaw?: string;
   values?: number[];
 };
 
+/** One `is.config` field.
+ *
+ * §3.14: ABSENCE IS NOT ZERO. The underlying reader answers 0 (and eight
+ * zeros for the array form) for a field that does not exist, which made a
+ * probe for a name nobody ever deployed indistinguishable from a real stored
+ * 0. A reader that guesses a plausible-sounding key gets its guess CONFIRMED
+ * — which is what happened: an arm queried a fabricated `POOL_*ENABLED`
+ * family that exists nowhere upstream, read the zeros as settled fact, and
+ * carried the false model for about twenty sessions. A name the world does
+ * not hold now answers NOT_FOUND, which is already this surface's documented
+ * code for "no such thing". */
 export function configQuery(mirror: Mirror, args: { name: string; array?: boolean }): ConfigOut {
   const { world, components } = mirror;
   if (!args.name) throw new QueryError('BAD_ARGS', 'config query needs a field name');
+  if (!configFieldExists(world, args.name)) {
+    throw new QueryError(
+      'NOT_FOUND',
+      `no is.config field named '${args.name}' exists in this world — the name is not a config key, not a key whose value is zero`
+    );
+  }
   if (args.array) {
     return { name: args.name, values: getConfigFieldValueArray(world, components, args.name) };
   }
-  return { name: args.name, value: getConfigFieldValue(world, components, args.name) };
+  const stored = getComponentValue(components.Value, configFieldEntity(world, args.name)!)?.value;
+  let exact: bigint;
+  try {
+    exact = BigInt((stored ?? 0) as string | number);
+  } catch {
+    exact = 0n;
+  }
+  const fits = exact <= BigInt(Number.MAX_SAFE_INTEGER) && exact >= BigInt(Number.MIN_SAFE_INTEGER);
+  return {
+    name: args.name,
+    // absent rather than wrong when the stored uint256 cannot be a JS number
+    ...(fits ? { value: Number(exact) } : {}),
+    valueRaw: exact.toString(),
+  };
+}
+
+/** The deterministic `is.config` entity for a field name, or undefined when
+ * the world holds no such field. Same derivation the ported reader uses. */
+function configFieldEntity(world: World, field: string): EntityIndex | undefined {
+  return getEntityByHash(world, ['is.config', field], ['string', 'string']);
+}
+
+export function configFieldExists(world: World, field: string): boolean {
+  return configFieldEntity(world, field) !== undefined;
 }
 
 // ----------------------------------------------------------- inventory
@@ -1264,14 +1423,7 @@ export function inventoryQuery(
  * (§1.2: values are verbatim or absent, never rewritten). The item surface's
  * conditions are index-shaped and small at this pin, so its coercion is
  * latent there rather than wrong; it is docketed, not changed here. */
-export type RoomExitGateOut = {
-  type: string;
-  index: number;
-  /** verbatim, as a string: gate values are entity-id sized */
-  value: string;
-  /** the pinned client's own words for the condition */
-  text: string;
-};
+export type RoomExitGateOut = ItemRequirementOut;
 
 export type RoomExitOut = {
   toIndex: number;
@@ -1281,13 +1433,9 @@ export type RoomExitOut = {
 };
 
 export function toRoomExitGateOut(mirror: Mirror, con: Condition): RoomExitGateOut {
-  const raw = toConditionOut(mirror, con);
-  return {
-    type: raw.type,
-    index: raw.index,
-    value: String(con.target?.value ?? 0),
-    text: raw.text,
-  };
+  // now identical to toConditionOut — the two shapes converged once the
+  // item-condition coercion was fixed too
+  return toConditionOut(mirror, con);
 }
 
 export type RoomOut = {

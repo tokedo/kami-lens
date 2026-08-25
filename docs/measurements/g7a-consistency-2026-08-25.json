@@ -1,6 +1,6 @@
 {
   "gate": "g7a-consistency",
-  "measuredAt": "2026-08-25T21:39:24.182Z",
+  "measuredAt": "2026-08-25T22:42:00.575Z",
   "snapshotBlock": 31782245,
   "accountsSampled": 25,
   "counts": {
@@ -19,7 +19,7 @@
     "vendorChecked": 1
   },
   "questRowsWithAccount": 2244,
-  "questAccountAnswerMeanMs": 26.4,
+  "questAccountAnswerMeanMs": 28.6,
   "registryObjectivesScanned": 198,
   "objectivesWithForComponent": 0,
   "compaction": {
@@ -179,13 +179,15 @@
     "poolSize": 898,
     "cycleStart": 1773163103,
     "cycleSeconds": 172800,
-    "secondsToNextRotation": 157139
+    "secondsToNextRotation": 153383
   },
   "tripwires": {
     "unknownComponentIds": 0,
     "unknownComponentSchemas": 0,
     "decodeFailures": 0,
-    "kamigazeNonceBumps": 0
+    "kamigazeNonceBumps": 0,
+    "nonFiniteValues": 0,
+    "configUnavailable": 0
   },
   "problems": [],
   "problemCount": 0,

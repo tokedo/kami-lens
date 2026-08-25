@@ -1,0 +1,26 @@
+{
+  "gate": "g5b-container",
+  "measuredAt": "2026-08-25T22:37:17.529Z",
+  "image": "kami-lens:g5",
+  "versionCheck": {
+    "declared": "0.5.0",
+    "reported": "kami-lens 0.5.0 (upstream Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3)",
+    "installed": "0.5.0",
+    "installedPkg": "0.5.0",
+    "installedPackages": "1"
+  },
+  "coldSeconds": 60,
+  "warmSeconds": 25,
+  "steps": {
+    "imageBuilt": true,
+    "versionMatches": true,
+    "containerUp": true,
+    "coldHealthy": true,
+    "coldMode": true,
+    "warmHealthy": true,
+    "warmMode": true,
+    "warmResumeBlock": true,
+    "warmBeatsCold": true
+  },
+  "match": true
+}

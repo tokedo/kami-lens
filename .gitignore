@@ -12,3 +12,7 @@ build/
 .DS_Store
 gates/.artifacts/
 gates/fixtures/g2b-screenshots/
+
+# release tarballs are build artifacts, never tracked: two stale ones used to
+# ride into the Docker build stage and race the fresh pack (see Dockerfile)
+*.tgz

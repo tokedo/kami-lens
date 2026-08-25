@@ -1,6 +1,6 @@
 {
   "gate": "g3g-flag-off-identity",
-  "measuredAt": "2026-08-25T22:07:36.448Z",
+  "measuredAt": "2026-08-25T22:41:14.217Z",
   "snapshotBlock": 31782245,
   "clockPinSec": 1755000000,
   "baselines": [
@@ -16,7 +16,7 @@
   "comparedAgainst": "base1",
   "statusExpectedChanged": {
     "path": "version",
-    "to": "0.4.0"
+    "to": "0.5.0"
   },
   "cases": [
     {
@@ -30,18 +30,18 @@
     },
     {
       "case": "account",
-      "leaves": 548,
+      "leaves": 549,
       "masked": 0,
-      "compared": 548,
+      "compared": 549,
       "added": 0,
       "removed": 0,
       "mismatches": 0
     },
     {
       "case": "account+prose",
-      "leaves": 549,
+      "leaves": 550,
       "masked": 0,
-      "compared": 549,
+      "compared": 550,
       "added": 0,
       "removed": 0,
       "mismatches": 0
@@ -201,9 +201,9 @@
     },
     {
       "case": "config",
-      "leaves": 2,
+      "leaves": 3,
       "masked": 0,
-      "compared": 2,
+      "compared": 3,
       "added": 0,
       "removed": 0,
       "mismatches": 0
@@ -372,15 +372,15 @@
     },
     {
       "case": "status",
-      "leaves": 77,
+      "leaves": 79,
       "masked": 3,
-      "compared": 74,
+      "compared": 76,
       "added": 0,
       "removed": 0,
       "mismatches": 0
     }
   ],
-  "leavesCompared": 31527,
+  "leavesCompared": 31532,
   "leavesMasked": 304,
   "maskedSamples": [
     "party:kamis[10].cooldownSec",

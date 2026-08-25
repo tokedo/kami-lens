@@ -1,16 +1,29 @@
-// Gate G5.b [live] — container lifecycle. Build the image; run with a
-// mounted data volume; reach LIVE (healthcheck healthy, bootstrapMode
-// 'cold' on the fresh volume); restart the container; status must report
-// an incremental (warm) bootstrap and beat the cold time-to-healthy;
-// healthcheck goes healthy again.
+// Gate G5.b [live] — container lifecycle. Build the image; assert the image
+// installed the version this source tree declares; run with a mounted data
+// volume; reach LIVE (healthcheck healthy, bootstrapMode 'cold' on the fresh
+// volume); restart the container; status must report an incremental (warm)
+// bootstrap and beat the cold time-to-healthy; healthcheck goes healthy again.
+//
+// THE VERSION ASSERTION IS NOT DECORATION (0.5.0). Two stale release
+// tarballs were tracked in git; `COPY . .` carried them into the build stage
+// beside the freshly packed one, and `npm install -g /tmp/kami-lens-*.tgz`
+// installed all three — so which version a VM actually ran came down to
+// install ordering. Four byte-identical builds of one image produced 0.4.0,
+// 0.2.0, 0.1.0 and 0.2.0, and nothing anywhere said so. The Dockerfile now
+// fails the build on an ambiguous glob or a version mismatch; this asserts
+// the same thing from OUTSIDE the image, because a build-time check that is
+// itself part of the thing being tested is not independent evidence.
 
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 
 import { fail, pass, REPO_ROOT, sleep, writeMeasurement } from '../g1/lib.mts';
 
 const IMAGE = 'kami-lens:g5';
 const CONTAINER = 'kami-lens-g5b';
 const VOLUME = 'kami-lens-g5b-data';
+let versionCheck: Record<string, string> = {};
 const run = (cmd: string, args: string[], timeoutMs = 120_000): string =>
   execFileSync(cmd, args, { encoding: 'utf8', timeout: timeoutMs, cwd: REPO_ROOT });
 
@@ -60,6 +73,36 @@ try {
   run('docker', ['build', '-t', IMAGE, '.'], 900_000);
   steps.imageBuilt = true;
 
+  // --- the installed artifact IS the declared one --------------------------
+  {
+    const declared = JSON.parse(
+      readFileSync(path.join(REPO_ROOT, 'package.json'), 'utf8')
+    ).version as string;
+    const reported = run('docker', ['run', '--rm', '--entrypoint', 'kami-lens', IMAGE, '--version'])
+      .trim();
+    // `kami-lens <version> (upstream Asphodel-OS/kamigotchi @ <pin>)`
+    const installed = reported.split(/\s+/)[1] ?? '';
+    const installedPkg = run('docker', [
+      'run', '--rm', '--entrypoint', 'node', IMAGE,
+      '-p', "require('/usr/local/lib/node_modules/kami-lens/package.json').version",
+    ]).trim();
+    const tarballs = run('docker', [
+      'run', '--rm', '--entrypoint', 'sh', IMAGE,
+      '-c', 'ls /usr/local/lib/node_modules | grep -c "^kami-lens$" || true',
+    ]).trim();
+    versionCheck = { declared, reported, installed, installedPkg, installedPackages: tarballs };
+    if (installed !== declared || installedPkg !== declared) {
+      fail('G5.b', {
+        reason: 'the image installed a different version than this tree declares',
+        ...versionCheck,
+      });
+    }
+    if (tarballs !== '1') {
+      fail('G5.b', { reason: 'expected exactly one installed kami-lens package', ...versionCheck });
+    }
+    steps.versionMatches = true;
+  }
+
   run('docker', ['volume', 'create', VOLUME]);
   run('docker', ['run', '-d', '--name', CONTAINER, '-v', `${VOLUME}:/data`, IMAGE]);
   steps.containerUp = true;
@@ -87,6 +130,7 @@ try {
 
 await writeMeasurement('g5b-container', {
   image: IMAGE,
+  versionCheck,
   coldSeconds,
   warmSeconds,
   steps,

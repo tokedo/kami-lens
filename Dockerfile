@@ -9,9 +9,47 @@ RUN npm ci
 COPY . .
 RUN npm run build && npm pack
 
+# Stage EXACTLY ONE artifact, by the name package.json dictates, and refuse
+# to build if the glob would have been ambiguous.
+#
+# WHY THIS IS NOT A GLOB ANY MORE: `COPY --from=build /app/kami-lens-*.tgz`
+# followed by `npm install -g /tmp/kami-lens-*.tgz` installed EVERY tarball
+# in the build context. Two stale ones were tracked in git, so `COPY . .`
+# carried them in beside the fresh pack and the installed version came down
+# to install ordering — four byte-identical builds produced 0.4.0, 0.2.0,
+# 0.1.0 and 0.2.0. The tarballs are now gitignored and dockerignored, and the
+# check below means a stray one fails the build instead of winning it.
+RUN set -eu; \
+    version="$(node -p "require('/app/package.json').version")"; \
+    expected="/app/kami-lens-${version}.tgz"; \
+    found="$(find /app -maxdepth 1 -name 'kami-lens-*.tgz' | sort)"; \
+    count="$(printf '%s' "$found" | grep -c . || true)"; \
+    if [ "$count" -ne 1 ]; then \
+      echo "FATAL: expected exactly 1 packed tarball in /app, found ${count}:"; \
+      echo "$found"; \
+      exit 1; \
+    fi; \
+    if [ "$found" != "$expected" ]; then \
+      echo "FATAL: packed artifact ${found} does not match package.json version ${version} (${expected})"; \
+      exit 1; \
+    fi; \
+    cp "$expected" /app/kami-lens.tgz
+
 FROM node:20-slim
-COPY --from=build /app/kami-lens-*.tgz /tmp/
-RUN npm install -g /tmp/kami-lens-*.tgz && rm /tmp/kami-lens-*.tgz
+COPY --from=build /app/kami-lens.tgz /tmp/kami-lens.tgz
+RUN npm install -g /tmp/kami-lens.tgz && rm /tmp/kami-lens.tgz
+
+# and prove what actually landed: the installed CLI must report the version
+# the package declares. This is the assertion the version scramble needed —
+# it fails the BUILD, not a later run (gate G5.b re-asserts it from outside).
+RUN set -eu; \
+    installed="$(kami-lens --version | awk '{print $2}')"; \
+    expected="$(node -p "require('/usr/local/lib/node_modules/kami-lens/package.json').version")"; \
+    if [ "$installed" != "$expected" ]; then \
+      echo "FATAL: installed CLI reports ${installed}, package declares ${expected}"; \
+      exit 1; \
+    fi; \
+    echo "installed kami-lens ${installed}"
 
 # state cache + query socket live on the volume (DESIGN §3.5/§5)
 ENV KAMI_LENS_DATA_DIR=/data

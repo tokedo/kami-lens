@@ -188,7 +188,8 @@
           "type": "number"
         },
         "value": {
-          "type": "number"
+          "type": "string",
+          "description": "VERBATIM, as a string (§1.2). A condition's value is not always a count — a room gate's is an entity id, and Number() on an id-sized uint returns 2.65e+76: a value the world does not hold and nothing can join on."
         },
         "text": {
           "type": "string"

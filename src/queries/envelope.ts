@@ -23,6 +23,9 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
+import { QueryError } from './build';
+import { tripwires } from '../tripwires';
+
 export type StringClass = 'authored-id' | 'authored-prose' | 'registry' | 'system';
 
 export type Classification = {
@@ -179,6 +182,41 @@ function deletePath(data: unknown, pathExpr: string): void {
   }
 }
 
+/** §3.14: the serialization boundary. JSON.stringify renders NaN and
+ * Infinity as `null`, which a consumer reads as a real answer — an HP of
+ * `null` is indistinguishable from a field the world does not hold, and one
+ * arm spent six days acting on exactly that. A pre-stringified rate is worse
+ * still: it arrives as the literal string "NaN". Neither is repaired here,
+ * because there is no honest value to repair it to; the answer is refused.
+ *
+ * Walks values only — cheap next to the projection that produced them, and
+ * it is the last place a lie can be caught before it leaves the process. */
+function findNonFinite(value: unknown, at = ''): string | null {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? null : `${at || '<root>'} = ${String(value)}`;
+  }
+  if (typeof value === 'string') {
+    return value === 'NaN' || value === '-NaN' || value === 'Infinity' || value === '-Infinity'
+      ? `${at || '<root>'} = "${value}"`
+      : null;
+  }
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i++) {
+      const hit = findNonFinite(value[i], `${at}[${i}]`);
+      if (hit) return hit;
+    }
+    return null;
+  }
+  if (value !== null && typeof value === 'object') {
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      const hit = findNonFinite(v, at ? `${at}.${k}` : k);
+      if (hit) return hit;
+    }
+    return null;
+  }
+  return null;
+}
+
 /** Build the §3.10 envelope for a query response: prune never-volunteered
  * prose (unless opted in), apply name-free withholding with receipt, and
  * emit the derived-and-present untrusted path list. */
@@ -200,6 +238,17 @@ export function buildEnvelope<T>(
       deletePath(data, p);
       suppressed.push(p);
     }
+  }
+
+  // §3.14: refuse rather than serve a plausible lie. Last check before the
+  // answer leaves the process.
+  const nonFinite = findNonFinite(data);
+  if (nonFinite) {
+    tripwires.nonFiniteValues += 1;
+    throw new QueryError(
+      'NOT_FINITE',
+      `a projected value reached the serialization boundary as non-finite (${nonFinite}); JSON would have served it as null. The answer is refused rather than repaired.`
+    );
   }
 
   const untrusted = [...classes.entries()]

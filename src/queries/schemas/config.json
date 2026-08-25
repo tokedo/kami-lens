@@ -14,13 +14,18 @@
           "type": "string"
         },
         "value": {
-          "type": "number"
+          "type": "number",
+          "description": "The stored value as a number — present ONLY when it is exactly representable as one. A config Value component holds a uint256 and several fields PACK eight uint32s into it; coerced with Number(), one such field served 1.347997333357532e+68. A value that does not fit is ABSENT here rather than wrong (§1.2). Unchanged for every field where it ever meant anything."
         },
         "values": {
           "type": "array",
           "items": {
             "type": "number"
           }
+        },
+        "valueRaw": {
+          "type": "string",
+          "description": "The stored value VERBATIM, as a decimal string, always present on the scalar form. For a packed field this is the only honest scalar reading; `--array` unpacks it."
         }
       }
     }
