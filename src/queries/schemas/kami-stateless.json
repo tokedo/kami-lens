@@ -14,7 +14,8 @@
         "level",
         "hp",
         "accountId",
-        "blockNumber"
+        "blockNumber",
+        "xp"
       ],
       "properties": {
         "id": {
@@ -49,6 +50,10 @@
         },
         "blockNumber": {
           "type": "number"
+        },
+        "xp": {
+          "type": "number",
+          "description": "§3.13: banked experience. The GetterSystem view this mode reads has always returned it; this projection discarded it. The next-level requirement (a config read) and unspent skill points (absent from the getter shape) are NOT computable without a mirror, so the stateless answer stops here."
         }
       }
     }

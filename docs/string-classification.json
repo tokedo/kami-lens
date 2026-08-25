@@ -1,5 +1,5 @@
 {
-  "$comment": "Machine form of the per-pin string classification (DESIGN \u00a73.10; prose rationale and the canonical class definitions live in docs/coverage.md 'String classification'). Keyed by named schema $def \u00d7 property. Every string-valued path in a query output schema resolves here via its owning $def type; a string property NOT listed resolves to the fail-safe default authored-prose (never volunteered \u2014 pruned from default output and refused without opt-in). Changes get formula-class hand review (DESIGN \u00a77). Gate G3.f derives every query's untrusted path list from (output schema \u00d7 this artifact) and fails on divergence from the emitted envelope. 0.4.0 (\u00a73.12 payload enrichment) adds: description on ItemRef, RoomRef and InventoryItem; the AlloText/AlloOut pair (interpreted item effects and quest rewards); ItemRequirement (interpreted USE requirements). Every one is registry-class game content read from the mirror's own registries, hand-reviewed with the 0.4.0 change set: they carry no player-authored text, and the fail-safe would otherwise resolve each to authored-prose and DELETE it from every default answer.",
+  "$comment": "Machine form of the per-pin string classification (DESIGN §3.10; prose rationale and the canonical class definitions live in docs/coverage.md 'String classification'). Keyed by named schema $def × property. Every string-valued path in a query output schema resolves here via its owning $def type; a string property NOT listed resolves to the fail-safe default authored-prose (never volunteered — pruned from default output and refused without opt-in). Changes get formula-class hand review (DESIGN §7). Gate G3.f derives every query's untrusted path list from (output schema × this artifact) and fails on divergence from the emitted envelope. 0.4.0 (§3.12 payload enrichment) adds: description on ItemRef, RoomRef and InventoryItem; the AlloText/AlloOut pair (interpreted item effects and quest rewards); ItemRequirement (interpreted USE requirements). Every one is registry-class game content read from the mirror's own registries, hand-reviewed with the 0.4.0 change set: they carry no player-authored text, and the fail-safe would otherwise resolve each to authored-prose and DELETE it from every default answer. 0.5.0 (§3.13 payload economy, the leveling loop and the client-parity trio) adds: `for` on ItemRef/InventoryItem/Item (system — the KAMI-vs-ACCOUNT target); `reason` on Liquidation (system enum); the RoomExit/Condition pair for room exits (exit `name` registry, condition `text` registry, the rest system); `levelUpBlockedBy` on KamiVitals and HarvestVitals (system enum); the SkillRow/BonusOut pair (skill `name`/`type`/`description` and bonus `text` registry, the rest system); QuestRequirement (interpreted requirement `text` registry, type/logic/basis system) and QuestRow (`name`/`description` registry, the same classes the QuestRegistry row they replace already carried); the `view` discriminator on a compact quests answer and the `rpcReads.lastError` diagnostic on status (both system); and GasBalance (`address`, `wei` — both system: an address and a decimal integer-as-string). Every one is game content read from the mirror's own registries, an enum, or a numeric — hand-reviewed with the 0.5.0 change set, as the artifact requires. The fail-safe would otherwise resolve each to authored-prose and DELETE it from every default answer, which is why G3.f asserts each new field is really present.",
   "pin": "ef898fc9350a6085fb080419b12af96c2254e8f3",
   "default": "authored-prose",
   "types": {
@@ -14,7 +14,8 @@
       "id": "system",
       "spotRatePerHr": "system",
       "avgRatePerHr": "system",
-      "hpRatePerHr": "system"
+      "hpRatePerHr": "system",
+      "levelUpBlockedBy": "system"
     },
     "AccountRef": {
       "name": "authored-id",
@@ -70,7 +71,8 @@
       "version": "system",
       "upstreamPin": "system",
       "configFile": "system",
-      "bootstrapMode": "system"
+      "bootstrapMode": "system",
+      "lastError": "system"
     },
     "KamidenStatus": {
       "url": "system"
@@ -106,7 +108,8 @@
     },
     "ItemRef": {
       "name": "registry",
-      "description": "registry"
+      "description": "registry",
+      "for": "system"
     },
     "Kill": {
       "bounty": "system",
@@ -233,7 +236,8 @@
       "id": "system",
       "name": "registry",
       "type": "system",
-      "description": "registry"
+      "description": "registry",
+      "for": "system"
     },
     "Room": {
       "name": "registry",
@@ -266,7 +270,8 @@
       "kamiId": "system"
     },
     "HarvestVitals": {
-      "hpRatePerHr": "system"
+      "hpRatePerHr": "system",
+      "levelUpBlockedBy": "system"
     },
     "Attacker": {
       "id": "system",
@@ -294,6 +299,44 @@
     "ItemRequirement": {
       "type": "system",
       "text": "registry"
+    },
+    "Liquidation": {
+      "reason": "system"
+    },
+    "RoomExit": {
+      "name": "registry"
+    },
+    "Condition": {
+      "type": "system",
+      "text": "registry",
+      "value": "system"
+    },
+    "SkillRow": {
+      "name": "registry",
+      "type": "registry",
+      "description": "registry"
+    },
+    "BonusOut": {
+      "type": "system",
+      "text": "registry",
+      "endType": "system"
+    },
+    "QuestRequirement": {
+      "type": "system",
+      "logic": "system",
+      "basis": "system",
+      "text": "registry"
+    },
+    "QuestRow": {
+      "name": "registry",
+      "description": "registry"
+    },
+    "GasBalance": {
+      "address": "system",
+      "wei": "system"
+    },
+    "Quests": {
+      "view": "system"
     }
   }
 }

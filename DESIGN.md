@@ -86,8 +86,12 @@ verified bit-identical between the client reader and `LibConfig`
 (same `keccak256(abi.encodePacked('is.config', field))` entity ID,
 same 8×uint32 unpack order) — so balance patches that only change
 config values require no kami-lens change. Exceptions ship in client
-code, with the pin: e.g. the map's room data (`constants/rooms`) and
-the hardcoded 180 s cooldown fallback. These are tracked per release
+code, with the pin: e.g. the hardcoded 180 s cooldown fallback.
+*(Corrected at 0.5.0: earlier text named the map's room data
+(`constants/rooms`) as a second example. It is not one — that module was
+never ported, and this layer reads room identity, description and location
+from the mirror's own components. The claim described upstream, not the
+port.)* These are tracked per release
 in [docs/coverage.md](docs/coverage.md) with source `code`, and
 changes to them are caught by the tracking protocol (§7).
 
@@ -354,6 +358,106 @@ population map is deliberate: decision surfaces are enriched (what you
 hold, what you can buy, what a quest pays, where you are), history rows are
 not (`feed`, `battles`, `portal`, `transfers` — the same 70 rooms and 177
 items recur page after page, and the description is one read away).
+
+### 3.13 Payload economy and the leveling loop (0.5)
+
+Settled with the 0.5.0 surface. **A reader that cannot afford to read an
+answer has not been served it, and a truth that is only reachable through an
+answer nobody can afford is not on the surface at all.**
+
+§3.11 fixed the floor of what must be *readable*; §3.12 moved the tooltip
+facts to where they are *read*. Neither asked what an answer COSTS. Measured
+over four agent arms of one run, against a 65,536-byte reader: the
+account-form `quests` answer ran to 195–221 KB and was cut off every single
+call — 9.1 MB over 143 calls, 41 % of every tool-output byte in the run — so
+quests past roughly the fiftieth were invisible for the whole run, to an
+agent that was surveying them deliberately. `room` answers reached 360 KB in
+a crowded room, `node` 266 KB, `leaderboard` 175 KB, `trades` 111 KB, `party`
+281 KB. The cause is not one bug. It is a surface built one query at a time
+where every listing answered with everything it had.
+
+Three consequences, and the third is the one that is easy to get backwards:
+
+- **Compact is the DEFAULT, not a flag.** A listing serves one row per
+  entity — the identity and the few scalars a decision turns on — and never
+  prose. Registry description text is the largest single cost measured
+  (85 KB of a 141 KB quest answer is dialogue, byte for byte the same on
+  every call) and is also the part a consumer is most likely to already
+  have. Where the old shape is genuinely wanted, `--full` serves it. Making
+  compaction opt-in instead would have left the default answer broken for
+  every reader that never learned the flag existed, which is the population
+  the change exists for.
+- **A cap is honest or it is a lie.** Some lists cannot be compacted below
+  the cap at any field selection: one room holds 1,561 accounts, and even a
+  row of `{index, name, kamiCount}` each still runs past 64 KB. Those lists
+  are capped — and every capped answer carries the true total beside the
+  served count, because "nobody else is here" and "the rest did not fit" are
+  different facts and a reader that cannot tell them apart will act on the
+  wrong one. Row order is deterministic and unconditional for the same
+  reason: a cap over an incidental iteration order is a lottery, and a
+  `--full` answer ordered differently from the capped one cannot be
+  reconciled with it.
+- **Dropping a field is a version advance, not a flag.** This is where
+  §3.12's contract has to be restated rather than extended. The `enrich`
+  flag's promise was byte-identity *to 0.3.0*, and 0.5.0 changes default
+  answers deliberately, so that promise cannot be carried forward by
+  renumbering it. What the flag still guarantees, and what G3.g still
+  proves, is that it adds fields and removes none against **this release's
+  own defaults** — a frozen baseline for what comes after, not a
+  cross-version identity claim. Saying otherwise would be claiming a
+  property the release does not have.
+
+**The leveling loop, and why a half-served loop is worse than an unserved
+one.** The same release serves experience, the next-level requirement, a
+readiness flag, the blocker when it is not ready, and unspent skill points,
+on the base surface. Until 0.5.0 this surface served `level` and no `xp`
+field anywhere — and an agent in the last run held the belief "check
+lens_kami xp field" to the end of its run while sitting on 6,584 banked
+experience at level 1, roughly seventeen levels' worth. Every input was
+already computed on the path that answered it and discarded at the
+projection; the only new work is the requirement curve, a ported upstream
+function this port had never called.
+
+Readiness is where a pane and the state disagree, and §3.11 already says
+which wins. The reference client renders the level-up affordance two
+contradictory ways — its party card checks experience alone, its kami bar
+checks experience AND resting — and the chain's own `KamiLevelSystem`
+requires both. The served flag is the strict one, with `levelUpBlockedBy`
+naming which condition fails in the client tooltip's own precedence, and
+the raw `xp` and `xpRequired` beside it so a reader can reconstruct either
+pane. Copying the looser arrow would be mirroring a pane.
+
+**Where a signal goes is part of what it costs.** The compact `roster` is
+the one answer whose compactness is contract (G7.a, a frozen marginal-bytes
+ratio), and the cheap leveling signals ride on it as SETS on the account
+block — `levelUpReady: [indices]`, `skillPoints: [[index, points]]` —
+rather than as fields on the kami rows. Measured on the largest roster in
+the world (1,050 kamis): per-row fields cost 62.75 B/kami, a ratio of 0.234
+against the frozen 0.25 and 0.310 in the worst case, so that placement
+would have passed the gate on the luck of one roster's composition. The set
+form measures 46.86 B/kami — unchanged from 0.4.0, and unchanged BY
+CONSTRUCTION, because the gate's marginal is computed over `kamis[]` and
+anything outside it cancels. A guarantee that holds by construction is worth
+more than one that holds by measurement.
+
+**Refusals name their cause.** `requirementsMet: false` was a bare boolean
+on 97 of 187 quest rows, and the layer computed the per-requirement status
+for every one of them and threw it away — so a reader could learn *that* it
+was blocked and never *by what*, which §3.11 exists to refuse. The failing
+requirements are now named, with the pin's own words for each ("Complete
+Quest [Ringing Any Bells III]"). The same principle adds a `reason` to an
+ineligible liquidation preview and an `exits` list to a room: three
+surfaces where the answer reported a verdict and withheld the fact behind
+it.
+
+**A silent argument is worse than a rejected one.** Found while
+investigating this change and fixed with it: the CLI carried a hand-written
+allowlist of three query-argument spellings and routed every other
+`--`-prefixed token into a client-flag set that dropped what it did not
+recognise. `--full` would have been swallowed, and so would a typo of it —
+returning a *different answer*, silently. Queries now declare their own
+argument vocabulary and an undeclared option is a usage error. Fail loudly,
+never lie (§3.1) applies to the arguments as much as to the answers.
 
 ## 4. Architecture
 

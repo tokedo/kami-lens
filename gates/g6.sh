@@ -9,8 +9,14 @@
 #                    stamina recompute, inventory contract + MUSU
 #                    cross-check, merchant price-side rules, phase
 #                    boundary arithmetic, leaderboard rank contract)
-#   G6.b [live]      chain cross-check — served inventory/room/merchant/
+#   G6.b [live]      chain cross-check — served inventory/room/room-exits/
+#                    merchant/
 #                    leaderboard rows verified by pinned eth_call reads
+#   G6.d [live]      the account gas balance (0.5.0, §3.13) — served wei
+#                    reproduced by an independent eth_getBalance at the block
+#                    the answer names, honest units, honest clocks, and the
+#                    never-blocking failure path exercised against a dead
+#                    endpoint rather than mocked
 #   G6.c [live]      killers conformance (live daemon; schema, envelope,
 #                    joins, cross-service kills check, name-free mode) +
 #                    the windowed-ranking deferral evidence measurement
@@ -30,6 +36,9 @@ $TSX gates/g6/a-consistency.mts
 
 step "G6.b chain cross-check (live)"
 $TSX gates/g6/b-chain-crosscheck.mts
+
+step "G6.d account gas balance (live)"
+$TSX gates/g6/d-gas-balance.mts
 
 step "G6.c killers conformance + deferral evidence (live daemon)"
 $TSX gates/g6/c-killers.mts

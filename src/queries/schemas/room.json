@@ -6,7 +6,14 @@
     "Room": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["index", "name", "description", "accounts"],
+      "required": [
+        "index",
+        "name",
+        "exits",
+        "accountsTotal",
+        "accountsServed",
+        "accounts"
+      ],
       "properties": {
         "index": {
           "type": "number"
@@ -15,7 +22,22 @@
           "type": "string"
         },
         "description": {
-          "type": "string"
+          "type": "string",
+          "description": "`--full` only from 0.5.0 (§3.13)."
+        },
+        "exits": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RoomExit"
+          }
+        },
+        "accountsTotal": {
+          "type": "number",
+          "description": "§3.13: how many accounts are in the room, whether or not this answer served them."
+        },
+        "accountsServed": {
+          "type": "number",
+          "description": "§3.13: how many rows this answer carries. Below the total when the cap fired; --full lifts it."
         },
         "accounts": {
           "type": "array",
@@ -28,10 +50,14 @@
     "RoomAccount": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "index", "name", "kamis"],
+      "required": [
+        "index",
+        "name"
+      ],
       "properties": {
         "id": {
-          "type": "string"
+          "type": "string",
+          "description": "`--full` only from 0.5.0 (§3.13)."
         },
         "index": {
           "type": "number"
@@ -39,18 +65,27 @@
         "name": {
           "type": "string"
         },
+        "kamiCount": {
+          "type": "number",
+          "description": "Compact form: how many kamis the account has here. The roster itself is `--full` or the party/roster queries."
+        },
         "kamis": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/KamiRef"
-          }
+          },
+          "description": "`--full` only from 0.5.0 (§3.13)."
         }
       }
     },
     "KamiRef": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "index", "name"],
+      "required": [
+        "id",
+        "index",
+        "name"
+      ],
       "properties": {
         "id": {
           "type": "string"
@@ -63,6 +98,58 @@
         },
         "state": {
           "type": "string"
+        }
+      }
+    },
+    "RoomExit": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "§3.13 (0.5.0): one way out of a room. getExitsFor has been in the ported tree since 0.1.0 and no query ever called it, so no served surface anywhere named a room connection and a reader could learn the map only by moving and failing — which §3.11 exists to refuse. Served verbatim as the pinned client computes it: special exits (the room's Exits component) followed by geometric neighbours, NOT de-duplicated and NOT symmetrised, because the client renders exactly this list.",
+      "required": [
+        "toIndex",
+        "name",
+        "gates"
+      ],
+      "properties": {
+        "toIndex": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "gates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Condition"
+          },
+          "description": "Conditions on entering the destination; empty for an ungated exit. FACTS ONLY — whether a given account passes them is the reader's own evaluation."
+        }
+      }
+    },
+    "Condition": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "One condition the world stores on an exit, with the pinned client's own words for it beside the raw target. FACTS ONLY: whether a given account passes it is the reader's own evaluation — this surface takes no account argument, and inventing a per-viewer verdict would be mirroring a pane rather than serving the state (§3.11). Its `value` is a string for the reason given on that field.",
+      "required": [
+        "type",
+        "index",
+        "value",
+        "text"
+      ],
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "index": {
+          "type": "number"
+        },
+        "value": {
+          "type": "string",
+          "description": "VERBATIM, as a string. A room gate's value is an ENTITY ID, not a count: coercing an id-sized uint to a JSON number yields 2.65e+76 — a value the world does not hold and nothing can join on. §1.2: verbatim or absent, never rewritten."
+        },
+        "text": {
+          "type": "string",
+          "description": "parseConditionalText, verbatim including the pin's spacing quirks."
         }
       }
     }

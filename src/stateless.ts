@@ -36,6 +36,16 @@ export type StatelessKami = {
   name: string;
   state: string;
   level: number;
+  /** §3.13 (0.5.0): banked experience. The GetterSystem view this mode reads
+   * has ALWAYS returned it (`uint256 level, uint256 xp` in the KamiShape
+   * tuple) and this projection discarded it.
+   *
+   * The stateless answer stops here, and the asymmetry is a fact about the
+   * mode rather than an oversight: the next-level REQUIREMENT is a config
+   * read (`KAMI_LVL_REQ_BASE`, `KAMI_LVL_REQ_MULT_BASE`) and unspent SKILL
+   * POINTS are not in the getter's shape at all, so neither is computable
+   * without a mirror. A reader wanting readiness runs the daemon. */
+  xp: number;
   hp: { total: number };
   accountId: string;
   blockNumber: number;
@@ -78,6 +88,7 @@ export async function statelessKami(
       name: shape.name,
       state: shape.state,
       level: Number(shape.level),
+      xp: Number(shape.xp),
       hp: { total: statTotal(shape.stats.health) },
       accountId: '0x' + BigInt(shape.account).toString(16),
       blockNumber: resolvedBlock,

@@ -6,32 +6,101 @@
     "Quests": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["registry"],
+      "required": [],
       "properties": {
-        "registry": { "type": "array", "items": { "$ref": "#/$defs/QuestRegistry" } },
-        "account": { "$ref": "#/$defs/AccountRef" },
+        "view": {
+          "type": "string",
+          "enum": [
+            "status",
+            "open",
+            "accepted",
+            "detail"
+          ],
+          "description": "Which compact form this answer is. Absent on a `--full` answer."
+        },
+        "questsTotal": {
+          "type": "number",
+          "description": "§3.13: how many quests the registry holds, whichever view was asked for."
+        },
+        "quests": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/QuestRow"
+          },
+          "description": "The compact rows. Present in every view but `--full`."
+        },
+        "completedCount": {
+          "type": "number",
+          "description": "`--open` only: how many accepted quests are already finished."
+        },
+        "completedIndices": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "description": "`--open` only: their indices, bare — a finished quest's objectives carry no counters at all (SPEC §4.1 quirk 9), so there is nothing else to say about them cheaply."
+        },
+        "registry": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/QuestRegistry"
+          },
+          "description": "`--full` only: the uncompacted registry rows."
+        },
+        "account": {
+          "$ref": "#/$defs/AccountRef"
+        },
         "accepted": {
           "type": "array",
-          "description": "RETAINED, REDUNDANT: every registry row now carries the same acceptance facts, and more, in its account block. Kept so answers stay shape-compatible with consumers written against earlier versions.",
-          "items": { "$ref": "#/$defs/QuestAccepted" }
+          "items": {
+            "$ref": "#/$defs/QuestAccepted"
+          },
+          "description": "RETAINED, REDUNDANT, `--full` only: every registry row carries the same acceptance facts, and more. Kept so `--full` answers stay shape-compatible with consumers written against earlier versions."
         }
-      }
+      },
+      "description": "Two shapes under one contract (§3.13). `--full` carries the uncompacted registry form (`registry`, with the retained-redundant `accepted` list beside it); every other view carries `quests` — one compact row per quest, no prose — plus the view name and the registry total. Exactly one of `registry` / `quests` is present in any answer."
     },
     "QuestRegistry": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["index", "name", "description", "repeatable"],
+      "required": [
+        "index",
+        "name",
+        "description",
+        "repeatable"
+      ],
       "properties": {
-        "index": { "type": "number" },
-        "name": { "type": "string" },
-        "description": { "type": "string" },
-        "repeatable": { "type": "boolean" },
-        "repeatDuration": { "type": "number" },
-        "account": { "$ref": "#/$defs/QuestAccountState" },
+        "index": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "repeatable": {
+          "type": "boolean"
+        },
+        "repeatDuration": {
+          "type": "number"
+        },
+        "account": {
+          "$ref": "#/$defs/QuestAccountState"
+        },
         "rewards": {
           "type": "array",
           "description": "§3.12 (enrich): what completing the quest pays, one row per raw reward allo with the pinned client's interpretation beside it. Readable BEFORE acceptance — the registry holds it.",
-          "items": { "$ref": "#/$defs/AlloOut" }
+          "items": {
+            "$ref": "#/$defs/AlloOut"
+          }
+        },
+        "requirements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/QuestRequirement"
+          },
+          "description": "§3.13 (0.5.0): every requirement with its own status, on the `--full` form."
         }
       }
     },
@@ -39,44 +108,85 @@
       "type": "object",
       "additionalProperties": false,
       "description": "Where one account stands on one quest, served as the facts that discriminate it rather than as a single label. The four combinations are exhaustive and mutually exclusive, so any consumer vocabulary maps on without loss: !accepted = never accepted; accepted && complete = already finished; accepted && !complete && objectivesMet = unfinished with the work done; accepted && !complete && !objectivesMet = unfinished with work outstanding. requirementsMet answers whether a quest not yet accepted can be accepted at all.",
-      "required": ["accepted", "complete", "requirementsMet"],
+      "required": [
+        "accepted",
+        "complete",
+        "requirementsMet"
+      ],
       "properties": {
-        "accepted": { "type": "boolean" },
-        "complete": { "type": "boolean" },
-        "requirementsMet": { "type": "boolean" },
+        "accepted": {
+          "type": "boolean"
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "requirementsMet": {
+          "type": "boolean"
+        },
         "objectivesMet": {
           "type": "boolean",
           "description": "This layer's evaluation of the objectives it can read — NOT a promise that the finishing transaction will succeed. A consumer needing that guarantee must have the chain simulate the act. The field is not named 'completable' for exactly this reason."
         },
-        "repeatAvailable": { "type": "boolean" },
-        "startTime": { "type": "number" },
-        "endTime": { "type": "number" },
+        "repeatAvailable": {
+          "type": "boolean"
+        },
+        "startTime": {
+          "type": "number"
+        },
+        "endTime": {
+          "type": "number"
+        },
         "objectives": {
           "type": "array",
           "description": "Present only for accepted quests. Accrual objectives count from a snapshot taken at acceptance; before acceptance no snapshot exists and the comparison would run against zero, reading an account's lifetime total as if it were progress. Serving that would hand out a number the world does not hold, so unaccepted rows carry thresholds without progress.",
-          "items": { "$ref": "#/$defs/QuestObjective" }
+          "items": {
+            "$ref": "#/$defs/QuestObjective"
+          }
         }
       }
     },
     "QuestObjective": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "type", "logic", "met", "basis"],
+      "required": [
+        "name",
+        "type",
+        "logic",
+        "met",
+        "basis"
+      ],
       "properties": {
-        "name": { "type": "string" },
-        "type": { "type": "string" },
-        "logic": { "type": "string" },
-        "index": { "type": "number" },
-        "required": { "type": "number" },
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "logic": {
+          "type": "string"
+        },
+        "index": {
+          "type": "number"
+        },
+        "required": {
+          "type": "number"
+        },
         "current": {
           "type": "number",
           "description": "Progress on the basis named below. Absent where there is nothing to count (boolean objectives) and for a finished quest, whose objectives stop being evaluated. No number is synthesized in either case."
         },
-        "met": { "type": "boolean" },
+        "met": {
+          "type": "boolean"
+        },
         "basis": {
           "type": "string",
           "description": "since-acceptance = accrual counted from the moment of acceptance, not a balance: spending what you accrued does not un-count it, and a balance held before acceptance does not count toward it. current = the present value (a balance, a level, a score). boolean = met or not, with nothing to count. unknown = a handler this version does not evaluate.",
-          "enum": ["since-acceptance", "current", "boolean", "unknown"]
+          "enum": [
+            "since-acceptance",
+            "current",
+            "boolean",
+            "unknown"
+          ]
         },
         "item": {
           "$ref": "#/$defs/ItemRef",
@@ -91,65 +201,249 @@
     "QuestAccepted": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["index", "name", "complete", "startTime", "endTime"],
+      "required": [
+        "index",
+        "name",
+        "complete",
+        "startTime",
+        "endTime"
+      ],
       "properties": {
-        "index": { "type": "number" },
-        "name": { "type": "string" },
-        "complete": { "type": "boolean" },
-        "startTime": { "type": "number" },
-        "endTime": { "type": "number" }
+        "index": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "startTime": {
+          "type": "number"
+        },
+        "endTime": {
+          "type": "number"
+        }
       }
     },
     "AccountRef": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["index", "name"],
+      "required": [
+        "index",
+        "name"
+      ],
       "properties": {
-        "index": { "type": "number" },
-        "name": { "type": "string" }
+        "index": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        }
       }
     },
     "AlloText": {
       "type": "object",
       "additionalProperties": false,
       "description": "The pinned client's own interpretation of one allocation, projected to {name, description}. `image` is never served: two shapes files carry the module NAMESPACE of a png import there rather than a URL (SPEC §4.1 quirk 2).",
-      "required": ["name", "description"],
+      "required": [
+        "name",
+        "description"
+      ],
       "properties": {
-        "name": { "type": "string" },
-        "description": { "type": "string" }
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
       }
     },
     "AlloOut": {
       "type": "object",
       "additionalProperties": false,
       "description": "One RAW allocation the world stores (type, index, value) with the pinned client's interpretation of it beside it. Grouped per raw allo deliberately: the interpreter fans out — a BONUS allo yields one entry per bonus, a droptable allo one consolidated entry — so a flat parsed list would have no positional correspondence to what the world holds. `entries` is empty when this pin interprets the shape not at all; the raw facts still stand.",
-      "required": ["type", "index", "value", "entries"],
+      "required": [
+        "type",
+        "index",
+        "value",
+        "entries"
+      ],
       "properties": {
-        "type": { "type": "string" },
-        "index": { "type": "number" },
-        "value": { "type": "number" },
-        "entries": { "type": "array", "items": { "$ref": "#/$defs/AlloText" } }
+        "type": {
+          "type": "string"
+        },
+        "index": {
+          "type": "number"
+        },
+        "value": {
+          "type": "number"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AlloText"
+          }
+        }
       }
     },
     "ItemRef": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["index", "name"],
+      "required": [
+        "index",
+        "name"
+      ],
       "properties": {
-        "index": { "type": "number" },
-        "name": { "type": "string" },
-        "description": { "type": "string" }
+        "index": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
       }
     },
     "RoomRef": {
       "type": "object",
       "additionalProperties": false,
       "description": "§3.12 (enrich): a room index resolved to its registry name and description. Present only when the daemon runs with enrich=true. An index the mirror has no room for keeps the index and answers with empty strings.",
-      "required": ["index", "name"],
+      "required": [
+        "index",
+        "name"
+      ],
       "properties": {
-        "index": { "type": "number" },
-        "name": { "type": "string" },
-        "description": { "type": "string" }
+        "index": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "QuestRequirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "§3.13 (0.5.0): one requirement with its own status. parseQuestRequirements computes this for EVERY requirement and the 0.4.0 surface read only the conjunction, so \"requirementsMet: false\" never named which requirement failed and a reader could only guess. No pre-acceptance hazard arises here, and that is a fact about the pin rather than an assumption: every quest requirement at this pin uses a BOOL_IS or CURR_MIN handler — there is no accrual handler on any requirement, so there is no acceptance snapshot for a number to be measured against.",
+      "required": [
+        "type",
+        "logic",
+        "met",
+        "basis",
+        "text"
+      ],
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "logic": {
+          "type": "string"
+        },
+        "index": {
+          "type": "number"
+        },
+        "required": {
+          "type": "number"
+        },
+        "current": {
+          "type": "number",
+          "description": "Served exactly where the world holds it and nowhere else — the same no-synthesis rule objectives follow (§1.1)."
+        },
+        "met": {
+          "type": "boolean"
+        },
+        "basis": {
+          "type": "string",
+          "enum": [
+            "since-acceptance",
+            "current",
+            "boolean",
+            "unknown"
+          ]
+        },
+        "text": {
+          "type": "string",
+          "description": "The pinned client's own words for the condition (parseConditionalText), verbatim — e.g. \"Complete Quest [Ringing Any Bells III]\"."
+        }
+      }
+    },
+    "QuestRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "One row of a COMPACT quests answer (§3.13). Which fields are present depends on the view; index and name are always there, and prose never is.",
+      "required": [
+        "index",
+        "name"
+      ],
+      "properties": {
+        "index": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "repeatable": {
+          "type": "boolean"
+        },
+        "accepted": {
+          "type": "boolean"
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "requirementsMet": {
+          "type": "boolean"
+        },
+        "objectivesMet": {
+          "type": "boolean",
+          "description": "This layer's evaluation of the objectives it can read — NOT a promise that the finishing transaction will succeed."
+        },
+        "repeatAvailable": {
+          "type": "boolean"
+        },
+        "unmetRequirements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/QuestRequirement"
+          },
+          "description": "Present ONLY on rows whose requirements are not met, and carrying only the requirements that actually fail: a refusal must name its cause (§3.11)."
+        },
+        "objectives": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/QuestObjective"
+          },
+          "description": "Present on the accepted/open views and on keyed detail. Never on an unaccepted row: accrual objectives count from a snapshot taken at acceptance, and before acceptance no snapshot exists (§1.1)."
+        },
+        "description": {
+          "type": "string",
+          "description": "Keyed detail only. Quest description is DIALOGUE — 85 KB of the 141 KB account-form answer measured at one pin, byte for byte the same on every call — so it is never on a listing row (§3.13)."
+        },
+        "requirements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/QuestRequirement"
+          },
+          "description": "Keyed detail only: every requirement, met or not."
+        },
+        "startTime": {
+          "type": "number"
+        },
+        "endTime": {
+          "type": "number"
+        },
+        "rewards": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AlloOut"
+          },
+          "description": "§3.12 (enrich), keyed detail only."
+        }
       }
     }
   }

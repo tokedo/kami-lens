@@ -17,7 +17,8 @@
         "kamiden",
         "clockOffsetMs",
         "config",
-        "configSources"
+        "configSources",
+        "rpcReads"
       ],
       "properties": {
         "version": {
@@ -111,7 +112,7 @@
             },
             "enrich": {
               "type": "boolean",
-              "description": "\u00a73.12 payload enrichment. Always present, so the switch is visible whether it is on or off \u2014 the one key by which a flag-off 0.4.0 answer differs from 0.3.0 (G3.g)."
+              "description": "§3.12 payload enrichment. Always present, so the switch is visible whether it is on or off — the one key by which a flag-off 0.4.0 answer differs from 0.3.0 (G3.g)."
             },
             "defaultOperator": {
               "type": "number"
@@ -144,6 +145,27 @@
         },
         "resumeFromBlock": {
           "type": "number"
+        },
+        "rpcReads": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "§3.13 (0.5.0): health of the ONE chain read the query layer makes (the account gas balance). Reported here for exactly the reason the per-feed Kamiden block is: the answer that needed it simply OMITS the block, so a reader must be able to tell \"this account holds nothing\" from \"the read did not happen\".",
+          "required": [
+            "ok",
+            "failed"
+          ],
+          "properties": {
+            "ok": {
+              "type": "number"
+            },
+            "failed": {
+              "type": "number"
+            },
+            "lastError": {
+              "type": "string",
+              "description": "Present only when a read has failed: an omitted key means none has."
+            }
+          }
         }
       }
     },

@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kami-lens/schemas/skills.json",
+  "$comment": "§3.13 (0.5.0). Without an argument: the skill registry — what exists, which tree and tier it sits in, what it costs and how far it can be taken. With a kami index: that kami's unspent points and the skills it has actually taken, with ranks. Skill DESCRIPTIONS and interpreted bonus text are enrich-class, the same rung as item descriptions (§3.12): the decision \"do I have points to spend, and where have I spent them\" needs neither.",
+  "$ref": "#/$defs/Skills",
+  "$defs": {
+    "Skills": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "skillsTotal"
+      ],
+      "properties": {
+        "skillsTotal": {
+          "type": "number",
+          "description": "Rows in the skill registry at this pin."
+        },
+        "skills": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SkillRow"
+          },
+          "description": "The registry, when no kami was named."
+        },
+        "kami": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "The kami this answer is about, when one was named.",
+          "required": [
+            "index"
+          ],
+          "properties": {
+            "index": {
+              "type": "number"
+            }
+          }
+        },
+        "unspent": {
+          "type": "number",
+          "description": "Unspent skill points — the reference client's \"SP\" badge."
+        },
+        "invested": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SkillRow"
+          },
+          "description": "Taken skills with their ranks. Empty when the kami has spent nothing."
+        }
+      }
+    },
+    "SkillRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "index",
+        "name",
+        "type",
+        "tier",
+        "cost",
+        "max"
+      ],
+      "properties": {
+        "index": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "description": "which skill tree the skill belongs to"
+        },
+        "tier": {
+          "type": "number"
+        },
+        "cost": {
+          "type": "number"
+        },
+        "max": {
+          "type": "number",
+          "description": "how many points can be spent on this one skill"
+        },
+        "points": {
+          "type": "number",
+          "description": "On an `invested` row: points this kami has actually spent here."
+        },
+        "description": {
+          "type": "string",
+          "description": "§3.12 (enrich) only."
+        },
+        "bonuses": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BonusOut"
+          },
+          "description": "§3.12 (enrich) only."
+        }
+      }
+    },
+    "BonusOut": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "value",
+        "text"
+      ],
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "value": {
+          "type": "number"
+        },
+        "endType": {
+          "type": "string"
+        },
+        "duration": {
+          "type": "number"
+        },
+        "text": {
+          "type": "string",
+          "description": "The pinned client's own rendering of the bonus (parseBonusText), beside the raw facts it was derived from — the §3.12 rule: serve the facts, never invent the formula."
+        }
+      }
+    }
+  }
+}

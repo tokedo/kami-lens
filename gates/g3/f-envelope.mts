@@ -217,8 +217,11 @@ const ENRICHED_PRESENCE: { query: string; args: string[]; paths: string[] }[] = 
     ],
   },
   {
+    // 0.5.0 (§3.13): quest REWARDS ride on the uncompacted registry rows —
+    // the compact default carries no rewards at all, so the presence pair is
+    // asserted against `--full`, which is where `registry[]` now lives
     query: 'quests',
-    args: [],
+    args: ['--full'],
     paths: ['registry[].rewards[].type', 'registry[].rewards[].entries[].description'],
   },
   {
@@ -233,6 +236,55 @@ const ENRICHED_PRESENCE: { query: string; args: string[]; paths: string[] }[] = 
     args: ['1'],
     paths: ['listings[].item.description', 'listings[].payItem.description'],
   },
+  {
+    // 0.5.0: skill descriptions and interpreted bonus prose are enrich-class,
+    // the same rung as item descriptions
+    query: 'skills',
+    args: [],
+    paths: ['skills[].description', 'skills[].bonuses[].type', 'skills[].bonuses[].text'],
+  },
+];
+
+/** 0.5.0 (§3.13). The BASE-surface additions get the same treatment the
+ * §3.12 fields got, for the same reason: an unclassified string is resolved
+ * to authored-prose by the fail-safe and then DELETED from every answer,
+ * silently and invisibly to a derivation-vs-emission comparison. These must
+ * be present with the flag OFF — they are not enrichment. */
+const BASE_PRESENCE: { query: string; args: string[]; paths: string[] }[] = [
+  // the parity trio + E1
+  { query: 'merchant', args: ['1'], paths: ['listings[].item.for', 'listings[].item.rarity'] },
+  { query: 'inventory', args: [String(anAccount)], paths: ['items[].item.rarity'] },
+  { query: 'room', args: ['1'], paths: ['exits[].toIndex', 'exits[].name'] },
+  { query: 'room', args: ['5'], paths: ['exits[].gates[].type', 'exits[].gates[].text'] },
+  // the leveling loop
+  {
+    query: 'kami',
+    args: [firstKami],
+    paths: ['xp', 'xpRequired', 'levelUpReady', 'skillPoints'],
+  },
+  {
+    query: 'party',
+    args: [String(anAccount)],
+    paths: ['kamis[].xp', 'kamis[].xpRequired', 'kamis[].levelUpReady', 'kamis[].skillPoints'],
+  },
+  {
+    query: 'roster',
+    args: [String(anAccount)],
+    paths: ['account.levelUpReady', 'account.skillPoints'],
+  },
+  { query: 'skills', args: [], paths: ['skillsTotal', 'skills[].name', 'skills[].max'] },
+  // quests: the compact surface and the per-requirement detail
+  {
+    query: 'quests',
+    args: [String(anAccount)],
+    paths: ['view', 'questsTotal', 'quests[].index', 'quests[].requirementsMet'],
+  },
+  // capped listings always carry both counts
+  { query: 'room', args: ['1'], paths: ['accountsTotal', 'accountsServed'] },
+  { query: 'party', args: [String(anAccount)], paths: ['kamisTotal', 'kamisServed'] },
+  { query: 'leaderboard', args: [], paths: ['rowsTotal', 'rowsServed'] },
+  { query: 'trades', args: [], paths: ['openTotal', 'openServed'] },
+  { query: 'items', args: [], paths: ['itemsTotal'] },
 ];
 
 const mismatches: Record<string, unknown>[] = [];
@@ -273,6 +325,46 @@ for (const c of ENRICHED_PRESENCE) {
   }
 }
 
+// --- 0.5.0 base-surface presence: same fail-safe blind spot, flag OFF
+const missingBase: Record<string, unknown>[] = [];
+let basePresenceChecked = 0;
+for (const c of BASE_PRESENCE) {
+  const bare = await serveQuery(mirror, c.query, c.args, { stale: false, mode: 'daemon' });
+  for (const p of c.paths) {
+    basePresenceChecked++;
+    if (!present(bare.data, p)) {
+      missingBase.push({ query: c.query, args: c.args, path: p, reason: 'absent on the base surface' });
+    }
+  }
+}
+
+// --- 0.5.0: the per-requirement detail must actually name a failing
+// requirement wherever the surface says requirements are unmet. A bare
+// `requirementsMet: false` with nothing beside it is the defect this
+// version exists to remove (§3.11), and an empty list would reinstate it.
+{
+  const compact = await serveQuery(mirror, 'quests', [String(anAccount)], {
+    stale: false,
+    mode: 'daemon',
+  });
+  const rows = (compact.data as {
+    quests?: { index: number; requirementsMet?: boolean; unmetRequirements?: { met: boolean; text: string }[] }[];
+  }).quests ?? [];
+  for (const row of rows) {
+    if (row.requirementsMet === false) {
+      const unmet = row.unmetRequirements ?? [];
+      if (unmet.length === 0) {
+        missingBase.push({ query: 'quests', args: [String(anAccount)], path: `quest ${row.index}`, reason: 'requirementsMet false with no requirement named' });
+      }
+      if (unmet.some((r) => r.met)) {
+        missingBase.push({ query: 'quests', args: [String(anAccount)], path: `quest ${row.index}`, reason: 'unmetRequirements listed a requirement that IS met' });
+      }
+    } else if (row.unmetRequirements !== undefined) {
+      missingBase.push({ query: 'quests', args: [String(anAccount)], path: `quest ${row.index}`, reason: 'unmetRequirements present on a row whose requirements are met' });
+    }
+  }
+}
+
 // name-free assertions on a real party output
 const named = await serveQuery(mirror, 'party', [String(anAccount)], { stale: false, mode: 'daemon' });
 const nameFree = await serveQuery(mirror, 'party', [String(anAccount)], {
@@ -298,19 +390,32 @@ await writeMeasurement('g3f-envelope', {
   snapshotBlock: cache.blockNumber,
   cases: compared,
   mismatches,
+  basePresenceChecked,
+  missingBase,
   nameFreeChecks,
   enrichedPresenceChecked: presenceChecked,
   enrichedPresenceProblems: missingEnriched,
-  match: mismatches.length === 0 && nameFreeOk && missingEnriched.length === 0,
+  match:
+    mismatches.length === 0 &&
+    nameFreeOk &&
+    missingEnriched.length === 0 &&
+    missingBase.length === 0,
 });
 
-if (mismatches.length > 0 || !nameFreeOk || missingEnriched.length > 0) {
+if (mismatches.length > 0 || !nameFreeOk || missingEnriched.length > 0 || missingBase.length > 0) {
   fail('G3.f', {
-    reason: 'envelope divergence or an enriched field that is not where it must be',
+    reason:
+      'envelope divergence, an enriched field that is not where it must be, or a 0.5.0 base-surface field the fail-safe would have deleted',
     mismatches,
     nameFreeChecks,
     missingEnriched,
+    missingBase,
   });
 }
-pass('G3.f', { cases: compared, nameFreeChecks, enrichedPresence: presenceChecked });
+pass('G3.f', {
+  cases: compared,
+  nameFreeChecks,
+  enrichedPresence: presenceChecked,
+  basePresence: basePresenceChecked,
+});
 process.exit(0);

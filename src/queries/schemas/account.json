@@ -88,6 +88,9 @@
         "room": {
           "$ref": "#/$defs/RoomRef",
           "description": "§3.12 (enrich): roomIndex resolved. On roster, {index, name} only — the compact answer stays compact."
+        },
+        "gas": {
+          "$ref": "#/$defs/Gas"
         }
       }
     },
@@ -118,11 +121,65 @@
       "type": "object",
       "additionalProperties": false,
       "description": "§3.12 (enrich): a room index resolved to its registry name and description. Present only when the daemon runs with enrich=true. An index the mirror has no room for keeps the index and answers with empty strings.",
-      "required": ["index", "name"],
+      "required": [
+        "index",
+        "name"
+      ],
       "properties": {
-        "index": { "type": "number" },
-        "name": { "type": "string" },
-        "description": { "type": "string" }
+        "index": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "GasBalance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "address",
+        "wei",
+        "eth"
+      ],
+      "properties": {
+        "address": {
+          "type": "string"
+        },
+        "wei": {
+          "type": "string",
+          "description": "wei, as a DECIMAL STRING: the value does not fit a JSON number."
+        },
+        "eth": {
+          "type": "number",
+          "description": "The same value in ETH — a unit conversion, not a game formula."
+        }
+      }
+    },
+    "Gas": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "§3.13 (0.5.0): the account's own gas position — the one balance that decides whether it can act at all, and the only fact on this surface read from the chain rather than from the mirror. ABSENT, never faked, when the RPC read fails: the mirror answer is never blocked on it, and the read's health is reported in `status.rpcReads` the way a Kamiden feed's is.",
+      "required": [
+        "operator",
+        "owner",
+        "blockNumber"
+      ],
+      "properties": {
+        "operator": {
+          "$ref": "#/$defs/GasBalance",
+          "description": "the signer that pays for every act"
+        },
+        "owner": {
+          "$ref": "#/$defs/GasBalance"
+        },
+        "blockNumber": {
+          "type": "number",
+          "description": "The CHAIN block these balances were read at. Deliberately separate from meta.blockNumber, which is the MIRROR's block: the two clocks differ, and hiding that would make a skew invisible rather than absent."
+        }
       }
     }
   }

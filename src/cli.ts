@@ -17,10 +17,14 @@
 // --enrich true` decides the surface every client of that daemon sees. Given
 // to a query invocation it parses and does nothing — the query path is a
 // socket client, and no request field carries enrichment.
-// Query flags: --prose (opt-in authored-prose fields, e.g. account bio),
-//   --no-authored (name-free mode: withhold authored-id with receipt),
-//   --stateless (kami only), --oversize (chat only: serve oversize bodies
-//   verbatim instead of withheld-with-receipt — §3.10 raw-fetch override).
+// Client flags (every query): --prose (opt-in authored-prose fields, e.g.
+//   account bio), --no-authored (name-free mode: withhold authored-id with
+//   receipt), --stateless (kami only).
+// Query ARGUMENTS are declared per query in the registry (REGISTRY[q].args)
+//   and are parsed by the query itself: --full (compact listings serve their
+//   whole shape and lift their row cap), --with-vitals (node), --open /
+//   --accepted (quests), --array (config), --oversize (chat). An option a
+//   query does not declare is a usage error, never a silent no-op (§3.13).
 //
 // Exit codes (documented):
 //   0 success · 1 query error / daemon fatal · 2 usage ·
@@ -31,12 +35,18 @@
 import { connect } from 'node:net';
 
 import { buildEnvelope } from './queries';
-import { loadSchema, QUERY_NAMES } from './queries/registry';
+import { loadSchema, QUERY_NAMES, REGISTRY } from './queries/registry';
+import type { QueryName } from './queries/registry';
 import { KamiLensConfig, parseConfigFlags, resolveConfigDetailed } from './config';
 import { ERR_NO_SNAPSHOT_SOURCE, KamiLensDaemon } from './daemon';
 import { socketPath, startQuerySocket } from './server';
 import { statelessKami } from './stateless';
 import { getVersionInfo } from './version';
+
+/** Flags the CLI itself consumes, valid on every query. Everything else
+ * `--`-prefixed must be declared by the query (REGISTRY[q].args) or it is a
+ * usage error — see the routing note in main(). */
+const CLIENT_FLAGS = new Set(['--prose', '--no-authored', '--stateless']);
 
 const EXIT_QUERY_ERROR = 1;
 const EXIT_USAGE = 2;
@@ -245,14 +255,41 @@ async function main(): Promise<void> {
     process.exit(state === 'LIVE' ? 0 : 1);
   }
 
-  // --array (config), --oversize (chat) and --with-vitals (node) are query
-  // arguments, not client flags — they ride through as positionals for
-  // parseArgs
-  const flagList = remaining.filter(
-    (a) => a.startsWith('--') && a !== '--array' && a !== '--oversize' && a !== '--with-vitals'
-  );
-  const flags = new Set(flagList);
-  const positional = remaining.filter((a) => !flags.has(a));
+  // Query ARGUMENTS (--full, --with-vitals, --open, --array, --oversize, …)
+  // ride through as positionals for the query's own parseArgs; CLIENT flags
+  // are handled here. Which is which comes from the registry's declared arg
+  // vocabulary, never from a list written down twice.
+  //
+  // WHY THIS IS NOT A FILTER (§3.13): it used to be. The old code kept a
+  // hand-written allowlist of three query-argument spellings and routed
+  // everything else `--`-prefixed into the client-flag set, where anything
+  // it did not recognise was dropped without a word. `kami-lens quests 78
+  // --full` would have answered the COMPACT form, and a typo would have done
+  // the same — a different answer, silently, which is precisely the failure
+  // DESIGN §3.1 exists to refuse. An undeclared flag is now a usage error.
+  const queryArgs = new Set(REGISTRY[command as QueryName]?.args ?? []);
+  const knownQuery = command === 'status' || command in REGISTRY;
+  const flags = new Set<string>();
+  const positional: string[] = [];
+  for (const arg of remaining) {
+    if (!arg.startsWith('--')) {
+      positional.push(arg);
+    } else if (queryArgs.has(arg)) {
+      positional.push(arg);
+    } else if (CLIENT_FLAGS.has(arg)) {
+      flags.add(arg);
+    } else if (!knownQuery) {
+      // an unknown query name is the real error — let the daemon say so
+      // rather than complaining about the flags of a query that does not exist
+      flags.add(arg);
+    } else {
+      const accepted = [...queryArgs, ...CLIENT_FLAGS].sort();
+      console.error(
+        `[kami-lens] unknown option '${arg}' for '${command}' — accepts: ${accepted.join(', ')}`
+      );
+      process.exit(EXIT_USAGE);
+    }
+  }
   const resolved = resolveConfigDetailed({}, configFlags).config;
 
   if (flags.has('--stateless')) return runStateless(command, positional, flags, resolved);

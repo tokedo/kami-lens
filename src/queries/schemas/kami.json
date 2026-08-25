@@ -82,6 +82,30 @@
         },
         "account": {
           "$ref": "#/$defs/AccountRef"
+        },
+        "xp": {
+          "type": "number",
+          "description": "§3.13: experience banked toward the next level."
+        },
+        "xpRequired": {
+          "type": "number",
+          "description": "§3.13: what the next level costs, on the pinned client's own curve (calcExperienceRequirement)."
+        },
+        "levelUpReady": {
+          "type": "boolean",
+          "description": "§3.13: BOTH conditions the chain's KamiLevelSystem requires — enough experience AND resting. The reference client renders this two contradictory ways (SPEC §4.2); the chain's own precondition wins."
+        },
+        "levelUpBlockedBy": {
+          "type": "string",
+          "enum": [
+            "EXPERIENCE",
+            "NOT_RESTING"
+          ],
+          "description": "§3.13: present exactly when levelUpReady is false, in the reference client's own tooltip precedence (experience first, then resting state)."
+        },
+        "skillPoints": {
+          "type": "number",
+          "description": "§3.13: unspent skill points — the reference client's \"SP\" badge."
         }
       }
     },

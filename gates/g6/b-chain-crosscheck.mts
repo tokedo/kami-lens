@@ -156,9 +156,13 @@ for (const row of inventory.items) {
 }
 
 // --- room --------------------------------------------------------------------
-const room = (await serve('room', [String(accountData.roomIndex)])) as {
+// 0.5.0 (§3.13): occupant ids are `--full` only, and the whole point of this
+// block is to verify occupancy per row, so it asks for the uncompacted form.
+const room = (await serve('room', [String(accountData.roomIndex), '--full'])) as {
   index: number;
+  accountsTotal: number;
   accounts: { id: string; index: number }[];
+  exits: { toIndex: number; name: string; gates: { type: string; text: string }[] }[];
 };
 for (const occupant of room.accounts) {
   note('roomOccupants');
@@ -175,6 +179,55 @@ for (const occupant of room.accounts) {
     negatives++;
     note('roomNegatives');
     plan.push({ area: 'room-negative', contract: contracts.room, entityId: acc.id, kind: 'neq', expect: BigInt(room.index), meta: { account: candidate, reportedRoom: acc.roomIndex } });
+  }
+}
+
+// --- room exits (0.5.0, §3.13) ----------------------------------------------
+// The exit graph is a DISCOVERY answer like every other on this surface: it
+// exists as an answer only via the mirror (the destination is found either
+// from the room's own Exits component or by probing neighbouring locations,
+// neither of which the chain indexes in reverse), while every row it returns
+// is chain-checkable one entity at a time. What is checked here is the claim
+// that actually mattered — an exit names a REAL room, at the index served —
+// because the belief this field exists to kill was that rooms were isolated,
+// and a fabricated destination would be worse than no field at all.
+{
+  const exitRooms = new Map<number, string>();
+  for (const exit of room.exits) {
+    note('roomExits');
+    // resolve the destination's entity id through the mirror, then prove
+    // on-chain that the entity carries that room index
+    const dest = (await serve('room', [String(exit.toIndex), '--full'])) as {
+      index: number;
+      accounts: { id: string }[];
+    };
+    if (dest.index !== exit.toIndex) {
+      violations.push({ area: 'room-exits', reason: 'an exit named a room the mirror does not hold at that index', from: room.index, toIndex: exit.toIndex });
+      continue;
+    }
+    // an occupant of the destination is the cheapest chain-checkable witness
+    // that the destination room index is real; where the room is empty, the
+    // check is recorded as unwitnessed rather than silently skipped
+    const witness = dest.accounts[0]?.id;
+    if (witness) {
+      exitRooms.set(exit.toIndex, witness);
+      plan.push({ area: 'room-exits', contract: contracts.room, entityId: witness, kind: 'eq', expect: BigInt(exit.toIndex), meta: { from: room.index, toIndex: exit.toIndex } });
+    } else {
+      note('roomExitsUnwitnessed');
+    }
+    if (exit.name === '') {
+      violations.push({ area: 'room-exits', reason: 'an exit resolved to no room name', from: room.index, toIndex: exit.toIndex });
+    }
+    if (exit.toIndex === room.index) {
+      violations.push({ area: 'room-exits', reason: 'a room listed itself as one of its own exits', room: room.index });
+    }
+  }
+  if (room.exits.length === 0) {
+    // recorded, not asserted: an isolated room is legal world state, and
+    // saying so is the point — the field's value is that "no exits" is now a
+    // FACT a reader can read rather than a conclusion it has to reach by
+    // failing to move
+    note('roomExitsEmpty');
   }
 }
 
@@ -242,7 +295,7 @@ await writeMeasurement('g6b-chain-crosscheck', {
   accountIndex,
   roomIndex: accountData.roomIndex,
   sampling:
-    'inventory/room/merchant exhaustive for the sampled entities; leaderboard top-10 + every 200th per board',
+    'inventory/room/room-exits/merchant exhaustive for the sampled entities; leaderboard top-10 + every 200th per board',
   counts,
   violations: violations.slice(0, 20),
   violationCount: violations.length,

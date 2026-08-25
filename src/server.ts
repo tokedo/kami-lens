@@ -51,6 +51,10 @@ export function buildStatusData(daemon: KamiLensDaemon): Record<string, unknown>
     // which stays chain-only — a Kamiden outage must never stamp chain
     // answers stale
     kamiden: s.kamiden as unknown as Record<string, unknown>,
+    // §3.13: the query layer's own chain reads (the account gas balance) —
+    // the answer omits the block when a read fails, so its health is
+    // reported here rather than nowhere
+    rpcReads: s.rpcReads as unknown as Record<string, unknown>,
     clockOffsetMs: clock.offset(),
     clockLastSyncWallMs: clock.lastObservedAtWallMs(),
     config: {
@@ -116,6 +120,10 @@ async function handle(daemon: KamiLensDaemon, req: Request): Promise<Record<stri
       // carries it, so no caller can ask for a different surface than the
       // one this daemon was started with
       enrich: daemon.config.enrich,
+      // §3.13: the one chain read the query layer makes. Assembled here, the
+      // same way the Kamiden supervisor is, so no builder ever holds a
+      // provider of its own.
+      rpc: daemon.rpc,
     };
     // defaultOperator prefill (DESIGN §5): a convenience default for the
     // operator-argument tools when the argument is omitted — the same

@@ -53,10 +53,11 @@ than left as an implied `planned`.
 | Item | Backing state | Source | Status | Gate |
 |---|---|---|---|---|
 | party | own kamis: calcHealth, state, cooldown, output | chain | served (G3.c) | G3.c |
-| kami sheet (stats/traits/skills/equipment) | `shapes/Kami/*`, `shapes/Skill` | chain | served (G2.a, G2.b) | G2.a, G2.b |
+| kami sheet: level / experience / skill points | `shapes/Kami/progress`, `shapes/Kami/skills`, `shapes/Skill` | chain | served (0.5.0) — `kami`/`party`/node occupant rows carry level, `xp`, `xpRequired`, `levelUpReady` (+ `levelUpBlockedBy`) and unspent `skillPoints`; the `skills` query carries the registry and a kami's taken skills with ranks | G3.a, G3.f, G6.a, G7.a |
+| kami sheet: stats / traits / equipment | `shapes/Kami/stats`, `shapes/Kami/traits`, `app/cache/equipment` | chain | **not served** — **corrected at 0.5.0.** This row read `served (G2.a, G2.b)`, which borrowed a gate that does not reach it: G2.a and G2.b verify the ported calcs' *computation* parity, and no query output projects stats, traits or equipment at all. Per the Maintenance rule a row may not carry a gate that does not cover it. Docketed by the 0.5.0 client-parity audit; not built this release. | — |
 | kami sheet: battles tab | kamiden `GetBattles` + `GetBattleStats` | kamiden | served (G4.a) | G4.a |
 | node (occupants, ally/enemy threat, scavenge) | `shapes/Node/harvests` mirror query, liquidation calcs, `shapes/Scavenge` | chain | served (G3.b) | G3.b |
-| map | `shapes/Room`, `shapes/Portal`, room constants | chain + code | served **in part** (G3.a, G6.b) — the `room` query serves room identity + occupancy; the exit/portal graph is unserved at 0.2.0 | G3.a; the `room` query (0.2.0) adds G6.b |
+| map | `shapes/Room` (identity, description, location, exits, gates), `shapes/Portal` | chain | served **in part** (G3.a, G6.b) — the `room` query serves room identity, occupancy and, from 0.5.0, the EXIT graph with the conditions stored on each exit. The portal half is still unserved, and the room's map COORDINATE is docketed, not built. *(The 0.2.0 row named "room constants" as a source; `constants/rooms` was never ported — room data comes from the mirror's own components. Corrected at 0.5.0.)* | G3.a; the `room` query (0.2.0) adds G6.b; exits fold into G6.b at 0.5.0 |
 | inventory | `shapes/Inventory` | chain | served (G3.a, G6.a, G6.b) | G3.a; dedicated any-account `inventory` query (0.2.0): G6.a + G6.b |
 | inventory: transfer-history tab | kamiden `GetItemTransfers` | kamiden | served (G4.a) | G4.a |
 | chat | kamiden `GetRoomMessages` — dedicated opt-in query; no stream ingestion (topic filter + ingestion drop); oversize withhold-with-receipt; config kill-switch (DESIGN §3.10) | kamiden | served (G4.c) | G4.c |
@@ -69,11 +70,12 @@ than left as an implied `planned`.
 | leaderboard | `shapes/Score` + `constants/leaderboards` (kamiden ranking RPCs exist but are ApiKey-gated and uncalled by the client at this pin) | chain + code | served (G3.a, G6.a, G6.b) | G3.a; dedicated `leaderboard` query (0.2.0): G6.a + G6.b |
 | gacha / reveal (incl. the `lootBox` droptable-reveal UI — no component of its own) | `shapes/Gacha`, `shapes/Commit` (block-driven commit-reveal) | chain | **not served at 0.2.0** — shapes ported, mirror-only, no dedicated query (the auction side is served, next row) | — |
 | gacha: auction price chart | kamiden `GetAuctionBuys` | kamiden | served (G4.a) | G4.a |
-| account | `shapes/Account` (stamina, room, friends, reputation) | chain | served (G3.a, G6.a) | G3.a |
+| account | `shapes/Account` (stamina, room, reputation, owned kamis) + `eth_getBalance` for the gas block (0.5.0) | chain | served (G3.a, G6.a, G6.d) — **corrected at 0.5.0:** this row and SPEC §1.1 both listed *friends* among what the account answer serves. It never has: no output field and no schema property carries them, and `getAccount` is not asked for the option. The friends/requests/blocked surface is `not served` and now says so, one row down. | G3.a, G6.d |
+| account: friends / requests / blocked | `shapes/Friendship` (behind `getAccount`'s `friends` option) | chain | **not served** — shapes ported, mirror-only, no query reaches them. Named at 0.5.0 after the client-parity audit found the claim above; it was never true. | — |
 | bridges: wallet flows (`bridge`, `bridgeERC20`, `bridgeERC721`) | wagmi/Initia wallet operations (requires acting) | — | out-of-scope (read-only) | — |
 | bridges: deposit/withdrawal history | kamiden `GetTokenDeposits`/`GetTokenWithdrawals`/`GetOpenWithdrawals` | kamiden | served (G4.a) | G4.a |
 | dialogue / questDialogue | code-shipped dialogue trees + `shapes/Quest`/room state | chain + code | **not served at 0.2.0** — dialogue trees ported with the pin, no dedicated query (`quests` serves name/description only) | — |
-| operator gas balance | `eth_getBalance(operator)` (shown by FundOperator/header) | chain | **not served at 0.2.0** — no balance read on any query path | — |
+| operator gas balance | `eth_getBalance` on the account's operator and owner addresses (shown by FundOperator/header) | chain | **served (0.5.0)** — the `gas` block on the `account` answer, read at a block the answer names and absent rather than faked when the RPC does not answer | G6.d |
 | acting flows: kamiSend, naming (incl. its emaBoard UI), kamiPortal, operatorFund, templeOfTheWheel, obol, presale | acting UIs; their read-side state is served by general queries over the ported `app/cache`/shapes (account, kami, item, config, listings) | — | out-of-scope (read-only) | — |
 | starter-vendor purchase flow (`kamiAdoptionAgency`) | the vendor entity's kami pool + cycle anchor (`Values`, `TimeStart`) and the `NEWBIE_VENDOR_CYCLE` config, through the ported display-window computation | chain + code | **the act is out-of-scope (read-only); its read side is served since 0.3.0** by `merchant`'s `newbieVendor` block | G7.a, G7.b |
 | studio, help, settings | chrome; no world state (shader viewer, static copy, local prefs — verified by import audit) | — | out-of-scope | — |
@@ -548,6 +550,134 @@ flag-off byte identity is provable at all.
 **Not served at 0.4.0, unchanged:** crafting, goal, gacha/reveal,
 dialogue/questDialogue, operator gas balance, and the exit/portal graph half
 of map. The 0.2.0 and 0.3.0 rows stand as written.
+
+## 0.5.0 — payload economy, the leveling loop, and three parity gaps
+
+DESIGN §3.13. Two of the standing `not served` rows close here (operator gas
+balance; the EXIT half of map's exit/portal graph), one query is added
+(`skills`, the 24th), and — for the first time in this project — a set of
+DEFAULT ANSWERS GET SMALLER. That last one is why this is a version advance
+and not a flag: the old shapes stay reachable through `--full`, but a
+consumer reading a default answer sees fewer fields than it did at 0.4.0.
+
+### The measured payload table
+
+Whole-envelope bytes, one fixture mirror at block 31,782,245 (the same
+snapshot every hermetic gate runs on), against the 65,536-byte context the
+reference agent scaffold gives a tool result. "Before" is the 0.4.0 code on
+the same fixture and the same arguments.
+
+| Call | 0.4.0 | 0.5.0 default | smaller by | 0.5.0 `--full` |
+|---|---|---|---|---|
+| `quests <acct>` (134 accepted) | 155,722 | 30,592 | 5.1× | 184,691 |
+| `quests <acct>` (90 accepted) | 141,140 | 37,291 | 3.8× | 170,160 |
+| `quests <acct> --open` | 155,722 | **1,222** | **127×** | — |
+| `quests <acct> --accepted` | 155,722 | 31,719 | 4.9× | — |
+| `quests <acct> <questIndex>` | 141,140 | **1,078** | **131×** | — |
+| `quests` (no account) | 100,013 | 8,282 | 12.1× | 100,013 |
+| `room 12` (1,561 accounts) | 359,732 | **2,832** | **127×** | 360,187 |
+| `room 9` (1,307 kamis) | 178,449 | 1,901 | 93.9× | — |
+| `room 4` (360 accounts) | 163,119 | 2,621 | 62.2× | — |
+| `node 9 --with-vitals` (732 harvests) | 266,300 | **13,482** | **19.8×** | 346,905 |
+| `leaderboard` (1,475 rows) | 174,780 | 3,728 | 46.9× | 174,815 |
+| `trades` (382 open) | 111,406 | 11,993 | 9.3× | 111,439 |
+| `party 3053` (1,050 kamis) | 281,326 | 18,105 | 15.5× | 377,409 |
+| `items` (177 rows) | 50,954 | 15,652 | 3.3× | 50,278 |
+| `items FOOD` | 50,954 | 5,289 | 9.6× | — |
+| `merchant 1` (9 listings) | 3,621 | 2,822 | 1.28× | 3,820 |
+| `inventory 78` (80 rows) | 12,387 | 13,733 | +1,346 — `for`/rarity/disabled | — |
+| `kami 219` | 410 | 509 | +99 — the leveling block | — |
+| `roster 3053` (1,050 kamis) | 49,374 | 58,736 | +9,362 fixed — the leveling sets | — |
+| `skills` / `skills <kami>` | — | 5,833 / 1,065 | new query | — |
+
+Measured by serving the same file in a worktree of `1d7a960` and in this
+tree, against the same snapshot, same arguments, whole envelope including
+`untrusted` and `meta`. The three rows that grow do so because the release
+ADDS a base-surface fact there, and each is named in the row rather than
+netted away.
+
+Every default answer in this table now fits in one reader context. **Ten of
+them did not before** — six by more than 2×, `room 12` by 5.5×. The `--full`
+figures are LARGER than 0.4.0 wherever the release also added a base-surface
+field (`party` and `node` carry the leveling block on every row,
+`quests --full` carries per-requirement status), which is the honest reading
+of `--full`: it restores the uncompacted SHAPE, it does not roll the surface
+back to 0.4.0. `items --full` is 676 bytes *smaller* than 0.4.0 for the
+opposite reason — `for` is now omitted rather than served as an empty string
+on the 77 items that have no target.
+
+`market` is the one family these numbers do not cover: it is Kamiden-backed
+and cannot be served from a snapshot mirror. Its rows are capped at 50 each
+for listings and bids on the same rule as the rest.
+
+### The leveling loop
+
+| Field | Where | Source |
+|---|---|---|
+| `xp` | `kami`, `party`, node occupant vitals, `kami --stateless` | `Kami/progress.getProgress` — already forced by `KAMI_REFRESH`, discarded at the projection |
+| `xpRequired` | as above, less the stateless mode | `Kami/progress.calcExperienceRequirement` — ported since 0.1.0, never called until now; two config reads, ~1.5 µs |
+| `levelUpReady` (+ `levelUpBlockedBy`) | as above, less the stateless mode | derived: `xp >= xpRequired && isResting` — the chain's own precondition, not the looser of the client's two renderings (SPEC §4.2) |
+| `skillPoints` (unspent) | as above, less the stateless mode | `Kami/skills.getSkills` — already forced, discarded |
+| `levelUpReady` / `skillPoints` SETS | `roster`, on the account block | the same values, placed where they cannot touch the frozen marginal-bytes ratio |
+| taken skills with ranks | `skills <kamiIndex>` | `Kami/skills` investments joined to `Skill` registry rows |
+
+Not served, deliberately: skill DESCRIPTIONS and interpreted bonus text are
+enrich-class, the same rung as item descriptions. The stateless mode serves
+`xp` and stops there — the requirement is a config read and unspent points are
+absent from the `GetterSystem` shape, so neither exists without a mirror.
+
+### Client-parity trio
+
+Three facts a player sees passively that no served field carried. All three
+are already computed on the path that answers today.
+
+- **Item target (`for`), rarity, disabled flag** on inventory rows and
+  merchant listings. One merchant catalog at this pin sells "Maple-Flavor
+  Ghost Gum" (`for: KAMI`) beside "Ice Cream" (`for: ACCOUNT`), both
+  `type: FOOD`, and the listing served nothing to tell them apart. Whole
+  registry cost: 1,142 bytes across 177 items.
+- **Room `exits`** — destination index, name, and the conditions stored on
+  each. `getExitsFor` has been in the ported tree since 0.1.0 and no query
+  ever called it. Measured over all 70 rooms: max 6 exits, **zero isolated
+  rooms**, whole-world exit graph 3,410 bytes, 0.026 ms per room. This is
+  the one 0.5.0 fact that costs a read the answer did not already make
+  (`getAdjacentRoomIndices` probes six neighbouring locations).
+- **Liquidation `reason`** on an ineligible preview, from the reference
+  client's own tooltip precedence. 38 bytes per ineligible row. On one
+  measured pairing, 730 of 732 ineligible rows resolve to `THRESHOLD_ZERO` —
+  a fact the bare flag could not distinguish from a cooldown.
+
+Everything else the parity audit found is docketed lab-side and NOT built.
+
+### Gate evidence
+
+| Gate | Result |
+|---|---|
+| G0 | PASS, exit 0 — 457 tests (was 442) |
+| G3.a | PASS, exit 0 — 1,100 validations (was 815), 188 enriched; both modes for every compacted query |
+| G3.f | PASS, exit 0 — 37 envelope cases, 19 enriched-presence + **33 base-presence** assertions |
+| G3.g | PASS, exit 0 — 40 cases, 31,543 leaves compared, 304 clock-masked; re-based on 0.5.0 |
+| G6.a | PASS, exit 0 — 31 leveling comparisons, 388 roster-vs-party rows, 6 skills, liquidation-reason coherence |
+| G6.d (new) | PASS, exit 0 — 12 balances against independent live reads, degradation path exercised |
+| G7.a | PASS, exit 0 — 2,244 compact quest rows, 1,737 requirement recomputes, 1,050 roster leveling rows, 5 capped listings |
+
+Roster compaction, re-measured on the largest roster in the world
+(account 3053, 1,050 kamis): marginal **46.855238 B/kami with the leveling
+sets and 46.855238 without them** — identical to six decimals, which is the
+whole reason the sets are on the account block. Ratio 0.1304 against the
+frozen 0.25. Fixed overhead added: 9,362 bytes.
+
+**Not served at 0.5.0:** crafting, goal, gacha/reveal, dialogue/questDialogue,
+the account friends/requests/blocked surface, the kami sheet's
+stats/traits/equipment, and the PORTAL half of map's exit/portal graph. The
+first two of those are newly NAMED rather than newly unserved — see the
+corrections in the rows above.
+
+Shape-stability note: 0.5.0 is the first release whose default answers lose
+fields. Nothing was renamed or retyped and no field changed meaning; every
+dropped field is reachable through `--full`, and both shapes validate against
+one checked-in schema (G3.a, both modes). The additive-only reading of the
+SPEC §1.4 row ends here, and that row says so.
 
 ## Maintenance
 

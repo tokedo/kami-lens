@@ -45,6 +45,7 @@ import { SyncWorkerConfig, isNetworkComponentUpdateEvent } from 'workers/types';
 import { setupCacheInvalidationHandler } from 'network/systems/CacheInvalidationSystem';
 
 import { ConfigSource, KamiLensConfig, resolveConfigDetailed } from './config';
+import type { NativeBalanceReader } from './queries/build';
 import { KamidenFeeds, KamidenStatus } from './kamiden';
 import { Tripwires, tripwireReport } from './tripwires';
 
@@ -91,6 +92,12 @@ export type DaemonStatus = {
   degraded: string[];
   /** Kamiden feed health, per-feed (M4; DESIGN §3.2) */
   kamiden: KamidenStatus;
+  /** §3.13 (0.5.0): health of the ONE chain read the query layer makes (the
+   * account gas balance). Reported here for exactly the reason the per-feed
+   * Kamiden block is: the answer that needed it simply OMITS the block, so a
+   * reader must be able to tell "this account holds nothing" from "the read
+   * did not happen". */
+  rpcReads: { ok: number; failed: number; lastError?: string };
   bootstrapAttempts: number;
   startedAt: string;
   liveAt: string | null;
@@ -154,6 +161,41 @@ export class KamiLensDaemon {
    * touch chain sync (DESIGN §3.2). */
   readonly kamiden: KamidenFeeds;
 
+  /** §3.13: native-balance reads for the query layer. Lazily builds one
+   * provider against the configured RPC and counts its outcomes so `status`
+   * can report them. A rejection reaches `accountQuery` as "no gas block":
+   * the mirror answer is never blocked on the chain. */
+  readonly rpc: NativeBalanceReader;
+
+  private rpcProvider: JsonRpcProvider | null = null;
+  private rpcOk = 0;
+  private rpcFailed = 0;
+  private rpcLastError: string | null = null;
+
+  private nativeProvider(): JsonRpcProvider {
+    if (!this.rpcProvider) {
+      const { chainId, jsonRpcUrl } = this.config;
+      this.rpcProvider = new JsonRpcProvider(
+        jsonRpcUrl,
+        { chainId, name: 'yominet' },
+        { staticNetwork: true }
+      );
+    }
+    return this.rpcProvider;
+  }
+
+  private async rpcCall<T>(fn: (p: JsonRpcProvider) => Promise<T>): Promise<T> {
+    try {
+      const out = await fn(this.nativeProvider());
+      this.rpcOk += 1;
+      return out;
+    } catch (e) {
+      this.rpcFailed += 1;
+      this.rpcLastError = e instanceof Error ? e.message : String(e);
+      throw e;
+    }
+  }
+
   constructor(
     overrides: Partial<KamiLensConfig> = {},
     /** CLI flag layer — between overrides and env in precedence (§5) */
@@ -167,6 +209,11 @@ export class KamiLensDaemon {
       url: this.config.kamidenUrl,
       bufferCapacity: this.config.kamidenBufferCapacity,
     });
+    this.rpc = {
+      blockNumber: () => this.rpcCall((p) => p.getBlockNumber()),
+      nativeBalance: (address, blockTag) =>
+        this.rpcCall(async (p) => p.getBalance(address, blockTag)),
+    };
     this.live = new Promise<void>((resolve, reject) => {
       this.resolveLive = resolve;
       this.rejectLive = reject;
@@ -540,6 +587,11 @@ export class KamiLensDaemon {
           .map(([name, count]) => `${name}:${count}`),
       ],
       kamiden: this.kamiden.getStatus(),
+      rpcReads: {
+        ok: this.rpcOk,
+        failed: this.rpcFailed,
+        ...(this.rpcLastError !== null ? { lastError: this.rpcLastError } : {}),
+      },
       bootstrapAttempts: this.bootstrapAttempts,
       startedAt: this.startedAt,
       liveAt: this.liveAt,

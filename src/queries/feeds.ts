@@ -52,11 +52,21 @@ import {
   parseQuestRequirements,
 } from 'network/shapes/Quest';
 import type { Objective as QuestObjective } from 'network/shapes/Quest';
+import type { Condition as QuestRequirement } from 'network/shapes/Conditional';
 import { queryByIndex as queryKamiEntityByIndex } from 'network/shapes/Kami/queries';
 import { getRoomByIndex } from 'network/shapes/Room';
 
 import type { BufferedFeedEvent, FeedEventType, KamidenFeeds } from '../kamiden';
-import { AlloOut, Mirror, QueryError, toAlloOut } from './build';
+import {
+  AlloOut,
+  capRows,
+  ItemRequirementOut,
+  Mirror,
+  NativeBalanceReader,
+  QueryError,
+  toAlloOut,
+  toConditionOut,
+} from './build';
 
 // ------------------------------------------------------------- context
 
@@ -73,6 +83,11 @@ export type QueryCtx = {
    * and `undefined` — every library and gate call site that passes a bare
    * Mirror — means off. */
   enrich?: boolean;
+  /** §3.13 (0.5.0): chain reads that are not mirror reads — today only the
+   * account's native gas balance. Optional by construction: a library or gate
+   * caller passing a bare Mirror simply gets no gas block, and a daemon whose
+   * RPC read fails serves the mirror answer without one. */
+  rpc?: NativeBalanceReader;
 };
 
 function requireKamiden(ctx: QueryCtx, what: string): KamidenFeeds {
@@ -95,8 +110,12 @@ function toDecimalId(id: string): string {
 }
 
 export type IdRef = {
-  /** the service's value, verbatim */
-  id: string;
+  /** the service's value, verbatim. Compacted away on capped market listing
+   * and bid rows by default (§3.13) — a Kamiden entity id is a 77-digit
+   * decimal string on EVERY row and the account index is what a consumer
+   * joins on; `--full` restores it. Never rewritten or shortened: omitted or
+   * verbatim, the §1.2 rule. */
+  id?: string;
   index?: number;
   name?: string;
 };
@@ -157,7 +176,8 @@ function roomRef(mirror: Mirror, index: number): RoomRef {
 
 export type ItemRef = {
   index: number;
-  name: string;
+  /** compacted away on listing rows by default (§3.13); `--full` restores it */
+  name?: string;
   /** §3.12 (enrich): populated on the DECISION surfaces (open trades and
    * offers, auction lots, merchant payment currency), not on history rows
    * (`portal`, `transfers`, `feed`, `battles`), where the same item names
@@ -280,8 +300,8 @@ export type TradeChainOut = {
   id: string;
   state: string;
   type: string;
-  maker?: { index: number; name: string };
-  taker?: { index: number; name: string };
+  maker?: { index: number; name?: string };
+  taker?: { index: number; name?: string };
   buyOrder?: TradeOrderOut;
   sellOrder?: TradeOrderOut;
 };
@@ -296,6 +316,10 @@ export type TradeHistoryOut = {
 };
 
 export type TradesOut = {
+  /** §3.13 (0.5.0): how many open trades exist, whether or not this answer
+   * served them. 382 open trades measured at one pin, a 111 KB answer. */
+  openTotal: number;
+  openServed: number;
   open: TradeChainOut[];
   account?: { index: number; name: string };
   history?: TradeHistoryOut[];
@@ -335,20 +359,24 @@ function toTradeHistoryOut(mirror: Mirror, t: KamidenTrade, enrich = false): Tra
  * observed semantics recorded by G4.a). */
 export async function tradesQuery(
   ctx: QueryCtx,
-  args: { accountIndex?: number }
+  args: { accountIndex?: number; full?: boolean }
 ): Promise<TradesOut> {
   const mirror = ctx.mirror;
   const enrich = ctx.enrich === true;
-  const explorer = explorerTrades(mirror.world, mirror.components);
-  const open: TradeChainOut[] = explorer
+  const full = args.full === true;
+  const openAll: TradeChainOut[] = explorerTrades(mirror.world, mirror.components)
     .all()
     .filter((t) => t.state === 'PENDING')
     .map((t) => ({
       id: t.id,
       state: t.state,
       type: getTradeType(t),
-      ...(t.maker?.index ? { maker: { index: t.maker.index, name: t.maker.name } } : {}),
-      ...(t.taker?.index ? { taker: { index: t.taker.index, name: t.taker.name } } : {}),
+      ...(t.maker?.index
+        ? { maker: { index: t.maker.index, ...(full ? { name: t.maker.name } : {}) } }
+        : {}),
+      ...(t.taker?.index
+        ? { taker: { index: t.taker.index, ...(full ? { name: t.taker.name } : {}) } }
+        : {}),
       // Number() coercion: the upstream TradeOrder type says number[], but
       // the mirror decodes these uint components as hex strings — the cast
       // is a phantom at the pin (vite never typechecks). Same quirk class
@@ -358,7 +386,7 @@ export async function tradesQuery(
             buyOrder: {
               items: t.buyOrder.items.map((i) => ({
                 index: i.index,
-                name: i.name,
+                ...(full ? { name: i.name } : {}),
                 ...(enrich ? { description: i.description ?? '' } : {}),
               })),
               amounts: (t.buyOrder.amounts ?? []).map(Number),
@@ -370,16 +398,23 @@ export async function tradesQuery(
             sellOrder: {
               items: t.sellOrder.items.map((i) => ({
                 index: i.index,
-                name: i.name,
+                ...(full ? { name: i.name } : {}),
                 ...(enrich ? { description: i.description ?? '' } : {}),
               })),
               amounts: (t.sellOrder.amounts ?? []).map(Number),
             },
           }
         : {}),
-    }));
+    }))
+    // deterministic order (§3.13): the trade id, which is stable
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 
-  const out: TradesOut = { open };
+  const capped = capRows(openAll, full);
+  const out: TradesOut = {
+    openTotal: capped.total,
+    openServed: capped.served.length,
+    open: capped.served,
+  };
   if (args.accountIndex !== undefined) {
     const account = accountByIndexOrThrow(mirror, args.accountIndex);
     out.account = { index: account.index, name: account.name };
@@ -540,12 +575,42 @@ export type QuestAccountStateOut = {
   objectives?: QuestObjectiveOut[];
 };
 
+/** One quest requirement, with the pinned client's own interpretation of it.
+ * §3.13 (0.5.0): `parseQuestRequirements` computes a full status for EVERY
+ * requirement — including its numbers where it has them — and this surface
+ * read the conjunction and threw the detail away, so "requirementsMet: false"
+ * never named WHICH requirement failed. Deliberately the same shape as an
+ * objective: they are one upstream type read through one interpreter.
+ *
+ * No pre-acceptance hazard arises here, and that is a fact about the pin
+ * rather than an assumption: requirements are conditions on the REGISTRY
+ * quest evaluated against the account, and at this pin every one of them uses
+ * a BOOL_IS or CURR_MIN handler — there is no accrual handler on any
+ * requirement, so there is no acceptance snapshot for a number to be measured
+ * against. `basis` reports the handler as read, and a requirement with
+ * nothing to count carries no counters. */
+export type QuestRequirementOut = {
+  type: string;
+  logic: string;
+  index?: number;
+  required?: number;
+  current?: number;
+  met: boolean;
+  basis: 'since-acceptance' | 'current' | 'boolean' | 'unknown';
+  /** the pin's own words for the condition, e.g.
+   * "Complete Quest [Ringing Any Bells III]" */
+  text: string;
+};
+
 export type QuestRegistryOut = {
   index: number;
   name: string;
   description: string;
   repeatable: boolean;
   repeatDuration?: number;
+  /** §3.13 (0.5.0): every requirement with its own status, on the `--full`
+   * and keyed-detail forms */
+  requirements?: QuestRequirementOut[];
   /** §3.12 (enrich): what completing it pays, one row per raw reward allo
    * with upstream's interpretation beside it. Already computed by `getQuest`
    * for every registry row today and discarded at the projection. */
@@ -563,13 +628,50 @@ export type QuestAcceptedOut = {
   endTime: number;
 };
 
+/** One row of a COMPACT quests answer (§3.13). Which fields are present
+ * depends on the view; `index` and `name` are always there, and prose never
+ * is — 85 KB of the account-form answer's 141 KB was quest dialogue, byte for
+ * byte the same on every call. */
+export type QuestRowOut = {
+  index: number;
+  name: string;
+  repeatable?: boolean;
+  accepted?: boolean;
+  complete?: boolean;
+  requirementsMet?: boolean;
+  objectivesMet?: boolean;
+  repeatAvailable?: boolean;
+  /** present ONLY on rows whose requirements are not met: the requirements
+   * that actually fail, so a refusal names its cause (§3.11) */
+  unmetRequirements?: QuestRequirementOut[];
+  /** present on the accepted/open views and on keyed detail */
+  objectives?: QuestObjectiveOut[];
+  /** keyed detail only */
+  description?: string;
+  requirements?: QuestRequirementOut[];
+  startTime?: number;
+  endTime?: number;
+  rewards?: AlloOut[];
+};
+
 export type QuestsOut = {
-  registry: QuestRegistryOut[];
+  /** which form this answer is. `full` carries the 0.4.0 shape (`registry`,
+   * with `accepted` beside it); every other view carries `quests`. */
+  view?: 'status' | 'open' | 'accepted' | 'detail';
+  /** how many quests the registry holds, in every view */
+  questsTotal?: number;
+  /** the compact rows, in every view but `full` */
+  quests?: QuestRowOut[];
+  /** `--open` only: finished quests, as a count and a bare index list */
+  completedCount?: number;
+  completedIndices?: number[];
+  /** `--full` only: the uncompacted 0.4.0 registry shape */
+  registry?: QuestRegistryOut[];
   account?: { index: number; name: string };
-  /** RETAINED, REDUNDANT: since 0.3.0 every registry row carries the same
-   * acceptance facts (and more) in its `account` block. This list is kept
-   * so that answers stay shape-compatible for consumers written against
-   * earlier versions; new consumers should read the registry rows. */
+  /** RETAINED, REDUNDANT, `--full` only: since 0.3.0 every registry row
+   * carries the same acceptance facts (and more) in its `account` block.
+   * Kept so that `--full` answers stay shape-compatible for consumers
+   * written against earlier versions; new consumers should read the rows. */
   accepted?: QuestAcceptedOut[];
 };
 
@@ -606,6 +708,24 @@ function objectiveRef(
     return { room: { index, name: room.name } };
   }
   return {};
+}
+
+/** Project one parsed requirement. Numbers are served exactly where the
+ * world holds them and nowhere else — the same no-synthesis rule objectives
+ * follow (§1.1). */
+function toRequirementOut(mirror: Mirror, con: QuestRequirement): QuestRequirementOut {
+  const status = con.status;
+  const raw: ItemRequirementOut = toConditionOut(mirror, con);
+  return {
+    type: raw.type,
+    logic: con.logic ?? '',
+    ...(con.target?.index !== undefined ? { index: Number(con.target.index) } : {}),
+    ...(status?.target !== undefined ? { required: Number(status.target) } : {}),
+    ...(status?.current !== undefined ? { current: Number(status.current) } : {}),
+    met: status?.completable ?? false,
+    basis: objectiveBasis(con.logic ?? ''),
+    text: raw.text,
+  };
 }
 
 function toObjectiveOut(
@@ -662,12 +782,30 @@ function toObjectiveOut(
  * Serving that number would hand a consumer a figure the world does not
  * hold. Unaccepted rows therefore carry the objective's type and threshold
  * and no progress at all. */
-export function questsQuery(ctx: QueryCtx, args: { accountIndex?: number }): QuestsOut {
+export function questsQuery(
+  ctx: QueryCtx,
+  args: {
+    accountIndex?: number;
+    questIndex?: number;
+    view?: 'open' | 'accepted';
+    full?: boolean;
+  }
+): QuestsOut {
   const mirror = ctx.mirror;
   const enrich = ctx.enrich === true;
+  const full = args.full === true;
   const { world, components } = mirror;
   const explorer = explorerQuests(world, components);
   const all = explorer.all().filter((q) => q.index);
+  const questsTotal = all.length;
+
+  if ((args.view !== undefined || args.questIndex !== undefined) && args.accountIndex === undefined) {
+    throw new QueryError(
+      'BAD_ARGS',
+      'a single quest and the open/accepted views are account-relative — name an account index first'
+    );
+  }
+
   const toRegistryRow = (q: (typeof all)[number]): QuestRegistryOut => ({
     index: q.index,
     name: q.name,
@@ -677,17 +815,35 @@ export function questsQuery(ctx: QueryCtx, args: { accountIndex?: number }): Que
     ...(enrich ? { rewards: (q.rewards ?? []).map((a) => toAlloOut(mirror, a)) } : {}),
   });
 
-  if (args.accountIndex === undefined) return { registry: all.map(toRegistryRow) };
+  // ---- registry only (no account) ---------------------------------------
+  if (args.accountIndex === undefined) {
+    if (full) return { registry: all.map(toRegistryRow) };
+    return {
+      view: 'status',
+      questsTotal,
+      quests: all
+        .map((q) => ({
+          index: q.index,
+          name: q.name,
+          ...(q.repeatable ? { repeatable: true } : {}),
+        }))
+        .sort((a, b) => a.index - b.index),
+    };
+  }
 
+  // ---- account-relative --------------------------------------------------
   const account = accountByIndexOrThrow(mirror, args.accountIndex);
+  const accountRef = { index: account.index, name: account.name };
   const accepted = explorer.getForAccount(args.accountIndex);
   const instances = new Map<number, (typeof accepted)[number]>();
   for (const instance of accepted) instances.set(instance.index, instance);
 
-  const registry = all.map((q) => {
-    const row = toRegistryRow(q);
-    // requirements are account-relative conditions on the registry quest
+  /** Evaluate one registry quest against the account. Exactly the walk the
+   * 0.3.0 builder made — the requirements were always parsed; what changes at
+   * 0.5.0 is that their per-requirement status is no longer discarded. */
+  const evaluate = (q: (typeof all)[number]) => {
     parseQuestRequirements(world, components, account, q);
+    const requirements = (q.requirements ?? []).map((c) => toRequirementOut(mirror, c));
     const state: QuestAccountStateOut = {
       accepted: instances.has(q.index),
       complete: false,
@@ -705,19 +861,112 @@ export function questsQuery(ctx: QueryCtx, args: { accountIndex?: number }): Que
       state.objectives = instance.objectives.map((o) => toObjectiveOut(o, mirror, enrich));
       if (instance.complete && q.repeatable) state.repeatAvailable = canRepeatQuest(instance);
     }
-    row.account = state;
-    return row;
-  });
+    return { state, requirements };
+  };
 
-  return {
-    registry,
-    account: { index: account.index, name: account.name },
-    accepted: accepted.map((q) => ({
+  // ---- keyed detail: one quest, everything ------------------------------
+  if (args.questIndex !== undefined) {
+    const q = all.find((row) => row.index === args.questIndex);
+    if (!q) {
+      throw new QueryError('NOT_FOUND', `quest ${args.questIndex} not in the registry`);
+    }
+    const { state, requirements } = evaluate(q);
+    const row: QuestRowOut = {
       index: q.index,
       name: q.name,
-      complete: q.complete,
-      startTime: Number(q.startTime),
-      endTime: Number(q.endTime),
+      description: q.description,
+      ...(q.repeatable ? { repeatable: true } : {}),
+      accepted: state.accepted,
+      complete: state.complete,
+      requirementsMet: state.requirementsMet,
+      ...(state.objectivesMet !== undefined ? { objectivesMet: state.objectivesMet } : {}),
+      ...(state.repeatAvailable !== undefined ? { repeatAvailable: state.repeatAvailable } : {}),
+      ...(state.startTime !== undefined ? { startTime: state.startTime } : {}),
+      ...(state.endTime !== undefined ? { endTime: state.endTime } : {}),
+      requirements,
+      ...(state.objectives ? { objectives: state.objectives } : {}),
+      ...(enrich ? { rewards: (q.rewards ?? []).map((a) => toAlloOut(mirror, a)) } : {}),
+    };
+    return { view: 'detail', questsTotal, account: accountRef, quests: [row] };
+  }
+
+  // ---- the account-relative views ---------------------------------------
+  const evaluated = all
+    .map((q) => ({ q, ...evaluate(q) }))
+    .sort((a, b) => a.q.index - b.q.index);
+
+  if (full) {
+    return {
+      registry: evaluated.map(({ q, state, requirements }) => ({
+        ...toRegistryRow(q),
+        requirements,
+        account: state,
+      })),
+      account: accountRef,
+      accepted: accepted.map((q) => ({
+        index: q.index,
+        name: q.name,
+        complete: q.complete,
+        startTime: Number(q.startTime),
+        endTime: Number(q.endTime),
+      })),
+    };
+  }
+
+  if (args.view === 'open') {
+    const open = evaluated.filter(({ state }) => state.accepted && !state.complete);
+    const done = evaluated.filter(({ state }) => state.accepted && state.complete);
+    return {
+      view: 'open',
+      questsTotal,
+      account: accountRef,
+      quests: open.map(({ q, state }) => ({
+        index: q.index,
+        name: q.name,
+        ...(q.repeatable ? { repeatable: true } : {}),
+        objectivesMet: state.objectivesMet ?? false,
+        objectives: state.objectives ?? [],
+      })),
+      completedCount: done.length,
+      completedIndices: done.map(({ q }) => q.index),
+    };
+  }
+
+  if (args.view === 'accepted') {
+    const rows = evaluated.filter(({ state }) => state.accepted);
+    return {
+      view: 'accepted',
+      questsTotal,
+      account: accountRef,
+      quests: rows.map(({ q, state }) => ({
+        index: q.index,
+        name: q.name,
+        ...(q.repeatable ? { repeatable: true } : {}),
+        complete: state.complete,
+        ...(state.objectivesMet !== undefined ? { objectivesMet: state.objectivesMet } : {}),
+        ...(state.repeatAvailable !== undefined ? { repeatAvailable: state.repeatAvailable } : {}),
+        objectives: state.objectives ?? [],
+      })),
+    };
+  }
+
+  // default: one status line per registry quest, with the failing
+  // requirements named on the rows that have any
+  return {
+    view: 'status',
+    questsTotal,
+    account: accountRef,
+    quests: evaluated.map(({ q, state, requirements }) => ({
+      index: q.index,
+      name: q.name,
+      ...(q.repeatable ? { repeatable: true } : {}),
+      accepted: state.accepted,
+      complete: state.complete,
+      requirementsMet: state.requirementsMet,
+      ...(state.objectivesMet !== undefined ? { objectivesMet: state.objectivesMet } : {}),
+      ...(state.requirementsMet
+        ? {}
+        : { unmetRequirements: requirements.filter((r) => !r.met) }),
     })),
   };
 }
@@ -757,17 +1006,30 @@ export type MarketOrderOut = {
 };
 
 export type MarketOut = {
+  listingsTotal: number;
+  listingsServed: number;
   listings: MarketListingOut[];
+  bidsTotal: number;
+  bidsServed: number;
   bids: MarketBidOut[];
   account?: { index: number; name: string };
   orders?: MarketOrderOut[];
 };
 
-function toListingOut(mirror: Mirror, l: KamiMarketListing): MarketListingOut {
+/** Drop the raw service id from a joined ref on a capped listing row. */
+function leanRef(ref: IdRef, full: boolean): IdRef {
+  if (full || ref.index === undefined) return ref;
+  const { id: _id, ...rest } = ref;
+  return rest;
+}
+
+function toListingOut(mirror: Mirror, l: KamiMarketListing, full = false): MarketListingOut {
   return {
     orderId: l.OrderID,
-    seller: accountIdRef(mirror, l.SellerAccountID),
-    ...(l.BuyerAccountID ? { buyer: accountIdRef(mirror, l.BuyerAccountID) } : {}),
+    seller: leanRef(accountIdRef(mirror, l.SellerAccountID), full),
+    ...(l.BuyerAccountID
+      ? { buyer: leanRef(accountIdRef(mirror, l.BuyerAccountID), full) }
+      : {}),
     kamiIndex: l.KamiIndex,
     price: l.Price,
     expiry: l.Expiry,
@@ -775,10 +1037,10 @@ function toListingOut(mirror: Mirror, l: KamiMarketListing): MarketListingOut {
   };
 }
 
-function toBidOut(mirror: Mirror, b: KamiMarketBid): MarketBidOut {
+function toBidOut(mirror: Mirror, b: KamiMarketBid, full = false): MarketBidOut {
   return {
     orderId: b.OrderID,
-    buyer: accountIdRef(mirror, b.BuyerAccountID),
+    buyer: leanRef(accountIdRef(mirror, b.BuyerAccountID), full),
     kamiIndex: b.KamiIndex,
     total: b.Total,
     price: b.Price,
@@ -796,8 +1058,8 @@ function toOrderOut(mirror: Mirror, o: KamiMarketOrder): MarketOrderOut {
     orderId: o.OrderID,
     isCanceled: o.IsCanceled,
     isComplete: o.IsComplete,
-    ...(o.Listing ? { listing: toListingOut(mirror, o.Listing) } : {}),
-    ...(o.Bid ? { bid: toBidOut(mirror, o.Bid) } : {}),
+    ...(o.Listing ? { listing: toListingOut(mirror, o.Listing, true) } : {}),
+    ...(o.Bid ? { bid: toBidOut(mirror, o.Bid, true) } : {}),
   };
 }
 
@@ -807,18 +1069,34 @@ function toOrderOut(mirror: Mirror, o: KamiMarketOrder): MarketOrderOut {
  * (MyOrders.tsx verbatim). */
 export async function marketQuery(
   ctx: QueryCtx,
-  args: { accountIndex?: number }
+  args: { accountIndex?: number; full?: boolean }
 ): Promise<MarketOut> {
   const kamiden = requireKamiden(ctx, 'market');
   const mirror = ctx.mirror;
+  const full = args.full === true;
   const listings = await kamiden.unary('GetKamiMarketListings', (c) =>
     c.getKamiMarketListings({ Size: 500 })
   );
   const bids = await kamiden.unary('GetKamiMarketBids', (c) => c.getKamiMarketBids({ Size: 500 }));
 
+  // deterministic order (§3.13): most recent first, which is also the order a
+  // reader wants when only the first rows will be served
+  const allListings = listings.Listings.map((l: KamiMarketListing) =>
+    toListingOut(mirror, l, full)
+  ).sort((a: MarketListingOut, b: MarketListingOut) => b.timestamp - a.timestamp);
+  const allBids = bids.Bids.map((b: KamiMarketBid) => toBidOut(mirror, b, full)).sort(
+    (a: MarketBidOut, b: MarketBidOut) => b.timestamp - a.timestamp
+  );
+  const capL = capRows(allListings, full);
+  const capB = capRows(allBids, full);
+
   const out: MarketOut = {
-    listings: listings.Listings.map((l: KamiMarketListing) => toListingOut(mirror, l)),
-    bids: bids.Bids.map((b: KamiMarketBid) => toBidOut(mirror, b)),
+    listingsTotal: capL.total,
+    listingsServed: capL.served.length,
+    listings: capL.served,
+    bidsTotal: capB.total,
+    bidsServed: capB.served.length,
+    bids: capB.served,
   };
   if (args.accountIndex !== undefined) {
     const account = accountByIndexOrThrow(mirror, args.accountIndex);

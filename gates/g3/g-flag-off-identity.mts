@@ -1,8 +1,23 @@
-// Gate G3.g [hermetic] — flag-off identity. The 0.4.0 enrichment flag
-// (`enrich`, default off) must be a NO-OP: with the flag off every query
-// answers exactly what 0.3.0 answered at the same block, byte-for-byte, with
-// exactly one named exception — `status`, which gains the two provenance keys
-// that make the flag visible (`config.enrich`, `configSources.enrich`).
+// Gate G3.g [hermetic] — flag-off identity. The enrichment flag (`enrich`,
+// default off) must be a NO-OP: with the flag off every query answers
+// byte-for-byte what the REFERENCE TREE answered at the same block.
+//
+// 0.5.0 RE-BASES THE REFERENCE, and the restatement is deliberate rather
+// than a renumbering. At 0.4.0 the reference was a 0.3.0 checkout, and the
+// claim "flag-off is byte-identical to 0.3.0" was a claim ACROSS versions —
+// which 0.5.0 cannot make and does not: it changes default answers on
+// purpose (§3.13). The reference is now 0.5.0's own flag-off surface, so
+// what this gate proves is that the flag adds fields and removes none
+// against THIS release's defaults, and — from the moment these baselines are
+// frozen — that no later change to 0.5.x moves a default answer without
+// someone re-capturing them on purpose. Its value is as a frozen baseline
+// for what comes next, not as a cross-version identity proof; the SPEC row
+// says so in those words.
+//
+// The `status` exception changes shape with the re-basing: at 0.4.0 status
+// GAINED two provenance keys against a tree that lacked them, and at 0.5.0
+// both sides have them, so status must add nothing at all while still
+// carrying them at their default values.
 //
 // The clock mask is DERIVED, not hand-listed: it is the union of the pairwise
 // differences across every baseline capture taken from the REFERENCE tree
@@ -72,9 +87,17 @@ import {
 } from '../g1/lib.mts';
 import { buildMirror } from '../g2/lib.mts';
 
-/** The one query whose flag-off answer legitimately changes, and by exactly
- * these keys — the flag has to be visible in status provenance (DESIGN §5). */
-const STATUS_EXPECTED_ADDED = ['config.enrich', 'configSources.enrich'];
+/** The provenance keys that make the enrichment flag visible (DESIGN §5).
+ *
+ * 0.4.0 asserted these as keys `status` ADDED, because its baseline came from
+ * a 0.3.0 checkout that did not have them. At 0.5.0 the baseline is this
+ * release's own flag-off answer, so they are present on BOTH sides and
+ * nothing is added at all — which is the honest form of the claim from here
+ * on, and the reason the SPEC row is restated rather than renumbered. What is
+ * still asserted, and is what the keys are for, is that they are PRESENT and
+ * carry their default values in a flag-off answer: a switch you can only see
+ * when it is on is not provenance. */
+const STATUS_FLAG_KEYS = ['config.enrich', 'configSources.enrich'];
 
 /** …and by exactly this VALUE: `status` reports the package version, so it
  * differs at every release. Asserted rather than masked — it must equal the
@@ -156,6 +179,25 @@ const CASES: Case[] = [
   { key: 'phase', query: 'phase', args: [] },
   { key: 'leaderboard', query: 'leaderboard', args: [] },
   { key: 'leaderboard+liq', query: 'leaderboard', args: ['LIQUIDATE', '1', '0'] },
+  // 0.5.0 (§3.13): the uncompacted forms and the new views are part of the
+  // frozen surface too — a `--full` answer that quietly changed would be as
+  // much of a break as a default one, and the enrichment flag must be a
+  // no-op on every one of them.
+  { key: 'quests+full', query: 'quests', args: ['--full'] },
+  { key: 'quests+account+full', query: 'quests', args: [String(anAccount), '--full'] },
+  { key: 'quests+account+open', query: 'quests', args: [String(anAccount), '--open'] },
+  { key: 'quests+account+accepted', query: 'quests', args: [String(anAccount), '--accepted'] },
+  { key: 'quests+keyed', query: 'quests', args: [String(anAccount), '1'] },
+  { key: 'items+full', query: 'items', args: ['--full'] },
+  { key: 'items+type', query: 'items', args: ['FOOD'] },
+  { key: 'skills', query: 'skills', args: [] },
+  { key: 'skills+kami', query: 'skills', args: [firstKami] },
+  { key: 'party+full', query: 'party', args: [String(anAccount), '--full'] },
+  { key: 'room+full', query: 'room', args: [String(accountRoom), '--full'] },
+  { key: 'node+vitals+full', query: 'node', args: ['62', '--with-vitals', '--full'] },
+  { key: 'merchant+1+full', query: 'merchant', args: ['1', '--full'] },
+  { key: 'leaderboard+full', query: 'leaderboard', args: ['--full'] },
+  { key: 'trades+full', query: 'trades', args: ['--full'] },
 ];
 
 /** Flatten to leaf paths, array indices included — an added, moved, or
@@ -311,8 +353,14 @@ for (const key of Object.keys(base1.cases)) {
   const removed = b1Keys.filter((p) => !nowKeys.has(p));
 
   if (key === 'status') {
-    if (JSON.stringify(added) !== JSON.stringify([...STATUS_EXPECTED_ADDED].sort())) {
-      problems.push({ case: key, reason: 'status added keys are not exactly the two flag keys', added });
+    // the baseline is this release's own answer, so status must add nothing
+    if (added.length > 0) {
+      problems.push({ case: key, reason: 'status gained fields against its own baseline', added });
+    }
+    for (const flagKey of STATUS_FLAG_KEYS) {
+      if (!(flagKey in n)) {
+        problems.push({ case: key, reason: 'a flag provenance key is missing from status', missing: flagKey });
+      }
     }
     if (n['config.enrich'] !== false || n['configSources.enrich'] !== 'default') {
       problems.push({
@@ -374,7 +422,7 @@ await writeMeasurement('g3g-flag-off-identity', {
   leavesCompared: comparedTotal,
   leavesMasked: maskedTotal,
   maskedSamples,
-  statusExpectedAdded: STATUS_EXPECTED_ADDED,
+  statusFlagKeys: STATUS_FLAG_KEYS,
   problems,
   match: problems.length === 0 && comparedTotal > 5000,
 });

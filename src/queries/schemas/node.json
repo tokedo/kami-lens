@@ -12,7 +12,8 @@
         "type",
         "affinity",
         "roomIndex",
-        "description",
+        "harvestsTotal",
+        "harvestsServed",
         "harvests"
       ],
       "properties": {
@@ -35,10 +36,19 @@
           "type": "number"
         },
         "description": {
-          "type": "string"
+          "type": "string",
+          "description": "`--full` only from 0.5.0 (§3.13)."
         },
         "attacker": {
           "$ref": "#/$defs/Attacker"
+        },
+        "harvestsTotal": {
+          "type": "number",
+          "description": "§3.13: every ACTIVE harvest on the node, whether or not this answer served it. 732 measured on one node at one pin, a 266 KB answer with vitals."
+        },
+        "harvestsServed": {
+          "type": "number",
+          "description": "§3.13: how many rows this answer carries. Below the total when the cap fired; --full lifts it."
         },
         "harvests": {
           "type": "array",
@@ -56,14 +66,14 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "id",
         "state",
         "kami",
         "account"
       ],
       "properties": {
         "id": {
-          "type": "string"
+          "type": "string",
+          "description": "`--full` only from 0.5.0 (§3.13)."
         },
         "state": {
           "type": "string"
@@ -87,7 +97,6 @@
       "additionalProperties": false,
       "required": [
         "hp",
-        "hpRatePerHr",
         "musuAccrued",
         "cooldownSec"
       ],
@@ -113,13 +122,42 @@
           }
         },
         "hpRatePerHr": {
-          "type": "string"
+          "type": "string",
+          "description": "`--full` only from 0.5.0 (§3.13)."
         },
         "musuAccrued": {
           "type": "number"
         },
         "cooldownSec": {
           "type": "number"
+        },
+        "level": {
+          "type": "number",
+          "description": "§3.13: the occupant's level. This is the surface a liquidation decision is made on, and it served health without ever naming how strong the thing holding it was."
+        },
+        "xp": {
+          "type": "number",
+          "description": "§3.13: the occupant's banked experience."
+        },
+        "xpRequired": {
+          "type": "number",
+          "description": "§3.13: what the occupant's next level costs."
+        },
+        "levelUpReady": {
+          "type": "boolean",
+          "description": "§3.13: enough experience AND resting."
+        },
+        "levelUpBlockedBy": {
+          "type": "string",
+          "enum": [
+            "EXPERIENCE",
+            "NOT_RESTING"
+          ],
+          "description": "§3.13: present exactly when levelUpReady is false."
+        },
+        "skillPoints": {
+          "type": "number",
+          "description": "§3.13: the occupant's unspent skill points."
         }
       }
     },
@@ -136,6 +174,16 @@
       "properties": {
         "eligible": {
           "type": "boolean"
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "ATTACKER_STARVING",
+            "ATTACKER_COOLDOWN",
+            "TARGET_HP_ABOVE_THRESHOLD",
+            "THRESHOLD_ZERO"
+          ],
+          "description": "§3.13 (0.5.0): present exactly when `eligible` is false. Upstream's own precedence, from the reference client's LiquidateButton tooltip: starving first, then cooldown, then the threshold comparison — with the degenerate no-threshold-at-all case called out separately, exactly as that tooltip does. The client's fifth branch (\"your kamis aren't on this node\") has no analogue here: the attacker is a general argument on this surface, never an own-only path (§3.6)."
         },
         "threshold": {
           "type": "number"
@@ -179,19 +227,19 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "id",
-        "index",
-        "name"
+        "index"
       ],
       "properties": {
         "id": {
-          "type": "string"
+          "type": "string",
+          "description": "`--full` only from 0.5.0 on node harvest rows (§3.13)."
         },
         "index": {
           "type": "number"
         },
         "name": {
-          "type": "string"
+          "type": "string",
+          "description": "`--full` only from 0.5.0 on node harvest rows (§3.13)."
         },
         "state": {
           "type": "string"
@@ -202,6 +250,23 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
+        "index"
+      ],
+      "properties": {
+        "index": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string",
+          "description": "`--full` only from 0.5.0 on node harvest rows (§3.13)."
+        }
+      }
+    },
+    "RoomRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "§3.12 (enrich): a room index resolved to its registry name and description. Present only when the daemon runs with enrich=true. An index the mirror has no room for keeps the index and answers with empty strings.",
+      "required": [
         "index",
         "name"
       ],
@@ -211,18 +276,10 @@
         },
         "name": {
           "type": "string"
+        },
+        "description": {
+          "type": "string"
         }
-      }
-    },
-    "RoomRef": {
-      "type": "object",
-      "additionalProperties": false,
-      "description": "§3.12 (enrich): a room index resolved to its registry name and description. Present only when the daemon runs with enrich=true. An index the mirror has no room for keeps the index and answers with empty strings.",
-      "required": ["index", "name"],
-      "properties": {
-        "index": { "type": "number" },
-        "name": { "type": "string" },
-        "description": { "type": "string" }
       }
     }
   }

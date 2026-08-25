@@ -6,7 +6,14 @@
     "Leaderboard": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["type", "epoch", "itemIndex", "rows"],
+      "required": [
+        "type",
+        "epoch",
+        "itemIndex",
+        "rows",
+        "rowsTotal",
+        "rowsServed"
+      ],
       "properties": {
         "type": {
           "type": "string"
@@ -16,6 +23,14 @@
         },
         "itemIndex": {
           "type": "number"
+        },
+        "rowsTotal": {
+          "type": "number",
+          "description": "§3.13: every ranked row, whether or not this answer served it. 1,475 measured at one pin, a 175 KB answer."
+        },
+        "rowsServed": {
+          "type": "number",
+          "description": "§3.13: how many rows this answer carries. Already value-sorted, so the cap is the top N; --full lifts it."
         },
         "rows": {
           "type": "array",
@@ -28,7 +43,11 @@
     "ScoreRow": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["rank", "account", "value"],
+      "required": [
+        "rank",
+        "account",
+        "value"
+      ],
       "properties": {
         "rank": {
           "type": "number"
@@ -44,10 +63,11 @@
     "AccountIdRef": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id"],
+      "required": [],
       "properties": {
         "id": {
-          "type": "string"
+          "type": "string",
+          "description": "The raw holder id — a 66-character hex string on every row. Served under `--full`, and on any row whose holder is not an account (§3.13): the account INDEX is what a consumer joins on."
         },
         "index": {
           "type": "number"

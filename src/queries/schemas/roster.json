@@ -7,21 +7,35 @@
     "Roster": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["account", "kamis"],
+      "required": [
+        "account",
+        "kamis"
+      ],
       "properties": {
-        "account": { "$ref": "#/$defs/RosterAccount" },
+        "account": {
+          "$ref": "#/$defs/RosterAccount"
+        },
         "kamis": {
           "type": "array",
-          "items": { "$ref": "#/$defs/RosterKami" }
+          "items": {
+            "$ref": "#/$defs/RosterKami"
+          }
         }
       }
     },
     "RosterAccount": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["index", "roomIndex"],
+      "required": [
+        "index",
+        "roomIndex",
+        "levelUpReady",
+        "skillPoints"
+      ],
       "properties": {
-        "index": { "type": "number" },
+        "index": {
+          "type": "number"
+        },
         "roomIndex": {
           "type": "number",
           "description": "the room the account itself is standing in"
@@ -29,20 +43,47 @@
         "room": {
           "$ref": "#/$defs/RoomRef",
           "description": "§3.12 (enrich): roomIndex resolved. On roster, {index, name} only — the compact answer stays compact."
+        },
+        "levelUpReady": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "description": "§3.13: kami indices that can be levelled RIGHT NOW (enough experience AND resting). A SET on the account block, not a field on the kami rows: the roster's compaction guarantee is measured as marginal bytes PER KAMI (G7.a), and anything outside kamis[] cancels out of that measurement — so the marginal cost is unchanged at every roster composition, including the worst case. Numeric, so the empty-untrusted-list and name-free guarantees hold."
+        },
+        "skillPoints": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "description": "§3.13: [kamiIndex, unspentSkillPoints] for every kami holding any. Set form, for the reason above. Skill NAMES never appear on this answer."
         }
       }
     },
     "RosterKami": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["index", "state", "hp"],
+      "required": [
+        "index",
+        "state",
+        "hp"
+      ],
       "properties": {
-        "index": { "type": "number" },
-        "state": { "type": "string" },
+        "index": {
+          "type": "number"
+        },
+        "state": {
+          "type": "string"
+        },
         "hp": {
           "type": "array",
           "description": "[current, total] — percent is the consumer's division",
-          "items": { "type": "number" },
+          "items": {
+            "type": "number"
+          },
           "minItems": 2,
           "maxItems": 2
         }
@@ -52,11 +93,20 @@
       "type": "object",
       "additionalProperties": false,
       "description": "§3.12 (enrich): a room index resolved to its registry name and description. Present only when the daemon runs with enrich=true. An index the mirror has no room for keeps the index and answers with empty strings.",
-      "required": ["index", "name"],
+      "required": [
+        "index",
+        "name"
+      ],
       "properties": {
-        "index": { "type": "number" },
-        "name": { "type": "string" },
-        "description": { "type": "string" }
+        "index": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
       }
     }
   }

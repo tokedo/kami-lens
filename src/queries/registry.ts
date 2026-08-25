@@ -23,6 +23,7 @@ import {
   itemQuery,
   itemsQuery,
   kamiQuery,
+  skillsQuery,
   leaderboardQuery,
   merchantQuery,
   nodeQuery,
@@ -70,7 +71,8 @@ export type QueryName =
   | 'portal'
   | 'transfers'
   | 'feed'
-  | 'chat';
+  | 'chat'
+  | 'skills';
 
 export type QueryDef = {
   name: QueryName;
@@ -89,6 +91,14 @@ export type QueryDef = {
    * defaultOperator prefill when omitted (DESIGN §5 — never a special
    * path, just a prefilled argument) */
   operatorArg?: boolean;
+  /** the `--flags` this query accepts as ARGUMENTS — parsed by `parseArgs`
+   * alongside the positionals, never by the envelope. DECLARING THEM HERE IS
+   * LOAD-BEARING (§3.13): the CLI used to carry a hand-written allowlist of
+   * three flag spellings and silently dropped every `--flag` outside it, so a
+   * new argument, or a typo of an existing one, produced a DIFFERENT ANSWER
+   * with no error at all. The CLI now routes exactly what a query declares
+   * and refuses anything else. */
+  args?: string[];
   build: (
     ctx: QueryCtx,
     args: Record<string, unknown>,
@@ -117,7 +127,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
   account: {
     name: 'account',
     operatorArg: true,
-    summary: 'account by index or name (bio only with --prose)',
+    summary: 'account by index or name (bio only with --prose; gas balance when an RPC is configured)',
     parseArgs: ([key]) => {
       if (key === undefined) throw new QueryError('BAD_ARGS', 'account needs an index or name');
       return /^\d+$/.test(key) ? { index: Number(key) } : { name: key };
@@ -125,15 +135,16 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     stateless: false,
     kamiden: false,
     build: (ctx, a, o) =>
-      accountQuery(ctx.mirror, a as { index?: number; name?: string }, o, ctx.enrich),
+      accountQuery(ctx.mirror, a as { index?: number; name?: string }, o, ctx.enrich, ctx.rpc),
   },
   node: {
     name: 'node',
     summary:
-      'node with its ACTIVE harvests; --with-vitals [attackerKamiIndex] adds occupant vitals + liquidation preview',
+      'node with its ACTIVE harvests; --with-vitals [attackerKamiIndex] adds occupant vitals + liquidation preview (--full lifts the row cap)',
+    args: ['--with-vitals', '--full'],
     parseArgs: (positional) => {
-      const rest = positional.filter((p) => p !== '--with-vitals');
-      const withVitals = rest.length !== positional.length;
+      const rest = positional.filter((p) => p !== '--with-vitals' && p !== '--full');
+      const withVitals = positional.includes('--with-vitals');
       const [index, attacker] = rest;
       if (attacker !== undefined && !withVitals) {
         throw new QueryError('BAD_ARGS', 'an attacker kami argument needs --with-vitals');
@@ -142,6 +153,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
         index: int(index, 'node index'),
         withVitals,
         attacker: optInt(attacker, 'attacker kami index'),
+        full: positional.includes('--full'),
       };
     },
     stateless: false,
@@ -149,18 +161,25 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     build: (ctx, a) =>
       nodeQuery(
         ctx.mirror,
-        a as { index: number; withVitals?: boolean; attacker?: number },
+        a as { index: number; withVitals?: boolean; attacker?: number; full?: boolean },
         ctx.enrich
       ),
   },
   party: {
     name: 'party',
     operatorArg: true,
-    summary: 'account party report: every kami with full vitals',
-    parseArgs: ([accountIndex]) => ({ accountIndex: int(accountIndex, 'account index') }),
+    summary: 'account party report: kamis with full vitals (--full lifts the row cap)',
+    args: ['--full'],
+    parseArgs: (positional) => {
+      const [accountIndex] = positional.filter((p) => p !== '--full');
+      return {
+        accountIndex: int(accountIndex, 'account index'),
+        full: positional.includes('--full'),
+      };
+    },
     stateless: false,
     kamiden: false,
-    build: (ctx, a) => partyQuery(ctx.mirror, a as { accountIndex: number }),
+    build: (ctx, a) => partyQuery(ctx.mirror, a as { accountIndex: number; full?: boolean }),
   },
   roster: {
     name: 'roster',
@@ -181,15 +200,29 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
   },
   items: {
     name: 'items',
-    summary: 'the full item registry',
-    parseArgs: () => ({}),
+    summary: 'the item registry, compact ([type] filters; --full serves whole rows)',
+    args: ['--full'],
+    parseArgs: (positional) => {
+      const [type] = positional.filter((p) => p !== '--full');
+      return { type, full: positional.includes('--full') };
+    },
     stateless: false,
     kamiden: false,
-    build: (ctx) => itemsQuery(ctx.mirror, ctx.enrich),
+    build: (ctx, a) =>
+      itemsQuery(ctx.mirror, a as { type?: string; full?: boolean }, ctx.enrich),
+  },
+  skills: {
+    name: 'skills',
+    summary: 'skill registry; with [kamiIndex], that kami\'s unspent points + taken skills',
+    parseArgs: ([kamiIndex]) => ({ kamiIndex: optInt(kamiIndex, 'kami index') }),
+    stateless: false,
+    kamiden: false,
+    build: (ctx, a) => skillsQuery(ctx.mirror, a as { kamiIndex?: number }, ctx.enrich),
   },
   config: {
     name: 'config',
     summary: 'one is.config field value (--array for packed arrays)',
+    args: ['--array'],
     parseArgs: ([name, flag]) => {
       if (!name) throw new QueryError('BAD_ARGS', 'config needs a field name');
       return { name, array: flag === '--array' };
@@ -213,19 +246,28 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
   },
   room: {
     name: 'room',
-    summary: 'room occupancy: accounts (and their kamis) currently in the room',
-    parseArgs: ([index]) => ({ index: int(index, 'room index') }),
+    summary: 'room: its exits, and the accounts currently in it (--full lifts the occupant cap)',
+    args: ['--full'],
+    parseArgs: (positional) => {
+      const [index] = positional.filter((p) => p !== '--full');
+      return { index: int(index, 'room index'), full: positional.includes('--full') };
+    },
     stateless: false,
     kamiden: false,
-    build: (ctx, a) => roomQuery(ctx.mirror, a as { index: number }),
+    build: (ctx, a) => roomQuery(ctx.mirror, a as { index: number; full?: boolean }),
   },
   merchant: {
     name: 'merchant',
-    summary: 'NPC merchants; with [npcIndex], the full listing catalog with prices',
-    parseArgs: ([index]) => ({ index: optInt(index, 'npc index') }),
+    summary: 'NPC merchants; with [npcIndex], the listing catalog with prices (--full serves whole rows)',
+    args: ['--full'],
+    parseArgs: (positional) => {
+      const [index] = positional.filter((p) => p !== '--full');
+      return { index: optInt(index, 'npc index'), full: positional.includes('--full') };
+    },
     stateless: false,
     kamiden: false,
-    build: (ctx, a) => merchantQuery(ctx.mirror, a as { index?: number }, ctx.enrich),
+    build: (ctx, a) =>
+      merchantQuery(ctx.mirror, a as { index?: number; full?: boolean }, ctx.enrich),
   },
   phase: {
     name: 'phase',
@@ -237,16 +279,25 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
   },
   leaderboard: {
     name: 'leaderboard',
-    summary: "mirror Score leaderboard ([type] [epoch] [itemIndex]; defaults COLLECT 1 1)",
-    parseArgs: ([type, epoch, itemIndex]) => ({
-      type: type ?? 'COLLECT',
-      epoch: optInt(epoch, 'epoch') ?? 1,
-      itemIndex: optInt(itemIndex, 'item index') ?? 1,
-    }),
+    summary:
+      'mirror Score leaderboard ([type] [epoch] [itemIndex]; defaults COLLECT 1 1; --full lifts the row cap)',
+    args: ['--full'],
+    parseArgs: (positional) => {
+      const [type, epoch, itemIndex] = positional.filter((p) => p !== '--full');
+      return {
+        type: type ?? 'COLLECT',
+        epoch: optInt(epoch, 'epoch') ?? 1,
+        itemIndex: optInt(itemIndex, 'item index') ?? 1,
+        full: positional.includes('--full'),
+      };
+    },
     stateless: false,
     kamiden: false,
     build: (ctx, a) =>
-      leaderboardQuery(ctx.mirror, a as { type: string; epoch: number; itemIndex: number }),
+      leaderboardQuery(
+        ctx.mirror,
+        a as { type: string; epoch: number; itemIndex: number; full?: boolean }
+      ),
   },
   killers: {
     name: 'killers',
@@ -270,13 +321,19 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
   trades: {
     name: 'trades',
     operatorArg: true,
-    summary: 'open chain trades; with [accountIndex], kamiden history + open offers',
-    parseArgs: ([accountIndex]) => ({
-      accountIndex: optInt(accountIndex, 'account index'),
-    }),
+    summary:
+      'open chain trades; with [accountIndex], kamiden history + open offers (--full lifts the row cap)',
+    args: ['--full'],
+    parseArgs: (positional) => {
+      const [accountIndex] = positional.filter((p) => p !== '--full');
+      return {
+        accountIndex: optInt(accountIndex, 'account index'),
+        full: positional.includes('--full'),
+      };
+    },
     stateless: false,
     kamiden: false, // chain listing works without kamiden; history needs it
-    build: (ctx, a) => tradesQuery(ctx, a as { accountIndex?: number }),
+    build: (ctx, a) => tradesQuery(ctx, a as { accountIndex?: number; full?: boolean }),
   },
   auctions: {
     name: 'auctions',
@@ -289,24 +346,53 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
   quests: {
     name: 'quests',
     operatorArg: true,
-    summary: 'quest registry; with [accountIndex], accepted quests + completion',
-    parseArgs: ([accountIndex]) => ({
-      accountIndex: optInt(accountIndex, 'account index'),
-    }),
+    summary:
+      'quests, compact ([accountIndex] [questIndex] keys one; --open / --accepted narrow; --full serves the whole registry)',
+    args: ['--full', '--open', '--accepted'],
+    parseArgs: (positional) => {
+      const rest = positional.filter((p) => !p.startsWith('--'));
+      const open = positional.includes('--open');
+      const acceptedOnly = positional.includes('--accepted');
+      if (open && acceptedOnly) {
+        throw new QueryError('BAD_ARGS', '--open and --accepted are alternatives, not a pair');
+      }
+      const [accountIndex, questIndex] = rest;
+      return {
+        accountIndex: optInt(accountIndex, 'account index'),
+        questIndex: optInt(questIndex, 'quest index'),
+        view: open ? 'open' : acceptedOnly ? 'accepted' : undefined,
+        full: positional.includes('--full'),
+      };
+    },
     stateless: false,
     kamiden: false,
-    build: (ctx, a) => questsQuery(ctx, a as { accountIndex?: number }),
+    build: (ctx, a) =>
+      questsQuery(
+        ctx,
+        a as {
+          accountIndex?: number;
+          questIndex?: number;
+          view?: 'open' | 'accepted';
+          full?: boolean;
+        }
+      ),
   },
   market: {
     name: 'market',
     operatorArg: true,
-    summary: 'KamiSwap listings + bids (kamiden); with [accountIndex], order history',
-    parseArgs: ([accountIndex]) => ({
-      accountIndex: optInt(accountIndex, 'account index'),
-    }),
+    summary:
+      'KamiSwap listings + bids (kamiden); with [accountIndex], order history (--full lifts the row caps)',
+    args: ['--full'],
+    parseArgs: (positional) => {
+      const [accountIndex] = positional.filter((p) => p !== '--full');
+      return {
+        accountIndex: optInt(accountIndex, 'account index'),
+        full: positional.includes('--full'),
+      };
+    },
     stateless: false,
     kamiden: true,
-    build: (ctx, a) => marketQuery(ctx, a as { accountIndex?: number }),
+    build: (ctx, a) => marketQuery(ctx, a as { accountIndex?: number; full?: boolean }),
   },
   portal: {
     name: 'portal',
@@ -344,6 +430,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
   chat: {
     name: 'chat',
     summary: 'room chat page (kamiden; [beforeMs] [size]; --oversize serves withheld bodies)',
+    args: ['--oversize'],
     parseArgs: (positional) => {
       const rest = positional.filter((p) => p !== '--oversize');
       const oversize = rest.length !== positional.length;

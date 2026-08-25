@@ -6,26 +6,87 @@
     "Market": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["listings", "bids"],
+      "required": [
+        "listingsTotal",
+        "listingsServed",
+        "bidsTotal",
+        "bidsServed",
+        "listings",
+        "bids"
+      ],
       "properties": {
-        "listings": { "type": "array", "items": { "$ref": "#/$defs/MarketListing" } },
-        "bids": { "type": "array", "items": { "$ref": "#/$defs/MarketBid" } },
-        "account": { "$ref": "#/$defs/AccountRef" },
-        "orders": { "type": "array", "items": { "$ref": "#/$defs/MarketOrder" } }
+        "listingsTotal": {
+          "type": "number",
+          "description": "§3.13: every listing the service returned, whether or not this answer served it."
+        },
+        "listingsServed": {
+          "type": "number",
+          "description": "§3.13: rows carried, most recent first; --full lifts the cap."
+        },
+        "listings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MarketListing"
+          }
+        },
+        "bidsTotal": {
+          "type": "number",
+          "description": "§3.13: every bid the service returned."
+        },
+        "bidsServed": {
+          "type": "number",
+          "description": "§3.13: rows carried, most recent first; --full lifts the cap."
+        },
+        "bids": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MarketBid"
+          }
+        },
+        "account": {
+          "$ref": "#/$defs/AccountRef"
+        },
+        "orders": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MarketOrder"
+          }
+        }
       }
     },
     "MarketListing": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["orderId", "seller", "kamiIndex", "price", "expiry", "timestamp"],
+      "required": [
+        "orderId",
+        "seller",
+        "kamiIndex",
+        "price",
+        "expiry",
+        "timestamp"
+      ],
       "properties": {
-        "orderId": { "type": "string" },
-        "seller": { "$ref": "#/$defs/AccountIdRef" },
-        "buyer": { "$ref": "#/$defs/AccountIdRef" },
-        "kamiIndex": { "type": "number" },
-        "price": { "type": "string" },
-        "expiry": { "type": "string" },
-        "timestamp": { "type": "number" }
+        "orderId": {
+          "type": "string"
+        },
+        "seller": {
+          "$ref": "#/$defs/AccountIdRef"
+        },
+        "buyer": {
+          "$ref": "#/$defs/AccountIdRef"
+        },
+        "kamiIndex": {
+          "type": "number"
+        },
+        "price": {
+          "type": "string"
+        },
+        "expiry": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "number"
+        }
       }
     },
     "MarketBid": {
@@ -44,48 +105,102 @@
         "boughtKamiIndexes"
       ],
       "properties": {
-        "orderId": { "type": "string" },
-        "buyer": { "$ref": "#/$defs/AccountIdRef" },
-        "kamiIndex": { "type": "number" },
-        "total": { "type": "number" },
-        "price": { "type": "string" },
-        "expiry": { "type": "string" },
-        "timestamp": { "type": "number" },
-        "bidType": { "type": "number" },
-        "quantity": { "type": "number" },
-        "boughtKamiIndexes": { "type": "array", "items": { "type": "number" } }
+        "orderId": {
+          "type": "string"
+        },
+        "buyer": {
+          "$ref": "#/$defs/AccountIdRef"
+        },
+        "kamiIndex": {
+          "type": "number"
+        },
+        "total": {
+          "type": "number"
+        },
+        "price": {
+          "type": "string"
+        },
+        "expiry": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "number"
+        },
+        "bidType": {
+          "type": "number"
+        },
+        "quantity": {
+          "type": "number"
+        },
+        "boughtKamiIndexes": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        }
       }
     },
     "MarketOrder": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["timestamp", "orderId", "isCanceled", "isComplete"],
+      "required": [
+        "timestamp",
+        "orderId",
+        "isCanceled",
+        "isComplete"
+      ],
       "properties": {
-        "timestamp": { "type": "number" },
-        "orderId": { "type": "string" },
-        "isCanceled": { "type": "boolean" },
-        "isComplete": { "type": "boolean" },
-        "listing": { "$ref": "#/$defs/MarketListing" },
-        "bid": { "$ref": "#/$defs/MarketBid" }
+        "timestamp": {
+          "type": "number"
+        },
+        "orderId": {
+          "type": "string"
+        },
+        "isCanceled": {
+          "type": "boolean"
+        },
+        "isComplete": {
+          "type": "boolean"
+        },
+        "listing": {
+          "$ref": "#/$defs/MarketListing"
+        },
+        "bid": {
+          "$ref": "#/$defs/MarketBid"
+        }
       }
     },
     "AccountRef": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["index", "name"],
+      "required": [
+        "index",
+        "name"
+      ],
       "properties": {
-        "index": { "type": "number" },
-        "name": { "type": "string" }
+        "index": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        }
       }
     },
     "AccountIdRef": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id"],
+      "required": [],
       "properties": {
-        "id": { "type": "string" },
-        "index": { "type": "number" },
-        "name": { "type": "string" }
+        "id": {
+          "type": "string",
+          "description": "The service's value, verbatim. Compacted away on capped listing and bid rows (§3.13) — a Kamiden entity id is a 77-digit decimal string on EVERY row and the account index is what a consumer joins on. Never rewritten or shortened: omitted or verbatim, the §1.2 rule. Kept on any row whose holder did not resolve, and restored by --full."
+        },
+        "index": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        }
       }
     }
   }

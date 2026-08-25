@@ -70,6 +70,7 @@ type DaemonKami = {
   name: string;
   state: string;
   level?: number;
+  xp?: number;
   hp: { total: number };
 };
 const daemonAnswers = new Map<number, { data: DaemonKami; block: number }>();
@@ -102,6 +103,16 @@ for (const [idx, { data: d, block }] of daemonAnswers) {
     name: s.name === d.name,
     state: s.state === d.state,
     level: s.level === (d.level ?? -1),
+    // 0.5.0 (§3.13): the getter view has always returned xp and the
+    // stateless projection discarded it. Now that both modes serve it, the
+    // two must agree at the same block — free extra evidence on a path that
+    // already proves the discrete subset. The next-level REQUIREMENT and
+    // unspent SKILL POINTS are deliberately NOT compared: neither is
+    // computable without a mirror (the first is a config read, the second is
+    // absent from the getter's shape), so the stateless answer does not
+    // carry them and asserting them would be asserting a field that cannot
+    // exist.
+    xp: s.xp === (d.xp ?? -1),
     hpTotal: s.hp.total === d.hp.total,
   };
   const ok = Object.values(checks).every(Boolean);

@@ -6,101 +6,231 @@
     "Trades": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["open"],
+      "required": [
+        "openTotal",
+        "openServed",
+        "open"
+      ],
       "properties": {
-        "open": { "type": "array", "items": { "$ref": "#/$defs/TradeChain" } },
-        "account": { "$ref": "#/$defs/AccountRef" },
-        "history": { "type": "array", "items": { "$ref": "#/$defs/TradeHistory" } },
-        "openOffers": { "type": "array", "items": { "$ref": "#/$defs/TradeHistory" } }
+        "openTotal": {
+          "type": "number",
+          "description": "§3.13: every open chain trade, whether or not this answer served it. 382 measured at one pin, a 111 KB answer."
+        },
+        "openServed": {
+          "type": "number",
+          "description": "§3.13: how many rows this answer carries. Ordered by trade id, unconditionally, so a capped answer and a --full answer agree about which rows come first; --full lifts the cap."
+        },
+        "open": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TradeChain"
+          }
+        },
+        "account": {
+          "$ref": "#/$defs/AccountRef"
+        },
+        "history": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TradeHistory"
+          }
+        },
+        "openOffers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TradeHistory"
+          }
+        }
       }
     },
     "TradeChain": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "state", "type"],
+      "required": [
+        "id",
+        "state",
+        "type"
+      ],
       "properties": {
-        "id": { "type": "string" },
-        "state": { "type": "string" },
-        "type": { "type": "string" },
-        "maker": { "$ref": "#/$defs/AccountRef" },
-        "taker": { "$ref": "#/$defs/AccountRef" },
-        "buyOrder": { "$ref": "#/$defs/TradeOrder" },
-        "sellOrder": { "$ref": "#/$defs/TradeOrder" }
+        "id": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "maker": {
+          "$ref": "#/$defs/AccountRef"
+        },
+        "taker": {
+          "$ref": "#/$defs/AccountRef"
+        },
+        "buyOrder": {
+          "$ref": "#/$defs/TradeOrder"
+        },
+        "sellOrder": {
+          "$ref": "#/$defs/TradeOrder"
+        }
       }
     },
     "TradeOrder": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["items", "amounts"],
+      "required": [
+        "items",
+        "amounts"
+      ],
       "properties": {
-        "items": { "type": "array", "items": { "$ref": "#/$defs/ItemRef" } },
-        "amounts": { "type": "array", "items": { "type": "number" } }
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ItemRef"
+          }
+        },
+        "amounts": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        }
       }
     },
     "TradeHistory": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["tradeId", "maker", "taker", "buyOrder", "sellOrder", "timestamps"],
+      "required": [
+        "tradeId",
+        "maker",
+        "taker",
+        "buyOrder",
+        "sellOrder",
+        "timestamps"
+      ],
       "properties": {
-        "tradeId": { "type": "string" },
-        "maker": { "$ref": "#/$defs/AccountIdRef" },
-        "taker": { "$ref": "#/$defs/AccountIdRef" },
-        "buyOrder": { "type": "array", "items": { "$ref": "#/$defs/OrderEntry" } },
-        "sellOrder": { "type": "array", "items": { "$ref": "#/$defs/OrderEntry" } },
-        "timestamps": { "$ref": "#/$defs/TradeTimestamps" }
+        "tradeId": {
+          "type": "string"
+        },
+        "maker": {
+          "$ref": "#/$defs/AccountIdRef"
+        },
+        "taker": {
+          "$ref": "#/$defs/AccountIdRef"
+        },
+        "buyOrder": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/OrderEntry"
+          }
+        },
+        "sellOrder": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/OrderEntry"
+          }
+        },
+        "timestamps": {
+          "$ref": "#/$defs/TradeTimestamps"
+        }
       }
     },
     "OrderEntry": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["itemIndex", "item", "amount"],
+      "required": [
+        "itemIndex",
+        "item",
+        "amount"
+      ],
       "properties": {
-        "itemIndex": { "type": "number" },
-        "item": { "$ref": "#/$defs/ItemRef" },
-        "amount": { "type": "string" }
+        "itemIndex": {
+          "type": "number"
+        },
+        "item": {
+          "$ref": "#/$defs/ItemRef"
+        },
+        "amount": {
+          "type": "string"
+        }
       }
     },
     "TradeTimestamps": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["create", "cancel", "execute", "complete"],
+      "required": [
+        "create",
+        "cancel",
+        "execute",
+        "complete"
+      ],
       "properties": {
-        "create": { "type": "string" },
-        "cancel": { "type": "string" },
-        "execute": { "type": "string" },
-        "complete": { "type": "string" }
+        "create": {
+          "type": "string"
+        },
+        "cancel": {
+          "type": "string"
+        },
+        "execute": {
+          "type": "string"
+        },
+        "complete": {
+          "type": "string"
+        }
       }
     },
     "ItemRef": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["index", "name"],
+      "required": [
+        "index"
+      ],
       "properties": {
-        "index": { "type": "number" },
-        "name": { "type": "string" },
+        "index": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string",
+          "description": "`--full` only from 0.5.0 (§3.13). On an open-trade order line the item INDEX identifies the lot."
+        },
         "description": {
           "type": "string",
-          "description": "\u00a73.12 (enrich): the item's registry description. Present only when the daemon runs with enrich=true AND this ref is on a decision surface (open trades and offers, auction lots, merchant payment currency) \u2014 history rows keep the bare name."
+          "description": "§3.12 (enrich): the item's registry description. Present only when the daemon runs with enrich=true AND this ref is on a decision surface (open trades and offers, auction lots, merchant payment currency) — history rows keep the bare name."
         }
       }
     },
     "AccountRef": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["index", "name"],
+      "required": [
+        "index"
+      ],
       "properties": {
-        "index": { "type": "number" },
-        "name": { "type": "string" }
+        "index": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string",
+          "description": "`--full` only from 0.5.0 (§3.13)."
+        }
       }
     },
     "AccountIdRef": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id"],
+      "required": [
+        "id"
+      ],
       "properties": {
-        "id": { "type": "string" },
-        "index": { "type": "number" },
-        "name": { "type": "string" }
+        "id": {
+          "type": "string"
+        },
+        "index": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        }
       }
     }
   }

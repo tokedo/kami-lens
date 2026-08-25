@@ -67,7 +67,18 @@ function enrichmentHits(value: unknown, at = '', hits: string[] = []): string[] 
     if (keys.includes('entries') && keys.includes('type') && keys.includes('value')) {
       hits.push(`${at} (AlloOut)`);
     }
-    if (keys.includes('text') && keys.includes('type') && keys.includes('index')) {
+    // 0.5.0: the {type,index,value,text} projection is no longer
+    // enrich-only — room EXIT GATES serve it on the base surface (§3.13).
+    // Narrowed twice over: an enrich ItemRequirement carries `value` and no
+    // per-condition status, and a gate row lives under `.gates[`.
+    if (
+      keys.includes('text') &&
+      keys.includes('type') &&
+      keys.includes('index') &&
+      keys.includes('value') &&
+      !keys.includes('met') &&
+      !at.includes('.gates[')
+    ) {
       hits.push(`${at} (ItemRequirement)`);
     }
     for (const [k, v] of Object.entries(obj)) enrichmentHits(v, at ? `${at}.${k}` : k, hits);
@@ -130,12 +141,23 @@ for (const a of accountIndexes) {
   await check('account', [String(a)]);
   await check('account', [String(a)], { prose: true });
   await check('party', [String(a)]);
+  await check('party', [String(a), '--full']);
   await check('roster', [String(a)]);
 }
-// nodes: all
-for (const n of nodes) await check('node', [String(n.index)]);
-// items
+// nodes: all, both modes
+for (const n of nodes) {
+  await check('node', [String(n.index)]);
+  await check('node', [String(n.index), '--full']);
+}
+// items — compact default, a type filter, and the uncompacted form (§3.13)
 await check('items', []);
+await check('items', ['--full']);
+for (const type of ['FOOD', 'MATERIAL', 'NO_SUCH_TYPE']) await check('items', [type]);
+// skills (0.5.0): the registry, and a kami's own investments
+await check('skills', []);
+for (const index of kamiIndexes.filter((i) => i > 0).slice(0, 20)) {
+  await check('skills', [String(index)]);
+}
 const itemsEnv = await serveQuery(mirror, 'items', [], { stale: false, mode: 'daemon' });
 for (const item of (itemsEnv.data as { items: { index: number }[] }).items.slice(0, 50)) {
   await check('item', [String(item.index)]);
@@ -158,23 +180,44 @@ for (const name of ['HARVEST_EFFICACY_BOOST', 'KAMI_STANDARD_COOLDOWN']) {
 // mirror in their no-service form — the kamiden-argument variants are
 // validated live by G4.a
 await check('quests', []);
+await check('quests', ['--full']);
 // with an account, every registry row carries account-relative state and
 // accepted rows carry per-objective progress (0.3.0)
-for (const a of [...accountIndexes].slice(0, 3)) await check('quests', [String(a)]);
+for (const a of [...accountIndexes].slice(0, 3)) {
+  // 0.5.0 (§3.13): four account-relative forms, one schema. The compact
+  // default, the two narrowed views, the keyed single-quest detail, and the
+  // uncompacted --full shape must ALL be legal instances.
+  const compact = await check('quests', [String(a)]);
+  await check('quests', [String(a), '--open']);
+  await check('quests', [String(a), '--accepted']);
+  await check('quests', [String(a), '--full']);
+  const rows = (compact.data as { quests?: { index: number }[] }).quests ?? [];
+  for (const row of rows.slice(0, 5)) await check('quests', [String(a), String(row.index)]);
+}
 await check('trades', []);
+await check('trades', ['--full']);
 await check('auctions', []);
 // 0.2.0 chain surface: inventory / room / merchant / phase / leaderboard /
 // node vitals+liquidation (killers is kamiden-backed — validated live, G6)
 for (const a of [...accountIndexes].slice(0, 10)) await check('inventory', [String(a)]);
 for (const r of getAllRooms(world, components).filter((room) => room.index)) {
   await check('room', [String(r.index)]);
+  await check('room', [String(r.index), '--full']);
 }
 const merchantsEnv = await check('merchant', []);
 for (const m of (merchantsEnv.data as { merchants: { index: number }[] }).merchants) {
   await check('merchant', [String(m.index)]);
+  await check('merchant', [String(m.index), '--full']);
 }
 await check('phase', []);
-for (const lbArgs of [[], ['LIQUIDATE', '1', '0'], ['TOTAL_SPENT'], ['NO_SUCH_TYPE']]) {
+for (const lbArgs of [
+  [],
+  ['--full'],
+  ['LIQUIDATE', '1', '0'],
+  ['LIQUIDATE', '1', '0', '--full'],
+  ['TOTAL_SPENT'],
+  ['NO_SUCH_TYPE'],
+]) {
   await check('leaderboard', lbArgs);
 }
 // vitals variant on a bounded busy node (~20 occupants) + an attacker pairing
@@ -182,17 +225,22 @@ for (const lbArgs of [[], ['LIQUIDATE', '1', '0'], ['TOTAL_SPENT'], ['NO_SUCH_TY
   const sized = [] as { index: number; count: number }[];
   for (const n of nodes) {
     const env = await serveQuery(mirror, 'node', [String(n.index)], { stale: false, mode: 'daemon' });
-    sized.push({ index: n.index, count: (env.data as { harvests: unknown[] }).harvests.length });
+    sized.push({
+      index: n.index,
+      count: (env.data as { harvestsTotal: number }).harvestsTotal,
+    });
   }
   const busy = sized
     .filter((s) => s.count > 1)
     .sort((a, b) => Math.abs(a.count - 20) - Math.abs(b.count - 20))[0];
   if (busy) {
     const vitalsEnv = await check('node', [String(busy.index), '--with-vitals']);
+    await check('node', [String(busy.index), '--with-vitals', '--full']);
     const occupants = (vitalsEnv.data as { harvests: { kami: { index: number } }[] }).harvests;
     const attacker = occupants.map((h) => h.kami.index).find((i) => i > 0);
     if (attacker !== undefined) {
       await check('node', [String(busy.index), String(attacker), '--with-vitals']);
+      await check('node', [String(busy.index), String(attacker), '--with-vitals', '--full']);
     }
   }
 }
@@ -206,9 +254,20 @@ for (const lbArgs of [[], ['LIQUIDATE', '1', '0'], ['TOTAL_SPENT'], ['NO_SUCH_TY
     await checkEnriched('roster', [String(a)]);
     await checkEnriched('roster', [String(a)], { noAuthored: true });
     await checkEnriched('quests', [String(a)]);
+    await checkEnriched('quests', [String(a), '--open']);
+    await checkEnriched('quests', [String(a), '--accepted']);
+    await checkEnriched('quests', [String(a), '--full']);
+    await checkEnriched('quests', [String(a), '1']);
   }
   await checkEnriched('quests', []);
   await checkEnriched('items', []);
+  await checkEnriched('items', ['--full']);
+  // 0.5.0: skill descriptions and bonus prose are enrich-class, the same rung
+  // as item descriptions — both forms of the query validate either way
+  await checkEnriched('skills', []);
+  for (const index of kamiIndexes.filter((i) => i > 0).slice(0, 10)) {
+    await checkEnriched('skills', [String(index)]);
+  }
   for (const item of (itemsEnv.data as { items: { index: number }[] }).items.slice(0, 50)) {
     await checkEnriched('item', [String(item.index)]);
   }
@@ -224,7 +283,10 @@ for (const lbArgs of [[], ['LIQUIDATE', '1', '0'], ['TOTAL_SPENT'], ['NO_SUCH_TY
     .filter((room) => room.index)
     .slice(0, 20)) {
     await checkEnriched('room', [String(r.index)]);
+    await checkEnriched('room', [String(r.index), '--full']);
   }
+  await checkEnriched('party', [String([...accountIndexes][0])]);
+  await checkEnriched('leaderboard', ['--full']);
 }
 
 // status: contract on an unstarted daemon

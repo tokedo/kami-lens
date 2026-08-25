@@ -52,7 +52,9 @@ import { getRoomByIndex } from '../../src/network/shapes/Room';
 import { quests as explorerQuests } from '../../src/network/explorer/quests';
 import {
   getQuestObjectives,
+  meetsRequirements,
   parseQuestObjectives,
+  parseQuestRequirements,
   queryAcceptedQuests,
 } from '../../src/network/shapes/Quest';
 import { getFor } from '../../src/network/shapes/utils/component';
@@ -144,7 +146,13 @@ const basisOf = (logic: string): string => {
 
 for (const accountIndex of accountIndexes.slice(0, 12)) {
   const started = performance.now();
-  const answer = (await serve('quests', [String(accountIndex)])) as { registry: QuestRow[] };
+  // 0.5.0 (§3.13): the uncompacted shape moved behind `--full`. The
+  // recompute below is unchanged in kind — it walks the same registry rows
+  // and the same account blocks — and the COMPACT views get their own
+  // guard immediately after this loop.
+  const answer = (await serve('quests', [String(accountIndex), '--full'])) as {
+    registry: QuestRow[];
+  };
   questTimingMs += performance.now() - started;
   note('questAnswers');
 
@@ -233,6 +241,160 @@ for (const accountIndex of accountIndexes.slice(0, 12)) {
       problems.push({ area: 'quests', reason: 'objectivesMet is not the conjunction of the served objectives', accountIndex, quest: row.index });
     }
   }
+
+  // --- 0.5.0: PER-REQUIREMENT STATUS, recomputed ---------------------------
+  // parseQuestRequirements is run again here on quest objects taken straight
+  // from the projection layer, and every served requirement row must
+  // reproduce it exactly — the same zero-tolerance treatment the objectives
+  // get. `unmetRequirements` must additionally be the failing SUBSET, and
+  // must appear on every row that reports requirementsMet: false and on no
+  // other: a refusal that does not name its cause is the defect this version
+  // exists to remove (§3.11).
+  {
+    const compactEnv = (await serve('quests', [String(accountIndex)])) as {
+      view: string;
+      questsTotal: number;
+      quests: {
+        index: number;
+        requirementsMet?: boolean;
+        objectives?: unknown;
+        unmetRequirements?: { type: string; met: boolean; text: string; current?: number; required?: number }[];
+      }[];
+    };
+    note('compactQuestAnswers');
+    if (compactEnv.view !== 'status') {
+      problems.push({ area: 'quests/compact', reason: 'default account view is not the status view', accountIndex, served: compactEnv.view });
+    }
+    const fullByIndex = new Map(answer.registry.map((r) => [r.index, r]));
+    if (compactEnv.questsTotal !== answer.registry.length) {
+      problems.push({ area: 'quests/compact', reason: 'questsTotal disagrees with the registry length', accountIndex });
+    }
+    for (const row of compactEnv.quests) {
+      note('compactQuestRows');
+      // THE PRE-ACCEPTANCE GUARD, on the compact surface: the status view
+      // carries no objectives at all, so no unaccepted row can carry progress
+      if (row.objectives !== undefined) {
+        problems.push({ area: 'quests/compact', reason: 'the status view carried objectives', accountIndex, quest: row.index });
+      }
+      const full = fullByIndex.get(row.index);
+      if (!full) {
+        problems.push({ area: 'quests/compact', reason: 'compact row absent from the --full answer', accountIndex, quest: row.index });
+        continue;
+      }
+      if (row.requirementsMet !== full.account?.requirementsMet) {
+        problems.push({ area: 'quests/compact', reason: 'requirementsMet differs between the compact and --full answers', accountIndex, quest: row.index });
+      }
+      // independent recompute of the requirement side
+      const quest = explorer.all().find((q) => q.index === row.index);
+      if (quest) {
+        parseQuestRequirements(world, components, account, quest);
+        const expectMet = meetsRequirements(quest);
+        if (row.requirementsMet !== expectMet) {
+          problems.push({ area: 'requirement', reason: 'requirementsMet differs from recompute', accountIndex, quest: row.index, served: row.requirementsMet, expect: expectMet });
+        }
+        const expectUnmet = (quest.requirements ?? []).filter((c) => !(c.status?.completable ?? false));
+        const served = row.unmetRequirements ?? [];
+        if (expectMet) {
+          if (row.unmetRequirements !== undefined) {
+            problems.push({ area: 'requirement', reason: 'unmetRequirements present on a row whose requirements are met', accountIndex, quest: row.index });
+          }
+        } else {
+          if (served.length !== expectUnmet.length) {
+            problems.push({ area: 'requirement', reason: 'unmetRequirements is not the failing subset', accountIndex, quest: row.index, served: served.length, expect: expectUnmet.length });
+          }
+          expectUnmet.forEach((con, i) => {
+            note('requirementsChecked');
+            const row2 = served[i];
+            if (!row2) return;
+            if (row2.met !== false) {
+              problems.push({ area: 'requirement', reason: 'a met requirement was listed as unmet', accountIndex, quest: row.index });
+            }
+            if (row2.type !== (con.target?.type ?? '')) {
+              problems.push({ area: 'requirement', reason: 'requirement target type differs from recompute', accountIndex, quest: row.index, served: row2.type });
+            }
+            const expectCurrent = con.status?.current === undefined ? undefined : Number(con.status.current);
+            const expectRequired = con.status?.target === undefined ? undefined : Number(con.status.target);
+            if (row2.current !== expectCurrent) {
+              problems.push({ area: 'requirement', reason: 'requirement current differs from recompute', accountIndex, quest: row.index, served: row2.current, expect: expectCurrent });
+            }
+            if (row2.required !== expectRequired) {
+              problems.push({ area: 'requirement', reason: 'requirement required differs from recompute', accountIndex, quest: row.index, served: row2.required, expect: expectRequired });
+            }
+            if (!row2.text) {
+              problems.push({ area: 'requirement', reason: 'an unmet requirement was served with no interpreted text — the refusal does not name its cause', accountIndex, quest: row.index });
+            }
+          });
+        }
+      }
+    }
+
+    // --- the narrowed views agree with the full answer --------------------
+    const openEnv = (await serve('quests', [String(accountIndex), '--open'])) as {
+      view: string;
+      quests: { index: number; objectivesMet: boolean; objectives: { met: boolean }[] }[];
+      completedCount: number;
+      completedIndices: number[];
+    };
+    const acceptedEnv = (await serve('quests', [String(accountIndex), '--accepted'])) as {
+      view: string;
+      quests: { index: number; complete: boolean }[];
+    };
+    const fullAccepted = answer.registry.filter((r) => r.account?.accepted);
+    const fullOpen = fullAccepted.filter((r) => !r.account!.complete);
+    const fullDone = fullAccepted.filter((r) => r.account!.complete);
+    if (openEnv.quests.length !== fullOpen.length) {
+      problems.push({ area: 'quests/open', reason: 'the open view and the --full answer disagree on how many quests are open', accountIndex, served: openEnv.quests.length, expect: fullOpen.length });
+    }
+    if (openEnv.completedCount !== fullDone.length || openEnv.completedIndices.length !== fullDone.length) {
+      problems.push({ area: 'quests/open', reason: 'completed count/indices disagree with the --full answer', accountIndex });
+    }
+    for (const row of openEnv.quests) {
+      note('openQuestRows');
+      const full = fullByIndex.get(row.index);
+      // THE PRE-ACCEPTANCE GUARD on the open view: an unaccepted quest can
+      // never reach it, so nothing here can carry pre-acceptance progress
+      if (!full?.account?.accepted) {
+        problems.push({ area: 'quests/open', reason: 'the open view served a quest the account has not accepted', accountIndex, quest: row.index });
+      }
+      if (full?.account?.complete) {
+        problems.push({ area: 'quests/open', reason: 'the open view served a finished quest', accountIndex, quest: row.index });
+      }
+      if (JSON.stringify(row.objectives) !== JSON.stringify(full?.account?.objectives)) {
+        problems.push({ area: 'quests/open', reason: 'objectives differ between the open view and the --full answer', accountIndex, quest: row.index });
+      }
+    }
+    if (acceptedEnv.quests.length !== fullAccepted.length) {
+      problems.push({ area: 'quests/accepted', reason: 'the accepted view and the --full answer disagree on how many quests are accepted', accountIndex, served: acceptedEnv.quests.length, expect: fullAccepted.length });
+    }
+    for (const row of acceptedEnv.quests) {
+      if (!fullByIndex.get(row.index)?.account?.accepted) {
+        problems.push({ area: 'quests/accepted', reason: 'the accepted view served an unaccepted quest', accountIndex, quest: row.index });
+      }
+    }
+
+    // --- keyed detail is the same facts, keyed -----------------------------
+    const someQuest = compactEnv.quests[0];
+    if (someQuest) {
+      const keyed = (await serve('quests', [String(accountIndex), String(someQuest.index)])) as {
+        view: string;
+        quests: { index: number; description?: string; requirementsMet?: boolean; requirements?: unknown[] }[];
+      };
+      note('keyedQuestAnswers');
+      const row = keyed.quests[0];
+      if (keyed.view !== 'detail' || keyed.quests.length !== 1 || row?.index !== someQuest.index) {
+        problems.push({ area: 'quests/detail', reason: 'keyed detail did not answer with exactly the quest asked for', accountIndex, quest: someQuest.index });
+      }
+      if (row && row.description === undefined) {
+        problems.push({ area: 'quests/detail', reason: 'keyed detail withheld the description — it is the one form that carries it', accountIndex, quest: someQuest.index });
+      }
+      if (row && row.requirementsMet !== someQuest.requirementsMet) {
+        problems.push({ area: 'quests/detail', reason: 'keyed detail disagrees with the compact row', accountIndex, quest: someQuest.index });
+      }
+      if (row && !Array.isArray(row.requirements)) {
+        problems.push({ area: 'quests/detail', reason: 'keyed detail served no requirements array', accountIndex, quest: someQuest.index });
+      }
+    }
+  }
 }
 
 // --- report line: does any registry objective carry a FOR shape? -------------
@@ -274,7 +436,10 @@ let largest = { accountIndex: 0, kamis: 0 };
 for (const accountIndex of accountIndexes) {
   const rosterEnv = await envelope('roster', [String(accountIndex)]);
   const roster = rosterEnv.data as RosterOut;
-  const party = (await serve('party', [String(accountIndex)])) as PartyOut;
+  // 0.5.0 (§3.13): `party` is capped by default, so the row-for-row
+  // agreement is asserted against the uncapped answer — the point of the
+  // check is that the two projections agree, not that they are the same size
+  const party = (await serve('party', [String(accountIndex), '--full'])) as PartyOut;
   note('rostersChecked');
 
   if (rosterEnv.untrusted.length !== 0) {
@@ -371,11 +536,58 @@ const bytes = (v: unknown) => Buffer.byteLength(JSON.stringify(v), 'utf8');
 let compaction: Record<string, unknown> = { measured: false };
 if (largest.kamis > 0) {
   const roster = (await serve('roster', [String(largest.accountIndex)])) as RosterOut;
-  const party = (await serve('party', [String(largest.accountIndex)])) as PartyOut;
+  // uncapped, so the marginal-bytes-per-kami comparison has every row on
+  // both sides (the cap is measured separately, in the capped-listing block)
+  const party = (await serve('party', [String(largest.accountIndex), '--full'])) as PartyOut;
   const rosterEmpty = bytes({ ...roster, kamis: [] });
   const partyEmpty = bytes({ ...party, kamis: [] });
   const rosterMarginal = (bytes(roster) - rosterEmpty) / largest.kamis;
   const partyMarginal = (bytes(party) - partyEmpty) / largest.kamis;
+  // 0.5.0 (§3.13): the two cheap leveling signals are SETS on the account
+  // block, not fields on the kami rows, and that placement is the whole
+  // argument. `rosterEmpty` includes them, so they cancel out of the
+  // marginal above BY CONSTRUCTION — which is why the ratio is unchanged at
+  // every roster composition rather than at the composition we happened to
+  // measure. Assert the sets are correct, and that the marginal really did
+  // not move.
+  {
+    const acc = roster.account as unknown as {
+      levelUpReady?: number[];
+      skillPoints?: number[][];
+    };
+    if (!Array.isArray(acc.levelUpReady) || !Array.isArray(acc.skillPoints)) {
+      problems.push({ area: 'roster/leveling', reason: 'the leveling sets are not on the account block', accountIndex: largest.accountIndex });
+    } else {
+      const rows = new Set(roster.kamis.map((k) => k.index));
+      for (const index of acc.levelUpReady) {
+        if (!rows.has(index)) {
+          problems.push({ area: 'roster/leveling', reason: 'levelUpReady named a kami that is not in the roster', accountIndex: largest.accountIndex, kami: index });
+        }
+      }
+      for (const pair of acc.skillPoints) {
+        if (!Array.isArray(pair) || pair.length !== 2 || !rows.has(pair[0]) || !(pair[1] > 0)) {
+          problems.push({ area: 'roster/leveling', reason: 'a skillPoints entry is not [kamiIndex, positivePoints] for a roster kami', accountIndex: largest.accountIndex, pair });
+        }
+      }
+      // every set member must agree with the party report for the same kami
+      const partyByIndex = new Map(
+        (party.kamis as unknown as { index: number; levelUpReady?: boolean; skillPoints?: number }[]).map(
+          (k) => [k.index, k]
+        )
+      );
+      const readySet = new Set(acc.levelUpReady);
+      const spMap = new Map(acc.skillPoints.map((p) => [p[0], p[1]]));
+      for (const [index, full] of partyByIndex) {
+        note('rosterLevelingRowsChecked');
+        if (readySet.has(index) !== (full.levelUpReady === true)) {
+          problems.push({ area: 'roster/leveling', reason: 'levelUpReady disagrees with the party report', accountIndex: largest.accountIndex, kami: index });
+        }
+        if ((spMap.get(index) ?? 0) !== (full.skillPoints ?? 0)) {
+          problems.push({ area: 'roster/leveling', reason: 'skillPoints disagrees with the party report', accountIndex: largest.accountIndex, kami: index });
+        }
+      }
+    }
+  }
   const ratio = rosterMarginal / partyMarginal;
   compaction = {
     measured: true,
@@ -412,6 +624,84 @@ if (largest.kamis > 0) {
   }
   if (!(ratio <= ROSTER_MARGINAL_BYTES_MAX_RATIO)) {
     problems.push({ area: 'roster', reason: 'compaction prediction falsified', compaction });
+  }
+  // §3.13: the leveling sets must be FIXED overhead, exactly as the enriched
+  // room ref is. A per-kami cost here would mean the placement argument is
+  // wrong, and the frozen threshold would then be passing on composition
+  // rather than on construction.
+  {
+    const stripped = {
+      ...roster,
+      account: Object.fromEntries(
+        Object.entries(roster.account as unknown as Record<string, unknown>).filter(
+          ([k]) => k !== 'levelUpReady' && k !== 'skillPoints'
+        )
+      ),
+    };
+    const strippedEmpty = bytes({ ...stripped, kamis: [] });
+    const strippedMarginal = (bytes(stripped) - strippedEmpty) / largest.kamis;
+    compaction.leveling = {
+      fixedOverheadDeltaBytes: rosterEmpty - strippedEmpty,
+      marginalWithSets: Number(rosterMarginal.toFixed(6)),
+      marginalWithoutSets: Number(strippedMarginal.toFixed(6)),
+    };
+    if (Number(strippedMarginal.toFixed(6)) !== Number(rosterMarginal.toFixed(6))) {
+      problems.push({ area: 'roster/leveling', reason: 'the leveling sets charged a PER-KAMI cost; they must be fixed overhead only', compaction });
+    }
+  }
+}
+
+// --- 0.5.0 (§3.13): every capped listing is honest about its cap ------------
+// A truncated answer that did not say so would be worse than a big one: the
+// reader cannot tell "nobody else is here" from "the rest did not fit".
+const CAP = 50;
+const capCases: { query: string; args: string[]; total: string; served: string; rows: string }[] = [
+  { query: 'room', args: ['12'], total: 'accountsTotal', served: 'accountsServed', rows: 'accounts' },
+  { query: 'node', args: ['9', '--with-vitals'], total: 'harvestsTotal', served: 'harvestsServed', rows: 'harvests' },
+  { query: 'party', args: [String(largest.accountIndex)], total: 'kamisTotal', served: 'kamisServed', rows: 'kamis' },
+  { query: 'leaderboard', args: [], total: 'rowsTotal', served: 'rowsServed', rows: 'rows' },
+  { query: 'trades', args: [], total: 'openTotal', served: 'openServed', rows: 'open' },
+];
+const capReport: Record<string, unknown>[] = [];
+for (const c of capCases) {
+  const compact = (await serve(c.query, c.args)) as Record<string, unknown>;
+  const full = (await serve(c.query, [...c.args, '--full'])) as Record<string, unknown>;
+  const total = compact[c.total] as number;
+  const servedCount = compact[c.served] as number;
+  const rows = compact[c.rows] as unknown[];
+  const fullRows = full[c.rows] as unknown[];
+  note('cappedListingsChecked');
+  capReport.push({
+    query: `${c.query} ${c.args.join(' ')}`.trim(),
+    total,
+    served: servedCount,
+    compactBytes: bytes(compact),
+    fullBytes: bytes(full),
+  });
+  if (typeof total !== 'number' || typeof servedCount !== 'number') {
+    problems.push({ area: 'cap', reason: 'a capped listing did not serve both counts', query: c.query });
+    continue;
+  }
+  if (servedCount !== rows.length) {
+    problems.push({ area: 'cap', reason: 'servedCount disagrees with the rows actually served', query: c.query, servedCount, rows: rows.length });
+  }
+  if (servedCount > CAP) {
+    problems.push({ area: 'cap', reason: 'the cap did not fire', query: c.query, servedCount });
+  }
+  if (servedCount > total) {
+    problems.push({ area: 'cap', reason: 'served more rows than exist', query: c.query, servedCount, total });
+  }
+  if (servedCount !== Math.min(total, CAP)) {
+    problems.push({ area: 'cap', reason: 'served neither the whole list nor a full cap', query: c.query, servedCount, total });
+  }
+  // --full lifts it, and the compact rows are the PREFIX of the full ones:
+  // the order is unconditional, so the two answers must agree about which
+  // rows come first
+  if ((full[c.served] as number) !== total || fullRows.length !== total) {
+    problems.push({ area: 'cap', reason: '--full did not lift the cap', query: c.query, total, fullServed: full[c.served] });
+  }
+  if (total > CAP && bytes(compact) >= bytes(full)) {
+    problems.push({ area: 'cap', reason: 'the compact answer is not smaller than the full one', query: c.query });
   }
 }
 
@@ -531,6 +821,7 @@ await writeMeasurement('g7a-consistency', {
   registryObjectivesScanned,
   objectivesWithForComponent,
   compaction,
+  capReport,
   enrichedRoster,
   poolsServed: itemsAnswer.pools.length,
   vacuous,
