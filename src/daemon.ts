@@ -56,6 +56,26 @@ export const ERR_NO_SNAPSHOT_SOURCE = 'ERR_NO_SNAPSHOT_SOURCE';
 /** Bounded bootstrap retry schedule (DESIGN §3.2). */
 const BOOTSTRAP_RETRY_DELAYS_MS = [5_000, 15_000, 30_000, 60_000, 120_000];
 
+/** Pre-LIVE progress bound (0.5.2, DESIGN §3.2). The bootstrap path is a
+ * chain of awaits, and BEFORE 0.5.2 not one of them had a timeout of its
+ * own: a socket that never opened held the whole sequence open with no
+ * failure event, so the schedule above — which only ever sees the worker's
+ * terminal errors — never engaged. Observed live 2026-08-27 (laptop-wake
+ * restart): SETUP / "Starting State Sync" / 0% / liveBlockNumber 0 for 8+
+ * minutes while the network was demonstrably back and `headBlockNumber` kept
+ * advancing. The specific hole is fixed at its source (engine/providers
+ * NETWORK_CHECK_TIMEOUT_MS); THIS is the bound that does not depend on
+ * having found the right await. Ninety seconds is chosen against the
+ * phases: every pre-LIVE phase either ticks a percentage or changes its
+ * message far faster than this, and the one phase that legitimately goes
+ * quiet — saving the state cache — was measured at 3.7 s for 2.96M entries.
+ * A restart costs one bootstrap attempt out of the schedule above. */
+const PRELIVE_STALL_MS = 90_000;
+
+/** How often the pre-LIVE watchdog compares progress. Short relative to the
+ * bound, so the restart fires close to it rather than up to a tick late. */
+const PRELIVE_CHECK_INTERVAL_MS = 5_000;
+
 const LOADING_STATE_COMPONENT_ID = keccak256('component.LoadingState');
 
 export type CheckpointReport = {
@@ -132,6 +152,13 @@ export class KamiLensDaemon {
   private clockSyncTimer: NodeJS.Timeout | null = null;
   private clockProvider: JsonRpcProvider | null = null;
   private retryTimer: NodeJS.Timeout | null = null;
+  /** pre-LIVE progress watchdog (§3.2): the timer, and the last distinct
+   * progress observation it saw. The KEY is compared, not any single field —
+   * a message change is progress just as a percentage tick is, and the
+   * "Saving State Cache" phase ticks neither percentage nor block. */
+  private preLiveTimer: NodeJS.Timeout | null = null;
+  private preLiveProgressKey = '';
+  private preLiveProgressAtWallMs = 0;
   private stopped = false;
   private bootstrapAttempts = 0;
   private checkpointCount = 0;
@@ -304,6 +331,7 @@ export class KamiLensDaemon {
   private bootstrap(): void {
     if (this.stopped) return;
     this.bootstrapAttempts++;
+    this.armPreLiveWatchdog();
 
     const world = createWorld();
     const components = createComponents(world);
@@ -373,6 +401,72 @@ export class KamiLensDaemon {
     worker.input$.next({ type: InputType.Config, data: syncWorkerConfig });
   }
 
+  /** The progress fingerprint the watchdog compares. Any change is progress. */
+  private progressKey(): string {
+    return `${this.syncStatus.state}|${this.syncStatus.percentage}|${this.syncStatus.msg}|${this.liveBlockNumber}`;
+  }
+
+  /** Milliseconds since the last observed pre-LIVE progress; 0 once LIVE (or
+   * before the watchdog has armed), so no caller can read a stall into a
+   * healthy daemon. */
+  private preLiveStalledForMs(): number {
+    if (this.liveAt || this.stopped || this.preLiveProgressAtWallMs === 0) return 0;
+    return Date.now() - this.preLiveProgressAtWallMs;
+  }
+
+  private armPreLiveWatchdog(): void {
+    if (this.preLiveTimer) clearInterval(this.preLiveTimer);
+    this.preLiveProgressKey = this.progressKey();
+    this.preLiveProgressAtWallMs = Date.now();
+    this.preLiveTimer = setInterval(() => this.checkPreLiveProgress(), PRELIVE_CHECK_INTERVAL_MS);
+    this.preLiveTimer.unref?.();
+  }
+
+  private disarmPreLiveWatchdog(): void {
+    if (this.preLiveTimer) clearInterval(this.preLiveTimer);
+    this.preLiveTimer = null;
+    this.preLiveProgressAtWallMs = 0;
+  }
+
+  /** One watchdog tick. A stalled pre-LIVE daemon is torn down and
+   * re-bootstrapped through the SAME schedule a worker failure takes — it
+   * counts as an attempt, and exhausting the schedule still rejects loudly
+   * (§3.2). Routed through onFailed rather than around it so there is one
+   * retry path, not two. */
+  private checkPreLiveProgress(): void {
+    if (this.stopped || this.liveAt) {
+      this.disarmPreLiveWatchdog();
+      return;
+    }
+    const key = this.progressKey();
+    if (key !== this.preLiveProgressKey) {
+      this.preLiveProgressKey = key;
+      this.preLiveProgressAtWallMs = Date.now();
+      return;
+    }
+    const stalledMs = this.preLiveStalledForMs();
+    if (stalledMs < PRELIVE_STALL_MS) return;
+    const seconds = Math.floor(stalledMs / 1000);
+    log.warn(
+      `[daemon] pre-LIVE stall: no progress for ${seconds}s — restarting bootstrap`
+    );
+    // re-arm BEFORE the restart so the next window is measured from now and a
+    // teardown that itself takes time cannot trip the watchdog again
+    this.preLiveProgressAtWallMs = Date.now();
+    // SANITIZE THE EMBEDDED MESSAGE. onFailed stands down when it sees
+    // 'retrying in', which is how the worker says "I am handling this
+    // myself" — and the worker's own retry message is exactly the text this
+    // line quotes. Left alone, a stall that happened WHILE the worker was
+    // self-retrying would be swallowed by the marker it accidentally
+    // repeated.
+    const context = (this.syncStatus.msg || 'no message').split('retrying in').join('retrying after');
+    this.onFailed({
+      state: SyncState.FAILED,
+      msg: `pre-LIVE stall: no progress for ${seconds}s (${context})`,
+      percentage: this.syncStatus.percentage,
+    });
+  }
+
   private onSyncStatus(status: SyncStatus): void {
     this.syncStatus = status;
     if (status.state === SyncState.LIVE && !this.liveAt) {
@@ -393,6 +487,7 @@ export class KamiLensDaemon {
     } catch (e) {
       log.warn('[daemon] failed to read the post-backfill checkpoint', e);
     }
+    this.disarmPreLiveWatchdog();
     if (this.checkpointTimer) clearInterval(this.checkpointTimer);
     this.checkpointTimer = setInterval(() => {
       void this.checkpoint().catch((e) => log.error('[daemon] checkpoint failed', e));
@@ -432,8 +527,9 @@ export class KamiLensDaemon {
       { chainId, name: 'yominet' },
       { staticNetwork: true }
     );
-    const block = await this.clockProvider.getBlock(this.liveBlockNumber);
-    if (block) clock.observeBlockTimestamp(block.timestamp);
+    const observedBlock = this.liveBlockNumber;
+    const block = await this.clockProvider.getBlock(observedBlock);
+    if (block) clock.observeBlockTimestamp(block.timestamp, observedBlock);
   }
 
   /** Bounded bootstrap retry (DESIGN §3.2): upstream shows the player an
@@ -453,6 +549,10 @@ export class KamiLensDaemon {
         `bootstrap failed after ${this.bootstrapAttempts} attempts: ${status.msg}`
       );
       log.error('[daemon]', error.message);
+      // the schedule is spent: stop the pre-LIVE watchdog too, or it keeps
+      // ticking against a daemon that has already given up loudly and
+      // re-reports the same exhaustion every PRELIVE_STALL_MS
+      this.disarmPreLiveWatchdog();
       this.rejectLive(error);
       return;
     }
@@ -569,6 +669,10 @@ export class KamiLensDaemon {
         ? Date.now() - this.lastStreamEventAtWallMs
         : 0;
     const streamStalled = !this.stopped && streamSilentMs > KamiLensDaemon.STREAM_STALL_MS;
+    // §3.2 (0.5.2): the pre-LIVE stall is CHAIN health, so it belongs in
+    // `degraded` beside the stream stall — a watcher that reads only this
+    // array sees the wedge that 0.5.1 made invisible.
+    const preLiveStalledMs = this.preLiveStalledForMs();
     return {
       state: this.stopped ? 'STOPPED' : (SyncState[this.syncStatus.state] as keyof typeof SyncState),
       msg: this.syncStatus.msg,
@@ -581,6 +685,9 @@ export class KamiLensDaemon {
       checkpointCount: this.checkpointCount,
       tripwires,
       degraded: [
+        ...(preLiveStalledMs > PRELIVE_STALL_MS
+          ? [`pre-live-stall:${Math.floor(preLiveStalledMs / 1000)}s`]
+          : []),
         ...(streamStalled ? [`stream-stalled:${Math.floor(streamSilentMs / 1000)}s`] : []),
         ...Object.entries(tripwires)
           .filter(([, count]) => count > 0)
@@ -627,6 +734,7 @@ export class KamiLensDaemon {
     if (this.stopped) return;
     this.stopped = true;
     this.kamiden.stop();
+    this.disarmPreLiveWatchdog();
     if (this.checkpointTimer) clearInterval(this.checkpointTimer);
     if (this.clockSyncTimer) clearInterval(this.clockSyncTimer);
     this.clockProvider?.destroy();

@@ -18,6 +18,19 @@
  *              wholesale; in-process (swap point 2) that guarantee must be
  *              explicit, so init() keeps the provider/stream disposers and
  *              dispose() runs them.
+ *           5. init() catches (0.5.2): the whole bootstrap body is wrapped so
+ *              a throw becomes SyncState.FAILED instead of an unhandled
+ *              promise rejection. Upstream calls init() from the constructor
+ *              with no catch and never awaits it — a browser tab shows the
+ *              player an error and the player reloads. In-process (swap
+ *              point 2) an escaping rejection reaches NOTHING: the daemon
+ *              learns about failure ONLY through the LoadingState component
+ *              (daemon.ts onSyncStatus/onFailed), so an exception on the
+ *              bootstrap path — the provider ladder exhausting its retries
+ *              being the live case — left the daemon in its last reported
+ *              state forever with its bounded-retry schedule never engaged.
+ *              The message is sanitized of the substring 'retrying in',
+ *              which onFailed reads as "the worker is handling this itself".
  *           Type-hole fix: the snapshot catch block reads e.code on an
  *           unknown catch variable — cast to {code?: unknown} (upstream is
  *           vite-transpiled and never typechecked; no behavior change).
@@ -168,6 +181,22 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
    * 7. Keep in sync with streamer/rpc
    */
   private async init() {
+    try {
+      await this.initOnce();
+    } catch (e) {
+      // divergence 5: a throw on the bootstrap path must become a FAILED
+      // sync state, because that component update is the only channel the
+      // daemon supervises. Never an unhandled rejection.
+      console.error('[SyncWorker] bootstrap threw', e);
+      const raw = e instanceof Error ? e.message : String(e);
+      this.setLoadingState({
+        state: SyncState.FAILED,
+        msg: `bootstrap error: ${raw.split('retrying in').join('retrying after')}`,
+      });
+    }
+  }
+
+  private async initOnce() {
     performance.mark('connecting');
     this.setLoadingState({ state: SyncState.CONNECTING, msg: 'Connecting..', percentage: 0 });
 

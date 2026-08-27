@@ -1,0 +1,146 @@
+{
+  "gate": "g6b-chain-crosscheck",
+  "measuredAt": "2026-08-25T23:21:28.377Z",
+  "pinnedBlock": 32572051,
+  "headAfterVerify": 32572069,
+  "blocksBehindAtEnd": 18,
+  "verifyElapsedMs": 7923,
+  "reads": 101,
+  "concurrency": 8,
+  "accountIndex": 2160,
+  "roomIndex": 25,
+  "sampling": "inventory/room/room-exits/merchant exhaustive for the sampled entities; leaderboard top-10 + every 200th per board",
+  "counts": {
+    "inventoryRows": 14,
+    "roomOccupants": 17,
+    "roomNegatives": 5,
+    "roomExits": 3,
+    "listings": 16,
+    "scores:COLLECT": 10,
+    "scores:LIQUIDATE": 10
+  },
+  "violations": [
+    {
+      "area": "leaderboard",
+      "type": "COLLECT",
+      "rank": 1,
+      "reason": "no is.score hash entity"
+    },
+    {
+      "area": "leaderboard",
+      "type": "COLLECT",
+      "rank": 2,
+      "reason": "no is.score hash entity"
+    },
+    {
+      "area": "leaderboard",
+      "type": "COLLECT",
+      "rank": 3,
+      "reason": "no is.score hash entity"
+    },
+    {
+      "area": "leaderboard",
+      "type": "COLLECT",
+      "rank": 4,
+      "reason": "no is.score hash entity"
+    },
+    {
+      "area": "leaderboard",
+      "type": "COLLECT",
+      "rank": 5,
+      "reason": "no is.score hash entity"
+    },
+    {
+      "area": "leaderboard",
+      "type": "COLLECT",
+      "rank": 6,
+      "reason": "no is.score hash entity"
+    },
+    {
+      "area": "leaderboard",
+      "type": "COLLECT",
+      "rank": 7,
+      "reason": "no is.score hash entity"
+    },
+    {
+      "area": "leaderboard",
+      "type": "COLLECT",
+      "rank": 8,
+      "reason": "no is.score hash entity"
+    },
+    {
+      "area": "leaderboard",
+      "type": "COLLECT",
+      "rank": 9,
+      "reason": "no is.score hash entity"
+    },
+    {
+      "area": "leaderboard",
+      "type": "COLLECT",
+      "rank": 10,
+      "reason": "no is.score hash entity"
+    },
+    {
+      "area": "leaderboard",
+      "type": "LIQUIDATE",
+      "rank": 1,
+      "reason": "no is.score hash entity"
+    },
+    {
+      "area": "leaderboard",
+      "type": "LIQUIDATE",
+      "rank": 2,
+      "reason": "no is.score hash entity"
+    },
+    {
+      "area": "leaderboard",
+      "type": "LIQUIDATE",
+      "rank": 3,
+      "reason": "no is.score hash entity"
+    },
+    {
+      "area": "leaderboard",
+      "type": "LIQUIDATE",
+      "rank": 4,
+      "reason": "no is.score hash entity"
+    },
+    {
+      "area": "leaderboard",
+      "type": "LIQUIDATE",
+      "rank": 5,
+      "reason": "no is.score hash entity"
+    },
+    {
+      "area": "leaderboard",
+      "type": "LIQUIDATE",
+      "rank": 6,
+      "reason": "no is.score hash entity"
+    },
+    {
+      "area": "leaderboard",
+      "type": "LIQUIDATE",
+      "rank": 7,
+      "reason": "no is.score hash entity"
+    },
+    {
+      "area": "leaderboard",
+      "type": "LIQUIDATE",
+      "rank": 8,
+      "reason": "no is.score hash entity"
+    },
+    {
+      "area": "leaderboard",
+      "type": "LIQUIDATE",
+      "rank": 9,
+      "reason": "no is.score hash entity"
+    },
+    {
+      "area": "leaderboard",
+      "type": "LIQUIDATE",
+      "rank": 10,
+      "reason": "no is.score hash entity"
+    }
+  ],
+  "violationCount": 20,
+  "match": false
+}

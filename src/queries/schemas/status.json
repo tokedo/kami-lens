@@ -14,6 +14,7 @@
         "startedAt",
         "tripwires",
         "degraded",
+        "feedsDegraded",
         "kamiden",
         "clockOffsetMs",
         "config",
@@ -70,6 +71,13 @@
           "items": {
             "type": "string"
           }
+        },
+        "feedsDegraded": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "§1.2 (0.5.2): Kamiden FEED health, shaped like `degraded` so a caller gates on it the same way, and kept separate from it because `degraded` is chain-only and drives meta.stale (§3.2). 'kamiden-stream:<state>' whenever the stream is not live; 'kamiden-silent:<N>s' past SILENT_STALL_MS. Empty array when healthy — never absent."
         },
         "kamiden": {
           "$ref": "#/$defs/KamidenStatus"

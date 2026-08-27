@@ -89,16 +89,100 @@ being guessed at.
 
 ## Status
 
-**0.4.0, pre-release.** Daemon, CLI, and library are implemented and
+**0.5.2, pre-release.** Daemon, CLI, and library are implemented and
 gate-verified against the pinned upstream commit and the live game,
 with dated per-run evidence in `docs/measurements/`. The verification
-suite is G0–G7; every run writes its own dated record, and the record
-— not this paragraph — is what a given release rests on. The
-contract registry is [SPEC.md](SPEC.md); per-surface coverage — what
-is served, what is deferred, what is out of scope — is
-[docs/coverage.md](docs/coverage.md).
+suite is G0–G9 (G8 and G9 are manual and live); every run writes its
+own dated record, and the record — not this paragraph — is what a
+given release rests on. The contract registry is [SPEC.md](SPEC.md);
+per-surface coverage — what is served, what is deferred, what is out
+of scope — is [docs/coverage.md](docs/coverage.md).
 
-0.4.0 adds optional payload enrichment (above): the facts a client shows
+### What changed in 0.5.2, for the things that read this daemon
+
+Four changes. Two are new options you have to ask for; two change what
+you get back without being asked.
+
+**The daemon no longer pretends to be up when it is not.** If it is
+still starting, every world read now fails with the code `NOT_READY`
+and a message saying which phase it is in and how far along
+("daemon not LIVE (SETUP 0%): mirror empty"). It used to answer
+`NOT_FOUND — node 9 not in mirror`, which reads exactly like "there is
+no such node" and sent callers hunting for a missing thing instead of
+waiting. From now on `NOT_FOUND` only ever means "the daemon is up and
+the world does not contain this". The `status` and `health` reads keep
+answering at all times, as before. Underneath, a daemon that gets stuck
+while starting now gives up and restarts itself after 90 seconds
+instead of sitting there indefinitely, and while it is stuck the
+`degraded` list says `pre-live-stall:<seconds>`.
+
+**The health summary now covers the feed service too.** `status` has a
+second list beside `degraded`, called `feedsDegraded`. The old list
+covers the blockchain mirror only, on purpose — a feed outage must not
+make chain answers look stale. But nine of the reads (killers, battles,
+trades, auctions, market, portal, transfers, feed, chat) come from the
+feed service, and a caller checking only the old list saw a healthy
+daemon while the feed was flapping. Check `feedsDegraded` before
+trusting any of those nine. Note that a rising reconnect count is
+normal here: the server hangs up roughly every 40 seconds by design, so
+the new list keys on whether the stream is live and how long it has
+been silent, not on how often it reconnected.
+
+**Every answer now says when it was computed.** There is a new `asOf`
+block in the `meta` of every response: the mirror block, the moment the
+projection math used, and — separately — which block the daemon's clock
+correction came from, how big that correction is, and how long ago it
+was taken. They are separate on purpose, because they are different
+facts. This matters because the daemon's clock was measured running
+about 15 seconds behind real chain time, and it can jump backwards by
+several seconds when it re-syncs. Nothing about the computed values
+changed in this release; you can now see the uncertainty instead of
+guessing at it. Two related additions: single-kami and node-occupant
+reads carry `cooldownUntil`, the raw cooldown end time from the chain,
+beside the projected `cooldownSec` — compare it against a block
+timestamp you trust rather than trusting the projection, and read a
+zero as "unknown", never as "ready now". And each liquidation preview
+carries `margin`, which is the HP threshold minus the target's
+projected HP, so you can require a safety cushion instead of trusting
+the `eligible` flag. The error on that projection is genuinely not
+bounded and the registry says so rather than inventing a number.
+
+**Two new options that make big answers small.** `node <index>
+<attacker> --with-vitals --eligible-only` returns only the occupants
+that attacker can actually liquidate. It needs both the vitals flag and
+an attacker (it refuses without either, since eligibility is a pairing,
+not a property of the target). The whole-node count still comes back as
+`harvestsTotal`, with `harvestsEligible` beside it saying how many
+passed the filter, so an empty list means "none eligible" and never
+"nothing here". Measured on the live world: one node went from 1.3 MB
+to 15.9 KB. And `account <index> --slim` returns identity only — index,
+name, both addresses, room, stamina, and a kami count — with no roster
+at all. A 164-kami account was 23 KB and is now about 300 bytes, and
+because slim drops the gas balance it makes no blockchain call either,
+so a bulk name lookup is cheap. Without these flags, every answer is
+byte-for-byte what 0.5.1 returned.
+
+**Unknown options are now refused, not ignored — and this one affects
+upgrade order.** Asking a 0.5.1 daemon for something it does not
+understand over its socket got you a plausible wrong answer rather than
+an error: `account 3379 --slim` came back with the whole roster and
+`ok: true`, and `node ... --eligible-only` came back unfiltered and
+`ok: true`. The command-line tool refused both correctly; the socket,
+which is what programs actually talk to, did not. From 0.5.2 both
+refuse, with the same `BAD_ARGS` message. The practical consequence:
+**a client built for 0.5.2 talking to a 0.5.1 daemon receives exactly
+the large payloads it asked to avoid, with no error**, so do not run a
+mixed pair — deploy the lens first, then the client that uses the new
+options.
+
+One known problem, not fixed here: the `room` read lists some exits
+twice, when a destination is reachable both as a neighbour and by a
+special exit. Nothing it reports is wrong, but if you deduplicate by
+destination, merge the gate lists or you will drop a gate. Fixing it
+removes fields from an answer, which needs its own release to review
+properly; it is scheduled for 0.5.3.
+
+0.4.0 added optional payload enrichment (above): the facts a client shows
 in a tooltip — what an item does, what using it requires, what a quest
 pays, which room an index names — served inline in the results that name
 those things, from the chain and deployed config only (DESIGN §3.12).

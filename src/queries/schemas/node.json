@@ -46,6 +46,10 @@
           "type": "number",
           "description": "§3.13: every ACTIVE harvest on the node, whether or not this answer served it. 732 measured on one node at one pin, a 266 KB answer with vitals."
         },
+        "harvestsEligible": {
+          "type": "integer",
+          "description": "§3.13 (0.5.2): `--eligible-only` ONLY, absent without the flag. Rows that passed the filter, out of harvestsTotal — which keeps reporting the WHOLE node."
+        },
         "harvestsServed": {
           "type": "number",
           "description": "§3.13: how many rows this answer carries. Below the total when the cap fired; --full lifts it."
@@ -98,7 +102,8 @@
       "required": [
         "hp",
         "musuAccrued",
-        "cooldownSec"
+        "cooldownSec",
+        "cooldownUntil"
       ],
       "properties": {
         "hp": {
@@ -130,6 +135,10 @@
         },
         "cooldownSec": {
           "type": "number"
+        },
+        "cooldownUntil": {
+          "type": "integer",
+          "description": "§3.8 (0.5.2): the RAW on-chain cooldown end time, in CHAIN SECONDS — the value cooldownSec is projected from. 0 means the mirror holds no NextTime for this kami (it has never acted, or the component has not synced yet); treat 0 as unknown, never as 'ready'."
         },
         "level": {
           "type": "number",
@@ -177,6 +186,7 @@
       "required": [
         "eligible",
         "threshold",
+        "margin",
         "spoils",
         "salvage",
         "recoil"
@@ -198,6 +208,10 @@
         "threshold": {
           "type": "number"
         },
+        "margin": {
+          "type": "number",
+          "description": "§3.13 (0.5.2): threshold minus the occupant's projected hp. May be negative. The projection error is NOT bounded (SPEC §3.13), so a caller wanting certainty requires a margin rather than trusting `eligible`."
+        },
         "spoils": {
           "type": "number"
         },
@@ -216,7 +230,8 @@
         "id",
         "index",
         "name",
-        "cooldownSec"
+        "cooldownSec",
+        "cooldownUntil"
       ],
       "properties": {
         "id": {
@@ -230,6 +245,10 @@
         },
         "cooldownSec": {
           "type": "number"
+        },
+        "cooldownUntil": {
+          "type": "integer",
+          "description": "§3.8 (0.5.2): the RAW on-chain cooldown end time, in CHAIN SECONDS — the value cooldownSec is projected from. 0 means the mirror holds no NextTime for this kami (it has never acted, or the component has not synced yet); treat 0 as unknown, never as 'ready'."
         }
       }
     },

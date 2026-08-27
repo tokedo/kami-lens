@@ -42,7 +42,8 @@
         "state",
         "hp",
         "hpRatePerHr",
-        "cooldownSec"
+        "cooldownSec",
+        "cooldownUntil"
       ],
       "properties": {
         "id": {
@@ -105,6 +106,10 @@
         },
         "cooldownSec": {
           "type": "number"
+        },
+        "cooldownUntil": {
+          "type": "integer",
+          "description": "§3.8 (0.5.2): the RAW on-chain cooldown end time, in CHAIN SECONDS — the value cooldownSec is projected from. 0 means the mirror holds no NextTime for this kami (it has never acted, or the component has not synced yet); treat 0 as unknown, never as 'ready'."
         },
         "node": {
           "$ref": "#/$defs/NodeRef"

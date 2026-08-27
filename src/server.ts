@@ -19,8 +19,9 @@ import path from 'node:path';
 import * as clock from 'clock';
 import { log } from 'utils/logger';
 import { KamiLensDaemon } from './daemon';
+import { SILENT_STALL_MS } from './kamiden';
 import { buildEnvelope, QueryError, serveQuery } from './queries';
-import { loadSchema, REGISTRY, QueryName } from './queries/registry';
+import { assertSocketArgs, loadSchema, REGISTRY, QueryName } from './queries/registry';
 import { getVersionInfo } from './version';
 
 export const SOCKET_NAME = 'kami-lens.sock';
@@ -77,6 +78,27 @@ export async function sampleHead(daemon: KamiLensDaemon): Promise<HeadSample | u
   }
 }
 
+/** §1.2 (0.5.2): Kamiden feed health, as an array shaped like `degraded` so
+ * a caller gates on it the same way. It is SEPARATE from `degraded` and that
+ * separation is the doctrine, not an oversight: `degraded` is CHAIN health
+ * and drives `meta.stale`, and a Kamiden outage must never stamp a chain
+ * answer stale (§3.2 soft dependency). But nine reads ARE Kamiden-backed,
+ * and a session protocol that opens on `status` and gates every later read
+ * on `degraded` alone was reading a healthy-looking daemon while the feed
+ * flapped (observed 2026-08-27: stream `retrying`, 16 reconnects in 13 min,
+ * `degraded: []`). Empty array when the feed is healthy — never absent, so
+ * "the feed is fine" and "nobody looked" are different answers. */
+export function feedsDegradedOf(kamiden: {
+  stream: { state: string; silentMs: number };
+}): string[] {
+  const out: string[] = [];
+  if (kamiden.stream.state !== 'live') out.push(`kamiden-stream:${kamiden.stream.state}`);
+  if (kamiden.stream.silentMs > SILENT_STALL_MS) {
+    out.push(`kamiden-silent:${Math.floor(kamiden.stream.silentMs / 1000)}s`);
+  }
+  return out;
+}
+
 export function buildStatusData(
   daemon: KamiLensDaemon,
   head?: HeadSample
@@ -111,6 +133,9 @@ export function buildStatusData(
     checkpoint: s.checkpoint as unknown as Record<string, unknown> | null,
     tripwires: s.tripwires as unknown as Record<string, number>,
     degraded: s.degraded,
+    // §1.2 (0.5.2): the Kamiden counterpart of `degraded`. See
+    // feedsDegradedOf above for why the two arrays stay separate.
+    feedsDegraded: feedsDegradedOf(s.kamiden),
     // per-feed Kamiden health (§3.2): surfaced separately from `degraded`,
     // which stays chain-only — a Kamiden outage must never stamp chain
     // answers stale
@@ -164,6 +189,15 @@ async function handle(daemon: KamiLensDaemon, req: Request): Promise<Record<stri
   const id = req.id ?? null;
   try {
     if (!req.query) throw new QueryError('BAD_ARGS', 'request needs a query name');
+    // §3.13 (0.5.2): AN UNDECLARED OPTION IS AN ERROR ON THIS PATH TOO. The
+    // CLI has refused undeclared `--flags` since 0.5.0; the socket — the path
+    // the harness and the agents actually use — silently ignored them, so
+    // `account 3379 --slim` answered `ok: true` WITH the whole roster and
+    // `node … --eligible-only` answered `ok: true` UNFILTERED. A caller got a
+    // plausible answer to a question it did not ask, from the same daemon
+    // that refused the identical tokens on the CLI. One rule now, in the
+    // registry, used by both.
+    assertSocketArgs(req.query, req.args ?? []);
     const opts = { prose: req.prose, noAuthored: req.noAuthored, oversize: req.oversize };
     if (req.query === 'status') {
       // §3.15 (0.5.1): one eth_blockNumber per status answer, awaited here
@@ -178,8 +212,29 @@ async function handle(daemon: KamiLensDaemon, req: Request): Promise<Record<stri
       );
       return { id, ok: true, ...envelope };
     }
+    // §3.14 (0.5.2): a world read against a daemon that is not LIVE gets
+    // NOT_READY, never NOT_FOUND. Before this, every read during a pre-LIVE
+    // wedge answered `NOT_FOUND: node 9 not in mirror` — a code a caller
+    // cannot tell from "that node does not exist", and one that sends it
+    // hunting a missing entity instead of waiting for a daemon that is still
+    // coming up (observed live 2026-08-27, nodes 9/10/86).
+    //
+    // SAFE AGAINST THE DEGRADED-HONESTY CONTRACT (G3.e), and this is the
+    // load-bearing part: nothing moves the sync state away from LIVE once it
+    // is reached. Every SyncState.FAILED transition in the ported worker is
+    // strictly pre-LIVE, and onFailed returns early once `liveAt` is set. So
+    // a post-LIVE stream outage still serves last-synced state stamped
+    // `stale: true`, exactly as §3.2 requires — this gate cannot fire there.
+    const state = daemon.getStatus();
+    if (state.state !== 'LIVE') {
+      throw new QueryError(
+        'NOT_READY',
+        `daemon not LIVE (${state.state} ${state.percentage}%): mirror empty` +
+          (state.msg ? ` — ${state.msg}` : '')
+      );
+    }
     const mirror = daemon.getMirror();
-    if (!mirror) throw new QueryError('NOT_FOUND', 'mirror not initialized yet');
+    if (!mirror) throw new QueryError('NOT_READY', 'daemon not LIVE: mirror not initialized yet');
     const ctx = {
       mirror,
       kamiden: daemon.kamiden,

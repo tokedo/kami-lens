@@ -332,6 +332,10 @@ export class QueryError extends Error {
   constructor(
     readonly code:
       | 'NOT_FOUND'
+      /** §3.14 (0.5.2): the daemon is not LIVE, so the mirror is empty or
+       * partial and NO world read can be answered. Distinct from NOT_FOUND,
+       * which from 0.5.2 means "LIVE, and the world does not hold this". */
+      | 'NOT_READY'
       | 'BAD_ARGS'
       | 'KAMIDEN_UNAVAILABLE'
       | 'CHAT_DISABLED'
@@ -508,6 +512,14 @@ export type KamiVitals = {
   hpRatePerHr: string;
   musu?: { accrued: number; spotRatePerHr: string; avgRatePerHr: string };
   cooldownSec: number;
+  /** §3.8 (0.5.2): the RAW on-chain cooldown end time (chain seconds), the
+   * number `cooldownSec` is projected FROM. Served so a caller can compare
+   * against a block timestamp it trusts instead of against this daemon's
+   * projected clock, whose error is not bounded (§3.8). ZERO MEANS UNKNOWN,
+   * not ready: the mirror holds no NextTime for this kami — it has never
+   * acted, or the component has not synced yet — and the ported getter reads
+   * an absent component as 0. Treat 0 as "no information". */
+  cooldownUntil: number;
   node?: { index: number; name: string };
   account?: { index: number; name: string };
   /** §3.16 (0.5.1): `--stats` only. Absent without the flag. */
@@ -539,6 +551,7 @@ export function buildKamiVitals(
     hp: { current: hp, total, percent: Number(calcHealthPercent(kami).toFixed(0)) },
     hpRatePerHr: getRateDisplay(kami.stats?.health.rate, 2),
     cooldownSec: Math.max(0, Math.floor(calcCooldown(kami))),
+    cooldownUntil: kami.time?.cooldown ?? 0,
     account: owner.index ? { index: owner.index, name: owner.name } : undefined,
   };
   if (kami.harvest && kami.harvest.state === 'ACTIVE') {
@@ -580,7 +593,7 @@ export type AccountOut = {
   ownerAddress: string;
   operatorAddress: string;
   roomIndex: number;
-  musu: number;
+  musu?: number;
   /** current = calcCurrentStamina (recovery-adjusted, CLAMPED to total — the
    * SPENDABLE figure); total = the stat's computed cap (0.2.0); raw = the
    * same accrual without the clamp (0.5.0).
@@ -595,8 +608,15 @@ export type AccountOut = {
    * discrepancy — an unexplained mismatch is what made the arm distrust a
    * correct answer — and never as a spending allowance. */
   stamina: { current: number; total: number; raw: number };
-  reputation: { agency: number; mina: number; nursery: number };
+  reputation?: { agency: number; mina: number; nursery: number };
   kamis: { id: string; index: number; name: string; state: string }[];
+  /** §3.13 (0.5.2): `--slim` only, absent without it. How many kamis the
+   * account owns (`kamisTotal`) beside how many this answer served
+   * (`kamisServed`, always 0 on the slim surface) — the same honest cap pair
+   * every other listing carries, so a roster-less answer is never mistakable
+   * for an account with no kamis. */
+  kamisTotal?: number;
+  kamisServed?: number;
   bio?: string;
   /** §3.12 (enrich): `roomIndex` resolved — where the account is standing,
    * by name and description rather than by bare index */
@@ -675,9 +695,22 @@ export type NativeBalanceReader = {
   nativeBalance: (address: string, blockTag: number) => Promise<bigint>;
 };
 
+/** `--slim` (0.5.2, §3.13): identity without the roster. The full answer
+ * carries every kami the account owns, which is the right default for the
+ * detail surface and the wrong shape for the one thing callers kept needing
+ * — an index → name lookup. Measured 2026-08-27: a 164-kami account served
+ * 22,969 B (about 46 KB pretty-printed, which tripped a consumer's
+ * tool-result cap outright), against roughly 700 B slim; a 77-account world
+ * scan paid that per account. Slim serves id, index, name, both addresses,
+ * roomIndex, stamina and the kamisTotal/kamisServed pair, and NOTHING else:
+ * no roster, no musu, no reputation, no bio, and no `gas` — which means slim
+ * MAKES NO CHAIN READ AT ALL (the gas balance is the query layer's one RPC
+ * call), so a bulk sweep costs the mirror only. `room` still resolves under
+ * enrichment, since that is a daemon-level surface decision and not a
+ * payload one. */
 export async function accountQuery(
   mirror: Mirror,
-  args: { index?: number; name?: string; address?: string },
+  args: { index?: number; name?: string; address?: string; slim?: boolean },
   opts: { prose?: boolean } = {},
   enrich = false,
   rpc?: NativeBalanceReader
@@ -711,6 +744,27 @@ export async function accountQuery(
       'NOT_FOUND',
       `account ${args.index ?? args.name ?? args.address} not in mirror`
     );
+  }
+  // §3.13: slim answers before the chain read is even attempted
+  if (args.slim === true) {
+    const kamis = account.kamis ?? [];
+    return {
+      id: account.id,
+      index: account.index,
+      name: account.name,
+      ownerAddress: account.ownerAddress,
+      operatorAddress: account.operatorAddress,
+      roomIndex: account.roomIndex,
+      stamina: {
+        current: calcCurrentStamina(account),
+        total: account.stamina.total,
+        raw: rawStamina(account),
+      },
+      kamisTotal: kamis.length,
+      kamisServed: 0,
+      kamis: [],
+      ...(enrich ? { room: roomRefOut(mirror, account.roomIndex) } : {}),
+    };
   }
   const gas = rpc
     ? await gasOf(rpc, account.operatorAddress, account.ownerAddress)
@@ -768,6 +822,10 @@ export type HarvestVitals = {
   /** calcOutput — the realizable MUSU at stake in this harvest */
   musuAccrued: number;
   cooldownSec: number;
+  /** §3.8 (0.5.2): the raw on-chain cooldown end time (chain seconds); 0
+   * means the mirror holds no NextTime for this kami. Same contract as
+   * KamiVitals.cooldownUntil — see the note there. */
+  cooldownUntil: number;
   /** §3.13 (0.5.0): the occupant's level and leveling state. This is the
    * surface a liquidation decision is actually made on, and it served health
    * without ever naming how strong the thing holding it was. */
@@ -809,6 +867,15 @@ export type LiquidationPreview = {
   reason?: LiquidationBlocker;
   /** HP cutoff: attacker can liquidate while occupant HP is below this */
   threshold: number;
+  /** §3.13 (0.5.2): `threshold` minus the occupant's PROJECTED hp — how much
+   * room the preview thinks it has. May be negative (an ineligible target).
+   * `eligible` is a boolean over a projection and says nothing about how
+   * close the call was; a preview at a 4-HP margin and one at 400 read
+   * identically, and a real caller acted on the first and got
+   * `kami lacks violence (weak)` back from the chain (2026-08-27). The
+   * error on this number is NOT BOUNDED — see SPEC §3.13 — so a caller that
+   * wants certainty requires a margin, it does not trust the flag. */
+  margin: number;
   spoils: number;
   salvage: number;
   recoil: number;
@@ -837,8 +904,20 @@ export type NodeOut = {
   /** §3.12 (enrich): `roomIndex` resolved — the room this node sits in */
   room?: RoomRefOut;
   /** echoed with the attacker-kami argument (vitals mode only) */
-  attacker?: { id: string; index: number; name: string; cooldownSec: number };
+  attacker?: {
+    id: string;
+    index: number;
+    name: string;
+    cooldownSec: number;
+    /** §3.8 (0.5.2): raw on-chain cooldown end time; 0 means unknown. */
+    cooldownUntil: number;
+  };
   harvestsTotal: number;
+  /** §3.13 (0.5.2): `--eligible-only` only, absent without it. How many of
+   * `harvestsTotal` passed the filter — so a filtered answer still says what
+   * it filtered out of, and an empty `harvests` list means "none eligible"
+   * rather than "nothing here". */
+  harvestsEligible?: number;
   harvestsServed: number;
   harvests: {
     /** `--full` only */
@@ -858,7 +937,17 @@ export type NodeOut = {
  * the liquidation pairing the client's LiquidateButton computes per
  * (attacker, occupant): canLiquidate, threshold, spoils/salvage, recoil.
  * The attacker's own harvest row carries no liquidation block (a kami is
- * not its own target). */
+ * not its own target).
+ *
+ * `--eligible-only` (0.5.2, §3.13) serves only the rows whose liquidation
+ * preview says eligible. It is a PAYLOAD decision, not a new answer: the
+ * filter runs on exactly the rows this query already built, after the
+ * deterministic sort and BEFORE the row cap, so `--eligible-only --full`
+ * caps a filtered list rather than filtering a capped one. `harvestsTotal`
+ * keeps reporting the WHOLE node. Measured 2026-08-27 against the live
+ * world: node 86 went 1,300,288 B → 15,900 B (28 eligible of 2,165), node 9
+ * 500,709 B → 3,489 B (6 of 835), node 10 46,696 B → 1,731 B (3 of 77). The
+ * attacker's own row has no liquidation block and so is never eligible. */
 export function nodeQuery(
   mirror: Mirror,
   args: {
@@ -867,6 +956,7 @@ export function nodeQuery(
     attacker?: number;
     full?: boolean;
     stats?: boolean;
+    eligibleOnly?: boolean;
   },
   enrich = false
 ): NodeOut {
@@ -893,6 +983,7 @@ export function nodeQuery(
       index: attackerKami.index,
       name: attackerKami.name,
       cooldownSec: Math.max(0, Math.floor(calcCooldown(attackerKami))),
+      cooldownUntil: attackerKami.time?.cooldown ?? 0,
     };
   }
 
@@ -924,6 +1015,7 @@ export function nodeQuery(
         ...(full ? { hpRatePerHr: getRateDisplay(occupant.stats?.health.rate, 2) } : {}),
         musuAccrued: calcOutput(occupant),
         cooldownSec: Math.max(0, Math.floor(calcCooldown(occupant))),
+        cooldownUntil: occupant.time?.cooldown ?? 0,
         // §3.13: the threat read needs to know how strong the occupant is
         level: occupant.progress?.level,
         ...leveling,
@@ -943,6 +1035,7 @@ export function nodeQuery(
           eligible,
           ...(eligible ? {} : { reason: liquidationBlocker(attackerKami, threshold) }),
           threshold,
+          margin: threshold - hp,
           spoils: calcLiqSpoils(attackerKami, occupant),
           salvage: calcLiqSalvage(occupant),
           recoil: calcLiqRecoil(attackerKami, occupant),
@@ -954,7 +1047,13 @@ export function nodeQuery(
   // deterministic order: by kami index, so a capped answer and a --full
   // answer agree about which rows come first (§3.13)
   rows.sort((a, b) => a.kami.index - b.kami.index);
-  const { served, total } = capRows(rows, full);
+  // §3.13 (0.5.2): filter BEFORE the cap, and keep the unfiltered total —
+  // capRows reports the length of whatever it is handed, which is the
+  // filtered set, and `harvestsTotal` must stay the node's own figure.
+  const harvestsTotal = rows.length;
+  const eligibleOnly = args.eligibleOnly === true;
+  const selected = eligibleOnly ? rows.filter((r) => r.liquidation?.eligible === true) : rows;
+  const { served } = capRows(selected, full);
   return {
     index: node.index,
     name: node.name,
@@ -964,7 +1063,8 @@ export function nodeQuery(
     ...(full ? { description: node.description ?? '' } : {}),
     ...(enrich ? { room: roomRefOut(mirror, node.roomIndex) } : {}),
     ...(attackerOut ? { attacker: attackerOut } : {}),
-    harvestsTotal: total,
+    harvestsTotal,
+    ...(eligibleOnly ? { harvestsEligible: selected.length } : {}),
     harvestsServed: served.length,
     harvests: served,
   };

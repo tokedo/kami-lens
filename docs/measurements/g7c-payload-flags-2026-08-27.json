@@ -1,0 +1,150 @@
+{
+  "gate": "g7c-payload-flags",
+  "measuredAt": "2026-08-27T20:32:03.054Z",
+  "snapshotBlock": 31782245,
+  "attackerKamiIndex": 1,
+  "eligibleOnly": {
+    "reductionCaveat": "fixture attacker is eligible against most occupants, so the fixture reduction is not representative; the equality check is the assertion, the bytes are a record",
+    "nodesChecked": 9,
+    "allByteEqualToClientSideFilter": true,
+    "cases": [
+      {
+        "node": 9,
+        "harvestsTotal": 732,
+        "harvestsEligible": 618,
+        "bytesFull": 441256,
+        "bytesEligibleOnly": 369915,
+        "reductionPct": 16.17,
+        "byteEqualToClientSideFilter": true
+      },
+      {
+        "node": 86,
+        "harvestsTotal": 2018,
+        "harvestsEligible": 1503,
+        "bytesFull": 1225778,
+        "bytesEligibleOnly": 901744,
+        "reductionPct": 26.43,
+        "byteEqualToClientSideFilter": true
+      },
+      {
+        "node": 10,
+        "harvestsTotal": 60,
+        "harvestsEligible": 38,
+        "bytesFull": 37228,
+        "bytesEligibleOnly": 23382,
+        "reductionPct": 37.19,
+        "byteEqualToClientSideFilter": true
+      },
+      {
+        "node": 62,
+        "harvestsTotal": 41,
+        "harvestsEligible": 32,
+        "bytesFull": 25225,
+        "bytesEligibleOnly": 19595,
+        "reductionPct": 22.32,
+        "byteEqualToClientSideFilter": true
+      },
+      {
+        "node": 1,
+        "harvestsTotal": 0,
+        "harvestsEligible": 0,
+        "bytesFull": 320,
+        "bytesEligibleOnly": 341,
+        "reductionPct": -6.56,
+        "byteEqualToClientSideFilter": true
+      },
+      {
+        "node": 2,
+        "harvestsTotal": 1,
+        "harvestsEligible": 1,
+        "bytesFull": 919,
+        "bytesEligibleOnly": 940,
+        "reductionPct": -2.29,
+        "byteEqualToClientSideFilter": true
+      },
+      {
+        "node": 3,
+        "harvestsTotal": 0,
+        "harvestsEligible": 0,
+        "bytesFull": 316,
+        "bytesEligibleOnly": 337,
+        "reductionPct": -6.65,
+        "byteEqualToClientSideFilter": true
+      },
+      {
+        "node": 5,
+        "harvestsTotal": 0,
+        "harvestsEligible": 0,
+        "bytesFull": 321,
+        "bytesEligibleOnly": 342,
+        "reductionPct": -6.54,
+        "byteEqualToClientSideFilter": true
+      },
+      {
+        "node": 6,
+        "harvestsTotal": 0,
+        "harvestsEligible": 0,
+        "bytesFull": 318,
+        "bytesEligibleOnly": 339,
+        "reductionPct": -6.6,
+        "byteEqualToClientSideFilter": true
+      }
+    ]
+  },
+  "slim": {
+    "accountsChecked": 7,
+    "largestRosterInSample": 251,
+    "cases": [
+      {
+        "account": 12,
+        "kamis": 251,
+        "bytesFull": 34050,
+        "bytesSlim": 312,
+        "reductionPct": 99.08
+      },
+      {
+        "account": 144,
+        "kamis": 165,
+        "bytesFull": 22126,
+        "bytesSlim": 311,
+        "reductionPct": 98.59
+      },
+      {
+        "account": 9,
+        "kamis": 155,
+        "bytesFull": 21384,
+        "bytesSlim": 314,
+        "reductionPct": 98.53
+      },
+      {
+        "account": 176,
+        "kamis": 0,
+        "bytesFull": 340,
+        "bytesSlim": 310,
+        "reductionPct": 8.82
+      },
+      {
+        "account": 177,
+        "kamis": 0,
+        "bytesFull": 334,
+        "bytesSlim": 308,
+        "reductionPct": 7.78
+      },
+      {
+        "account": 399,
+        "kamis": 0,
+        "bytesFull": 345,
+        "bytesSlim": 317,
+        "reductionPct": 8.12
+      },
+      {
+        "account": 400,
+        "kamis": 0,
+        "bytesFull": 338,
+        "bytesSlim": 310,
+        "reductionPct": 8.28
+      }
+    ]
+  },
+  "problems": []
+}

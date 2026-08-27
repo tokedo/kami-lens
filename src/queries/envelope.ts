@@ -23,6 +23,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
+import * as clock from 'clock';
 import { QueryError } from './build';
 import { tripwires } from '../tripwires';
 
@@ -46,6 +47,44 @@ export type EnvelopeOptions = {
   noAuthored?: boolean;
 };
 
+/** §3.8 (0.5.2): when this answer's projections were computed, and on what
+ * evidence. ONE object, the same shape on every answer, so a caller pads
+ * once rather than per query.
+ *
+ * The fields are kept SEPARATE on purpose and none of them is fused into a
+ * derived claim. `block` is the mirror's lower bound (§3.15) and
+ * `projectedAtSec` is the instant the projection math used; they are not the
+ * same fact and pairing them as one would be a lie of convenience, because
+ * the clock correction is anchored on a DIFFERENT, older block than the
+ * mirror's newest. That anchor is named outright: `observedBlock` and
+ * `observedBlockTime` are the block whose header timestamp produced the
+ * current correction, `observedAgoMs` is how long ago that was, and
+ * `clockOffsetMs` is the correction itself.
+ *
+ * The last four are ABSENT TOGETHER until the first clock observation
+ * (§3.14, the §3.15 head-fields precedent): before it there is no
+ * measurement, the offset is 0 because nothing was measured rather than
+ * because the clocks agree, and a served 0 would read as evidence. */
+export type AsOf = {
+  /** mirror block, same value as `meta.blockNumber` — a LOWER BOUND (§3.15) */
+  block: number;
+  /** the offset-corrected instant every projection in this answer used */
+  projectedAtSec: number;
+  /** the block whose header timestamp produced the current correction; 0
+   * when the observation did not name one */
+  observedBlock?: number;
+  /** that block's header timestamp (chain seconds) */
+  observedBlockTime?: number;
+  /** the correction itself. Measured live 2026-08-27 at −7.7 s to −17.4 s:
+   * it is dominated by the Kamigaze stream's end-to-end lag, NOT by
+   * wall-clock skew (§3.8) */
+  clockOffsetMs?: number;
+  /** wall-clock ms since that observation; bounded above by the 300 s clock
+   * sync cadence in the healthy case and by NOTHING when the observation
+   * keeps failing or the stream is stalled (§3.8) */
+  observedAgoMs?: number;
+};
+
 export type Envelope<T> = {
   data: T;
   untrusted: string[];
@@ -54,9 +93,27 @@ export type Envelope<T> = {
     blockNumber: number;
     stale: boolean;
     mode: 'daemon' | 'stateless';
+    asOf: AsOf;
     suppressed?: string[];
   };
 };
+
+/** Build the §3.8 asOf block for one answer. */
+export function buildAsOf(blockNumber: number): AsOf {
+  const observation = clock.lastObservation();
+  return {
+    block: blockNumber,
+    projectedAtSec: Math.floor(clock.now() / 1000),
+    ...(observation
+      ? {
+          observedBlock: observation.blockNumber,
+          observedBlockTime: observation.blockTimestampSec,
+          clockOffsetMs: clock.offset(),
+          observedAgoMs: Date.now() - observation.atWallMs,
+        }
+      : {}),
+  };
+}
 
 // The classification artifact lives at <package root>/docs/. This module
 // runs from src/queries/ (tsx dev: root is ../..) or from the dist/
@@ -263,6 +320,10 @@ export function buildEnvelope<T>(
     meta: {
       servedAt: new Date().toISOString(),
       ...meta,
+      // §3.8 (0.5.2): stamped here, in the ONE place every answer passes
+      // through, so "the same shape everywhere" is structural rather than a
+      // convention twenty-five builders are trusted to keep.
+      asOf: buildAsOf(meta.blockNumber),
       ...(suppressed.length > 0 ? { suppressed: suppressed.sort() } : {}),
     },
   };

@@ -2,14 +2,37 @@
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
  * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
  * path:     packages/client/src/engine/providers/create.ts
- * changes:  daemon-liveness hygiene (one addition in create()): a passive
- *           permanent 'error' listener is attached to the WebSocket at
- *           construction. Upstream's reconnect handlers attach with
- *           {once: true}, so a second error on the same socket (observed
- *           live: DNS ENOTFOUND during reconnection) finds zero listeners
- *           and crashes the Node process — a browser tab survives this,
- *           a daemon must too. The reconnect handlers in
- *           createReconnecting are unchanged and still drive recovery.
+ * changes:  daemon-liveness hygiene, three additions:
+ *           1. create(): a passive permanent 'error' listener is attached to
+ *              the WebSocket at construction. Upstream's reconnect handlers
+ *              attach with {once: true}, so a second error on the same
+ *              socket (observed live: DNS ENOTFOUND during reconnection)
+ *              finds zero listeners and crashes the Node process — a
+ *              browser tab survives this, a daemon must too. The reconnect
+ *              handlers in createReconnecting are unchanged and still drive
+ *              recovery.
+ *           2. ensureNetworkIsUp(): each probe is BOUNDED by
+ *              NETWORK_CHECK_TIMEOUT_MS (0.5.2). ethers v6 WebSocketProvider
+ *              never reconnects (its onclose-reconnect block is commented
+ *              out upstream of us, provider-websocket.js) and _start() — the
+ *              only resolver of the readiness promise SocketProvider._send
+ *              awaits — runs only from websocket.onopen. A socket that never
+ *              opens therefore makes getBlockNumber() hang FOREVER: neither
+ *              resolve nor reject. Measured: json rejects in 17 ms on
+ *              ENOTFOUND, ws is still unsettled after 20 s. Upstream is a
+ *              browser tab that the player reloads; a daemon awaited that
+ *              promise inside two nested callWithRetry ladders and wedged in
+ *              SETUP 0% indefinitely — the network came back, the JSON
+ *              provider recovered, and the dead socket held the bootstrap
+ *              open with no failure event to retry on (observed live
+ *              2026-08-27, laptop-wake restart, 8+ minutes). Bounding the
+ *              probe lets the ladder advance, and the ladder already builds
+ *              a FRESH provider pair per attempt.
+ *           3. initProviders(): a failed attempt DESTROYS the pair it built
+ *              before the ladder retries. Without this every failed attempt
+ *              leaks a live dead socket and its pending callbacks, because
+ *              only the pair that reached the `providers` observable is ever
+ *              closed.
  */
 
 import { callWithRetry, observableToComputed, timeoutAfter } from '@mud-classic/utils';
@@ -90,9 +113,26 @@ export async function createReconnecting(config: IComputedValue<ProviderConfig>)
     // Create new providers
     await callWithRetry(async () => {
       const newProviders = create(conf);
-      // If the connection is not successful, this will throw an error, triggering a retry
-      !conf?.options?.skipNetworkCheck &&
-        (await ensureNetworkIsUp(newProviders.json, newProviders.ws));
+      try {
+        // If the connection is not successful, this will throw an error, triggering a retry
+        !conf?.options?.skipNetworkCheck &&
+          (await ensureNetworkIsUp(newProviders.json, newProviders.ws));
+      } catch (e) {
+        // banner change 3: this pair never reached `providers`, so nothing
+        // else will ever close it. A ws whose socket is dead still holds an
+        // open handle and the callbacks queued against it.
+        try {
+          newProviders.ws?.destroy();
+        } catch {
+          /* a dead socket may throw on close */
+        }
+        try {
+          newProviders.json.destroy();
+        } catch {
+          /* same */
+        }
+        throw e;
+      }
       runInAction(() => {
         providers.set(newProviders);
         connected.set(ConnectionState.CONNECTED);
@@ -176,6 +216,12 @@ export async function createReconnecting(config: IComputedValue<ProviderConfig>)
   };
 }
 
+/** Bound on ONE network probe (0.5.2 — see change 2 in the banner). Matched
+ * to the keepalive loop above, which already gives the same read 10 s. A
+ * probe that has not answered in ten seconds has not answered; the value of
+ * this constant is that there IS one. */
+export const NETWORK_CHECK_TIMEOUT_MS = 10_000;
+
 /**
  * Await network to be reachable.
  *
@@ -189,8 +235,18 @@ export async function ensureNetworkIsUp(
 ): Promise<void> {
   const networkInfoPromise = () => {
     return Promise.all([
-      provider.getBlockNumber(),
-      wssProvider ? wssProvider.getBlockNumber() : Promise.resolve(),
+      timeoutAfter(
+        provider.getBlockNumber(),
+        NETWORK_CHECK_TIMEOUT_MS,
+        'json network check timed out'
+      ),
+      wssProvider
+        ? timeoutAfter(
+            wssProvider.getBlockNumber(),
+            NETWORK_CHECK_TIMEOUT_MS,
+            'ws network check timed out'
+          )
+        : Promise.resolve(),
     ]);
   };
   await callWithRetry(networkInfoPromise, [], 10, 1000);

@@ -132,23 +132,33 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     name: 'account',
     operatorArg: true,
     summary:
-      'account by index, name or 0x-address (bio only with --prose; gas balance when an RPC is configured)',
-    parseArgs: ([key]) => {
+      'account by index, name or 0x-address (bio only with --prose; gas balance when an RPC is configured; --slim serves identity with no roster and no chain read)',
+    args: ['--slim'],
+    parseArgs: (positional) => {
+      // FILTER THE FLAGS FIRST (0.5.2). This read `([key]) => …`, taking
+      // argv[0] verbatim — the one query-argument parser that did not, because
+      // until now `account` declared no arguments. The moment it declares one,
+      // `account --slim` with no positional would take '--slim' itself as the
+      // lookup key and answer NOT_FOUND on a name nobody asked about. The
+      // §3.13 silent-argument defect, one release later, in the other
+      // direction.
+      const [key] = positional.filter((p) => !p.startsWith('--'));
+      const slim = positional.includes('--slim');
       if (key === undefined) {
         throw new QueryError('BAD_ARGS', 'account needs an index, a name or an address');
       }
       // §3.14: an address is a third lookup key. Without this an address went
       // down the NAME path, matched nothing, and answered NOT_FOUND — which a
       // reader cannot tell from "this account does not exist".
-      if (/^0x[0-9a-fA-F]{40}$/.test(key)) return { address: key };
-      return /^\d+$/.test(key) ? { index: Number(key) } : { name: key };
+      if (/^0x[0-9a-fA-F]{40}$/.test(key)) return { address: key, slim };
+      return /^\d+$/.test(key) ? { index: Number(key), slim } : { name: key, slim };
     },
     stateless: false,
     kamiden: false,
     build: (ctx, a, o) =>
       accountQuery(
         ctx.mirror,
-        a as { index?: number; name?: string; address?: string },
+        a as { index?: number; name?: string; address?: string; slim?: boolean },
         o,
         ctx.enrich,
         ctx.rpc
@@ -157,8 +167,8 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
   node: {
     name: 'node',
     summary:
-      'node with its ACTIVE harvests; --with-vitals [attackerKamiIndex] adds occupant vitals + liquidation preview (--full lifts the row cap, --stats adds the stat block)',
-    args: ['--with-vitals', '--full', '--stats'],
+      'node with its ACTIVE harvests; --with-vitals [attackerKamiIndex] adds occupant vitals + liquidation preview (--full lifts the row cap, --stats adds the stat block, --eligible-only serves only rows the attacker can liquidate)',
+    args: ['--with-vitals', '--full', '--stats', '--eligible-only'],
     parseArgs: (positional) => {
       const rest = positional.filter((p) => !p.startsWith('--'));
       const withVitals = positional.includes('--with-vitals');
@@ -172,12 +182,27 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
       if (positional.includes('--stats') && !withVitals) {
         throw new QueryError('BAD_ARGS', '--stats needs --with-vitals');
       }
+      // §3.13 (0.5.2): the filter reads `liquidation.eligible`, which only
+      // exists on a vitals answer that was given an attacker. Refuse both
+      // ways rather than serve an unfiltered answer to a caller who asked
+      // for a filtered one — the §3.13 silent-argument rule.
+      const eligibleOnly = positional.includes('--eligible-only');
+      if (eligibleOnly && !withVitals) {
+        throw new QueryError('BAD_ARGS', '--eligible-only needs --with-vitals');
+      }
+      if (eligibleOnly && attacker === undefined) {
+        throw new QueryError(
+          'BAD_ARGS',
+          '--eligible-only needs an attacker kami argument (eligibility is a pairing, not a property)'
+        );
+      }
       return {
         index: int(index, 'node index'),
         withVitals,
         attacker: optInt(attacker, 'attacker kami index'),
         full: positional.includes('--full'),
         stats: positional.includes('--stats'),
+        eligibleOnly,
       };
     },
     stateless: false,
@@ -191,6 +216,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
           attacker?: number;
           full?: boolean;
           stats?: boolean;
+          eligibleOnly?: boolean;
         },
         ctx.enrich
       ),
@@ -494,6 +520,82 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
       }),
   },
 };
+
+// ------------------------------------------- §3.13 argument routing (0.5.2)
+//
+// ONE MODULE OWNS THE RULE, because the two entry points disagreed and the
+// disagreement was silent. 0.5.0 fixed the CLI: a query declares its argument
+// vocabulary and an undeclared option is a usage error rather than a
+// different answer. The SOCKET was never given the same treatment, and it is
+// the path the harness and the agents actually use — so `account 3379
+// --slim` came back with the whole roster and `node … --eligible-only` came
+// back unfiltered, both with `ok: true` and no error at all, while the CLI
+// refused the same tokens outright. A wrong-but-plausible answer to a caller
+// who asked for something else is the exact defect class §3.13 exists to
+// refuse; that it survived on the busier path for a release is the reason
+// the routing now lives in one place instead of two.
+
+/** Flags the CLI itself consumes, valid on every query. On the SOCKET these
+ * are request FIELDS (`prose`, `noAuthored`, `oversize`), not argument
+ * tokens — which is the one respect in which the two vocabularies differ,
+ * and the refusal message says so by listing what the calling path takes. */
+export const CLIENT_FLAGS: readonly string[] = ['--prose', '--no-authored', '--stateless'];
+
+/** The `--flags` a query declares as ARGUMENTS. */
+export function declaredArgs(query: string): readonly string[] {
+  return REGISTRY[query as QueryName]?.args ?? [];
+}
+
+/** `status` is served by the daemon rather than the registry, but it is a
+ * real query name and takes no arguments. */
+function isKnownQuery(query: string): boolean {
+  return query === 'status' || query in REGISTRY;
+}
+
+function unknownOption(query: string, arg: string, accepts: readonly string[]): QueryError {
+  const list = [...accepts].sort();
+  return new QueryError(
+    'BAD_ARGS',
+    `unknown option '${arg}' for '${query}' — accepts: ${list.length > 0 ? list.join(', ') : '(no options)'}`
+  );
+}
+
+/** SOCKET routing (0.5.2): refuse any `--`-prefixed token the query does not
+ * declare. An unknown QUERY name is left alone so the caller gets the
+ * unknown-query error rather than a complaint about the flags of a query
+ * that does not exist — the same precedence the CLI uses. */
+export function assertSocketArgs(query: string, args: readonly string[]): void {
+  if (!isKnownQuery(query)) return;
+  const accepts = declaredArgs(query);
+  for (const arg of args) {
+    if (!arg.startsWith('--')) continue;
+    if (accepts.includes(arg)) continue;
+    throw unknownOption(query, arg, accepts);
+  }
+}
+
+/** CLI routing (0.5.0; moved here at 0.5.2 so one module owns the rule).
+ * Query arguments ride through as positionals for the query's own parseArgs;
+ * client flags are separated out; anything else is a usage error. Throws the
+ * same QueryError the socket path throws, so the two refusals are the same
+ * refusal. */
+export function routeCliArgs(
+  command: string,
+  remaining: readonly string[]
+): { positional: string[]; flags: Set<string> } {
+  const declared = declaredArgs(command);
+  const known = isKnownQuery(command);
+  const positional: string[] = [];
+  const flags = new Set<string>();
+  for (const arg of remaining) {
+    if (!arg.startsWith('--')) positional.push(arg);
+    else if (declared.includes(arg)) positional.push(arg);
+    else if (CLIENT_FLAGS.includes(arg)) flags.add(arg);
+    else if (!known) flags.add(arg);
+    else throw unknownOption(command, arg, [...declared, ...CLIENT_FLAGS]);
+  }
+  return { positional, flags };
+}
 
 const SCHEMA_DIR = path.resolve(import.meta.dirname, 'schemas');
 const schemaCache = new Map<string, QuerySchema>();

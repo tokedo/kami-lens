@@ -77,6 +77,67 @@ ApiKey-gated ranking methods prove the operators fence endpoints),
 the affected rows flip to `deferred (service access)` in coverage —
 visibly, never silently.
 
+**A bounded retry schedule is only a bound on the failures it can see
+(0.5.2).** The schedule above fires on the worker's terminal errors, and
+that is the whole of what reaches it: the daemon learns about failure
+through one channel, the LoadingState component. So a bootstrap that
+neither succeeds nor fails is invisible to it, and 0.5.1 had exactly such a
+state. A daemon restarted on laptop wake, before the network was back, built
+an ethers `WebSocketProvider` whose socket never opened. That provider never
+reconnects (its reconnect handler is commented out upstream of us) and the
+readiness promise its `getBlockNumber()` awaits is resolved only by the
+socket's `onopen` — so the call **never settles, neither resolving nor
+rejecting**. Measured: the JSON provider rejects on `ENOTFOUND` in 17 ms; the
+WebSocket one is still unsettled after 20 s, and after the network returns,
+forever. `ensureNetworkIsUp` waits on both through `Promise.all`, two nested
+retry ladders waited on that, and the daemon sat in `SETUP` / "Starting State
+Sync" / 0% for 8+ minutes with its socket open, answering every world read
+`NOT_FOUND ... not in mirror`, while `headBlockNumber` advanced in its own
+status output and proved the network was back. A kickstart fixed it in 15 s.
+
+Two changes, and the second is the one that generalizes:
+
+- **The hole is closed at its source.** Each network probe is bounded
+  (`NETWORK_CHECK_TIMEOUT_MS`, 10 s — the same budget the keepalive loop
+  beside it already used), so the ladder advances and its next attempt
+  builds a *fresh* provider pair, which is what actually recovers. A failed
+  attempt now also destroys the pair it built, which nothing did before.
+- **And a bound is added that does not depend on having found the right
+  await.** While pre-LIVE, if neither the sync percentage, the sync message,
+  nor the live block number changes for `PRELIVE_STALL_MS` (90 s), the
+  daemon tears the worker down and re-bootstraps **through the same
+  `onFailed` path a worker failure takes** — counted as an attempt, and
+  exhausting the schedule still rejects loudly. One retry path, not two.
+  Ninety seconds is chosen against the phases: every pre-LIVE phase ticks a
+  percentage or changes its message far faster, and the one phase that
+  legitimately goes quiet, saving the state cache, was measured at 3.7 s for
+  2.96 M entries. The stall is surfaced in `degraded` as
+  `pre-live-stall:<N>s` — chain health, so it belongs there beside
+  `stream-stalled` — and the lab's external watchdog restarting a non-LIVE
+  daemon after three minutes is the outer bound to this inner one.
+
+The general form: **the retry schedule bounds failures; something else has
+to bound silence.** A daemon cannot assume that everything which goes wrong
+will announce itself, and every await on the bootstrap path was trusted to.
+
+**Kamiden feed health has its own gate (0.5.2).** `degraded` stays
+CHAIN-only — a Kamiden outage must never stamp a chain answer stale, which
+is the soft-dependency clause above — but nine reads are Kamiden-backed and
+a session protocol that opens on `status` and gates every later read on
+`degraded` alone was reading a healthy-looking daemon while the feed
+flapped (observed 2026-08-27: stream `retrying`, 16 reconnects in 13
+minutes, `degraded: []`, `meta.stale: false`). `status.feedsDegraded` is the
+counterpart array, shaped the same so a caller gates on it the same way, and
+separate so the doctrine survives. It reads `kamiden-stream:<state>`
+whenever the stream is not live and `kamiden-silent:<N>s` past 60 s. It is
+deliberately NOT keyed on the reconnect count: the production server closes
+the subscription roughly every 40 s by design (measured 2026-07-21 at gate
+G4.b, re-measured 2026-08-27 at one close per 49 s on a stream reporting
+`live` with zero consecutive failures), so a rising `retries` is this feed's
+healthy resting state and the error text it logs
+("Response closed without grpc-status (Headers only)") is expected, not an
+upstream change.
+
 ### 3.3 Projection ported, not re-derived
 
 Lift the client's calc layer (`calcHealth`, `calcBounty`,
@@ -175,6 +236,74 @@ server never populates it), so the offset anchors on RPC-fetched
 header timestamps of blocks the stream has delivered — the stream tap
 stays armed, and a populated field would simply win as the fresher
 observation.
+
+**What the offset actually measures, and it is not what the name says
+(0.5.2, measured).** The anchor is *a block the stream has delivered*, so the
+correction absorbs the Kamigaze pipeline's end-to-end lag along with any
+wall-clock skew, and at this pin the lag dominates. Measured live
+2026-08-27 against an independent `eth_getBlockByNumber("latest")`, on a
+machine whose wall clock was correct to 1–2 s: **`clock.now()` ran 14.2–15.3
+s behind chain head time** across four consecutive samples. Three
+consecutive observations gave offsets of −7 660 ms, −17 372 ms and −16 585
+ms, so **the correction stepped 9.7 s between two of them — which
+`clock.now()` takes as a jump backwards. now() is not monotonic.** The
+cadence is 300 s and the offset was observed ageing to 279.5 s before
+refreshing.
+
+Three ways it gets worse, none of which any surface reported before this
+release:
+
+- Before the first stream event there is no observation at all
+  (`syncClock` returns early on a zero live block), so the offset is 0 —
+  because nothing was measured, not because the clocks agree.
+- `getBlock()` returning null on a lagging load-balanced backend, or
+  throwing, means no observation that tick: the offset silently ages another
+  300 s behind a `log.warn`.
+- **Across a stream gap the clock stops.** `liveBlockNumber` freezes, so
+  every subsequent tick re-observes the *same* block timestamp against a
+  later `Date.now()`; the offset walks negative one-for-one with elapsed
+  time and `clock.now()` is re-pinned to the frozen block's timestamp. The
+  observation *succeeded*, so `clockLastSyncWallMs` keeps advancing and
+  nothing looks wrong.
+
+**0.5.2 does not change the projection. It exposes the inputs.** Changing
+the correction would move every projected value in the surface, and those
+values are parity-gated against the reference client (G2.b) — the release
+that measures a thing is not the release that acts on it (§3.15's rule,
+applied again). What ships instead is `meta.asOf`, on every envelope, in the
+one place every answer passes through:
+
+    asOf: { block, projectedAtSec, observedBlock, observedBlockTime,
+            clockOffsetMs, observedAgoMs }
+
+The fields are kept **separate and unfused on purpose**. `block` is the
+mirror's lower bound (§3.15); `projectedAtSec` is the instant the projection
+math actually used; `observedBlock` / `observedBlockTime` are the *different,
+older* block whose header produced the current correction, and
+`observedAgoMs` says how stale that is. Pairing a mirror block with a clock
+anchored on another block, as one "as of" claim, would be a lie of
+convenience. The last four are **absent together** until the first
+observation, on the §3.15 head-fields precedent: a served `clockOffsetMs: 0`
+would read as a measurement.
+
+`cooldownUntil` follows from the same reasoning at the field level: the raw
+on-chain cooldown end time, served beside the projected `cooldownSec`, so a
+caller can compare against a block timestamp it trusts rather than against
+this daemon's clock. Its zero is load-bearing and documented — the ported
+getter reads an absent `NextTime` component as `0`, so `0` means the mirror
+holds no cooldown for that kami, never "ready now".
+
+**A note on a symptom this does NOT explain.** A caller reported
+`cooldownSec: 0` up to ~10 s before the chain agreed, and attributed it to
+the offset. The sign runs the other way: with `clock.now()` in the past,
+`calcCooldown` **over**-reports the remaining cooldown, so the lens says
+"still on cooldown" after the chain has released it — the safe direction.
+The likelier mechanism is mirror lag on the `NextTime` component itself,
+where an absent or not-yet-synced value reads as `0` and the cooldown
+vanishes rather than being over-stated. That is a hypothesis, not a
+finding — it could not be reproduced from the reported instant — and
+`cooldownUntil` beside `asOf` is what makes the next occurrence
+distinguishable instead of arguable.
 
 ### 3.9 License: AGPL-3.0
 
@@ -474,6 +603,70 @@ returning a *different answer*, silently. Queries now declare their own
 argument vocabulary and an undeclared option is a usage error. Fail loudly,
 never lie (§3.1) applies to the arguments as much as to the answers.
 
+**And the fix only reached one of the two entry points (0.5.2).** 0.5.0
+fixed the CLI and left the SOCKET exactly as it was — which is the path the
+harness and the agents actually use. Found the day 0.5.2's own flags were
+first exercised: `account 3379 --slim` over the socket returned the whole
+roster with `ok: true`, and `node … --eligible-only` returned an unfiltered
+answer with `ok: true`, while the same daemon refused the identical tokens
+on the CLI with `unknown option '--slim' for 'account'`. Not a missing
+feature — a **wrong-but-plausible answer to a question the caller did not
+ask**, from a caller that had no way to tell. Worse than the 0.5.0 defect it
+descends from, because the flags now exist: a consumer built against 0.5.2
+and pointed at a 0.5.1 daemon gets the roster it explicitly asked not to
+get, silently. (That is also why a mixed-version window is unsafe and why
+the redeploy order is the lens first.)
+
+The routing rule now lives in **one module** — `src/queries/registry.ts`,
+beside the vocabulary it enforces — and both the CLI and the socket call it.
+Written down twice is how the two came to disagree; the test asserts the
+refusal for **every** registry entry on **both** paths, so a query added
+later cannot reintroduce the gap on one side only. The one respect in which
+the vocabularies legitimately differ is that the CLI's client flags
+(`--prose`, `--no-authored`, `--stateless`) are request FIELDS on the
+socket, not argument tokens — so the socket refuses them in `args` too,
+which is the same defect running the other way.
+
+**Two more flags, from measured reader cost (0.5.2).** Both come from the
+same place the compaction did — a caller paying for an answer it did not
+want — and both are opt-in, so every flag-off answer is unchanged.
+
+- **`node --eligible-only`.** A liquidation sweep read 12.2 MB and 21,315
+  harvest rows to find 1,737 eligible pairs worth about 250 KB. The daemon
+  already computes `liquidation.eligible` per row; the caller was filtering
+  client-side and paying for the transport. Measured live 2026-08-27 with a
+  real attacker: node 86 went 1,300,288 B → 15,900 B (28 eligible of 2,165),
+  node 9 500,709 B → 3,489 B (6 of 835), node 10 46,696 B → 1,731 B (3 of
+  77). The filter runs on rows this query already built, after the
+  deterministic sort and **before** the row cap, so `--eligible-only --full`
+  caps a filtered list rather than filtering a capped one. `harvestsTotal`
+  keeps reporting the whole node and `harvestsEligible` says how many
+  passed — an empty `harvests` list must read as "none eligible", never as
+  "nothing here". It requires `--with-vitals` and an attacker argument and
+  refuses without them: eligibility is a *pairing*, not a property, and
+  silently serving an unfiltered answer to a caller who asked for a filtered
+  one is the silent-argument defect above.
+- **`account --slim`.** The account read returns the whole kami roster,
+  which is right for a detail surface and wrong for the thing callers kept
+  needing: an index → name lookup. A 164-kami account measured 22,969 B
+  (about 46 KB pretty-printed, which tripped a consumer's tool-result cap
+  outright) and a 77-account world scan paid that per account; the caller
+  worked around it by bypassing the harness and shelling out to the daemon
+  CLI. Slim serves identity — id, index, name, both addresses, room,
+  stamina — with `kamisTotal` / `kamisServed: 0` so a roster-less answer is
+  never mistakable for an account with no kamis, and **nothing else**: no
+  roster, no musu, no reputation, no bio, and no `gas`, which means slim
+  makes **no chain read at all**. Measured hermetically: a 251-kami account
+  34,050 B → 312 B.
+
+The gate for both is equality, not size (G7.c). A filter that dropped the
+wrong rows would look like a *better* saving, so the filtered rows are
+asserted byte-equal to a client-side filter of the unfiltered answer at the
+same block, and every slim field byte-equal to the full answer's same field —
+absences included, since a slim answer that quietly kept the roster would
+pass a field check trivially. The bytes are recorded; the equality is
+asserted.
+
 ### 3.14 An answer must not be able to lie (0.5)
 
 Settled with the 0.5.0 correctness pass. **Where a surface cannot tell the
@@ -492,6 +685,19 @@ legitimate reading:
   the sentinel and never re-fetched it, and the guard meant to force a
   re-read compared against zero, which NaN is not. The shape that self-healed
   was the harmless one; the shape that mattered sailed through.
+- **`NOT_FOUND` that means "the daemon has not started yet" (0.5.2).** A
+  daemon wedged before LIVE has a mirror that is empty, not a world that
+  lacks the thing you asked for — and it answered `NOT_FOUND: node 9 not in
+  mirror` to every read, for nodes 9, 10 and 86 in one observed session. A
+  caller cannot tell that from "no such node", and the two call for opposite
+  responses: wait, versus stop asking. Any world read while the daemon is
+  not LIVE now answers **`NOT_READY`**, with the state and percentage in the
+  message; `NOT_FOUND` means "LIVE, and the world does not hold this" from
+  here on. `status` and `health` keep answering, because a health surface
+  that goes dark when things are unhealthy is not one. This cannot fire on a
+  post-LIVE stream outage — nothing moves the sync state away from LIVE once
+  reached — so degraded-state honesty is untouched: last-synced state keeps
+  being served, stamped `stale`.
 - **`NOT_FOUND` that means "we looked you up wrongly".** Accounts that
   plainly existed answered "not in mirror" when addressed by name — because
   the name cache stored a match only when there was more than one, so the

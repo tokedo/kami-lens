@@ -1,0 +1,448 @@
+{
+  "gate": "g9a-prelive-stall",
+  "measuredAt": "2026-08-27T20:54:00Z",
+  "verdict": {
+    "controlWedged": true,
+    "fixBoundedAndLoud": true,
+    "fixRecoveredToLive": null,
+    "recoveryHalfReproduced": false
+  },
+  "method": {
+    "used": "HOST ARMS, unresolvable WS RPC host. Two daemons run from the two release trees on this machine, each with its OWN --data-dir (hence its own socket) under the session scratchpad. NEITHER is the launchd service: no launchctl, no install.sh, no shared data dir, and the launchd daemon stayed LIVE and serving throughout.",
+    "severMethod": "--rpc-ws-url wss://ws-does-not-resolve-kamilens.invalid, with the JSON RPC and Kamigaze URLs left at their working defaults. NO host DNS change, NO /etc/hosts entry, NO firewall rule - any of those would also have cut the live launchd daemon and the play session on it.",
+    "whyThisIsolatesBetterThanAnOutage": "The 0.5.1 failure shape is a JSON provider that ANSWERS beside a WebSocket provider whose socket never opens. A network outage produces that shape transiently; an unresolvable WS host produces it as a constant, with every other input held fixed. The control arm therefore reproduces the reported wedge without any timing luck.",
+    "dockerAttempted": true,
+    "dockerOutcome": "ABANDONED after three failed builds of the 0.5.2 image. Each died inside the image's npm ci with npm's own 'Exit handler never called!' - an npm bug, not a repo one, and one that EXITS ZERO while leaving node_modules half-installed, so the build only failed two steps later at 'tsup: not found'. The control image built (from cache) and reported 0.5.1 correctly; the fix image never completed within the session's budget. Recorded rather than retried indefinitely.",
+    "limitation": "The RECOVERY half is NOT reproducible by this method and was NOT observed. ensureNetworkIsUp requires BOTH providers to answer, so a permanently unresolvable WS host means 0.5.2 cannot reach LIVE either - what it demonstrates instead is that the failure becomes BOUNDED, COUNTED, SURFACED and LOUD rather than silent and indefinite. 'time-to-LIVE after the network returns' is therefore null here, not zero, and stays unmeasured until the Docker namespace method can run."
+  },
+  "controlRef": "f07b578",
+  "controlVersion": "0.5.1",
+  "fixVersion": "0.5.2",
+  "hostDistCliSha256": "1cc29fb31c074a706024f277d581807b6acb52fc9b9e1ac75b1e0953e6e56c82",
+  "control": {
+    "release": "0.5.1",
+    "watchS": 215,
+    "samples": [
+      {
+        "arm": "control",
+        "elapsedS": 20,
+        "state": "SETUP",
+        "pct": 0,
+        "msg": "Starting State Sync",
+        "live": 0,
+        "degraded": [],
+        "feedsDegraded": null,
+        "stale": true,
+        "readOk": null,
+        "readCode": "NOT_FOUND",
+        "readMsg": "node 9 not in mirror"
+      },
+      {
+        "arm": "control",
+        "elapsedS": 41,
+        "state": "SETUP",
+        "pct": 0,
+        "msg": "Starting State Sync",
+        "live": 0,
+        "degraded": [],
+        "feedsDegraded": null,
+        "stale": true,
+        "readOk": null,
+        "readCode": "NOT_FOUND",
+        "readMsg": "node 9 not in mirror"
+      },
+      {
+        "arm": "control",
+        "elapsedS": 63,
+        "state": "SETUP",
+        "pct": 0,
+        "msg": "Starting State Sync",
+        "live": 0,
+        "degraded": [],
+        "feedsDegraded": null,
+        "stale": true,
+        "readOk": null,
+        "readCode": "NOT_FOUND",
+        "readMsg": "node 9 not in mirror"
+      },
+      {
+        "arm": "control",
+        "elapsedS": 85,
+        "state": "SETUP",
+        "pct": 0,
+        "msg": "Starting State Sync",
+        "live": 0,
+        "degraded": [],
+        "feedsDegraded": null,
+        "stale": true,
+        "readOk": null,
+        "readCode": "NOT_FOUND",
+        "readMsg": "node 9 not in mirror"
+      },
+      {
+        "arm": "control",
+        "elapsedS": 106,
+        "state": "SETUP",
+        "pct": 0,
+        "msg": "Starting State Sync",
+        "live": 0,
+        "degraded": [],
+        "feedsDegraded": null,
+        "stale": true,
+        "readOk": null,
+        "readCode": "NOT_FOUND",
+        "readMsg": "node 9 not in mirror"
+      },
+      {
+        "arm": "control",
+        "elapsedS": 128,
+        "state": "SETUP",
+        "pct": 0,
+        "msg": "Starting State Sync",
+        "live": 0,
+        "degraded": [],
+        "feedsDegraded": null,
+        "stale": true,
+        "readOk": null,
+        "readCode": "NOT_FOUND",
+        "readMsg": "node 9 not in mirror"
+      },
+      {
+        "arm": "control",
+        "elapsedS": 150,
+        "state": "SETUP",
+        "pct": 0,
+        "msg": "Starting State Sync",
+        "live": 0,
+        "degraded": [],
+        "feedsDegraded": null,
+        "stale": true,
+        "readOk": null,
+        "readCode": "NOT_FOUND",
+        "readMsg": "node 9 not in mirror"
+      },
+      {
+        "arm": "control",
+        "elapsedS": 171,
+        "state": "SETUP",
+        "pct": 0,
+        "msg": "Starting State Sync",
+        "live": 0,
+        "degraded": [],
+        "feedsDegraded": null,
+        "stale": true,
+        "readOk": null,
+        "readCode": "NOT_FOUND",
+        "readMsg": "node 9 not in mirror"
+      },
+      {
+        "arm": "control",
+        "elapsedS": 193,
+        "state": "SETUP",
+        "pct": 0,
+        "msg": "Starting State Sync",
+        "live": 0,
+        "degraded": [],
+        "feedsDegraded": null,
+        "stale": true,
+        "readOk": null,
+        "readCode": "NOT_FOUND",
+        "readMsg": "node 9 not in mirror"
+      },
+      {
+        "arm": "control",
+        "elapsedS": 215,
+        "state": "SETUP",
+        "pct": 0,
+        "msg": "Starting State Sync",
+        "live": 0,
+        "degraded": [],
+        "feedsDegraded": null,
+        "stale": true,
+        "readOk": null,
+        "readCode": "NOT_FOUND",
+        "readMsg": "node 9 not in mirror"
+      }
+    ],
+    "everLeftSetup": false,
+    "distinctStates": [
+      "SETUP"
+    ],
+    "distinctReadCodes": [
+      "NOT_FOUND"
+    ],
+    "readMessageObserved": "node 9 not in mirror",
+    "degradedEverNonEmpty": false,
+    "feedsDegradedField": "ABSENT - the field does not exist at 0.5.1",
+    "retryOrTimeoutLinesInLog": 0,
+    "finding": "Wedged for the whole window: SETUP / 'Starting State Sync' / 0% / liveBlockNumber 0, meta.stale true, degraded empty. Every world read answered NOT_FOUND 'node 9 not in mirror' - indistinguishable from 'no such node'. ZERO retry, timeout, stall or attempt lines in the daemon log: there was nothing to retry ON, which is precisely the defect. Reproduces the 2026-08-27 field report exactly."
+  },
+  "fix": {
+    "release": "0.5.2",
+    "watchS": 300,
+    "samples": [
+      {
+        "arm": "fix",
+        "elapsedS": 20,
+        "state": "SETUP",
+        "pct": 0,
+        "msg": "Starting State Sync",
+        "live": 0,
+        "degraded": [],
+        "feedsDegraded": [
+          "kamiden-stream:stopped"
+        ],
+        "stale": true,
+        "readOk": null,
+        "readCode": "NOT_READY",
+        "readMsg": "daemon not LIVE (SETUP 0%): mirror empty — Starting State Sync"
+      },
+      {
+        "arm": "fix",
+        "elapsedS": 42,
+        "state": "SETUP",
+        "pct": 0,
+        "msg": "Starting State Sync",
+        "live": 0,
+        "degraded": [],
+        "feedsDegraded": [
+          "kamiden-stream:stopped"
+        ],
+        "stale": true,
+        "readOk": null,
+        "readCode": "NOT_READY",
+        "readMsg": "daemon not LIVE (SETUP 0%): mirror empty — Starting State Sync"
+      },
+      {
+        "arm": "fix",
+        "elapsedS": 63,
+        "state": "SETUP",
+        "pct": 0,
+        "msg": "Starting State Sync",
+        "live": 0,
+        "degraded": [],
+        "feedsDegraded": [
+          "kamiden-stream:stopped"
+        ],
+        "stale": true,
+        "readOk": null,
+        "readCode": "NOT_READY",
+        "readMsg": "daemon not LIVE (SETUP 0%): mirror empty — Starting State Sync"
+      },
+      {
+        "arm": "fix",
+        "elapsedS": 85,
+        "state": "SETUP",
+        "pct": 0,
+        "msg": "Starting State Sync",
+        "live": 0,
+        "degraded": [],
+        "feedsDegraded": [
+          "kamiden-stream:stopped"
+        ],
+        "stale": true,
+        "readOk": null,
+        "readCode": "NOT_READY",
+        "readMsg": "daemon not LIVE (SETUP 0%): mirror empty — Starting State Sync"
+      },
+      {
+        "arm": "fix",
+        "elapsedS": 106,
+        "state": "SETUP",
+        "pct": 0,
+        "msg": "Starting State Sync",
+        "live": 0,
+        "degraded": [],
+        "feedsDegraded": [
+          "kamiden-stream:stopped"
+        ],
+        "stale": true,
+        "readOk": null,
+        "readCode": "NOT_READY",
+        "readMsg": "daemon not LIVE (SETUP 0%): mirror empty — Starting State Sync"
+      },
+      {
+        "arm": "fix",
+        "elapsedS": 128,
+        "state": "SETUP",
+        "pct": 0,
+        "msg": "Starting State Sync",
+        "live": 0,
+        "degraded": [],
+        "feedsDegraded": [
+          "kamiden-stream:stopped"
+        ],
+        "stale": true,
+        "readOk": null,
+        "readCode": "NOT_READY",
+        "readMsg": "daemon not LIVE (SETUP 0%): mirror empty — Starting State Sync"
+      },
+      {
+        "arm": "fix",
+        "elapsedS": 149,
+        "state": "SETUP",
+        "pct": 0,
+        "msg": "Starting State Sync",
+        "live": 0,
+        "degraded": [],
+        "feedsDegraded": [
+          "kamiden-stream:stopped"
+        ],
+        "stale": true,
+        "readOk": null,
+        "readCode": "NOT_READY",
+        "readMsg": "daemon not LIVE (SETUP 0%): mirror empty — Starting State Sync"
+      },
+      {
+        "arm": "fix",
+        "elapsedS": 171,
+        "state": "SETUP",
+        "pct": 0,
+        "msg": "Starting State Sync",
+        "live": 0,
+        "degraded": [],
+        "feedsDegraded": [
+          "kamiden-stream:stopped"
+        ],
+        "stale": true,
+        "readOk": null,
+        "readCode": "NOT_READY",
+        "readMsg": "daemon not LIVE (SETUP 0%): mirror empty — Starting State Sync"
+      },
+      {
+        "arm": "fix",
+        "elapsedS": 193,
+        "state": "SETUP",
+        "pct": 0,
+        "msg": "Starting State Sync",
+        "live": 0,
+        "degraded": [],
+        "feedsDegraded": [
+          "kamiden-stream:stopped"
+        ],
+        "stale": true,
+        "readOk": null,
+        "readCode": "NOT_READY",
+        "readMsg": "daemon not LIVE (SETUP 0%): mirror empty — Starting State Sync"
+      },
+      {
+        "arm": "fix",
+        "elapsedS": 214,
+        "state": "SETUP",
+        "pct": 0,
+        "msg": "Starting State Sync",
+        "live": 0,
+        "degraded": [],
+        "feedsDegraded": [
+          "kamiden-stream:stopped"
+        ],
+        "stale": true,
+        "readOk": null,
+        "readCode": "NOT_READY",
+        "readMsg": "daemon not LIVE (SETUP 0%): mirror empty — Starting State Sync"
+      },
+      {
+        "arm": "fix",
+        "elapsedS": 236,
+        "state": "SETUP",
+        "pct": 0,
+        "msg": "Starting State Sync",
+        "live": 0,
+        "degraded": [],
+        "feedsDegraded": [
+          "kamiden-stream:stopped"
+        ],
+        "stale": true,
+        "readOk": null,
+        "readCode": "NOT_READY",
+        "readMsg": "daemon not LIVE (SETUP 0%): mirror empty — Starting State Sync"
+      },
+      {
+        "arm": "fix",
+        "elapsedS": 258,
+        "state": "SETUP",
+        "pct": 0,
+        "msg": "Starting State Sync",
+        "live": 0,
+        "degraded": [],
+        "feedsDegraded": [
+          "kamiden-stream:stopped"
+        ],
+        "stale": true,
+        "readOk": null,
+        "readCode": "NOT_READY",
+        "readMsg": "daemon not LIVE (SETUP 0%): mirror empty — Starting State Sync"
+      },
+      {
+        "arm": "fix",
+        "elapsedS": 279,
+        "state": "SETUP",
+        "pct": 0,
+        "msg": "Starting State Sync",
+        "live": 0,
+        "degraded": [],
+        "feedsDegraded": [
+          "kamiden-stream:stopped"
+        ],
+        "stale": true,
+        "readOk": null,
+        "readCode": "NOT_READY",
+        "readMsg": "daemon not LIVE (SETUP 0%): mirror empty — Starting State Sync"
+      },
+      {
+        "arm": "fix",
+        "elapsedS": 301,
+        "state": "SETUP",
+        "pct": 0,
+        "msg": "Starting State Sync",
+        "live": 0,
+        "degraded": [],
+        "feedsDegraded": [
+          "kamiden-stream:stopped"
+        ],
+        "stale": true,
+        "readOk": null,
+        "readCode": "NOT_READY",
+        "readMsg": "daemon not LIVE (SETUP 0%): mirror empty — Starting State Sync"
+      }
+    ],
+    "wsProbeTimeouts": 33,
+    "watchdogRestarts": 3,
+    "watchdogLines": [
+      "[daemon] pre-LIVE stall: no progress for 90s — restarting bootstrap",
+      "[daemon] pre-LIVE stall: no progress for 90s — restarting bootstrap",
+      "[daemon] pre-LIVE stall: no progress for 94s — restarting bootstrap"
+    ],
+    "retryScheduleLines": [
+      "[daemon] bootstrap attempt 1 failed (pre-LIVE stall: no progress for 90s (Starting State Sync)); retrying in 5s",
+      "[daemon] bootstrap attempt 2 failed (pre-LIVE stall: no progress for 90s (Starting State Sync)); retrying in 15s",
+      "[daemon] bootstrap attempt 3 failed (pre-LIVE stall: no progress for 94s (Starting State Sync)); retrying in 30s"
+    ],
+    "retryDelaysObservedS": [
+      5,
+      15,
+      30
+    ],
+    "distinctReadCodes": [
+      "NOT_READY"
+    ],
+    "notReadyMessageObserved": "daemon not LIVE (SETUP 0%): mirror empty — Starting State Sync",
+    "feedsDegradedObserved": [
+      "kamiden-stream:stopped"
+    ],
+    "preLiveStallDegradedObserved": [
+      [
+        "pre-live-stall:91s"
+      ],
+      [
+        "pre-live-stall:92s"
+      ],
+      [
+        "pre-live-stall:93s"
+      ]
+    ],
+    "preLiveStallVisibilityNote": "The degraded string is observable only in the <=5 s window between crossing PRELIVE_STALL_MS and the watchdog tick that resets the progress marker - a 1 s dense poll caught it three times (91s/92s/93s) while the 20 s sampler never did. A real narrowness, predicted at design time and recorded rather than hidden: the string is a bonus signal, and the reliable pre-LIVE signals are state != LIVE and the NOT_READY code on every world read.",
+    "finding": "Bounded, counted, surfaced and loud. Every WS probe times out at NETWORK_CHECK_TIMEOUT_MS instead of hanging forever (33 observed), so the ladder advances; the pre-LIVE watchdog fired 3 times at 90/90/94 s and routed each restart through the SAME onFailed schedule, whose delays escalated 5s -> 15s -> 30s exactly as BOOTSTRAP_RETRY_DELAYS_MS specifies. Every world read answered NOT_READY carrying the state and percentage. status carried feedsDegraded.",
+    "countingNote": "watchdogRestarts counts only the '... - restarting bootstrap' lines. The same phrase also appears inside each 'bootstrap attempt N failed (pre-LIVE stall: ...)' line, because the watchdog's synthesized reason is quoted verbatim by the retry handler - a naive grep double counts, and did on the first pass."
+  }
+}

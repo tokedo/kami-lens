@@ -12,6 +12,11 @@
 #                    measurement, pool row coherence, vendor cycle
 #                    arithmetic, and the cost of the account-form quests
 #                    answer
+#   G7.c [hermetic]  the two 0.5.2 payload flags: `node --eligible-only`
+#                    byte-equal to a client-side filter of the unfiltered
+#                    answer at the same block, and `account --slim`
+#                    field-equal to the full answer with the roster and the
+#                    chain read gone
 #   G7.b [live]      chain cross-check — every served pool row verified by
 #                    pinned eth_call reads (type, pair, fee, share supply,
 #                    creation time, both reserves), negative samples for
@@ -36,6 +41,9 @@ step() { printf '\n== %s ==\n' "$1"; }
 
 step "G7.a 0.3.0 surface consistency (hermetic)"
 $TSX gates/g7/a-consistency.mts
+
+step "G7.c 0.5.2 payload flags (hermetic)"
+$TSX gates/g7/c-payload-flags.mts
 
 step "G7.b pool + vendor chain cross-check (live)"
 $TSX gates/g7/b-chain-crosscheck.mts

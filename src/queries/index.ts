@@ -10,8 +10,8 @@ import { buildEnvelope, Envelope, EnvelopeOptions } from './envelope';
 import { QueryCtx } from './feeds';
 import { loadSchema, QUERY_NAMES, QueryName, REGISTRY } from './registry';
 
-export type { Envelope, EnvelopeOptions } from './envelope';
-export { buildEnvelope, classifyPaths, loadClassification } from './envelope';
+export type { AsOf, Envelope, EnvelopeOptions } from './envelope';
+export { buildAsOf, buildEnvelope, classifyPaths, loadClassification } from './envelope';
 export type { Mirror } from './build';
 export { QueryError } from './build';
 export type { QueryCtx } from './feeds';

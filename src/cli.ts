@@ -36,19 +36,13 @@
 
 import { connect } from 'node:net';
 
-import { buildEnvelope } from './queries';
-import { loadSchema, QUERY_NAMES, REGISTRY } from './queries/registry';
-import type { QueryName } from './queries/registry';
+import { buildEnvelope, QueryError } from './queries';
+import { loadSchema, QUERY_NAMES, routeCliArgs } from './queries/registry';
 import { KamiLensConfig, parseConfigFlags, resolveConfigDetailed } from './config';
 import { ERR_NO_SNAPSHOT_SOURCE, KamiLensDaemon } from './daemon';
 import { socketPath, startQuerySocket } from './server';
 import { statelessKami } from './stateless';
 import { getVersionInfo } from './version';
-
-/** Flags the CLI itself consumes, valid on every query. Everything else
- * `--`-prefixed must be declared by the query (REGISTRY[q].args) or it is a
- * usage error — see the routing note in main(). */
-const CLIENT_FLAGS = new Set(['--prose', '--no-authored', '--stateless']);
 
 const EXIT_QUERY_ERROR = 1;
 const EXIT_USAGE = 2;
@@ -269,28 +263,17 @@ async function main(): Promise<void> {
   // --full` would have answered the COMPACT form, and a typo would have done
   // the same — a different answer, silently, which is precisely the failure
   // DESIGN §3.1 exists to refuse. An undeclared flag is now a usage error.
-  const queryArgs = new Set(REGISTRY[command as QueryName]?.args ?? []);
-  const knownQuery = command === 'status' || command in REGISTRY;
-  const flags = new Set<string>();
-  const positional: string[] = [];
-  for (const arg of remaining) {
-    if (!arg.startsWith('--')) {
-      positional.push(arg);
-    } else if (queryArgs.has(arg)) {
-      positional.push(arg);
-    } else if (CLIENT_FLAGS.has(arg)) {
-      flags.add(arg);
-    } else if (!knownQuery) {
-      // an unknown query name is the real error — let the daemon say so
-      // rather than complaining about the flags of a query that does not exist
-      flags.add(arg);
-    } else {
-      const accepted = [...queryArgs, ...CLIENT_FLAGS].sort();
-      console.error(
-        `[kami-lens] unknown option '${arg}' for '${command}' — accepts: ${accepted.join(', ')}`
-      );
-      process.exit(EXIT_USAGE);
-    }
+  //
+  // 0.5.2: the loop that did this lives in the registry now, because the
+  // SOCKET needed the identical rule and having it written down twice is how
+  // the two paths came to disagree in the first place.
+  let positional: string[];
+  let flags: Set<string>;
+  try {
+    ({ positional, flags } = routeCliArgs(command, remaining));
+  } catch (e) {
+    console.error(`[kami-lens] ${e instanceof QueryError ? e.message : String(e)}`);
+    process.exit(EXIT_USAGE);
   }
   const resolved = resolveConfigDetailed({}, configFlags).config;
 

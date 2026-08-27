@@ -104,6 +104,47 @@ const STATUS_FLAG_KEYS = ['config.enrich', 'configSources.enrich'];
  * version this build actually carries. */
 const STATUS_EXPECTED_CHANGED = 'version';
 
+/** 0.5.2 ADDITIVE LEAVES — the named allowance.
+ *
+ * The baselines stay FROZEN. 0.5.2 adds fields to answers that carry a
+ * projection, and this gate's whole job is to fail when a flag-off answer
+ * changes shape, so the release either re-captures the baselines or names
+ * what it added. Naming it is strictly stronger: a re-capture would also
+ * absorb any change nobody intended, while this list is reviewable, and
+ * anything NOT on it still fails. Same mechanism as STATUS_FLAG_KEYS above.
+ *
+ * Each entry is a leaf PATH PREFIX, matched against a `leaves()` path, per
+ * case key. Values are not asserted here — the point of the release is that
+ * these are new facts, and their correctness is G3.a's and G2.b's job.
+ *
+ * - `cooldownUntil` (§3.8): the raw on-chain cooldown end time, beside the
+ *   projected `cooldownSec`. Unconditional, so it lands on every answer that
+ *   projects a kami.
+ * - `margin` (§3.13): threshold minus projected hp on a liquidation preview.
+ *   Reaches only the case that passes an attacker.
+ * - `feedsDegraded` (§1.2): the Kamiden counterpart of `degraded` on
+ *   `status`. NOTE its value on this gate's UNSTARTED daemon: the supervisor
+ *   is constructed with a URL but never started, so the stream state is
+ *   'stopped' and the array reads ["kamiden-stream:stopped"] — the leaf is
+ *   `feedsDegraded[0]`, not `feedsDegraded[]`. That is correct: a stream
+ *   that was never opened is not a healthy one.
+ *
+ * NOT covered, deliberately: `harvestsEligible` and the `--slim` account
+ * fields are flag-gated and cannot appear in a flag-off answer at all, and
+ * `meta.asOf` is on the ENVELOPE, which this gate never captures (it
+ * compares `env.data`). Removals are never allowed by this list — the
+ * duplicate-exit defect on `room` would REMOVE leaves, so it is recorded in
+ * SPEC as a known defect for 0.5.3 rather than fixed here. */
+const ADDITIVE_LEAVES_052 = ['cooldownUntil', 'margin', 'feedsDegraded'];
+
+/** Does a leaf path belong to a 0.5.2 additive field? Matches the last
+ * dot-segment (array indices stripped), so `kamis[3].cooldownUntil` and
+ * `harvests[0].vitals.cooldownUntil` both resolve to `cooldownUntil`. */
+function isAdditive052(path: string): boolean {
+  const leaf = (path.split('.').pop() ?? '').replace(/\[\d*\]$/, '');
+  return ADDITIVE_LEAVES_052.includes(leaf);
+}
+
 /** Pinned instant for the §3.8 clock. The verify run and its reference
  * baseline share it; the other baseline is taken at a shifted pin so the mask
  * catches everything the clock touches. Any fixed value works; this one is
@@ -352,10 +393,20 @@ for (const key of Object.keys(base1.cases)) {
   const added = [...nowKeys].filter((p) => !(p in b1)).sort();
   const removed = b1Keys.filter((p) => !nowKeys.has(p));
 
+  // 0.5.2: leaves the release declares as additive are allowed to appear,
+  // and ONLY those. Everything else still fails, in both directions.
+  const unexpectedAdded = added.filter((p) => !isAdditive052(p));
+  const allowedAdded = added.filter((p) => isAdditive052(p));
+
   if (key === 'status') {
     // the baseline is this release's own answer, so status must add nothing
-    if (added.length > 0) {
-      problems.push({ case: key, reason: 'status gained fields against its own baseline', added });
+    // beyond the declared 0.5.2 additive leaves
+    if (unexpectedAdded.length > 0) {
+      problems.push({
+        case: key,
+        reason: 'status gained fields against its own baseline',
+        added: unexpectedAdded,
+      });
     }
     for (const flagKey of STATUS_FLAG_KEYS) {
       if (!(flagKey in n)) {
@@ -381,8 +432,12 @@ for (const key of Object.keys(base1.cases)) {
       });
     }
     maskSet.add(STATUS_EXPECTED_CHANGED);
-  } else if (added.length > 0) {
-    problems.push({ case: key, reason: 'flag-off answer gained fields', added: added.slice(0, 20) });
+  } else if (unexpectedAdded.length > 0) {
+    problems.push({
+      case: key,
+      reason: 'flag-off answer gained fields',
+      added: unexpectedAdded.slice(0, 20),
+    });
   }
   if (removed.length > 0) {
     problems.push({ case: key, reason: 'flag-off answer lost fields', removed: removed.slice(0, 20) });
@@ -406,7 +461,8 @@ for (const key of Object.keys(base1.cases)) {
     leaves: b1Keys.length,
     masked: mask.length,
     compared: b1Keys.length - mask.length,
-    added: added.length,
+    added: unexpectedAdded.length,
+    additive052: allowedAdded.length,
     removed: removed.length,
     mismatches,
   });

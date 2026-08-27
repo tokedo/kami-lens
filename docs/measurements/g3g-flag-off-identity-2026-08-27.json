@@ -1,6 +1,6 @@
 {
   "gate": "g3g-flag-off-identity",
-  "measuredAt": "2026-08-27T02:52:55.449Z",
+  "measuredAt": "2026-08-27T20:31:55.459Z",
   "snapshotBlock": 31782245,
   "clockPinSec": 1755000000,
   "baselines": [
@@ -16,7 +16,7 @@
   "comparedAgainst": "base1",
   "statusExpectedChanged": {
     "path": "version",
-    "to": "0.5.1"
+    "to": "0.5.2"
   },
   "cases": [
     {
@@ -25,6 +25,7 @@
       "masked": 0,
       "compared": 16,
       "added": 0,
+      "additive052": 1,
       "removed": 0,
       "mismatches": 0
     },
@@ -34,6 +35,7 @@
       "masked": 0,
       "compared": 549,
       "added": 0,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
@@ -43,6 +45,7 @@
       "masked": 0,
       "compared": 550,
       "added": 0,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
@@ -52,6 +55,7 @@
       "masked": 49,
       "compared": 954,
       "added": 0,
+      "additive052": 50,
       "removed": 0,
       "mismatches": 0
     },
@@ -61,6 +65,7 @@
       "masked": 0,
       "compared": 607,
       "added": 0,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
@@ -70,6 +75,7 @@
       "masked": 0,
       "compared": 607,
       "added": 0,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
@@ -79,6 +85,7 @@
       "masked": 0,
       "compared": 91,
       "added": 0,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
@@ -88,6 +95,7 @@
       "masked": 0,
       "compared": 66,
       "added": 0,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
@@ -97,6 +105,7 @@
       "masked": 0,
       "compared": 869,
       "added": 0,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
@@ -106,6 +115,7 @@
       "masked": 0,
       "compared": 376,
       "added": 0,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
@@ -115,6 +125,7 @@
       "masked": 0,
       "compared": 2147,
       "added": 0,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
@@ -124,6 +135,7 @@
       "masked": 0,
       "compared": 402,
       "added": 0,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
@@ -133,6 +145,7 @@
       "masked": 2,
       "compared": 22,
       "added": 0,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
@@ -142,6 +155,7 @@
       "masked": 0,
       "compared": 13,
       "added": 0,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
@@ -151,6 +165,7 @@
       "masked": 7,
       "compared": 123,
       "added": 0,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
@@ -160,6 +175,7 @@
       "masked": 7,
       "compared": 101,
       "added": 0,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
@@ -169,6 +185,7 @@
       "masked": 0,
       "compared": 61,
       "added": 0,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
@@ -178,6 +195,7 @@
       "masked": 0,
       "compared": 130,
       "added": 0,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
@@ -187,6 +205,7 @@
       "masked": 41,
       "compared": 540,
       "added": 0,
+      "additive052": 41,
       "removed": 0,
       "mismatches": 0
     },
@@ -196,6 +215,7 @@
       "masked": 41,
       "compared": 790,
       "added": 0,
+      "additive052": 83,
       "removed": 0,
       "mismatches": 0
     },
@@ -205,6 +225,7 @@
       "masked": 0,
       "compared": 3,
       "added": 0,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
@@ -214,6 +235,7 @@
       "masked": 5,
       "compared": 1,
       "added": 0,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
@@ -223,6 +245,7 @@
       "masked": 0,
       "compared": 205,
       "added": 0,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
@@ -232,6 +255,7 @@
       "masked": 0,
       "compared": 205,
       "added": 0,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
@@ -241,6 +265,7 @@
       "masked": 0,
       "compared": 748,
       "added": 0,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
@@ -250,6 +275,7 @@
       "masked": 0,
       "compared": 2948,
       "added": 0,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
@@ -259,6 +285,7 @@
       "masked": 0,
       "compared": 76,
       "added": 0,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
@@ -268,6 +295,7 @@
       "masked": 0,
       "compared": 221,
       "added": 0,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
@@ -277,6 +305,7 @@
       "masked": 0,
       "compared": 15,
       "added": 0,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
@@ -286,6 +315,7 @@
       "masked": 0,
       "compared": 1223,
       "added": 0,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
@@ -295,6 +325,7 @@
       "masked": 0,
       "compared": 281,
       "added": 0,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
@@ -304,6 +335,7 @@
       "masked": 0,
       "compared": 433,
       "added": 0,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
@@ -313,6 +345,7 @@
       "masked": 0,
       "compared": 4,
       "added": 0,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
@@ -322,6 +355,7 @@
       "masked": 101,
       "compared": 2485,
       "added": 0,
+      "additive052": 134,
       "removed": 0,
       "mismatches": 0
     },
@@ -331,6 +365,7 @@
       "masked": 0,
       "compared": 1103,
       "added": 0,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
@@ -340,6 +375,7 @@
       "masked": 41,
       "compared": 746,
       "added": 0,
+      "additive052": 41,
       "removed": 0,
       "mismatches": 0
     },
@@ -349,6 +385,7 @@
       "masked": 7,
       "compared": 150,
       "added": 0,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
@@ -358,6 +395,7 @@
       "masked": 0,
       "compared": 7380,
       "added": 0,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
@@ -367,6 +405,7 @@
       "masked": 0,
       "compared": 4216,
       "added": 0,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
@@ -376,6 +415,7 @@
       "masked": 3,
       "compared": 76,
       "added": 0,
+      "additive052": 1,
       "removed": 0,
       "mismatches": 0
     }

@@ -376,6 +376,35 @@ has one home.
   machine where that file IS the running service, a build that reached
   the host tree would be a production incident rather than a gate
   failure.
+- **G9 pre-LIVE stall** *(\[live\], MANUAL, 0.5.2)*: the daemon started
+  with NO network, network restored after 60 s. Run it with
+  `gates/g9.sh`; it takes ~20 minutes, most of them spent watching a
+  control daemon fail to recover, which is why it is not wired into any
+  other gate script. Control is the 0.5.1 tree, built from a git
+  worktree at its release commit, so the two arms differ by the release
+  and nothing else; 0.5.1 is expected to wedge in `SETUP` 0%
+  indefinitely and 0.5.2 to reach LIVE with no kickstart. Records
+  time-to-LIVE, time-to-LIVE after the network returned, the bootstrap
+  attempts counted, every `degraded` string seen (including
+  `pre-live-stall:<N>s`) and the `NOT_READY` text a world read actually
+  got while pre-LIVE — observed from the running daemon, not asserted
+  from a fixture.
+  **The sever method is an isolated Docker network namespace**
+  (`--network none` at start, `docker network connect bridge` to
+  restore) and NOT a hosts-file or firewall blackhole: on this machine
+  those would also cut the LIVE launchd kami-lens daemon and the play
+  session depending on it. Same `dist/cli.js` fingerprint guard as G8,
+  for the same reason.
+- **G7.c payload flags** *(hermetic, 0.5.2)*: the two payload flags,
+  checked by EQUALITY rather than by size — a filter that dropped the
+  wrong rows would look like a better saving. `node --eligible-only`'s
+  rows must be byte-equal to a client-side filter of the unfiltered
+  `--full` answer AT THE SAME BLOCK (which is why it is hermetic: a
+  live world moves under a two-call comparison), and every
+  `account --slim` field byte-equal to the full answer's same field,
+  with the absences asserted too. Payload before/after is recorded,
+  never asserted — freezing a threshold on fixture occupancy would fail
+  for reasons that have nothing to do with the code.
 
 ## Order and pin advances
 

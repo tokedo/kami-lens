@@ -13,9 +13,7 @@
         "ownerAddress",
         "operatorAddress",
         "roomIndex",
-        "musu",
         "stamina",
-        "reputation",
         "kamis"
       ],
       "properties": {
@@ -87,6 +85,14 @@
             "$ref": "#/$defs/KamiRef"
           }
         },
+        "kamisTotal": {
+          "type": "integer",
+          "description": "§3.13 (0.5.2): `--slim` ONLY. Kamis the account owns, paired with kamisServed (always 0 on the slim surface) so a roster-less answer is never mistakable for an account with no kamis."
+        },
+        "kamisServed": {
+          "type": "integer",
+          "description": "§3.13 (0.5.2): `--slim` ONLY. Always 0 — slim serves no roster rows."
+        },
         "bio": {
           "type": "string"
         },
@@ -97,7 +103,8 @@
         "gas": {
           "$ref": "#/$defs/Gas"
         }
-      }
+      },
+      "description": "§3.13 (0.5.2): `musu` and `reputation` left the REQUIRED list when `--slim` landed. Both are still served on every non-slim answer; slim serves identity only, and makes no chain read, so it carries no `gas` block either."
     },
     "KamiRef": {
       "type": "object",

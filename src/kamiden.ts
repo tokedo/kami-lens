@@ -53,6 +53,17 @@ import { log } from 'utils/logger';
 /** Upstream's reconnect delay (clients/kamiden/client.ts setupSubscription). */
 const RETRY_DELAY_MS = 5_000;
 
+/** How long the stream may be silent before `status.feedsDegraded` says so
+ * (0.5.2, §3.2). Deliberately NOT a reconnect threshold: the production
+ * server closes the subscription roughly every 40 s BY DESIGN (measured
+ * 2026-07-21, gate G4.b; re-measured 2026-08-27 at ~one reconnect per 49 s
+ * on a stream reporting `state: live` with zero consecutive failures), so a
+ * rising `retries` count is this feed's healthy resting state and a
+ * threshold under a minute would cry wolf on every routine close. Silence
+ * past a minute is the signal — the same number the chain stream uses for
+ * the same reason (KamiLensDaemon.STREAM_STALL_MS). */
+export const SILENT_STALL_MS = 60_000;
+
 /** Topics requested on subscribe. MEASURED (2026-07-21, gate G4.b probe):
  * the production server recognizes NO topic string at this pin — any
  * non-empty list ('Feed', 'Movements', 'Kills', even 'Messages') yields

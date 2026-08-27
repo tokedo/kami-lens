@@ -1,0 +1,28 @@
+# G9 fallback image. Same runtime stage as the repo Dockerfile — install the
+# packed tarball into node:20-slim and assert the installed version — but the
+# tarball is packed on the HOST and passed in, instead of being built by an
+# `npm ci` inside the image.
+#
+# WHY THIS EXISTS: the in-image `npm ci` intermittently dies with npm's own
+# "Exit handler never called!" (an npm bug, not a repo one) and, worse, EXITS
+# ZERO while leaving node_modules half-installed, so the failure only shows up
+# two steps later as `tsup: not found`. G5.a and G5.b are the gates that prove
+# the clean-room install path; G9 needs a 0.5.2 daemon in an isolated network
+# namespace and nothing more, so it does not have to re-prove packaging to do
+# its job. Which path produced each image is recorded in the measurement.
+FROM node:20-slim
+ARG TARBALL
+COPY ${TARBALL} /tmp/kami-lens.tgz
+RUN npm install -g /tmp/kami-lens.tgz && rm /tmp/kami-lens.tgz
+RUN set -eu; \
+    installed="$(kami-lens --version | awk '{print $2}')"; \
+    expected="$(node -p "require('/usr/local/lib/node_modules/kami-lens/package.json').version")"; \
+    if [ "$installed" != "$expected" ]; then \
+      echo "FATAL: installed CLI reports ${installed}, package declares ${expected}"; \
+      exit 1; \
+    fi; \
+    echo "installed kami-lens ${installed}"
+ENV KAMI_LENS_DATA_DIR=/data
+VOLUME /data
+ENTRYPOINT ["kami-lens"]
+CMD ["daemon"]
