@@ -9,6 +9,12 @@
 #                    recorded fixtures at gates/fixtures/g2b-observations.json
 #                    (see the template; observer account is an operational
 #                    prerequisite).
+#   G2.d [live]      the 0.5.1 kami-sheet stat block (`--stats`) verified
+#                    against GetterSystem.getKamiByIndex at the mirror's own
+#                    pinned block. Needs gates/.artifacts/c2.v8snap and the
+#                    public RPC; heals near-head itself. Set G2D_SNAPSHOT to a
+#                    fresher base when c2.v8snap has aged — the reference is
+#                    the chain either way, and the base used is recorded.
 #   G2.c [live]      clock-skew immunity. Needs two dumps produced
 #                    CONCURRENTLY at the same target block — one in a
 #                    ±120 s clock-skewed container, one unskewed:
@@ -29,6 +35,9 @@ $TSX gates/g2/a-differential.mts
 
 step "G2.b display parity vs official client (fixtures)"
 $TSX gates/g2/b-display-parity.mts
+
+step "G2.d kami-sheet stat block vs GetterSystem on chain (live)"
+$TSX gates/g2/d-stats-chain.mts ${G2D_SNAPSHOT:+--snapshot "$G2D_SNAPSHOT"}
 
 step "G2.c clock-skew immunity (compare concurrent dumps)"
 if [[ ! -f gates/.artifacts/g2c-skewed.json || ! -f gates/.artifacts/g2c-unskewed.json ]]; then

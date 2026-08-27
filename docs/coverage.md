@@ -54,7 +54,9 @@ than left as an implied `planned`.
 |---|---|---|---|---|
 | party | own kamis: calcHealth, state, cooldown, output | chain | served (G3.c) | G3.c |
 | kami sheet: level / experience / skill points | `shapes/Kami/progress`, `shapes/Kami/skills`, `shapes/Skill` | chain | served (0.5.0) — `kami`/`party`/node occupant rows carry level, `xp`, `xpRequired`, `levelUpReady` (+ `levelUpBlockedBy`) and unspent `skillPoints`; the `skills` query carries the registry and a kami's taken skills with ranks | G3.a, G3.f, G6.a, G7.a |
-| kami sheet: stats / traits / equipment | `shapes/Kami/stats`, `shapes/Kami/traits`, `app/cache/equipment` | chain | **not served** — **corrected at 0.5.0.** This row read `served (G2.a, G2.b)`, which borrowed a gate that does not reach it: G2.a and G2.b verify the ported calcs' *computation* parity, and no query output projects stats, traits or equipment at all. Per the Maintenance rule a row may not carry a gate that does not cover it. Docketed by the 0.5.0 client-parity audit; not built this release. | — |
+| kami sheet: STATS + affinities | `shapes/Kami/stats`, `shapes/Stats`, `app/cache/kami/functions` (affinity pair) | chain | served (0.5.1) — the `--stats` flag on `kami`, `roster`, `party` and `node --with-vitals` serves `base`/`shift`/`boost`/`sync`/`total` for health, power, harmony and violence, plus `[body, hand]` affinities. Opt-in: without the flag every 0.5.0 answer is byte-identical. `slots` and `stamina` are NOT served here — they are in the mirror but not in the chain getter's tuple, so no gate could hold them to chain. | G2.d, G3.a, G3.f, G3.g, G7.a |
+| kami sheet: traits | `shapes/Kami/traits`, `shapes/Trait` | chain | **not served** — **deferred with a reason at 0.5.1, docketed.** The mirror holds them and refreshes them on every kami read, so this is a projection decision, not an absence. The chain-checkable form is trait INDICES, measured at +66 B/kami: on a 150-kami `roster --stats` that is 94 % of the 64 KiB reader budget spent on identifiers nothing on the surface can resolve, because there is no trait-registry query to join them against. Serve the registry first, then the indices. | — |
+| kami sheet: equipment | `app/cache/equipment` | chain | **not served** — unchanged from 0.5.0 and still docketed. (This row and the two above were ONE row until 0.5.1, carrying a single status for three different surfaces; 0.5.0 had already corrected that row for borrowing G2.a/G2.b, gates that verify the ported calcs' *computation* parity and reach no query output. Splitting it is the same rule applied one level down: a row states the status of one thing.) | — |
 | kami sheet: battles tab | kamiden `GetBattles` + `GetBattleStats` | kamiden | served (G4.a) | G4.a |
 | node (occupants, ally/enemy threat, scavenge) | `shapes/Node/harvests` mirror query, liquidation calcs, `shapes/Scavenge` | chain | served (G3.b) | G3.b |
 | map | `shapes/Room` (identity, description, location, exits, gates), `shapes/Portal` | chain | served **in part** (G3.a, G6.b) — the `room` query serves room identity, occupancy and, from 0.5.0, the EXIT graph with the conditions stored on each exit. The portal half is still unserved, and the room's map COORDINATE is docketed, not built. *(The 0.2.0 row named "room constants" as a source; `constants/rooms` was never ported — room data comes from the mirror's own components. Corrected at 0.5.0.)* | G3.a; the `room` query (0.2.0) adds G6.b; exits fold into G6.b at 0.5.0 |
@@ -742,7 +744,8 @@ largest roster that exists.
 
 **Not served at 0.5.0:** crafting, goal, gacha/reveal, dialogue/questDialogue,
 the account friends/requests/blocked surface, the kami sheet's
-stats/traits/equipment, and the PORTAL half of map's exit/portal graph. The
+traits and equipment (its STATS and affinities are served from 0.5.1), and
+the PORTAL half of map's exit/portal graph. The
 first two of those are newly NAMED rather than newly unserved — see the
 corrections in the rows above.
 

@@ -22,7 +22,9 @@
 //   receipt), --stateless (kami only).
 // Query ARGUMENTS are declared per query in the registry (REGISTRY[q].args)
 //   and are parsed by the query itself: --full (compact listings serve their
-//   whole shape and lift their row cap), --with-vitals (node), --open /
+//   whole shape and lift their row cap), --with-vitals (node), --stats (kami,
+//   roster, party, node --with-vitals: the kami sheet's stat block +
+//   affinities; on roster it also CAPS the list), --open /
 //   --accepted (quests), --array (config), --oversize (chat). An option a
 //   query does not declare is a usage error, never a silent no-op (§3.13).
 //

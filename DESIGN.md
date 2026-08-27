@@ -440,6 +440,21 @@ CONSTRUCTION, because the gate's marginal is computed over `kamis[]` and
 anything outside it cancels. A guarantee that holds by construction is worth
 more than one that holds by measurement.
 
+**Amendment (0.5.1): `--stats` sits OUTSIDE this contract, deliberately.**
+The kami-sheet block (§3.16) adds an identical ~293 bytes to a compact
+roster row and to a fat party row, so it is a rounding error on one and
+roughly a tripling of the other: the frozen ratio goes to ~0.6 by
+arithmetic, not by drift. Raising the threshold to accommodate it would
+destroy the thing the threshold is for — it exists to catch the DEFAULT
+answer getting fatter, and the default answer has not moved a byte. So
+the compaction contract is defined over the flag-off roster, G7.a asserts
+only that, and the flag-on marginal is recorded beside it as a report
+line so the cost is on the record rather than invisible. What the flag
+does inherit is the other half of §3.13: **it brings the standard row cap
+with it**, with the true total beside the served count, because the
+uncapped `--stats` roster projects past 300 KB on the largest rosters in
+the world and an answer nobody can read has not been served.
+
 **Refusals name their cause.** `requirementsMet: false` was a bare boolean
 on 97 of 187 quest rows, and the layer computed the per-requirement status
 for every one of them and threw it away — so a reader could learn *that* it
@@ -540,6 +555,107 @@ Two consequences a reader has to know:
   mirror state. The stamp is honest about the join; it says nothing about how
   fresh the service's rows are.
 
+**How far behind is it? (0.5.1).** Until now, nothing on any surface could
+answer that. `status.blockLag` was declared in the schema at 0.5.0 and never
+populated; `meta.blockNumber` is a lower bound that does not advance on an
+event-less block; and the only other signal was the boolean `meta.stale` and
+a `degraded: ["stream-stalled:Ns"]` string. After a laptop wake — the case
+this exists for, now that a lens daemon runs as a launchd service on a Mac
+that sleeps — a consumer could not tell a mirror three blocks behind from one
+three hours behind. `status` now carries `blockLag`, `headBlockNumber` and
+`headSampledAt`, from one `eth_blockNumber` taken at status time, and **all
+three are absent together when that read fails** — never 0, never null
+(§3.14). The head and the timestamp are served beside the lag because a
+subtraction you cannot check is an assertion, and a head number of unknown
+age is not evidence.
+
+The read is **bounded at two seconds and never blocks the answer**. `status`
+is the daemon's own health surface — the local watchdog polls it every 60 s
+and the container healthcheck every 30 s, and both read a hang as
+"unreachable" — so a stalled RPC has to cost three optional fields rather
+than the answer. Same rule the gas block already follows (§3.13), applied to
+the one query that must always respond.
+
+**`meta.stale` is NOT derived from it, in this release.** `stale` keeps its
+0.5.0 meaning exactly. A nonzero `blockLag` is the normal resting state of a
+healthy mirror — that is what "does not advance on an event-less block"
+means — so a threshold set before anyone has seen the distribution would
+stamp healthy answers stale. The lag is information; the release that
+measures a thing is not the release that acts on it.
+
+### 3.16 The kami sheet, and a flag that pays for itself (0.5.1)
+
+Settled with the 0.5.1 surface. **A fact the projection already computed
+and threw away is not an absence, it is a discard — and the reader pays
+for it either way.**
+
+`docs/coverage.md` carried the row "kami sheet: stats / traits /
+equipment" as **not served** through five releases, while
+`shapes/Kami/stats` and `shapes/Kami/traits` sat in the mirror, parity-gated
+by G2.a/G2.b, refreshed unconditionally on every single kami read
+(`KAMI_REFRESH` sets `stats: -1, traits: -1`, and `app/cache/kami/base.ts`
+calls `getKamiStats(..., true)` — bonus folded in) and then dropped at the
+projection. Four queries — `kami`, `roster`, `party`, `node --with-vitals`
+— all walked that path. The cost of serving it is zero additional mirror
+reads. This is the same shape of finding as the 0.5.0 leveling loop, and
+it surfaced the same way: a play session could not answer "how strong is
+this kami" from a lens that had the answer in memory.
+
+Four decisions, and three of them are about not lying:
+
+- **Opt-in, and byte-identical without the flag.** `--stats` on the four
+  reads that already project a kami; every addition is a trailing
+  conditional spread, so a flag-off answer keeps its exact 0.5.0 key set
+  AND key order. G3.g proves it against the frozen 0.5.0 baselines with no
+  re-capture. A new query would have been the wrong shape: the reader
+  wanting stats is the reader already asking for the kami.
+- **`total`, not `current`.** The effective value after skills and
+  equipment is `(1 + boost/1e3) × (base + shift)` — the ported
+  `Stat.total`. Calling it `current` would have put two different numbers
+  under one word in one answer, because `hp.current` (drained/regenerated
+  live health) is already served beside `hp.total`.
+- **No `rate`, and only four stats.** `Stat.rate` is written by
+  `updateHealthRate` and nothing else, so it is a structural zero on
+  power, harmony and violence — a lie-shaped zero (§3.14); health's rate
+  is already served as `hpRatePerHr`. And the four stats are exactly the
+  four in the chain's `GetterSystem.getKamiByIndex` tuple: `slots` and
+  `stamina` exist in the mirror but not in that tuple, so serving them
+  would put numbers on the surface that no gate could hold to chain.
+- **Traits deferred, and said so.** The chain-checkable form is trait
+  INDICES, +66 B/kami, which pushes a 150-kami `roster --stats` to 94 % of
+  the reader budget for identifiers nothing on the surface can resolve
+  yet. The coverage row now reads served for stats and affinities and
+  **not served** for traits and equipment, rather than one status for
+  three different things.
+
+**What the gate found, including that its own first claim was wrong.**
+`GetterSystem.getKamiByIndex` reverts for some kamis the mirror serves
+perfectly well. The investigation saw 19999 answer, 20000/20001/20010/20100
+revert and 20002 answer, and generalised to "it reverts for every kami with
+no owning account". **That was wrong, and the gate is what caught it**: the
+probe reached kamis 1, 6 and 71 — equally account-less, all answered. The
+real correlate is the STATE, and once the probe was spread across the whole
+index range instead of taking the first few in mirror-iteration order, it
+separated cleanly on twelve samples: `721_EXTERNAL` — bridged out of the
+world — 5 answered / 0 reverted; account-less and still in-world (`RESTING`,
+`DEAD`) 0 answered / 7 reverted. 4,886 of the mirror's kamis are
+account-less.
+
+Two things follow, and the second is the general one. The vector samples
+OWNED kamis only, because those are the ones the chain answers for
+reliably — a gate that sampled blindly would report a chain-side refusal as
+a parity break. And a finding gets recorded as its own evidence: G2.d writes
+the per-index results and a state grouping it derives from them, not a
+sentence composed in advance, because the sentence composed in advance is
+the thing that was wrong. G2.d samples owned kamis only, probes unowned ones deliberately,
+and records the result. Two traps sit beside it: `stat.shift` on an ethers
+`Result` resolves to `Array.prototype.shift` — the function — and
+`Number(fn)` is `NaN`, which JSON serializes as `null`, so a first pass of
+the vector produced `"shift": null` for every kami and looked like data
+(§3.14, exactly); and the mirror's `shift` is bonus-inclusive while the
+chain's stored value is not, so G2.d records both numbers and fails rather
+than tolerating a divergence it cannot explain.
+
 ## 4. Architecture
 
 ### 4.1 Sync layer
@@ -598,16 +714,44 @@ Measured RPC constraints (public Yominet endpoint, 2026-07-20):
 | average block time (trailing month) | ~2.1 s |
 | World-contract log density (recent) | ~15–17 logs/block |
 | `eth_getLogs` range cap | 1,000,000 blocks |
-| `eth_getLogs` cost at recent density | ~23 s per 10 k-block range |
+| `eth_getLogs` cost at recent density | ~23 s per 10 k-block range (a MEASUREMENT of the endpoint, not the chunk size the code uses — see below) |
 | log retention | trailing ~1.02 M blocks ≈ 25 days |
 | behavior beyond retention | empty result, HTTP 200 — not an error |
 | `eth_call` historical state depth | ≈ 50–120 blocks (measured 2026-07-21: ok at head−50, reverted at head−120) |
 
-Consequences: RPC gap-fill of a one-day outage (~41 k blocks) costs
-roughly two minutes in 10 k-block chunks; an outage beyond the
-retention window cannot be healed from RPC at all — it takes Kamigaze
-`GetEventsSince` (its own retention: unverified) or a full
-re-snapshot. Because pruned ranges return empty success, the sync
+Consequences, and **the chunk size here is 50 blocks, not 10 k**
+(corrected 0.5.1). This text used to say gap-fill runs "in 10 k-block
+chunks", which no code path has ever done: both RPC gap-fill call
+sites — `fetchGapEvents`' fallback and `fillGap`'s catch path, in
+`src/workers/sync/stream/gapfill.ts` — pass a literal `50` into
+`fetchEventsInBlockRangeChunked` (`src/workers/sync/utils.ts`, whose
+own default is also 50). The 10 k figure in the table above is a
+measurement of what the ENDPOINT costs per 10 k-block range, and it
+was read back as a configuration value it never was. So: RPC gap-fill
+of a one-day outage (~41 k blocks) is ~820 SEQUENTIAL `eth_getLogs`
+calls of 50 blocks each. At that size each call returns ~800 logs and
+the cost is dominated by round-trips rather than by log density, which
+puts a one-day heal in minutes-to-tens-of-minutes, not the two minutes
+the old text implied. Gate G8 measures the calls and the observed
+chunk size on a real gap, and its first record (2026-08-27) answers the
+question this paragraph used to invite: **a 10-minute gap never reaches
+the RPC path at all.** The daemon healed through ONE Kamigaze
+`GetEventsSince` call — 2,638 events, `rpcRangesRequested: 0` — so the
+50-block chunk size never came into play and there is nothing here to
+propose changing. (Reproduced across three runs of the gate: the
+Kamigaze path every time, the RPC fallback never.) The chunk size binds only
+where Kamigaze declines or is unreachable, which is what the deferred
+2-hour leg exists to reach.
+
+(Recorded because the gate's first attempt could not see this: both
+gap-fill call sites log at DEBUG, the container ran at INFO, and the run
+produced `gapFillPath: "neither-observed"` — a daemon healing a gap in
+11.8 s with no evidence of how. The gate now sets
+`KAMI_LENS_LOG_LEVEL=DEBUG` on its subject. A gate that cannot observe
+its own subject is not measuring.) An outage
+beyond the retention window cannot be healed from RPC at all — it
+takes Kamigaze `GetEventsSince` (its own retention: unverified) or a
+full re-snapshot. Because pruned ranges return empty success, the sync
 layer treats "empty result from an old range" as suspect, never as
 proof of no events. The retention window is remeasured as a
 PORT_PLAN gate.

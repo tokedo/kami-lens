@@ -163,6 +163,24 @@ every gate that says "state hash".
   projected values must equal an unskewed run's at the same stream
   positions — proving projection reads corrected time, not the wall
   clock.
+- **G2.d kami-sheet stats vs chain** *(\[live\], 0.5.1)*: the
+  `--stats` block (`base`/`shift`/`boost`/`sync`/`total` per stat, plus
+  the `[body, hand]` affinity pair) verified against
+  `GetterSystem.getKamiByIndex` at the mirror's own pinned block, for
+  ≥ 20 OWNED kamis with ≥ 4 in each index band (`<15000`,
+  `19000–19999`, `20000+`) — the bands matter because that getter is
+  the truth where the oracle's `kami_static` coverage collapses.
+  `total` is asserted as the client's own
+  `(1 + boost/1e3) × (base + shift)` computed on the CHAIN's parts, so
+  the effective value is proved to be the ported calc rather than a
+  re-derivation. Owned-only is a constraint, not a convenience: the
+  getter declines to describe some kamis the mirror serves, which the
+  gate probes deliberately — spread across the index range — and
+  records per index with a state grouping derived from the results
+  rather than a claim written in advance. The bonus-inclusive `shift` is
+  compared against the chain-stored one and any divergence FAILS
+  rather than being tolerated (the fix would be an explicit
+  `shiftBonus` field).
 
 ## M3 — Query surface: daemon, CLI, library
 
@@ -328,6 +346,36 @@ every gate that says "state hash".
 - **G5.d provenance:** LICENSE present; `package.json` license is
   AGPL-3.0; `--version` shows the `UPSTREAM` pin; ported files carry
   provenance headers (spot-checked by script).
+
+## Release gates added after M5
+
+Gates numbered above G5 belong to releases rather than milestones: the
+port was finished at M5, and each of these exists because a specific
+release needed a specific proof. They are listed here so the gate set
+has one home.
+
+- **G6 / G7 — surface consistency and chain cross-check** *(0.2.0 /
+  0.3.0)*: internal coherence of the served answers, and the same
+  answers verified on chain by pinned `eth_call` reads.
+- **G8 stream gap** *(\[live\], MANUAL, 0.5.1)*: the daemon across a
+  real network outage — what a laptop that sleeps actually does. Run
+  it with `gates/g8.sh`; it takes ~40 minutes, most of them
+  deliberately idle, which is why it is not wired into any other gate
+  script. Records time-to-reconnect, the gap-fill path actually taken
+  (Kamigaze `GetEventsSince` vs chunked RPC) with the RPC ranges and
+  chunk size OBSERVED rather than read off the source, time until
+  `degraded` clears, and a byte-equality check of a fixed query set
+  against a fresh cold daemon — then the same gap healed by a
+  kickstart-restart instead, so the lab's restart-on-wake policy can
+  be judged against the do-nothing baseline side by side.
+  **The sever method is `docker network disconnect` on a dedicated
+  container and volume**: no sudo, no host routing change, and
+  structurally unable to reach a local launchd kami-lens service or
+  its data directory. The gate fingerprints the host's `dist/cli.js`
+  before and after the image build and fails if it moved, because on a
+  machine where that file IS the running service, a build that reached
+  the host tree would be a production incident rather than a gate
+  failure.
 
 ## Order and pin advances
 

@@ -20,6 +20,8 @@ import {
   calcOutput,
   getKami,
   getKamiAccount,
+  getKamiBodyAffinity,
+  getKamiHandAffinity,
 } from 'app/cache/kami';
 import { KamiCache } from 'app/cache/kami/base';
 // liquidation previews import from the calcs module directly — the barrel
@@ -395,6 +397,94 @@ const KAMI_REFRESH = {
   traits: -1,
 };
 
+// ------------------------------------------- §3.16 the kami sheet (0.5.1)
+//
+// The stats/affinities half of the kami sheet, as an OPT-IN flag on the reads
+// that already project a kami (`--stats`). Every input is ALREADY COMPUTED on
+// the path that answers today and thrown away at the projection: KAMI_REFRESH
+// forces `stats` and `traits` on every kami read (see the constant above and
+// app/cache/kami/base.ts, which calls getKamiStats(..., true) — bonus
+// included), so this adds no mirror read at all. The same shape the 0.5.0
+// leveling loop had, and the same reason it was missing: nobody projected it.
+//
+// WITHOUT THE FLAG EVERY ANSWER IS BYTE-IDENTICAL TO 0.5.0. Each addition is
+// reached only from a `...(withStats ? … : {})` spread placed LAST in its
+// object literal — the §3.12 pattern, and what G3.g proves.
+
+/** One stat, as the mirror decodes it (network/shapes/Stats.ts).
+ *
+ * `base`/`shift`/`boost`/`sync` are the four parts packed into the stat's
+ * uint256 on chain; `total` is the client's own effective value,
+ * `(1 + boost/1e3) × (base + shift)`, after skills and equipment — the
+ * number the reference client renders on the kami sheet.
+ *
+ * NAMED `total`, NOT `current`, DELIBERATELY. This answer already carries
+ * `hp.current` (calcHealth — the drained/regenerated live health) beside
+ * `hp.total`. A second field called "current health" holding the stat
+ * maximum would put two different numbers under one word in one answer, and
+ * `total` is the ported field's own name besides.
+ *
+ * NO `rate` FIELD. `Stat.rate` is written by updateHealthRate and by nothing
+ * else, so it is structurally 0 for power, harmony and violence — a
+ * lie-shaped zero (§3.14). Health's rate is already served, as
+ * `hpRatePerHr`.
+ *
+ * `shift` INCLUDES THE BONUS. The mirror's getStats is called with
+ * withBonus=true, so a STAT_*_SHIFT bonus from a skill or an equipped item is
+ * folded in here, while the chain's stored component value does not carry it.
+ * G2.d records both numbers per kami; if any live kami is ever found where
+ * they diverge, this shape gains an explicit `shiftBonus` and the gate
+ * asserts shift === chainShift + shiftBonus. */
+export type StatOut = {
+  base: number;
+  shift: number;
+  boost: number;
+  sync: number;
+  total: number;
+};
+
+/** The four stats the chain's own GetterSystem.getKamiByIndex tuple carries,
+ * and therefore the four this surface can be held to. `slots` is in the
+ * mirror's KamiStats and `stamina` in the generic Stats shape; neither is in
+ * the getter's KamiShape, so serving them would put numbers on the surface
+ * that no gate could check against chain. */
+export type KamiStatsOut = {
+  health: StatOut;
+  power: StatOut;
+  harmony: StatOut;
+  violence: StatOut;
+};
+
+/** The kami sheet's stat block plus its affinity pair, for one already-
+ * projected kami. Returns undefined when the projection has no stats at all —
+ * assertKamiConfigUsable already refuses that case upstream of every caller,
+ * so this is belt-and-braces rather than a live path, and an ABSENT block is
+ * the honest answer where a zeroed one would lie (§3.14). */
+export function statsOf(kami: ReturnType<typeof getKami>):
+  | { stats: KamiStatsOut; affinities: string[] }
+  | undefined {
+  const s = kami.stats;
+  if (!s) return undefined;
+  const one = (st: { base: number; shift: number; boost: number; sync: number; total: number }): StatOut => ({
+    base: st.base,
+    shift: st.shift,
+    boost: st.boost,
+    sync: st.sync,
+    total: st.total,
+  });
+  return {
+    stats: {
+      health: one(s.health),
+      power: one(s.power),
+      harmony: one(s.harmony),
+      violence: one(s.violence),
+    },
+    // [body, hand] — the reference client's own pair and its own defaulting
+    // (app/cache/kami/functions.ts: 'NORMAL' when the trait carries none)
+    affinities: [getKamiBodyAffinity(kami), getKamiHandAffinity(kami)],
+  };
+}
+
 // ---------------------------------------------------------------- kami
 
 export type KamiVitals = {
@@ -420,9 +510,17 @@ export type KamiVitals = {
   cooldownSec: number;
   node?: { index: number; name: string };
   account?: { index: number; name: string };
+  /** §3.16 (0.5.1): `--stats` only. Absent without the flag. */
+  stats?: KamiStatsOut;
+  /** §3.16 (0.5.1): `--stats` only — [body, hand]. Absent without the flag. */
+  affinities?: string[];
 };
 
-export function buildKamiVitals(mirror: Mirror, entity: EntityIndex): KamiVitals {
+export function buildKamiVitals(
+  mirror: Mirror,
+  entity: EntityIndex,
+  withStats = false
+): KamiVitals {
   const { world, components } = mirror;
   KamiCache.clear();
   const kami = getKami(world, components, entity, KAMI_REFRESH);
@@ -452,13 +550,25 @@ export function buildKamiVitals(mirror: Mirror, entity: EntityIndex): KamiVitals
     const node = kami.harvest.node;
     if (node) vitals.node = { index: node.index, name: node.name };
   }
+  // §3.16: LAST, and only behind the flag — a flag-off answer keeps its exact
+  // 0.5.0 key set and key ORDER (G3.g compares both)
+  if (withStats) {
+    const sheet = statsOf(kami);
+    if (sheet) {
+      vitals.stats = sheet.stats;
+      vitals.affinities = sheet.affinities;
+    }
+  }
   return vitals;
 }
 
-export function kamiQuery(mirror: Mirror, args: { index: number }): KamiVitals {
+export function kamiQuery(
+  mirror: Mirror,
+  args: { index: number; stats?: boolean }
+): KamiVitals {
   const entity = queryKamiByIndex(mirror.world, mirror.components, args.index);
   if (entity === undefined) throw new QueryError('NOT_FOUND', `kami ${args.index} not in mirror`);
-  return buildKamiVitals(mirror, entity);
+  return buildKamiVitals(mirror, entity, args.stats === true);
 }
 
 // ------------------------------------------------------------- account
@@ -667,6 +777,13 @@ export type HarvestVitals = {
   levelUpReady?: boolean;
   levelUpBlockedBy?: LevelUpBlocker;
   skillPoints?: number;
+  /** §3.16 (0.5.1): `--stats` only. The threat read is exactly where the
+   * occupant's stats belong — power and violence decide what it can do back. */
+  stats?: KamiStatsOut;
+  /** §3.16 (0.5.1): `--stats` only — [body, hand]. The liquidation calcs
+   * upstream turn on this pair (calcs/liquidation.ts), so a reader previewing
+   * a liquidation could not check the preview's own inputs without it. */
+  affinities?: string[];
 };
 
 /** Why a liquidation the preview reports as ineligible is ineligible.
@@ -744,7 +861,13 @@ export type NodeOut = {
  * not its own target). */
 export function nodeQuery(
   mirror: Mirror,
-  args: { index: number; withVitals?: boolean; attacker?: number; full?: boolean },
+  args: {
+    index: number;
+    withVitals?: boolean;
+    attacker?: number;
+    full?: boolean;
+    stats?: boolean;
+  },
   enrich = false
 ): NodeOut {
   const { world, components } = mirror;
@@ -805,6 +928,14 @@ export function nodeQuery(
         level: occupant.progress?.level,
         ...leveling,
       };
+      // §3.16: LAST on the vitals object, behind the flag
+      if (args.stats) {
+        const sheet = statsOf(occupant);
+        if (sheet) {
+          row.vitals.stats = sheet.stats;
+          row.vitals.affinities = sheet.affinities;
+        }
+      }
       if (attackerKami && occupant.id !== attackerKami.id) {
         const eligible = canLiquidate(attackerKami, occupant);
         const threshold = calcLiqThreshold(attackerKami, occupant);
@@ -858,7 +989,7 @@ export type PartyOut = {
  * answer and the `--full` answer agree about which rows come first. */
 export function partyQuery(
   mirror: Mirror,
-  args: { accountIndex: number; full?: boolean }
+  args: { accountIndex: number; full?: boolean; stats?: boolean }
 ): PartyOut {
   const { world, components } = mirror;
   const account = getAccountByIndex(world, components, args.accountIndex, { kamis: true });
@@ -866,7 +997,7 @@ export function partyQuery(
     throw new QueryError('NOT_FOUND', `account ${args.accountIndex} not in mirror`);
   }
   const all = (account.kamis ?? [])
-    .map((k) => buildKamiVitals(mirror, k.entity))
+    .map((k) => buildKamiVitals(mirror, k.entity, args.stats === true))
     .sort((a, b) => a.index - b.index);
   const { served, total } = capRows(all, args.full === true);
   return {
@@ -910,7 +1041,21 @@ export type RosterOut = {
     /** [kamiIndex, unspentSkillPoints] for every kami holding any */
     skillPoints: number[][];
   };
-  kamis: { index: number; state: string; hp: number[] }[];
+  kamis: {
+    index: number;
+    state: string;
+    hp: number[];
+    /** §3.16 (0.5.1): `--stats` only. Absent without the flag. */
+    stats?: KamiStatsOut;
+    /** §3.16 (0.5.1): `--stats` only — [body, hand]. Absent without the flag. */
+    affinities?: string[];
+  }[];
+  /** §3.16 (0.5.1): present ONLY under `--stats`, which caps this list.
+   * The flag-off roster is uncapped and carries neither count — see the
+   * note on rosterQuery for why the cap arrives with the flag and not
+   * before it. */
+  kamisTotal?: number;
+  kamisServed?: number;
 };
 
 /** Compact roster (0.3.0): one line per kami — index, state, [hp, hpTotal] —
@@ -935,7 +1080,7 @@ export type RosterOut = {
  * the party report for the same kami at the same block.) */
 export function rosterQuery(
   mirror: Mirror,
-  args: { accountIndex: number },
+  args: { accountIndex: number; stats?: boolean },
   enrich = false
 ): RosterOut {
   const { world, components } = mirror;
@@ -943,18 +1088,49 @@ export function rosterQuery(
   if (!account.index) {
     throw new QueryError('NOT_FOUND', `account ${args.accountIndex} not in mirror`);
   }
+  const withStats = args.stats === true;
   const levelUpReady: number[] = [];
   const skillPoints: number[][] = [];
   const kamis = (account.kamis ?? []).map((k) => {
-    const vitals = buildKamiVitals(mirror, k.entity);
+    const vitals = buildKamiVitals(mirror, k.entity, withStats);
     if (vitals.levelUpReady) levelUpReady.push(vitals.index);
     if (vitals.skillPoints) skillPoints.push([vitals.index, vitals.skillPoints]);
     return {
       index: vitals.index,
       state: vitals.state,
       hp: [vitals.hp.current, vitals.hp.total],
+      // §3.16: LAST on the row, behind the flag
+      ...(withStats && vitals.stats
+        ? { stats: vitals.stats, affinities: vitals.affinities }
+        : {}),
     };
   });
+  // §3.16 + §3.13 ("a cap is honest or it is a lie"): the roster is the one
+  // listing with no cap, and it can afford not to have one — a row is ~53
+  // bytes. A `--stats` row is ~346, and the largest roster in the world runs
+  // to four figures: measured, `roster --stats` over 1,050 kamis projects to
+  // ~363 KB against a 64 KiB reader. So the FLAG brings the standard cap with
+  // it, with the true total beside the served count, rather than serving a
+  // list nobody can read or truncating one silently. Flag-off keeps the
+  // uncapped shape it has always had, counts included — adding them
+  // unconditionally would have been a default-answer change (G3.g).
+  //
+  // The account-block SETS stay complete either way: they are account-level
+  // facts, not row fields, and capping them would lose information the
+  // flag-off answer had.
+  //
+  // ORDER BECOMES LOAD-BEARING THE MOMENT THE LIST IS CAPPED. The flag-off
+  // roster is uncapped, so it has always been free to serve rows in the
+  // mirror's own iteration order — nothing is lost, and a consumer joins on
+  // the index anyway. A CAPPED list in that order is the lottery §3.13
+  // refuses: which fifty kamis you get would depend on an incidental query
+  // order, and two answers could not be reconciled. So the `--stats` path
+  // sorts by kami index before capping, exactly as `party` and `node` do.
+  // Flag-off is deliberately NOT sorted, because sorting it would change a
+  // default answer (G3.g) for no gain on an uncapped list.
+  const capped = withStats
+    ? capRows([...kamis].sort((a, b) => a.index - b.index), false)
+    : null;
   return {
     account: {
       index: account.index,
@@ -965,7 +1141,8 @@ export function rosterQuery(
       levelUpReady,
       skillPoints,
     },
-    kamis,
+    kamis: capped ? capped.served : kamis,
+    ...(capped ? { kamisTotal: capped.total, kamisServed: capped.served.length } : {}),
   };
 }
 

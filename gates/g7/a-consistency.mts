@@ -649,6 +649,81 @@ if (largest.kamis > 0) {
       problems.push({ area: 'roster/leveling', reason: 'the leveling sets charged a PER-KAMI cost; they must be fixed overhead only', compaction });
     }
   }
+  // §3.16 (0.5.1): the `--stats` roster, measured and REPORTED, never
+  // asserted against the frozen ratio.
+  //
+  // This is the honest form of the claim and the alternative was not.
+  // `--stats` adds an identical ~293-byte block to a compact row and to a fat
+  // one, so it is a rounding error on the party report and a tripling of the
+  // roster row: the ratio goes to roughly 0.6 by arithmetic, not by drift.
+  // Raising the frozen threshold to accommodate it would destroy the very
+  // thing the threshold is for — it exists to catch the default answer
+  // getting fatter, and the default answer has not moved a byte. So the
+  // compaction contract is defined over the FLAG-OFF roster, the flag-on
+  // number is recorded here so the cost is on the record rather than
+  // invisible, and DESIGN §3.13 says in those words that `--stats` sits
+  // outside the contract.
+  //
+  // What IS asserted: the flag caps the list (a `--stats` roster must never
+  // be uncapped, because the uncapped form projects past 300 KB on the
+  // largest rosters), and it carries both counts so a capped answer cannot
+  // pass for a complete one.
+  {
+    const statsRoster = (await serve('roster', [String(largest.accountIndex), '--stats'])) as RosterOut & {
+      kamisTotal?: number;
+      kamisServed?: number;
+    };
+    const served = statsRoster.kamis.length;
+    const statsEmpty = bytes({ ...statsRoster, kamis: [] });
+    const statsMarginal = served > 0 ? (bytes(statsRoster) - statsEmpty) / served : 0;
+    compaction.stats = {
+      note: 'RECORDED, NOT ASSERTED against the frozen ratio — see the comment above and DESIGN §3.13',
+      rosterBytes: bytes(statsRoster),
+      kamisServed: served,
+      kamisTotal: statsRoster.kamisTotal ?? null,
+      rosterMarginalBytesPerKami: Number(statsMarginal.toFixed(2)),
+      marginalRatioAgainstParty: Number((statsMarginal / partyMarginal).toFixed(4)),
+      flagOffMarginalBytesPerKami: Number(rosterMarginal.toFixed(2)),
+      projectedUncappedBytesAtFullRoster: Math.round(statsEmpty + statsMarginal * largest.kamis),
+    };
+    if (statsRoster.kamisTotal === undefined || statsRoster.kamisServed === undefined) {
+      problems.push({ area: 'roster/stats', reason: 'a --stats roster is capped and must carry kamisTotal and kamisServed', compaction });
+    } else if (statsRoster.kamisServed !== served || statsRoster.kamisTotal !== largest.kamis) {
+      problems.push({ area: 'roster/stats', reason: 'the --stats roster counts disagree with the account', served, counts: { total: statsRoster.kamisTotal, served: statsRoster.kamisServed }, kamis: largest.kamis, compaction });
+    }
+    if (largest.kamis > served && served !== 50) {
+      problems.push({ area: 'roster/stats', reason: 'a --stats roster larger than the cap must serve exactly the cap', served, compaction });
+    }
+    // §3.13: a cap over an incidental order is a lottery. The capped form
+    // must be index-ordered, unconditionally, and it must be the FIRST fifty
+    // by index — not fifty arbitrary ones the mirror happened to iterate.
+    {
+      const servedIdx = statsRoster.kamis.map((k) => k.index);
+      const sorted = [...servedIdx].sort((a, b) => a - b);
+      if (JSON.stringify(servedIdx) !== JSON.stringify(sorted)) {
+        problems.push({ area: 'roster/stats', reason: 'the capped --stats roster is not ordered by kami index', head: servedIdx.slice(0, 8) });
+      }
+      const allSorted = [...roster.kamis.map((k) => k.index)].sort((a, b) => a - b);
+      if (JSON.stringify(servedIdx) !== JSON.stringify(allSorted.slice(0, servedIdx.length))) {
+        problems.push({ area: 'roster/stats', reason: 'the capped --stats roster is not the lowest-indexed rows of the full roster', head: servedIdx.slice(0, 8) });
+      }
+    }
+    // every served row must actually carry the block, and the flag-off
+    // roster must carry none of it
+    for (const row of statsRoster.kamis as unknown as { index: number; stats?: unknown; affinities?: unknown }[]) {
+      note('rosterStatsRowsChecked');
+      if (!row.stats || !Array.isArray(row.affinities) || row.affinities.length !== 2) {
+        problems.push({ area: 'roster/stats', reason: 'a --stats roster row is missing its stat block or affinity pair', row: row.index });
+        break;
+      }
+    }
+    for (const row of roster.kamis as unknown as { index: number; stats?: unknown; affinities?: unknown }[]) {
+      if (row.stats !== undefined || row.affinities !== undefined) {
+        problems.push({ area: 'roster/stats', reason: 'the FLAG-OFF roster carries a stat block', row: row.index });
+        break;
+      }
+    }
+  }
 }
 
 // --- 0.5.0 (§3.13): every capped listing is honest about its cap ------------

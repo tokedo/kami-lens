@@ -118,11 +118,15 @@ const optInt = (s: string | undefined, what: string): number | undefined =>
 export const REGISTRY: Record<QueryName, QueryDef> = {
   kami: {
     name: 'kami',
-    summary: 'single-kami vitals by on-chain index',
-    parseArgs: ([index]) => ({ index: int(index, 'kami index') }),
+    summary: 'single-kami vitals by on-chain index (--stats adds the kami sheet\'s stat block + affinities)',
+    args: ['--stats'],
+    parseArgs: (positional) => {
+      const [index] = positional.filter((p) => p !== '--stats');
+      return { index: int(index, 'kami index'), stats: positional.includes('--stats') };
+    },
     stateless: true,
     kamiden: false,
-    build: (ctx, a) => kamiQuery(ctx.mirror, a as { index: number }),
+    build: (ctx, a) => kamiQuery(ctx.mirror, a as { index: number; stats?: boolean }),
   },
   account: {
     name: 'account',
@@ -153,20 +157,27 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
   node: {
     name: 'node',
     summary:
-      'node with its ACTIVE harvests; --with-vitals [attackerKamiIndex] adds occupant vitals + liquidation preview (--full lifts the row cap)',
-    args: ['--with-vitals', '--full'],
+      'node with its ACTIVE harvests; --with-vitals [attackerKamiIndex] adds occupant vitals + liquidation preview (--full lifts the row cap, --stats adds the stat block)',
+    args: ['--with-vitals', '--full', '--stats'],
     parseArgs: (positional) => {
-      const rest = positional.filter((p) => p !== '--with-vitals' && p !== '--full');
+      const rest = positional.filter((p) => !p.startsWith('--'));
       const withVitals = positional.includes('--with-vitals');
       const [index, attacker] = rest;
       if (attacker !== undefined && !withVitals) {
         throw new QueryError('BAD_ARGS', 'an attacker kami argument needs --with-vitals');
+      }
+      // the stat block hangs off the occupant VITALS; without --with-vitals
+      // there is nothing for it to hang off, and silently ignoring the flag
+      // would be the §3.13 silent-argument defect all over again
+      if (positional.includes('--stats') && !withVitals) {
+        throw new QueryError('BAD_ARGS', '--stats needs --with-vitals');
       }
       return {
         index: int(index, 'node index'),
         withVitals,
         attacker: optInt(attacker, 'attacker kami index'),
         full: positional.includes('--full'),
+        stats: positional.includes('--stats'),
       };
     },
     stateless: false,
@@ -174,34 +185,52 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     build: (ctx, a) =>
       nodeQuery(
         ctx.mirror,
-        a as { index: number; withVitals?: boolean; attacker?: number; full?: boolean },
+        a as {
+          index: number;
+          withVitals?: boolean;
+          attacker?: number;
+          full?: boolean;
+          stats?: boolean;
+        },
         ctx.enrich
       ),
   },
   party: {
     name: 'party',
     operatorArg: true,
-    summary: 'account party report: kamis with full vitals (--full lifts the row cap)',
-    args: ['--full'],
+    summary:
+      'account party report: kamis with full vitals (--full lifts the row cap, --stats adds the kami sheet\'s stat block + affinities)',
+    args: ['--full', '--stats'],
     parseArgs: (positional) => {
-      const [accountIndex] = positional.filter((p) => p !== '--full');
+      const [accountIndex] = positional.filter((p) => !p.startsWith('--'));
       return {
         accountIndex: int(accountIndex, 'account index'),
         full: positional.includes('--full'),
+        stats: positional.includes('--stats'),
       };
     },
     stateless: false,
     kamiden: false,
-    build: (ctx, a) => partyQuery(ctx.mirror, a as { accountIndex: number; full?: boolean }),
+    build: (ctx, a) =>
+      partyQuery(ctx.mirror, a as { accountIndex: number; full?: boolean; stats?: boolean }),
   },
   roster: {
     name: 'roster',
     operatorArg: true,
-    summary: 'compact roster: one line per kami (index, state, hp) + where the account is',
-    parseArgs: ([accountIndex]) => ({ accountIndex: int(accountIndex, 'account index') }),
+    summary:
+      'compact roster: one line per kami (index, state, hp) + where the account is (--stats adds the stat block and CAPS the list)',
+    args: ['--stats'],
+    parseArgs: (positional) => {
+      const [accountIndex] = positional.filter((p) => p !== '--stats');
+      return {
+        accountIndex: int(accountIndex, 'account index'),
+        stats: positional.includes('--stats'),
+      };
+    },
     stateless: false,
     kamiden: false,
-    build: (ctx, a) => rosterQuery(ctx.mirror, a as { accountIndex: number }, ctx.enrich),
+    build: (ctx, a) =>
+      rosterQuery(ctx.mirror, a as { accountIndex: number; stats?: boolean }, ctx.enrich),
   },
   item: {
     name: 'item',

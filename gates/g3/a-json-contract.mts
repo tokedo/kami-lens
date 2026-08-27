@@ -322,6 +322,44 @@ for (const lbArgs of [
   );
   validated++;
   if (!ajv.validate('status', envelope.data)) failures.push({ query: 'status', args: [], errors: ajv.errors });
+
+  // §3.15 (0.5.1): the SAME contract with a head sample present. The head
+  // read is passed in rather than performed inside buildStatusData precisely
+  // so this gate (and G3.g, and G5.c) stay hermetic — which means the three
+  // fields it adds would otherwise never be schema-checked anywhere. A
+  // SYNTHETIC sample covers them without a network read.
+  const withHead = buildStatusData(daemon, {
+    blockNumber: 32_600_000,
+    sampledAt: '2026-08-26T00:00:00.000Z',
+  });
+  const headEnvelope = buildEnvelope(
+    withHead,
+    loadSchema('status'),
+    { blockNumber: 0, stale: true, mode: 'daemon' },
+    {}
+  );
+  validated++;
+  if (!ajv.validate('status', headEnvelope.data)) {
+    failures.push({ query: 'status+head', args: [], errors: ajv.errors });
+  }
+  // and the three fields travel TOGETHER, always: an answer carrying a lag
+  // without the head it was computed from is not auditable, and one carrying
+  // a head with no timestamp is a number of unknown age (§3.14).
+  const d = headEnvelope.data as Record<string, unknown>;
+  const present = ['blockLag', 'headBlockNumber', 'headSampledAt'].filter((k) => k in d);
+  if (present.length !== 3) {
+    failures.push({ query: 'status+head', args: [], errors: [{ message: `head fields must appear together; got ${present.join(',')}` }] });
+  }
+  if (d.blockLag !== Math.max(0, 32_600_000 - (d.liveBlockNumber as number))) {
+    failures.push({ query: 'status+head', args: [], errors: [{ message: 'blockLag is not head minus liveBlockNumber' }] });
+  }
+  // the flag-off shape must add none of them — this is what keeps G3.g's
+  // frozen status baseline valid without a re-capture
+  const bare = envelope.data as Record<string, unknown>;
+  const leaked = ['blockLag', 'headBlockNumber', 'headSampledAt'].filter((k) => k in bare);
+  if (leaked.length > 0) {
+    failures.push({ query: 'status', args: [], errors: [{ message: `status without a head sample must omit ${leaked.join(',')}` }] });
+  }
 }
 
 const flagOffLeaks = Object.keys(flagOffEnrichmentHits).length;

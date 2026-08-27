@@ -20,6 +20,14 @@
           "items": {
             "$ref": "#/$defs/RosterKami"
           }
+        },
+        "kamisTotal": {
+          "type": "number",
+          "description": "§3.16 (0.5.1): present ONLY under --stats, which caps this list at the standard 50 rows. How many kamis the account actually owns — a capped list never passes for a complete one (§3.13). The flag-off roster is uncapped and carries neither count. Rows in the capped form are ordered by kami index, unconditionally — a cap over an incidental order cannot be reconciled with any other answer (§3.13)."
+        },
+        "kamisServed": {
+          "type": "number",
+          "description": "§3.16 (0.5.1): present ONLY under --stats — how many rows this answer carries."
         }
       }
     },
@@ -86,6 +94,16 @@
           },
           "minItems": 2,
           "maxItems": 2
+        },
+        "stats": {
+          "$ref": "#/$defs/Stats"
+        },
+        "affinities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "§3.16 (0.5.1): [body, hand] affinities, `--stats` only. The reference client's own pair and its own defaulting ('NORMAL' where the trait carries none). The liquidation calcs turn on exactly this pair, so a reader previewing a liquidation could not check the preview's inputs without it."
         }
       }
     },
@@ -108,6 +126,60 @@
           "type": "string"
         }
       }
+    },
+    "Stat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "base",
+        "shift",
+        "boost",
+        "sync",
+        "total"
+      ],
+      "properties": {
+        "base": {
+          "type": "number"
+        },
+        "shift": {
+          "type": "number"
+        },
+        "boost": {
+          "type": "number"
+        },
+        "sync": {
+          "type": "number"
+        },
+        "total": {
+          "type": "number"
+        }
+      },
+      "description": "§3.16 (0.5.1): one stat as the mirror decodes it. base/shift/boost/sync are the four parts packed into the stat's uint256 on chain; `total` is the reference client's own effective value, (1 + boost/1e3) x (base + shift), after skills and equipment. Named `total` and not `current` because this answer already carries hp.current (live drained/regenerated health) beside hp.total. There is no `rate` field: Stat.rate is written only for health, so it would be a structural zero on the other three (§3.14). `shift` is bonus-inclusive; the chain's stored component value is not — G2.d records both."
+    },
+    "Stats": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "health",
+        "power",
+        "harmony",
+        "violence"
+      ],
+      "properties": {
+        "health": {
+          "$ref": "#/$defs/Stat"
+        },
+        "power": {
+          "$ref": "#/$defs/Stat"
+        },
+        "harmony": {
+          "$ref": "#/$defs/Stat"
+        },
+        "violence": {
+          "$ref": "#/$defs/Stat"
+        }
+      },
+      "description": "§3.16 (0.5.1): the kami sheet's stat block, `--stats` only — absent from every answer that did not pass the flag. Exactly the four stats the chain's own GetterSystem.getKamiByIndex tuple carries, which is what makes the block gate-able against chain (G2.d); `slots` and `stamina` exist in the mirror but not in that tuple, so they are not served here."
     }
   }
 }

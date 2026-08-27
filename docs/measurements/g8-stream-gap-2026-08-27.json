@@ -1,0 +1,198 @@
+{
+  "gate": "g8-stream-gap",
+  "measuredAt": "2026-08-27T04:40:57.096Z",
+  "method": "docker network disconnect/connect on a dedicated container + volume. No sudo, no host routing change, and structurally unable to reach the launchd kami-lens service or its data dir.",
+  "gapMs": 600000,
+  "hostDistSha256": {
+    "before": "a6736ee4dd77c7d384481f9a490694126d7bb3c8a75fba6694f32268980d9dcc",
+    "afterBuild": "a6736ee4dd77c7d384481f9a490694126d7bb3c8a75fba6694f32268980d9dcc",
+    "unchanged": true
+  },
+  "coldBootMs": 56349,
+  "blockAtSever": 32624545,
+  "blockAtRestore": 32624545,
+  "blocksMissed": -32624545,
+  "degradedAppearedAfterMs": 63739,
+  "degradedClearedAfterMs": 6355,
+  "caughtUpAfterMs": 6356,
+  "gapFillPath": "kamigaze-getEventsSince",
+  "gapFillObservable": true,
+  "gapFillObservabilityNote": "the container runs at KAMI_LENS_LOG_LEVEL=DEBUG, which is where both gap-fill call sites announce themselves.",
+  "gapFillCalls": {
+    "kamigazeTried": 1,
+    "kamigazeOk": 1,
+    "rpcFallback": 0,
+    "rpcGot": 0
+  },
+  "kamigazeEventCounts": [
+    2638
+  ],
+  "rpcRangesRequested": 0,
+  "rpcObservedChunkSpans": [],
+  "rpcObservedChunkSizeBlocks": null,
+  "rpcChunkSizeBlocksInCode": 50,
+  "rpcChunkSizeNote": "the code passes a literal 50 at both RPC gap-fill call sites (src/workers/sync/stream/gapfill.ts); DESIGN §4.1 said \"10 k-block chunks\" until 0.5.1 corrected it. Whether 50 should change is a follow-up this measurement informs, not a change made here.",
+  "byteEquality": [
+    {
+      "query": "phase",
+      "equal": false,
+      "stableAcrossBracket": false,
+      "clockDerived": true,
+      "liveAccruing": false,
+      "countedTowardEquality": false,
+      "healedBytes": 103,
+      "coldBytes": 103
+    },
+    {
+      "query": "items",
+      "equal": true,
+      "stableAcrossBracket": true,
+      "clockDerived": false,
+      "liveAccruing": false,
+      "countedTowardEquality": true,
+      "healedBytes": 15497,
+      "coldBytes": 15497
+    },
+    {
+      "query": "items --full",
+      "equal": true,
+      "stableAcrossBracket": true,
+      "clockDerived": false,
+      "liveAccruing": false,
+      "countedTowardEquality": true,
+      "healedBytes": 50025,
+      "coldBytes": 50025
+    },
+    {
+      "query": "config KAMI_STANDARD_COOLDOWN",
+      "equal": true,
+      "stableAcrossBracket": true,
+      "clockDerived": false,
+      "liveAccruing": false,
+      "countedTowardEquality": true,
+      "healedBytes": 62,
+      "coldBytes": 62
+    },
+    {
+      "query": "leaderboard",
+      "equal": true,
+      "stableAcrossBracket": true,
+      "clockDerived": false,
+      "liveAccruing": true,
+      "countedTowardEquality": false,
+      "healedBytes": 3579,
+      "coldBytes": 3579
+    },
+    {
+      "query": "room 25",
+      "equal": true,
+      "stableAcrossBracket": true,
+      "clockDerived": false,
+      "liveAccruing": false,
+      "countedTowardEquality": true,
+      "healedBytes": 1021,
+      "coldBytes": 1021
+    }
+  ],
+  "byteEqualityCounted": 4,
+  "byteEqualityEqual": 4,
+  "byteEqualityBlocks": {
+    "healed": 32624801,
+    "cold": 32624801,
+    "skew": 0
+  },
+  "byteEqualityNote": "Counted = the STRUCTURAL answers only (registry + config), which a healed mirror and a cold one must agree on exactly; a disagreement there would mean gap-fill lost or duplicated state, which is the property this leg tests. NOT counted, and why: `phase` is clockDerived (seconds to the next flip — G3.g classes phase countdowns as clock-dependent by its own derived mask), and `leaderboard` is liveAccruing (COLLECT scores rise with every harvest in the world; observed differing by values-only, all increased, between daemons 580 blocks apart, while two reads of one daemon were identical). Every query is read through a stability bracket (healed, cold, healed): an answer that moved across the bracket is marked moved-during-read and not counted, because comparing a moving answer to anything is meaningless. Both daemons are live-streaming, so their blocks are recorded above — pinning both to a single block is the improvement docketed for the 2 h leg.",
+  "restartLeg": {
+    "gapMs": 600000,
+    "timeToLiveMs": 21065,
+    "totalMs": 21895,
+    "bootstrapMode": "warm"
+  },
+  "twoHourLeg": {
+    "status": "deferred",
+    "scheduled": "2026-09-02",
+    "reason": "the 10-minute leg is what 0.5.1 needs to decide restart-on-wake for an overnight-sleeping laptop, and it fits one session. The 2 h leg tests a different thing — whether the gap exceeds Kamigaze GetEventsSince retention and forces the RPC path — and needs its own uninterrupted window. Dated rather than dropped."
+  },
+  "timeline": [
+    {
+      "at": "2026-08-27T04:18:16.298Z",
+      "event": "build-image"
+    },
+    {
+      "at": "2026-08-27T04:18:23.970Z",
+      "event": "host-dist-unchanged",
+      "sha256": "a6736ee4dd77c7d384481f9a490694126d7bb3c8a75fba6694f32268980d9dcc"
+    },
+    {
+      "at": "2026-08-27T04:18:24.047Z",
+      "event": "subject-started"
+    },
+    {
+      "at": "2026-08-27T04:19:20.953Z",
+      "event": "subject-live",
+      "coldBootMs": 56349,
+      "block": 32624545,
+      "blockLag": 34
+    },
+    {
+      "at": "2026-08-27T04:19:21.015Z",
+      "event": "network-severed",
+      "gapMs": 600000
+    },
+    {
+      "at": "2026-08-27T04:20:24.754Z",
+      "event": "degraded-appeared",
+      "afterMs": 63739,
+      "degraded": [
+        "stream-stalled:67s"
+      ]
+    },
+    {
+      "at": "2026-08-27T04:29:22.647Z",
+      "event": "network-restored",
+      "blockAtSever": 32624545,
+      "blockAtRestore": 32624545,
+      "blockLagAtRestore": null
+    },
+    {
+      "at": "2026-08-27T04:29:29.002Z",
+      "event": "degraded-cleared",
+      "afterMs": 6355,
+      "block": 32624578
+    },
+    {
+      "at": "2026-08-27T04:29:29.601Z",
+      "event": "healed",
+      "block": 32624578,
+      "blockLag": 208,
+      "caughtUpMs": 6356
+    },
+    {
+      "at": "2026-08-27T04:29:29.719Z",
+      "event": "cold-comparator-started"
+    },
+    {
+      "at": "2026-08-27T04:30:34.710Z",
+      "event": "byte-equality-done",
+      "compared": 6,
+      "counted": 4,
+      "equal": 4,
+      "healedBlock": 32624801,
+      "coldBlock": 32624801
+    },
+    {
+      "at": "2026-08-27T04:30:34.776Z",
+      "event": "network-severed-restart-leg",
+      "gapMs": 600000
+    },
+    {
+      "at": "2026-08-27T04:40:56.777Z",
+      "event": "restart-leg-done",
+      "restartLiveMs": 21065,
+      "restartTotalMs": 21895,
+      "bootstrapMode": "warm",
+      "block": 32625087
+    }
+  ],
+  "match": true
+}

@@ -87,4 +87,57 @@ describe('declared query arguments (§3.13)', () => {
     expect(REGISTRY.skills.parseArgs([])).toMatchObject({ kamiIndex: undefined });
     expect(REGISTRY.skills.parseArgs(['219'])).toMatchObject({ kamiIndex: 219 });
   });
+
+  // --- 0.5.1 (§3.16): the kami-sheet flag ----------------------------------
+
+  it('every surface that projects a kami declares --stats', () => {
+    for (const name of ['kami', 'roster', 'party', 'node'] as const) {
+      expect(REGISTRY[name].args ?? [], `${name} must declare --stats`).toContain('--stats');
+    }
+  });
+
+  it('parses --stats in any position, and defaults it off', () => {
+    expect(REGISTRY.kami.parseArgs(['307'])).toMatchObject({ index: 307, stats: false });
+    expect(REGISTRY.kami.parseArgs(['307', '--stats'])).toMatchObject({ index: 307, stats: true });
+    expect(REGISTRY.kami.parseArgs(['--stats', '307'])).toMatchObject({ index: 307, stats: true });
+    expect(REGISTRY.roster.parseArgs(['2930'])).toMatchObject({ accountIndex: 2930, stats: false });
+    expect(REGISTRY.roster.parseArgs(['2930', '--stats'])).toMatchObject({
+      accountIndex: 2930,
+      stats: true,
+    });
+  });
+
+  it('party takes --stats and --full together, in either order', () => {
+    expect(REGISTRY.party.parseArgs(['2930'])).toMatchObject({ full: false, stats: false });
+    expect(REGISTRY.party.parseArgs(['2930', '--stats'])).toMatchObject({
+      accountIndex: 2930,
+      full: false,
+      stats: true,
+    });
+    expect(REGISTRY.party.parseArgs(['--full', '2930', '--stats'])).toMatchObject({
+      accountIndex: 2930,
+      full: true,
+      stats: true,
+    });
+  });
+
+  it('node refuses --stats without --with-vitals rather than ignoring it', () => {
+    // the stat block hangs off the occupant vitals; silently dropping the
+    // flag is the §3.13 silent-argument defect this whole vocabulary exists
+    // to refuse
+    expect(() => REGISTRY.node.parseArgs(['9', '--stats'])).toThrow(QueryError);
+    expect(REGISTRY.node.parseArgs(['9', '--with-vitals', '--stats'])).toMatchObject({
+      index: 9,
+      withVitals: true,
+      stats: true,
+    });
+    // and the attacker positional still parses with both flags present
+    expect(REGISTRY.node.parseArgs(['9', '219', '--with-vitals', '--stats', '--full'])).toMatchObject({
+      index: 9,
+      attacker: 219,
+      withVitals: true,
+      stats: true,
+      full: true,
+    });
+  });
 });
