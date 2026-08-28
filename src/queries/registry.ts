@@ -167,7 +167,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
   node: {
     name: 'node',
     summary:
-      'node with its ACTIVE harvests; --with-vitals [attackerKamiIndex] adds occupant vitals + liquidation preview (--full lifts the row cap, --stats adds the stat block, --eligible-only serves only rows the attacker can liquidate)',
+      'node with its ACTIVE harvests; --with-vitals [attackerKamiIndex] adds occupant vitals + liquidation preview, plus attacker.blocked (the attacker\'s own gate: null, ATTACKER_STARVING or ATTACKER_COOLDOWN) (--full lifts the row cap, --stats adds the stat block, --eligible-only serves the rows whose target is in reach — threshold > 0 and margin > 0 — regardless of the attacker\'s own state, so an empty list means no target in reach and never "my kami is starving")',
     args: ['--with-vitals', '--full', '--stats', '--eligible-only'],
     parseArgs: (positional) => {
       const rest = positional.filter((p) => !p.startsWith('--'));
@@ -182,10 +182,12 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
       if (positional.includes('--stats') && !withVitals) {
         throw new QueryError('BAD_ARGS', '--stats needs --with-vitals');
       }
-      // §3.13 (0.5.2): the filter reads `liquidation.eligible`, which only
+      // §3.13 (0.5.2): the filter reads the liquidation preview, which only
       // exists on a vitals answer that was given an attacker. Refuse both
       // ways rather than serve an unfiltered answer to a caller who asked
-      // for a filtered one — the §3.13 silent-argument rule.
+      // for a filtered one — the §3.13 silent-argument rule. (0.5.3 moved
+      // the predicate to the TARGET side — `threshold > 0 && margin > 0` —
+      // but it is still a per-pairing preview, so both refusals stand.)
       const eligibleOnly = positional.includes('--eligible-only');
       if (eligibleOnly && !withVitals) {
         throw new QueryError('BAD_ARGS', '--eligible-only needs --with-vitals');

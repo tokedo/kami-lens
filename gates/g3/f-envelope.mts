@@ -273,6 +273,19 @@ const BASE_PRESENCE: { query: string; args: string[]; paths: string[] }[] = [
     paths: ['account.levelUpReady', 'account.skillPoints'],
   },
   { query: 'skills', args: [], paths: ['skillsTotal', 'skills[].name', 'skills[].max'] },
+  // 0.5.3 (§3.8/§3.13): `attacker.blocked` is a STRING on the base surface,
+  // and the classification default is `authored-prose` — an unclassified
+  // string field is deleted from every non-prose answer by the fail-safe,
+  // which is exactly the blind spot this set exists for (it caught
+  // `Quests.view` at 0.5.0). NOTE the dependency this assertion carries:
+  // `present()` counts `null` as ABSENT, so it only bites while the fixture's
+  // `firstKami` is an attacker whose own gate is CLOSED. It is — the same
+  // selection rule G3.g uses picks kami 2, starving in this snapshot under
+  // both the wall clock and G3.g's pin (measured 2026-08-28, node 62: all 41
+  // rows `reason: ATTACKER_STARVING`). If the fixture is ever re-cut with a
+  // healthy first kami this fails loudly and wants a named starving attacker
+  // here rather than a relaxed check.
+  { query: 'node', args: ['62', firstKami, '--with-vitals'], paths: ['attacker.blocked'] },
   // quests: the compact surface and the per-requirement detail
   {
     query: 'quests',

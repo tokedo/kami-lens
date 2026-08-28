@@ -48,7 +48,7 @@
         },
         "harvestsEligible": {
           "type": "integer",
-          "description": "§3.13 (0.5.2): `--eligible-only` ONLY, absent without the flag. Rows that passed the filter, out of harvestsTotal — which keeps reporting the WHOLE node."
+          "description": "§3.13 (0.5.2): `--eligible-only` ONLY, absent without the flag. Rows that passed the filter, out of harvestsTotal — which keeps reporting the WHOLE node. From 0.5.3 the filter is TARGET-SIDE (threshold > 0 and margin > 0), so this counts targets in reach; whether the attacker can act on them is attacker.blocked."
         },
         "harvestsServed": {
           "type": "number",
@@ -193,7 +193,8 @@
       ],
       "properties": {
         "eligible": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "canLiquidate(attacker, occupant) — the FULL pairing, attacker gates included. Unchanged at 0.5.3: --eligible-only no longer filters on this field, so a served row may read eligible: false with reason ATTACKER_STARVING."
         },
         "reason": {
           "type": "string",
@@ -231,7 +232,8 @@
         "index",
         "name",
         "cooldownSec",
-        "cooldownUntil"
+        "cooldownUntil",
+        "blocked"
       ],
       "properties": {
         "id": {
@@ -249,6 +251,18 @@
         "cooldownUntil": {
           "type": "integer",
           "description": "§3.8 (0.5.2): the RAW on-chain cooldown end time, in CHAIN SECONDS — the value cooldownSec is projected from. 0 means the mirror holds no NextTime for this kami (it has never acted, or the component has not synced yet); treat 0 as unknown, never as 'ready'."
+        },
+        "blocked": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "ATTACKER_STARVING",
+            "ATTACKER_COOLDOWN",
+            null
+          ],
+          "description": "§3.8/§3.13 (0.5.3): the ATTACKER's own liquidation gate, reported once. null means the attacker is ready to act; the two named values mean it is not, whatever the targets look like. Present whenever an attacker argument was given, with or without --eligible-only. Same precedence as liquidation.reason (starving before cooldown) because it is the same function. Before 0.5.3 this fact was only observable by reading every row's reason, or — worse — by inferring it from an empty --eligible-only list, which is also what an empty node looks like."
         }
       }
     },

@@ -293,6 +293,17 @@ this daemon's clock. Its zero is load-bearing and documented — the ported
 getter reads an absent `NextTime` component as `0`, so `0` means the mirror
 holds no cooldown for that kami, never "ready now".
 
+**`attacker.blocked` (0.5.3)** is the same move once more: the attacker's own
+liquidation gate, stated as a field instead of left to be inferred. On a node
+answer given an attacker it reads `null`, `ATTACKER_STARVING` or
+`ATTACKER_COOLDOWN`, in that precedence — the same function that produces a
+row's `liquidation.reason`, so the two can never disagree. It is present
+whenever the attacker argument is given, with or without `--eligible-only`.
+Before it, the fact was reachable only by reading every row's `reason` or —
+worse — by inferring it from an empty filtered list, which is also what an
+empty node looks like (§3.13). A caller must never have to distinguish "my
+kami is busy" from "there is nothing here" by the LENGTH of a list.
+
 **A note on a symptom this does NOT explain.** A caller reported
 `cooldownSec: 0` up to ~10 s before the chain agreed, and attributed it to
 the offset. The sign runs the other way: with `clock.now()` in the past,
@@ -633,7 +644,7 @@ want — and both are opt-in, so every flag-off answer is unchanged.
 
 - **`node --eligible-only`.** A liquidation sweep read 12.2 MB and 21,315
   harvest rows to find 1,737 eligible pairs worth about 250 KB. The daemon
-  already computes `liquidation.eligible` per row; the caller was filtering
+  already computes the liquidation preview per row; the caller was filtering
   client-side and paying for the transport. Measured live 2026-08-27 with a
   real attacker: node 86 went 1,300,288 B → 15,900 B (28 eligible of 2,165),
   node 9 500,709 B → 3,489 B (6 of 835), node 10 46,696 B → 1,731 B (3 of
@@ -641,11 +652,40 @@ want — and both are opt-in, so every flag-off answer is unchanged.
   deterministic sort and **before** the row cap, so `--eligible-only --full`
   caps a filtered list rather than filtering a capped one. `harvestsTotal`
   keeps reporting the whole node and `harvestsEligible` says how many
-  passed — an empty `harvests` list must read as "none eligible", never as
+  passed — an empty `harvests` list must read as "none in reach", never as
   "nothing here". It requires `--with-vitals` and an attacker argument and
   refuses without them: eligibility is a *pairing*, not a property, and
   silently serving an unfiltered answer to a caller who asked for a filtered
   one is the silent-argument defect above.
+
+  **The filter is TARGET-SIDE, and the attacker's own gate is reported once
+  (0.5.3).** 0.5.2 filtered on `liquidation.eligible` = `canLiquidate`,
+  which folds `isStarving(attacker)` and `onCooldown(attacker)` into a
+  question about the targets. In a zero-cooldown kill loop the attacker sits
+  at HP 0 for 4–6 s after every kill, so a read inside that window answered
+  `harvestsEligible: 0` on a node holding 20+ targets under the threshold —
+  a payload **indistinguishable from an emptied node** (observed node 35,
+  block 32677631, 2026-08-28). The list was being used to report a fact
+  about the caller, and emptiness is the one payload that cannot carry a
+  reason. The served rows are now the rows whose preview is target-side
+  eligible — `threshold > 0 && margin > 0`, the occupant's projected HP
+  below the attacker's threshold — and the attacker's own gate is a single
+  field, `attacker.blocked` (§3.8), present whenever an attacker argument is
+  given, filter or no filter. Two questions, two answers: "is anything in
+  reach?" and "can I act?".
+
+  Three consequences worth stating rather than discovering. The per-row
+  `eligible` and `reason` keep their **full-pairing** meaning unchanged, so
+  a served row may read `eligible: false, reason: ATTACKER_STARVING` — the
+  alternative, narrowing `eligible` to match the filter, would have made the
+  flag cheap and the field a lie. The predicate reads the numbers the answer
+  **serves** (`threshold`, `margin`) rather than re-evaluating `canMog`,
+  which re-enters `calcHealth` and therefore the clock: two evaluations a
+  microsecond apart can straddle a `Math.floor` boundary, and a filter that
+  disagrees with the `hp` printed beside it is a defect waiting to be
+  reported. And with a **healthy** attacker the two predicates coincide
+  exactly, so every 0.5.2 answer is unchanged — asserted, not assumed
+  (G7.c).
 - **`account --slim`.** The account read returns the whole kami roster,
   which is right for a detail surface and wrong for the thing callers kept
   needing: an index → name lookup. A 164-kami account measured 22,969 B
@@ -666,6 +706,34 @@ same block, and every slim field byte-equal to the full answer's same field —
 absences included, since a slim answer that quietly kept the roster would
 pass a field check trivially. The bytes are recorded; the equality is
 asserted.
+
+0.5.3 adds a case to that gate on the same principle. A **starving** attacker
+must still be served the targets in reach, with each row keeping its
+full-pairing verdict and `attacker.blocked` naming the gate once; and the
+number of rows the 0.5.2 predicate *would* have served — 0, on a node with
+targets — is recorded beside them, which is how the size of the defect stays
+on the record. The healthy-attacker case keeps its 0.5.2 byte-equality and
+gains the coincidence assertion — the two predicates select the same rows
+there — which is what makes "0.5.2 answers are unchanged" a checked claim
+rather than a promise.
+
+**The cooling half of that enum is a recorded coverage gap, not a covered
+case.** Cooldown is a clock fact, so the case needs a pinned clock, and the
+pin does find cooling attackers with targets in reach (kami 83 on node 62, 28
+targets, at G3.g's pin). It does not survive being pinned *inside* G7.c:
+pinning after that gate's earlier queries have run leaves every occupant
+projecting to full health, so the same pin on the same fixture reads 0 targets
+where a pin-first process reads 28 — and clearing the kami, harvest, rate and
+timestamp caches after the pin does not restore it. Something in the
+projection path is stateful across a process beyond those caches. A case built
+that way would have asserted `0 == 0` and called it a pass, so it was dropped
+rather than shipped, with the measurement recorded in the gate and the
+mechanism named here. Doing it properly means a pin-first script of its own,
+as G3.g is. Note what is and is not uncovered: starving and cooling reach
+`attacker.blocked` through the same function and the same precedence, so the
+gap is one enum value, not a code path. **That process-history sensitivity is
+itself a finding** — a "hermetic" gate is only hermetic if it pins before its
+first read — and it belongs to the projection layer, not to this release.
 
 ### 3.14 An answer must not be able to lie (0.5)
 

@@ -89,7 +89,7 @@ being guessed at.
 
 ## Status
 
-**0.5.2, pre-release.** Daemon, CLI, and library are implemented and
+**0.5.3, pre-release.** Daemon, CLI, and library are implemented and
 gate-verified against the pinned upstream commit and the live game,
 with dated per-run evidence in `docs/measurements/`. The verification
 suite is G0–G9 (G8 and G9 are manual and live); every run writes its
@@ -97,6 +97,33 @@ own dated record, and the record — not this paragraph — is what a
 given release rests on. The contract registry is [SPEC.md](SPEC.md);
 per-surface coverage — what is served, what is deferred, what is out
 of scope — is [docs/coverage.md](docs/coverage.md).
+
+### What changed in 0.5.3, for the things that read this daemon
+
+One change, and it fixes an answer that could mislead you.
+
+**`--eligible-only` no longer goes blank when your own kami is busy.**
+Before 0.5.3 the filter asked "can this kami liquidate that one right
+now", which includes whether your kami is starving or still on
+cooldown. So in a fast kill loop — where your kami sits at zero health
+for a few seconds after every kill — a read taken in that window came
+back with an empty list and `harvestsEligible: 0`, on a node with
+twenty-odd targets sitting under the threshold. That is exactly what an
+emptied-out node looks like, and there was no way to tell the two
+apart. From 0.5.3 the list answers one question only: **which targets
+are in reach** (their projected health is below the threshold, with the
+margin still positive). Whether *you* can act is answered separately
+and once, by a new `blocked` field on the `attacker` block of the same
+answer — `null` if your kami is ready, otherwise `ATTACKER_STARVING` or
+`ATTACKER_COOLDOWN`. That field is there whenever you pass an attacker,
+with or without the filter, so one read tells you both things.
+
+Each row still carries the full verdict it always did: a served row may
+say `eligible: false` with `reason: ATTACKER_STARVING`, which is the
+truth about that pairing at that instant. Nothing about `eligible` or
+`reason` changed. **If your kami was healthy, every answer is
+byte-for-byte what 0.5.2 returned** — the two filters pick the same
+rows in that case, and the gate asserts it.
 
 ### What changed in 0.5.2, for the things that read this daemon
 
@@ -149,7 +176,9 @@ bounded and the registry says so rather than inventing a number.
 
 **Two new options that make big answers small.** `node <index>
 <attacker> --with-vitals --eligible-only` returns only the occupants
-that attacker can actually liquidate. It needs both the vitals flag and
+that attacker can actually liquidate. (Narrowed in 0.5.3 — it now
+returns the occupants that are in REACH, and reports the attacker's own
+readiness separately; see above.) It needs both the vitals flag and
 an attacker (it refuses without either, since eligibility is a pairing,
 not a property of the target). The whole-node count still comes back as
 `harvestsTotal`, with `harvestsEligible` beside it saying how many
@@ -180,7 +209,7 @@ twice, when a destination is reachable both as a neighbour and by a
 special exit. Nothing it reports is wrong, but if you deduplicate by
 destination, merge the gate lists or you will drop a gate. Fixing it
 removes fields from an answer, which needs its own release to review
-properly; it is scheduled for 0.5.3.
+properly; it is still scheduled, and 0.5.3 did not take it up.
 
 0.4.0 added optional payload enrichment (above): the facts a client shows
 in a tooltip — what an item does, what using it requires, what a quest

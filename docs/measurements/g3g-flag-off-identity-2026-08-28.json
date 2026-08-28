@@ -1,0 +1,458 @@
+{
+  "gate": "g3g-flag-off-identity",
+  "measuredAt": "2026-08-28T15:07:53.801Z",
+  "snapshotBlock": 31782245,
+  "clockPinSec": 1755000000,
+  "baselines": [
+    {
+      "label": "base1",
+      "clockPinSec": 1755000000
+    },
+    {
+      "label": "base2",
+      "clockPinSec": 1755086400
+    }
+  ],
+  "comparedAgainst": "base1",
+  "statusExpectedChanged": {
+    "path": "version",
+    "to": "0.5.3"
+  },
+  "cases": [
+    {
+      "case": "kami",
+      "leaves": 16,
+      "masked": 0,
+      "compared": 16,
+      "added": 0,
+      "additive052": 1,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "account",
+      "leaves": 549,
+      "masked": 0,
+      "compared": 549,
+      "added": 0,
+      "additive052": 0,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "account+prose",
+      "leaves": 550,
+      "masked": 0,
+      "compared": 550,
+      "added": 0,
+      "additive052": 0,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "party",
+      "leaves": 1003,
+      "masked": 49,
+      "compared": 954,
+      "added": 0,
+      "additive052": 50,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "roster",
+      "leaves": 607,
+      "masked": 0,
+      "compared": 607,
+      "added": 0,
+      "additive052": 0,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "roster+nameFree",
+      "leaves": 607,
+      "masked": 0,
+      "compared": 607,
+      "added": 0,
+      "additive052": 0,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "inventory",
+      "leaves": 91,
+      "masked": 0,
+      "compared": 91,
+      "added": 0,
+      "additive052": 0,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "item",
+      "leaves": 66,
+      "masked": 0,
+      "compared": 66,
+      "added": 0,
+      "additive052": 0,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "items",
+      "leaves": 869,
+      "masked": 0,
+      "compared": 869,
+      "added": 0,
+      "additive052": 0,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "quests",
+      "leaves": 376,
+      "masked": 0,
+      "compared": 376,
+      "added": 0,
+      "additive052": 0,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "quests+account",
+      "leaves": 2147,
+      "masked": 0,
+      "compared": 2147,
+      "added": 0,
+      "additive052": 0,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "trades",
+      "leaves": 402,
+      "masked": 0,
+      "compared": 402,
+      "added": 0,
+      "additive052": 0,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "auctions",
+      "leaves": 24,
+      "masked": 2,
+      "compared": 22,
+      "added": 0,
+      "additive052": 0,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "merchant",
+      "leaves": 13,
+      "masked": 0,
+      "compared": 13,
+      "added": 0,
+      "additive052": 0,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "merchant+1",
+      "leaves": 130,
+      "masked": 7,
+      "compared": 123,
+      "added": 0,
+      "additive052": 0,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "merchant+2",
+      "leaves": 108,
+      "masked": 7,
+      "compared": 101,
+      "added": 0,
+      "additive052": 0,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "room",
+      "leaves": 61,
+      "masked": 0,
+      "compared": 61,
+      "added": 0,
+      "additive052": 0,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "node",
+      "leaves": 130,
+      "masked": 0,
+      "compared": 130,
+      "added": 0,
+      "additive052": 0,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "node+vitals",
+      "leaves": 581,
+      "masked": 41,
+      "compared": 540,
+      "added": 0,
+      "additive052": 41,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "node+attacker",
+      "leaves": 831,
+      "masked": 41,
+      "compared": 790,
+      "added": 0,
+      "additive052": 84,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "config",
+      "leaves": 3,
+      "masked": 0,
+      "compared": 3,
+      "added": 0,
+      "additive052": 0,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "phase",
+      "leaves": 6,
+      "masked": 5,
+      "compared": 1,
+      "added": 0,
+      "additive052": 0,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "leaderboard",
+      "leaves": 205,
+      "masked": 0,
+      "compared": 205,
+      "added": 0,
+      "additive052": 0,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "leaderboard+liq",
+      "leaves": 205,
+      "masked": 0,
+      "compared": 205,
+      "added": 0,
+      "additive052": 0,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "quests+full",
+      "leaves": 748,
+      "masked": 0,
+      "compared": 748,
+      "added": 0,
+      "additive052": 0,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "quests+account+full",
+      "leaves": 2948,
+      "masked": 0,
+      "compared": 2948,
+      "added": 0,
+      "additive052": 0,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "quests+account+open",
+      "leaves": 76,
+      "masked": 0,
+      "compared": 76,
+      "added": 0,
+      "additive052": 0,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "quests+account+accepted",
+      "leaves": 221,
+      "masked": 0,
+      "compared": 221,
+      "added": 0,
+      "additive052": 0,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "quests+keyed",
+      "leaves": 15,
+      "masked": 0,
+      "compared": 15,
+      "added": 0,
+      "additive052": 0,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "items+full",
+      "leaves": 1223,
+      "masked": 0,
+      "compared": 1223,
+      "added": 0,
+      "additive052": 0,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "items+type",
+      "leaves": 281,
+      "masked": 0,
+      "compared": 281,
+      "added": 0,
+      "additive052": 0,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "skills",
+      "leaves": 433,
+      "masked": 0,
+      "compared": 433,
+      "added": 0,
+      "additive052": 0,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "skills+kami",
+      "leaves": 4,
+      "masked": 0,
+      "compared": 4,
+      "added": 0,
+      "additive052": 0,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "party+full",
+      "leaves": 2586,
+      "masked": 101,
+      "compared": 2485,
+      "added": 0,
+      "additive052": 134,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "room+full",
+      "leaves": 1103,
+      "masked": 0,
+      "compared": 1103,
+      "added": 0,
+      "additive052": 0,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "node+vitals+full",
+      "leaves": 787,
+      "masked": 41,
+      "compared": 746,
+      "added": 0,
+      "additive052": 41,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "merchant+1+full",
+      "leaves": 157,
+      "masked": 7,
+      "compared": 150,
+      "added": 0,
+      "additive052": 0,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "leaderboard+full",
+      "leaves": 7380,
+      "masked": 0,
+      "compared": 7380,
+      "added": 0,
+      "additive052": 0,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "trades+full",
+      "leaves": 4216,
+      "masked": 0,
+      "compared": 4216,
+      "added": 0,
+      "additive052": 0,
+      "removed": 0,
+      "mismatches": 0
+    },
+    {
+      "case": "status",
+      "leaves": 79,
+      "masked": 3,
+      "compared": 76,
+      "added": 0,
+      "additive052": 1,
+      "removed": 0,
+      "mismatches": 0
+    }
+  ],
+  "leavesCompared": 31532,
+  "leavesMasked": 304,
+  "maskedSamples": [
+    "party:kamis[10].cooldownSec",
+    "party:kamis[11].cooldownSec",
+    "party:kamis[12].cooldownSec",
+    "party:kamis[13].cooldownSec",
+    "party:kamis[14].cooldownSec",
+    "party:kamis[15].cooldownSec",
+    "party:kamis[16].cooldownSec",
+    "party:kamis[17].cooldownSec",
+    "party:kamis[18].cooldownSec",
+    "party:kamis[19].cooldownSec",
+    "party:kamis[1].cooldownSec",
+    "party:kamis[20].cooldownSec",
+    "party:kamis[21].cooldownSec",
+    "party:kamis[22].cooldownSec",
+    "party:kamis[23].cooldownSec",
+    "party:kamis[24].cooldownSec",
+    "party:kamis[25].cooldownSec",
+    "party:kamis[26].cooldownSec",
+    "party:kamis[27].cooldownSec",
+    "party:kamis[28].cooldownSec",
+    "party:kamis[29].cooldownSec",
+    "party:kamis[2].cooldownSec",
+    "party:kamis[30].cooldownSec",
+    "party:kamis[31].cooldownSec",
+    "party:kamis[32].cooldownSec"
+  ],
+  "statusFlagKeys": [
+    "config.enrich",
+    "configSources.enrich"
+  ],
+  "problems": [],
+  "match": true
+}

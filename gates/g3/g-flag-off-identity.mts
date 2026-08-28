@@ -134,15 +134,29 @@ const STATUS_EXPECTED_CHANGED = 'version';
  * `meta.asOf` is on the ENVELOPE, which this gate never captures (it
  * compares `env.data`). Removals are never allowed by this list — the
  * duplicate-exit defect on `room` would REMOVE leaves, so it is recorded in
- * SPEC as a known defect for 0.5.3 rather than fixed here. */
+ * SPEC as a known defect for 0.5.3 rather than fixed here.
+ *
+ * 0.5.3 adds ONE leaf, on the same terms:
+ * - `blocked` (§3.8/§3.13): the attacker's own liquidation gate, on the
+ *   `attacker` object of a node answer. It reaches exactly the case that
+ *   passes an attacker (`node+attacker`), and it is present there
+ *   unconditionally — with or without `--eligible-only` — which is the whole
+ *   point of the field: "can I act at all?" must not be answerable only by
+ *   reading an empty filtered list. Declared here rather than re-capturing
+ *   the baselines, exactly as 0.5.2's three were. NOTE the baselines'
+ *   `node+attacker` case runs against a STARVING attacker (kami 2 in the
+ *   fixture, all 41 rows `reason: ATTACKER_STARVING`), so this leaf lands
+ *   with a non-null value there — an added leaf's VALUE is not compared, and
+ *   its correctness is G7.c's job, not this gate's. */
 const ADDITIVE_LEAVES_052 = ['cooldownUntil', 'margin', 'feedsDegraded'];
+const ADDITIVE_LEAVES_053 = ['blocked'];
 
 /** Does a leaf path belong to a 0.5.2 additive field? Matches the last
  * dot-segment (array indices stripped), so `kamis[3].cooldownUntil` and
  * `harvests[0].vitals.cooldownUntil` both resolve to `cooldownUntil`. */
 function isAdditive052(path: string): boolean {
   const leaf = (path.split('.').pop() ?? '').replace(/\[\d*\]$/, '');
-  return ADDITIVE_LEAVES_052.includes(leaf);
+  return ADDITIVE_LEAVES_052.includes(leaf) || ADDITIVE_LEAVES_053.includes(leaf);
 }
 
 /** Pinned instant for the §3.8 clock. The verify run and its reference

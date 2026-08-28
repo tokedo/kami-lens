@@ -279,7 +279,8 @@
     },
     "Attacker": {
       "id": "system",
-      "name": "authored-id"
+      "name": "authored-id",
+      "blocked": "system"
     },
     "QuestObjective": {
       "name": "registry",

@@ -859,7 +859,11 @@ export type LiquidationBlocker =
   | 'THRESHOLD_ZERO';
 
 export type LiquidationPreview = {
-  /** canLiquidate(attacker, occupant) — cooldown/starving gates included */
+  /** canLiquidate(attacker, occupant) — cooldown/starving gates included.
+   * UNCHANGED at 0.5.3: this stays the FULL pairing verdict even though
+   * `--eligible-only` no longer filters on it, so a served row may read
+   * `eligible: false, reason: ATTACKER_STARVING`. Narrowing it to the
+   * target-side half would have made the flag cheap and the field a lie. */
   eligible: boolean;
   /** §3.13 (0.5.0): present exactly when `eligible` is false. The flag was
    * right but opaque, and a reader that cannot tell "my kami is on cooldown"
@@ -881,6 +885,22 @@ export type LiquidationPreview = {
   recoil: number;
 };
 
+/** The two blockers that are properties of the ATTACKER ALONE — the half of
+ * `canLiquidate` that no target can change. Split out at 0.5.3 (§3.13) so the
+ * attacker's own gate has exactly ONE evaluation in this module: the node
+ * answer reports it once on `attacker.blocked`, and `liquidationBlocker`
+ * below consumes the same function for the per-row `reason`. Same precedence
+ * as before — starving first, then cooldown — because it IS the same code.
+ * `null` means the attacker itself is ready; it says nothing about any
+ * target. */
+export function attackerBlocker(
+  attacker: ReturnType<typeof getKami>
+): Extract<LiquidationBlocker, 'ATTACKER_STARVING' | 'ATTACKER_COOLDOWN'> | null {
+  if (isStarving(attacker)) return 'ATTACKER_STARVING';
+  if (onCooldown(attacker)) return 'ATTACKER_COOLDOWN';
+  return null;
+}
+
 /** The reason `canLiquidate` said no, evaluated on the same predicate parts
  * it is built from (`!onCooldown(attacker) && !isStarving(attacker) &&
  * canMog(attacker, defender)`), reported in the client tooltip's order. */
@@ -888,8 +908,8 @@ export function liquidationBlocker(
   attacker: ReturnType<typeof getKami>,
   threshold: number
 ): LiquidationBlocker {
-  if (isStarving(attacker)) return 'ATTACKER_STARVING';
-  if (onCooldown(attacker)) return 'ATTACKER_COOLDOWN';
+  const own = attackerBlocker(attacker);
+  if (own) return own;
   return threshold <= 0 ? 'THRESHOLD_ZERO' : 'TARGET_HP_ABOVE_THRESHOLD';
 }
 
@@ -911,12 +931,23 @@ export type NodeOut = {
     cooldownSec: number;
     /** §3.8 (0.5.2): raw on-chain cooldown end time; 0 means unknown. */
     cooldownUntil: number;
+    /** §3.8/§3.13 (0.5.3): the attacker's OWN gate, reported once instead of
+     * being spread across every row's `reason` — or, worse, expressed as an
+     * empty list. `null` means the attacker is ready to act; the two named
+     * values mean it is not, whatever the targets look like. Present
+     * whenever an attacker argument was given, with or without
+     * `--eligible-only`, so one read answers "can I act at all?" without a
+     * second call. Same precedence as `liquidation.reason` because it is
+     * the same function (`attackerBlocker`). */
+    blocked: Extract<LiquidationBlocker, 'ATTACKER_STARVING' | 'ATTACKER_COOLDOWN'> | null;
   };
   harvestsTotal: number;
   /** §3.13 (0.5.2): `--eligible-only` only, absent without it. How many of
    * `harvestsTotal` passed the filter — so a filtered answer still says what
    * it filtered out of, and an empty `harvests` list means "none eligible"
-   * rather than "nothing here". */
+   * rather than "nothing here". From 0.5.3 it counts the rows that passed the
+   * TARGET-SIDE predicate, which is what the flag now serves; whether the
+   * attacker can act on them is `attacker.blocked`, once. */
   harvestsEligible?: number;
   harvestsServed: number;
   harvests: {
@@ -940,14 +971,32 @@ export type NodeOut = {
  * not its own target).
  *
  * `--eligible-only` (0.5.2, §3.13) serves only the rows whose liquidation
- * preview says eligible. It is a PAYLOAD decision, not a new answer: the
- * filter runs on exactly the rows this query already built, after the
- * deterministic sort and BEFORE the row cap, so `--eligible-only --full`
- * caps a filtered list rather than filtering a capped one. `harvestsTotal`
- * keeps reporting the WHOLE node. Measured 2026-08-27 against the live
- * world: node 86 went 1,300,288 B → 15,900 B (28 eligible of 2,165), node 9
- * 500,709 B → 3,489 B (6 of 835), node 10 46,696 B → 1,731 B (3 of 77). The
- * attacker's own row has no liquidation block and so is never eligible. */
+ * preview is TARGET-SIDE eligible. It is a PAYLOAD decision, not a new
+ * answer: the filter runs on exactly the rows this query already built,
+ * after the deterministic sort and BEFORE the row cap, so
+ * `--eligible-only --full` caps a filtered list rather than filtering a
+ * capped one. `harvestsTotal` keeps reporting the WHOLE node. Measured
+ * 2026-08-27 against the live world: node 86 went 1,300,288 B → 15,900 B
+ * (28 eligible of 2,165), node 9 500,709 B → 3,489 B (6 of 835), node 10
+ * 46,696 B → 1,731 B (3 of 77). The attacker's own row has no liquidation
+ * block and so is never served by the filter.
+ *
+ * 0.5.3 MAKES THE FILTER ATTACKER-BLIND, and the reason is a defect this
+ * surface caused in play. Until 0.5.3 the filter read `liquidation.eligible`
+ * = `canLiquidate`, which folds in `isStarving(attacker)` and
+ * `onCooldown(attacker)`. In a zero-cooldown kill loop the attacker sits at
+ * HP 0 for 4–6 s after every kill, so a read inside that window answered
+ * `harvestsEligible: 0` with 20+ targets under threshold — a payload that
+ * is INDISTINGUISHABLE from "everyone withdrew" (observed node 35, block
+ * 32677631, 2026-08-28). An empty list was being used to report a fact about
+ * the CALLER. The list is now the target set, and the attacker's own gate is
+ * reported once on `attacker.blocked` — which is present with or without
+ * this flag, so the two questions ("is anything in reach?" and "can I act?")
+ * have separate answers instead of one overloaded emptiness. Per-row
+ * `eligible`/`reason` keep their full-pairing meaning, so a served row may
+ * read `eligible: false, reason: ATTACKER_STARVING`. With a healthy attacker
+ * the two predicates coincide exactly and the 0.5.2 answers are unchanged
+ * (G7.c asserts that coincidence). */
 export function nodeQuery(
   mirror: Mirror,
   args: {
@@ -984,6 +1033,9 @@ export function nodeQuery(
       name: attackerKami.name,
       cooldownSec: Math.max(0, Math.floor(calcCooldown(attackerKami))),
       cooldownUntil: attackerKami.time?.cooldown ?? 0,
+      // §3.13 (0.5.3): LAST on the object, so 0.5.2's key order is untouched
+      // and the leaf is purely additive (G3.g's allowance list names it).
+      blocked: attackerBlocker(attackerKami),
     };
   }
 
@@ -1052,7 +1104,21 @@ export function nodeQuery(
   // filtered set, and `harvestsTotal` must stay the node's own figure.
   const harvestsTotal = rows.length;
   const eligibleOnly = args.eligibleOnly === true;
-  const selected = eligibleOnly ? rows.filter((r) => r.liquidation?.eligible === true) : rows;
+  // §3.13 (0.5.3): TARGET-SIDE, and read off the numbers this answer SERVES.
+  // `threshold > 0 && margin > 0` is `canMog(attacker, occupant)` written in
+  // the row's own fields: `margin` is `threshold - hp` for the single `hp`
+  // read taken above, so the predicate cannot disagree with the `vitals.hp`
+  // and `liquidation.threshold` printed beside it. `canMog` re-enters
+  // `calcHealth(defender)` internally, and `calcHealth` reads the clock, so
+  // two evaluations a microsecond apart can straddle a `Math.floor`
+  // boundary; filtering on the served pair removes that drift rather than
+  // adding one. (`threshold > 0` is implied by `margin > 0` since hp >= 0 —
+  // it is kept because it states the THRESHOLD_ZERO case explicitly.)
+  const selected = eligibleOnly
+    ? rows.filter(
+        (r) => r.liquidation !== undefined && r.liquidation.threshold > 0 && r.liquidation.margin > 0
+      )
+    : rows;
   const { served } = capRows(selected, full);
   return {
     index: node.index,
