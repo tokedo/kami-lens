@@ -73,8 +73,17 @@ type NodeAnswer = {
 const nodes = getAllNodes(world, components).filter((n) => n.index);
 let chosen: NodeAnswer | null = null;
 for (const n of nodes) {
+  // `--full` is REQUIRED, and not for verbosity (0.6.1). Since 0.5.0's payload
+  // compaction the harvest `id` is served ONLY in the full answer
+  // (src/queries/build.ts: `...(full ? { id: harvest.id } : {})`), and this
+  // gate's whole cross-check addresses harvests BY id. Without it every
+  // pinned read is `BigInt(undefined)`. The compact answer also caps rows at
+  // 50, which would silently shrink the occupancy this gate claims to verify.
   const answer = (
-    await serveQuery(mirror, 'node', [String(n.index)], { stale: false, mode: 'daemon' })
+    await serveQuery(mirror, 'node', [String(n.index), '--full'], {
+      stale: false,
+      mode: 'daemon',
+    })
   ).data as NodeAnswer;
   if (
     answer.harvests.length > 0 &&
@@ -85,6 +94,17 @@ for (const n of nodes) {
 }
 if (!chosen) fail('G3.b', { reason: 'no node with active harvests in the mirror' });
 const node = chosen!;
+// the id is what every pinned read below is keyed on; a shape change must
+// refuse with a named reason, not crash inside BigInt(undefined) (0.6.1 —
+// this gate did exactly that, unnoticed, from 0.5.0 until now)
+if (node.harvests.some((h) => !h.id)) {
+  fail('G3.b', {
+    reason: 'served harvests carry no id — the node answer shape moved, or --full was dropped',
+    node: node.index,
+    harvests: node.harvests.length,
+    withoutId: node.harvests.filter((h) => !h.id).length,
+  });
+}
 console.log(`[g3.b] node ${node.index} (${node.name}): ${node.harvests.length} ACTIVE harvests`);
 const nodeId = world.entities[
   (await import('../../src/network/shapes/Node/queries')).queryByIndex(world, node.index)
@@ -159,10 +179,21 @@ let negativeChecked = 0;
 for (const other of nodes) {
   if (negativeChecked >= 10) break;
   if (other.index === node.index) continue;
+  // `--full` here for the same reason as above: the negative samples are
+  // addressed by harvest id too (0.6.1)
   const answer = (
-    await serveQuery(mirror, 'node', [String(other.index)], { stale: false, mode: 'daemon' })
+    await serveQuery(mirror, 'node', [String(other.index), '--full'], {
+      stale: false,
+      mode: 'daemon',
+    })
   ).data as NodeAnswer;
   for (const h of answer.harvests.slice(0, 2)) {
+    if (!h.id) {
+      fail('G3.b', {
+        reason: 'a negative-sample harvest carries no id — the node answer shape moved',
+        node: other.index,
+      });
+    }
     if (negativeChecked >= 10) break;
     negativeChecked++;
     const sourceRaw = await readRaw(contracts.source, h.id);

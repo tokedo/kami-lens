@@ -250,12 +250,28 @@ for (const [type, epoch, itemIndex] of [
   ['COLLECT', 1, 1],
   ['LIQUIDATE', 1, 0],
 ] as [string, number, number][]) {
-  const lb = (await serve('leaderboard', [type, String(epoch), String(itemIndex)])) as {
+  // `--full` is REQUIRED (0.6.1): the raw holder id this gate hashes on is
+  // full-only since 0.5.0's compaction (src/queries/build.ts: `if (full)
+  // account.id = score.holderID`), and the compact answer also caps rows at
+  // 50 — which would silently shrink the "every 200th" sampling below to
+  // "the first 50". Without it every row hashed BigInt(undefined) and the
+  // gate failed with 20 "no is.score hash entity" violations that were the
+  // gate's own bug, not the chain's.
+  const lb = (await serve('leaderboard', [type, String(epoch), String(itemIndex), '--full'])) as {
     rows: { rank: number; account: { id: string }; value: number }[];
   };
   const sampled = lb.rows.filter((_, i) => i < 10 || i % 200 === 0);
   for (const row of sampled) {
     note(`scores:${type}`);
+    if (!row.account?.id) {
+      violations.push({
+        area: 'leaderboard',
+        type,
+        rank: row.rank,
+        reason: 'row carries no account.id — the leaderboard answer shape moved, or --full was dropped',
+      });
+      continue;
+    }
     const entity = getScoreEntity(world, row.account.id as EntityID, epoch, itemIndex, type);
     const scoreId = entity !== undefined ? world.entities[entity] : undefined;
     if (!scoreId) {

@@ -1,0 +1,81 @@
+{
+  "record": "gate-fixture recapture + replay-leg re-run (0.6.1)",
+  "measuredAt": "2026-09-06T14:55:00.000Z",
+  "why": "docs/measurements/fixture-retention-2026-09-06.json recorded that gates/.artifacts/c2.v8snap had aged 1,207,995 blocks behind head against ~1.02M blocks of RPC log retention, so every replayOnto leg was building a silently incomplete mirror and a PASS on it meant nothing. This is the recapture that closes it, and the re-run of the legs on the fresh fixture.",
+
+  "retentionGuardProof": {
+    "what": "the 0.6.1 replayOnto guard run against the ACTUAL pre-recapture artifact, preserved before it was overwritten",
+    "fixtureBlockNumber": 31782245,
+    "chainHead": 33004919,
+    "blocksBehindHead": 1222673,
+    "retentionBlocks": 1025888,
+    "result": "REFUSED with ReplayRetentionError",
+    "reason": "the range STARTS beyond the log-retention horizon",
+    "reading": "the guard fires on the real case that motivated it, not only on a synthetic one. Before 0.6.1 this same call returned normally, fetched nothing for the pruned prefix, and stamped the cache at toBlock."
+  },
+
+  "recapture": {
+    "method": "the full gates/g1.sh run — G1.a IS the fixture capture procedure (PORT_PLAN M1); it bootstraps a daemon from an empty cache and copies C1/C2 from its own checkpoints",
+    "exitCode": 0,
+    "freshFixture": "gates/.artifacts/c2.v8snap",
+    "freshFixtureBlockNumber": 33004688,
+    "freshFixtureStateEntries": 2990895,
+    "previousFixtureBlockNumber": 31782245,
+    "blocksAdvanced": 1222443,
+    "kamigazeTraffic": "one bootstrap GetState plus one ~40-minute stream subscription — the traffic this gate already makes, no polling loop added",
+    "parts": {
+      "G1.e": { "exit": 0, "marker": "ERR_NO_SNAPSHOT_SOURCE" },
+      "G1.f": { "exit": 0, "head": 33004025, "retentionBlocks": 1025888, "approxDays": 24.9, "driftPct": 0.6, "designUpdateFlagged": false },
+      "G1.a": { "exit": 0, "timeToLiveColdMs": 52310, "stateEntries": 2991019, "blockNumber": 33004057, "degraded": [] },
+      "G1.b": { "exit": 0, "positives": 540, "negatives": 50, "componentsCovered": 92, "hardFailures": 0, "excusedKamigazeInherited": 1 },
+      "G1.c": { "exit": 0, "span": 598, "commonBlock": 33004690, "hashesEqual": true, "entries": 2990895, "provisional": true },
+      "G1.d": { "exit": 0, "warmMs": 19628, "coldReferenceMs": 52310, "coldParallelMs": 51860, "hashesEqual": true }
+    }
+  },
+
+  "replayLegsReRun": {
+    "note": "every leg below replays from the FRESH fixture, so the coarse heal is ~100-200 blocks rather than 1.2M",
+    "G3.b": { "exit": 0, "node": 63, "activeHarvests": 39, "verified": 39, "negativeSamples": 10, "requiredGateFix": true },
+    "G6.b": { "exit": 0, "reads": 129, "inventoryRows": 14, "roomOccupants": 16, "roomExits": 3, "listings": 16, "scoresCOLLECT": 17, "scoresLIQUIDATE": 12, "requiredGateFix": true },
+    "G7.b": { "exit": 0, "poolsVerified": 6, "reservesVerified": 12, "negativeSamples": 12, "vendorVerified": 1, "requiredGateFix": false },
+    "G2.d": { "exit": 0, "sampled": 21, "perBand": { "lt15000": 7, "19000_19999": 7, "gte20000": 7 }, "pinnedBlock": 33004868, "unownedProbed": 12, "unownedReverted": 7, "requiredGateFix": false }
+  },
+
+  "gateDefectsFoundByTheReRun": [
+    {
+      "gate": "G3.b",
+      "defect": "crashed in BigInt(undefined): it asks for the COMPACT node answer and then addresses harvests by `id`, which 0.5.0's payload compaction made --full-only (src/queries/build.ts: `...(full ? { id: harvest.id } : {})`). Both the positive cross-check and the negative-sample loop.",
+      "latentSince": "0.5.0",
+      "whyUnnoticed": "the last recorded G3.b run is 2026-07-22, BEFORE compaction shipped; the 0.6.0 attempt was aborted without a verdict (the pkill self-kill), so no run has reached this code since the field moved.",
+      "fix": "--full on both calls, plus a named refusal when a served harvest carries no id instead of crashing inside BigInt"
+    },
+    {
+      "gate": "G6.b",
+      "defect": "failed with 20 'no is.score hash entity' violations that were the gate's own bug: it hashes on the leaderboard row's raw holder id, which is --full-only since 0.5.0 (src/queries/build.ts: `if (full) account.id = score.holderID`), so every sampled row hashed BigInt(undefined). The compact 50-row cap also silently shrank its 'every 200th' sampling to 'the first 50'.",
+      "latentSince": "0.5.0",
+      "whyUnnoticed": "same — last recorded run 2026-07-22, before compaction",
+      "fix": "--full on the sampled-rows read, plus a violation row naming the shape change rather than a hash of undefined"
+    }
+  ],
+
+  "notReRun": {
+    "G2.c": "requires two dumps produced CONCURRENTLY at the same target block, one inside a ±120 s clock-skewed container. gates/g2.sh does NOT automate that container — it refuses with instructions when the dumps are absent — so re-running it needs an operator step. Not re-run; recorded here rather than skipped silently.",
+    "G2.b": "BLOCKED, operator capture event required — see below",
+    "G3.c": "BLOCKED, operator capture event required — see below"
+  },
+
+  "blockedOnAnOperatorCaptureEvent": {
+    "gates": ["G2.b", "G3.c"],
+    "replayBase": "gates/.artifacts/g2b-base.v8snap, pinned at block 31181765 by the manifest in gates/fixtures/g2b-observations.json",
+    "observationEra": "2026-07-21 screenshots; observation blocks derived from them by timestamp bisection, so ~31.18M",
+    "blocksBehindHead": 1823000,
+    "twoIndependentBlockers": [
+      "the pinned base is itself ~1.82M blocks behind head, far past the 1,025,888-block retention, so its forward replay reads zero logs with HTTP 200 — these gates cannot be honestly run today at all",
+      "a FRESH snapshot cannot serve them either: it would postdate every observation block, which the manifest's own refuse-and-report guard forbids, and replayOnto no-ops backward"
+    ],
+    "whatIsNeeded": "a fresh capture event — new original official-client screenshots, transcription, and a new replayBase pin — which the manifest states is an operator decision",
+    "notDone": "no base was substituted and no observation was fabricated. Escalated to the lab."
+  },
+
+  "match": true
+}
