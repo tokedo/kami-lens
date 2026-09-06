@@ -1,0 +1,31 @@
+{
+  "record": "gate-fixture retention check",
+  "measuredAt": "2026-09-06T05:45:00.000Z",
+  "why": "0.6.0 ruling (g)5 asked for the live gate legs that use replayOnto (G1.c, G1.d, G2.b, G2.d, G3.b, G3.c, G6.b, G7.b) to be re-run after the fetchEventsInBlockRangeChunked fix. They cannot be honestly re-run against the checked-in snapshot fixture today, and this records why rather than reporting a green run that would have been built on a silently incomplete mirror.",
+  "fixture": "gates/.artifacts/c2.v8snap",
+  "fixtureBlockNumber": 31782245,
+  "fixtureBlockNumberSource": "snapshot header, cross-checked two ways: the same header's cacheVersion decodes to 5 (matches cache/db.ts VERSION) and its kamigazeNonce to 96 (matches the checkpoint in the L-1 evidence bundle). Independently confirmed by G3.b's own log line: '[g3.b] coarse heal 31782245 -> 32990240'.",
+  "chainHeadAtCheck": 32990240,
+  "replaySpanBlocks": 1207995,
+  "logRetentionBlocks": 1020000,
+  "retentionSource": "DESIGN 4.1 measured RPC constraints (public Yominet endpoint): trailing ~1.02M blocks ~ 25 days; beyond retention the endpoint returns an EMPTY result with HTTP 200, not an error.",
+  "probe": {
+    "method": "eth_getLogs",
+    "address": "0x2729174c265dbBd8416C6449E0E813E88f43D0E7",
+    "topics": [
+      "0x6ac31c38682e0128240cf68316d7ae751020d8f74c614e2a30278afcec8a6073",
+      "0x6dd56823030ae6d8ae09cbfb8972c4e9494e67b209c4ab6300c21d73e269b350"
+    ],
+    "fromBlock": 31782246,
+    "toBlock": 31782445,
+    "spanBlocks": 200,
+    "error": null,
+    "logsReturned": 0,
+    "logsExpectedAtCurrentDensity": "~3000 (15-17 World logs/block, DESIGN 4.1)",
+    "reading": "the range immediately after the fixture's own block — a range the fixture itself proves was live, since it was captured from a running daemon at that block — answers ZERO logs with no error. That is the documented beyond-retention signature, observed rather than assumed."
+  },
+  "consequence": "replayOnto from this fixture would build a mirror missing roughly the first 188,000 blocks of its replay range, silently. Every gate leg that heals this fixture forward would then be comparing the chain against a mirror with a hole in it, and a PASS would mean nothing. Re-running them needs a fresh snapshot capture (a full daemon bootstrap, which is G1.a's job) — a lab step at audit, not an executor step inside this session.",
+  "executorAction": "G3.b was started to get a real exit code and aborted by the executor after ~40 s once its own log line confirmed the 1,207,995-block replay target. Exit code 143 (SIGTERM), executor-aborted, not a gate failure.",
+  "notAffectedBy_0_6_0": "the step-1 change to fetchEventsInBlockRangeChunked alters behaviour only for a NON-POSITIVE delta (from === to fetched nothing before, one block now). replayOnto guards fromBlock > toBlock and these legs replay hundreds of thousands of blocks, so the changed branch is not on their path. Chunk boundaries for every positive span are asserted identical to the new implementation's in test/stream-heal.test.ts.",
+  "match": true
+}
