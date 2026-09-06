@@ -1,0 +1,307 @@
+{
+  "gate": "g8b-gap-heal",
+  "measuredAt": "2026-09-06T05:36:59.302Z",
+  "method": "docker network disconnect/connect on a dedicated container + volume, three severs of ~20 s (the FREQUENT gap, not the outage), then every ACTIVE harvest the mirror serves cross-checked against pinned eth_call reads. No sudo, no host routing change, structurally unable to reach the launchd kami-lens service or its data dir.",
+  "version": "0.6.0",
+  "hostDistSha256": {
+    "before": "87442581c3ac623e1306ecb77bbfb88f8eb8cfc9a048b0e706f7340b48a731e3",
+    "afterBuild": "87442581c3ac623e1306ecb77bbfb88f8eb8cfc9a048b0e706f7340b48a731e3",
+    "unchanged": true
+  },
+  "dockerBuildMs": 7593,
+  "coldBootMs": 60532,
+  "severMs": 20000,
+  "severs": [
+    {
+      "sever": 1,
+      "blockAtSever": 32990136,
+      "blockAfter": 32990162,
+      "reconnectMs": 666,
+      "caughtUpMs": 16533,
+      "healPath": "rpc",
+      "heals": [
+        {
+          "reason": "gap",
+          "from": 32990136,
+          "to": 32990158,
+          "path": "rpc",
+          "logs": 804,
+          "ms": 1947,
+          "rpcHead": 32990159,
+          "headSrc": "http",
+          "chunks": 1
+        }
+      ],
+      "deferrals": [],
+      "tornDownDuringHeal": 0,
+      "kamigazeDiffsUsed": 0,
+      "degradedAfter": [],
+      "sync": {
+        "reconnects": 4,
+        "gapsHealed": 1,
+        "gapsDeferred": 0,
+        "reconcilePasses": 0,
+        "reconciledThrough": 32990133,
+        "lastReconcileAt": null,
+        "unhealedRanges": [],
+        "lastHealMs": 1947,
+        "reconcileIntervalMs": 120000
+      }
+    },
+    {
+      "sever": 2,
+      "blockAtSever": 32990162,
+      "blockAfter": 32990168,
+      "reconnectMs": 670,
+      "caughtUpMs": 11219,
+      "healPath": "rpc",
+      "heals": [
+        {
+          "reason": "gap",
+          "from": 32990162,
+          "to": 32990168,
+          "path": "rpc",
+          "logs": 222,
+          "ms": 1332,
+          "rpcHead": 32990169,
+          "headSrc": "http",
+          "chunks": 1
+        }
+      ],
+      "deferrals": [],
+      "tornDownDuringHeal": 0,
+      "kamigazeDiffsUsed": 0,
+      "degradedAfter": [],
+      "sync": {
+        "reconnects": 8,
+        "gapsHealed": 2,
+        "gapsDeferred": 0,
+        "reconcilePasses": 0,
+        "reconciledThrough": 32990133,
+        "lastReconcileAt": null,
+        "unhealedRanges": [],
+        "lastHealMs": 1332,
+        "reconcileIntervalMs": 120000
+      }
+    },
+    {
+      "sever": 3,
+      "blockAtSever": 32990168,
+      "blockAfter": 32990183,
+      "reconnectMs": 675,
+      "caughtUpMs": 16491,
+      "healPath": "rpc",
+      "heals": [
+        {
+          "reason": "gap",
+          "from": 32990168,
+          "to": 32990181,
+          "path": "rpc",
+          "logs": 644,
+          "ms": 3321,
+          "rpcHead": 32990182,
+          "headSrc": "http",
+          "chunks": 1
+        },
+        {
+          "reason": "reconcile",
+          "from": 32990134,
+          "to": 32990183,
+          "path": "rpc",
+          "logs": 1608,
+          "ms": 1114,
+          "rpcHead": 32990184,
+          "headSrc": "http",
+          "chunks": 1
+        }
+      ],
+      "deferrals": [],
+      "tornDownDuringHeal": 0,
+      "kamigazeDiffsUsed": 0,
+      "degradedAfter": [],
+      "sync": {
+        "reconnects": 12,
+        "gapsHealed": 4,
+        "gapsDeferred": 0,
+        "reconcilePasses": 1,
+        "reconciledThrough": 32990183,
+        "lastReconcileAt": "2026-09-06T05:35:03.924Z",
+        "unhealedRanges": [],
+        "lastHealMs": 1114,
+        "reconcileIntervalMs": 120000
+      }
+    }
+  ],
+  "crosscheck": {
+    "activeHarvestsServed": 6613,
+    "crossCheckedRows": 1718,
+    "sampling": "every ACTIVE harvest on the busiest node (node 86, 1718 rows) plus every 4896th of the remaining 4895, capped at 400. Node-complete is the shape that matters: the L-1 phantom set was six kamis that stopped in one transaction on one node. Checking all 6613 would be 2x that many pinned eth_calls, which both exceeds any other gate's RPC traffic here and outlasts the RPC's own eth_call state window.",
+    "coverageFraction": 0.2598,
+    "busiestNode": 86,
+    "unaddressableRows": 0,
+    "nodesRead": 64,
+    "nodeReadMs": 21785,
+    "pinnedBlock": 32990183,
+    "chainHead": 32990188,
+    "pinDepth": 5,
+    "stateWindowBlocks": 100,
+    "verified": 1718,
+    "apparentDivergences": 0,
+    "phantoms": 0,
+    "skewCorrectedByMirror": 0,
+    "phantomRows": [],
+    "skewRows": [],
+    "arbitration": "the container is live, so a harvest can legitimately stop between the mirror answer and the pinned chain read. Every apparent divergence is re-read from the container afterwards: mirror since corrected = skew; mirror still ACTIVE while the chain says otherwise = a phantom, the L-1 shape, which persisted for 3.5 hours when it happened."
+  },
+  "syncFinal": {
+    "reconnects": 15,
+    "gapsHealed": 6,
+    "gapsDeferred": 0,
+    "reconcilePasses": 1,
+    "reconciledThrough": 32990183,
+    "lastReconcileAt": "2026-09-06T05:35:03.924Z",
+    "unhealedRanges": [],
+    "lastHealMs": 1131,
+    "reconcileIntervalMs": 120000
+  },
+  "timeline": [
+    {
+      "at": "2026-09-06T05:32:04.190Z",
+      "event": "loading-registry-fixture"
+    },
+    {
+      "at": "2026-09-06T05:32:08.740Z",
+      "event": "registry-fixture-loaded",
+      "ms": 4550,
+      "nodes": 64,
+      "compAddrs": {
+        "state": "0xfe8f86f49397a95a0e79d0fc7a5226679e9f3da6",
+        "source": "0x984f2ddb2ad4c015608bc4aabb30b785ba985042",
+        "holder": "0xd7388a0a79987cc85ba3ef78a0ac05bc9ade6ec0"
+      }
+    },
+    {
+      "at": "2026-09-06T05:32:08.845Z",
+      "event": "build-image"
+    },
+    {
+      "at": "2026-09-06T05:32:16.438Z",
+      "event": "host-dist-unchanged",
+      "sha256": "87442581c3ac623e1306ecb77bbfb88f8eb8cfc9a048b0e706f7340b48a731e3",
+      "dockerBuildMs": 7593
+    },
+    {
+      "at": "2026-09-06T05:32:16.515Z",
+      "event": "subject-started"
+    },
+    {
+      "at": "2026-09-06T05:33:17.643Z",
+      "event": "subject-live",
+      "coldBootMs": 60532,
+      "version": "0.6.0",
+      "block": 32990136,
+      "sync": {
+        "reconnects": 0,
+        "gapsHealed": 0,
+        "gapsDeferred": 0,
+        "reconcilePasses": 0,
+        "reconciledThrough": 32990133,
+        "lastReconcileAt": null,
+        "unhealedRanges": [],
+        "lastHealMs": null,
+        "reconcileIntervalMs": 120000
+      }
+    },
+    {
+      "at": "2026-09-06T05:33:18.350Z",
+      "event": "sever-1-start",
+      "block": 32990136,
+      "severMs": 20000
+    },
+    {
+      "at": "2026-09-06T05:33:55.559Z",
+      "event": "sever-1-done",
+      "reconnectMs": 666,
+      "caughtUpMs": 16533,
+      "heals": 1,
+      "deferrals": 0,
+      "gapsHealed": 1,
+      "gapsDeferred": 0,
+      "unhealed": 0
+    },
+    {
+      "at": "2026-09-06T05:33:56.278Z",
+      "event": "sever-2-start",
+      "block": 32990162,
+      "severMs": 20000
+    },
+    {
+      "at": "2026-09-06T05:34:28.168Z",
+      "event": "sever-2-done",
+      "reconnectMs": 670,
+      "caughtUpMs": 11219,
+      "heals": 1,
+      "deferrals": 0,
+      "gapsHealed": 2,
+      "gapsDeferred": 0,
+      "unhealed": 0
+    },
+    {
+      "at": "2026-09-06T05:34:28.826Z",
+      "event": "sever-3-start",
+      "block": 32990168,
+      "severMs": 20000
+    },
+    {
+      "at": "2026-09-06T05:35:05.989Z",
+      "event": "sever-3-done",
+      "reconnectMs": 675,
+      "caughtUpMs": 16491,
+      "heals": 2,
+      "deferrals": 0,
+      "gapsHealed": 4,
+      "gapsDeferred": 0,
+      "unhealed": 0
+    },
+    {
+      "at": "2026-09-06T05:35:05.989Z",
+      "event": "reading-node-answers",
+      "nodes": 64
+    },
+    {
+      "at": "2026-09-06T05:35:28.480Z",
+      "event": "node-answers-read",
+      "ms": 21785,
+      "activeHarvests": 6613,
+      "blockBeforeReads": 32990183,
+      "blockAfterReads": 32990187
+    },
+    {
+      "at": "2026-09-06T05:35:28.485Z",
+      "event": "crosscheck-sample",
+      "activeHarvestsServed": 6613,
+      "busiestNode": 86,
+      "nodeCompleteRows": 1718,
+      "strideRows": 0,
+      "stride": 4896,
+      "sampled": 1718
+    },
+    {
+      "at": "2026-09-06T05:35:28.837Z",
+      "event": "chain-crosscheck",
+      "rows": 1718,
+      "pinnedBlock": 32990183,
+      "head": 32990188
+    },
+    {
+      "at": "2026-09-06T05:36:58.497Z",
+      "event": "crosscheck-done",
+      "ms": 89659,
+      "verified": 1718,
+      "apparent": 0,
+      "phantoms": 0,
+      "skew": 0
+    }
+  ],
+  "match": true
+}

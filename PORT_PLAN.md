@@ -357,6 +357,20 @@ has one home.
 - **G6 / G7 — surface consistency and chain cross-check** *(0.2.0 /
   0.3.0)*: internal coherence of the served answers, and the same
   answers verified on chain by pinned `eth_call` reads.
+- **G8.b gap heal** *(\[live\], MANUAL, 0.6.0)*: the FREQUENT gap, which
+  is a different subject from G8.a's outage. The production stream
+  server closes its subscription every ~30-40 s by design, and the
+  2026-09-06 phantom-harvest loss (L-1) happened inside one of those
+  reconnects — 17,369 of them in eleven days. G8.b severs three times
+  for ~20 s each on a live daemon at DEBUG, recording per sever the
+  reconnect time, the heal path, every healed range with its log count
+  and duration, any deferral, and the `status.sync` block. It then asks
+  the question the 0.5.3 daemon could not answer about itself: every
+  ACTIVE harvest the mirror serves is cross-checked against pinned
+  `eth_call` reads (G3.b's `readRaw` primitive, pooled), and an
+  apparent divergence is arbitrated by RE-READING the mirror — since
+  corrected means skew, still ACTIVE means a phantom. Same container
+  isolation and `dist/cli.js` fingerprint guard as G8.a. ~10-15 min.
 - **G8 stream gap** *(\[live\], MANUAL, 0.5.1)*: the daemon across a
   real network outage — what a laptop that sleeps actually does. Run
   it with `gates/g8.sh`; it takes ~40 minutes, most of them

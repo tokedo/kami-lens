@@ -3,6 +3,18 @@
 # ~40 minutes of wall clock, most of it deliberately doing nothing while the
 # network is severed. Not part of any other gate script for that reason.
 #
+#   G8.b [live]  0.6.0 (DESIGN §3.17, L-1). THREE severs of ~20 s on a live
+#                daemon — the FREQUENT gap the production server itself opens
+#                every ~35 s, which is where the 2026-09-06 phantom-harvest
+#                loss happened — recording per sever the reconnect time, the
+#                heal path, every healed range with its log count and
+#                duration, any deferral, and the `status.sync` block. Then the
+#                question the 0.5.3 daemon could not answer about itself:
+#                every ACTIVE harvest the mirror serves is cross-checked
+#                against pinned eth_call reads, and an apparent divergence is
+#                arbitrated by re-reading the mirror (skew vs phantom).
+#                ~10-15 min.
+#
 #   G8.a [live]  daemon to LIVE in a container, network severed for 10 min,
 #                restored; records time-to-reconnect, the gap-fill path taken
 #                (Kamigaze GetEventsSince vs RPC), the RPC call count and
@@ -29,4 +41,7 @@ TSX="npx tsx --tsconfig tsconfig.json"
 printf '\n== G8.a stream gap (10 min sever + restart leg) ==\n'
 $TSX gates/g8/a-stream-gap.mts
 
-printf '\nG8 PASS — check docs/measurements/g8-stream-gap-*.json\n'
+printf '\n== G8.b gap heal (3 x 20 s severs + chain cross-check) ==\n'
+$TSX gates/g8/b-gap-heal.mts
+
+printf '\nG8 PASS — check docs/measurements/g8-stream-gap-*.json and g8b-gap-heal-*.json\n'
