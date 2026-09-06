@@ -39,11 +39,16 @@
 // out of the RPC's ~50-120 block eth_call state window before the reads
 // finish, so the tail of the run would fail for a reason that has nothing to
 // do with the mirror. The sample is therefore: EVERY ACTIVE harvest on the
-// busiest node, plus a deterministic stride across all the others, capped at
-// CROSSCHECK_MAX_ROWS. Node-complete is the shape that matters — the L-1
-// phantom set was six kamis that stopped in one transaction — and the stride
-// keeps the rest of the world represented. Counts and coverage are recorded,
-// so what was checked is never larger than what is claimed.
+// busiest node, plus a deterministic stride of FLEET_SAMPLE_ROWS across all
+// the others. Node-complete is the shape that matters — the L-1 phantom set
+// was six kamis that stopped in one transaction — and the stride keeps the
+// rest of the world represented. Counts and coverage are recorded, so what
+// was checked is never larger than what is claimed.
+//
+// 0.6.1: the stride's budget was previously what a 400-row TOTAL cap left
+// over after the node-complete set, which on a real fleet is nothing at all.
+// It is now budgeted independently, and a stride contributing zero rows fails
+// the gate rather than being recorded as coverage.
 //
 // SKEW IS ARBITRATED, NOT ASSUMED AWAY. The container is live, so a harvest
 // can legitimately stop between the mirror answer and the pinned chain read.
@@ -87,8 +92,19 @@ const SEVER_MS = 20_000;
 const SEVERS = 3;
 /** eth_call state window on the public RPC (measured 2026-07-21) */
 const STATE_WINDOW_BLOCKS = 100;
-/** cap on cross-checked rows — see the sampling note in the header */
-const CROSSCHECK_MAX_ROWS = 400;
+/** How many rows the FLEET stride contributes, on top of the node-complete
+ * set — see the sampling note in the header.
+ *
+ * 0.6.1 fix. This was `CROSSCHECK_MAX_ROWS = 400`, a cap on the TOTAL, and
+ * the budget left for the stride was `max(0, 400 - nodeComplete.length)`.
+ * The busiest node carries far more than 400 ACTIVE harvests on its own
+ * (1,718 of 6,613 on 2026-09-06), so the budget was 0, the stride degenerated
+ * to `others.length + 1`, and the fleet contributed ZERO rows — the recorded
+ * coverageFraction of 0.2598 was the one node and nothing else. The stride
+ * that "keeps the rest of the world represented" represented none of it.
+ *
+ * The fleet now gets its own budget, independent of the node-complete set. */
+const FLEET_SAMPLE_ROWS = 300;
 
 const COMPONENT_ABI = [
   'function has(uint256 entity) view returns (bool)',
@@ -390,10 +406,21 @@ try {
   }
   const nodeComplete = (byNode.get(busiestNode) ?? []).slice();
   const others = rows.filter((r) => r.nodeIndex !== busiestNode);
-  const budget = Math.max(0, CROSSCHECK_MAX_ROWS - nodeComplete.length);
-  const stride = budget > 0 ? Math.max(1, Math.ceil(others.length / budget)) : others.length + 1;
-  const strided = others.filter((_, i) => i % stride === 0).slice(0, budget);
+  // the fleet stride is budgeted independently of the node-complete set, so a
+  // busy node can never squeeze it to nothing (0.6.1 — see FLEET_SAMPLE_ROWS)
+  const stride = Math.max(1, Math.ceil(others.length / FLEET_SAMPLE_ROWS));
+  const strided = others.filter((_, i) => i % stride === 0).slice(0, FLEET_SAMPLE_ROWS);
   const sample = [...nodeComplete, ...strided];
+  // a stride that contributes nothing is the 0.6.0 defect returning; there is
+  // no honest run with a fleet to sample and no fleet rows sampled
+  if (others.length > 0 && strided.length === 0) {
+    fail('G8.b', {
+      reason: 'fleet stride contributed zero rows — the sample is one node and the coverage claim would be false',
+      otherRows: others.length,
+      stride,
+      fleetBudget: FLEET_SAMPLE_ROWS,
+    });
+  }
   mark('crosscheck-sample', {
     activeHarvestsServed: rows.length,
     busiestNode,
@@ -497,8 +524,13 @@ try {
     crosscheck: {
       activeHarvestsServed: rows.length,
       crossCheckedRows: sample.length,
-      sampling: `every ACTIVE harvest on the busiest node (node ${busiestNode}, ${nodeComplete.length} rows) plus every ${stride}th of the remaining ${others.length}, capped at ${CROSSCHECK_MAX_ROWS}. Node-complete is the shape that matters: the L-1 phantom set was six kamis that stopped in one transaction on one node. Checking all ${rows.length} would be 2x that many pinned eth_calls, which both exceeds any other gate's RPC traffic here and outlasts the RPC's own eth_call state window.`,
+      sampling: `every ACTIVE harvest on the busiest node (node ${busiestNode}, ${nodeComplete.length} rows) plus every ${stride}th of the remaining ${others.length} across the other ${byNode.size - 1} nodes (${strided.length} rows, fleet budget ${FLEET_SAMPLE_ROWS}). Node-complete is the shape that matters: the L-1 phantom set was six kamis that stopped in one transaction on one node. Checking all ${rows.length} would be 2x that many pinned eth_calls, which both exceeds any other gate's RPC traffic here and outlasts the RPC's own eth_call state window.`,
       coverageFraction: Number((sample.length / Math.max(1, rows.length)).toFixed(4)),
+      nodeCompleteRows: nodeComplete.length,
+      fleetStrideRows: strided.length,
+      fleetStride: stride,
+      fleetRowsAvailable: others.length,
+      fleetNodesRepresented: new Set(strided.map((r) => r.nodeIndex)).size,
       busiestNode,
       unaddressableRows: unaddressable,
       nodesRead: nodeIndexes.length,
