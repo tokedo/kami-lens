@@ -1,6 +1,6 @@
 ---
 module: kami-lens
-version: 8
+version: 9
 describes: 0.6.0
 ---
 
