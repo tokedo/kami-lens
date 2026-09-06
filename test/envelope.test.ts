@@ -1,7 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import * as clock from '../src/clock';
 import { buildEnvelope, classifyPaths } from '../src/queries/envelope';
 import { loadSchema, QUERY_NAMES } from '../src/queries/registry';
+import { resetSyncHealth, syncHealth } from '../src/sync-health';
 
 // DESIGN §3.10: the untrusted path list is DERIVED from (schema ×
 // classification), authored-prose is never volunteered, name-free mode
@@ -216,5 +218,80 @@ describe('buildEnvelope (§3.10 composition)', () => {
     };
     const env = buildEnvelope(data, loadSchema('kami'), META);
     expect(env.untrusted).toEqual(['name']); // no account/node present
+  });
+});
+
+// --- §3.15 / §3.8: the envelope's META, which has no JSON schema ------------
+//
+// 0.6.1 note, and the reason this block exists at all: the checked-in schemas
+// under src/queries/schemas/ describe `data` ONLY, and every gate validates
+// `envelope.data`. Nothing anywhere machine-checks the shape of `meta`, so a
+// field added to it — or one silently dropped — would reach consumers with no
+// enforcement whatsoever. These assertions plus the G3.f meta check are that
+// enforcement.
+
+describe('meta.reconciledThrough (§3.15, 0.6.1)', () => {
+  const META = { blockNumber: 7, stale: false, mode: 'daemon' as const };
+  const DATA = { rooms: [] };
+
+  beforeEach(() => {
+    resetSyncHealth();
+    clock.reset();
+  });
+  afterEach(() => {
+    resetSyncHealth();
+    clock.reset();
+  });
+
+  it('is present on every answer and is null before the baseline is seeded', () => {
+    const env = buildEnvelope(structuredClone(DATA), loadSchema('room'), META);
+    expect('reconciledThrough' in env.meta).toBe(true);
+    expect(env.meta.reconciledThrough).toBeNull();
+  });
+
+  it('carries the verified lower bound once the sync layer has one', () => {
+    syncHealth.reconciledThrough = 32_990_374;
+    const env = buildEnvelope(structuredClone(DATA), loadSchema('room'), META);
+    expect(env.meta.reconciledThrough).toBe(32_990_374);
+  });
+
+  it('is null — never 0 — on a path with no sync worker (the stateless CLI)', () => {
+    // src/cli.ts builds an envelope in `mode: 'stateless'` from a process that
+    // never starts a sync worker, so syncHealth stays at its initial value.
+    // Null there means "this process verified nothing"; a 0 would read as
+    // "verified through block 0", which is the §3.14 lie this repo refuses.
+    const env = buildEnvelope(structuredClone(DATA), loadSchema('room'), {
+      blockNumber: 7,
+      stale: false,
+      mode: 'stateless',
+    });
+    expect(env.meta.reconciledThrough).toBeNull();
+    expect(env.meta.reconciledThrough).not.toBe(0);
+  });
+
+  it('is independent of meta.blockNumber — the two are different facts', () => {
+    syncHealth.reconciledThrough = 100;
+    const env = buildEnvelope(structuredClone(DATA), loadSchema('room'), {
+      blockNumber: 12_345,
+      stale: false,
+      mode: 'daemon',
+    });
+    expect(env.meta.blockNumber).toBe(12_345);
+    expect(env.meta.reconciledThrough).toBe(100);
+  });
+
+  it('every registry query stamps it, not just the one sampled above', () => {
+    syncHealth.reconciledThrough = 42;
+    for (const name of ['status', 'kami-stateless'] as const) {
+      const env = buildEnvelope({}, loadSchema(name as never), META);
+      expect(env.meta.reconciledThrough).toBe(42);
+    }
+  });
+
+  it('the full meta key set is exactly what the contract names', () => {
+    const env = buildEnvelope(structuredClone(DATA), loadSchema('room'), META);
+    expect(Object.keys(env.meta).sort()).toEqual(
+      ['asOf', 'blockNumber', 'mode', 'reconciledThrough', 'servedAt', 'stale'].sort()
+    );
   });
 });

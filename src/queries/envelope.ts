@@ -26,6 +26,7 @@ import path from 'node:path';
 import * as clock from 'clock';
 import { QueryError } from './build';
 import { tripwires } from '../tripwires';
+import { syncHealth } from '../sync-health';
 
 export type StringClass = 'authored-id' | 'authored-prose' | 'registry' | 'system';
 
@@ -91,6 +92,17 @@ export type Envelope<T> = {
   meta: {
     servedAt: string;
     blockNumber: number;
+    /** §3.15 (0.6.1): the lower bound of CHAIN-VERIFIED applied state — the
+     * block through which every block has been re-read from the chain and
+     * applied (§3.17). `null` before the baseline is seeded, and on any path
+     * with no sync worker behind it (the stateless CLI): null means "this
+     * process has verified nothing", never "verified through block 0".
+     *
+     * A reader comparing a transaction receipt's block SHOULD use this and
+     * not `blockNumber` when it is present. `blockNumber` is a lower bound of
+     * APPLIED state and advances on whatever the stream happened to deliver;
+     * this one advances only over ranges read completely from the chain. */
+    reconciledThrough: number | null;
     stale: boolean;
     mode: 'daemon' | 'stateless';
     asOf: AsOf;
@@ -320,6 +332,11 @@ export function buildEnvelope<T>(
     meta: {
       servedAt: new Date().toISOString(),
       ...meta,
+      // §3.15 (0.6.1): the verified lower bound, on EVERY answer. It was
+      // reachable only through `status.sync` before, which is not the answer
+      // a reader is about to act on — and a consumer misread the CLOCK
+      // anchor below as mirror lag twice for exactly that reason.
+      reconciledThrough: syncHealth.reconciledThrough,
       // §3.8 (0.5.2): stamped here, in the ONE place every answer passes
       // through, so "the same shape everywhere" is structural rather than a
       // convention twenty-five builders are trusted to keep.
