@@ -15,6 +15,20 @@
  *           (tripwires.decodeFailures, incremented inside createDecode) and
  *           logged with component/entity/bytes instead of aborting the sync
  *           attempt — upstream crashes the whole load on one bad row.
+ *           Divergence (DESIGN §4.1, 2026-09-06, "L-1"):
+ *           fetchEventsInBlockRangeChunked fetches a NON-NEGATIVE range
+ *           always. Upstream derives its step count from the EXCLUSIVE delta
+ *           (`ceil((to - from) / interval)`), so `from === to` yields zero
+ *           steps and the function returns [] having read nothing — while its
+ *           own doc comment and every caller treat the range as inclusive.
+ *           That is the same-block gap the stream opens most often (one chunk
+ *           per log; 136 of 17,369 gap-fills over 11 days had from === to),
+ *           and the RPC fallback silently healed none of them. The count is
+ *           now taken from the INCLUSIVE span, and the progress fraction no
+ *           longer divides by that delta — it was 0/0 = NaN on a one-block
+ *           range, and Worker.ts pipes setPercentage straight into the
+ *           LoadingState component (§3.14: a non-finite value must never
+ *           reach the serialization boundary).
  */
 
 import { awaitPromise, range, to256BitString } from '@mud-classic/utils';
@@ -175,8 +189,12 @@ export async function fetchEventsInBlockRangeChunked(
   setPercentage?: (percentage: number) => void
 ): Promise<NetworkComponentUpdate<Components>[]> {
   const events: NetworkComponentUpdate<Components>[] = [];
-  const delta = toBlockNumber - fromBlockNumber;
-  const numSteps = Math.ceil(delta / interval);
+  // INCLUSIVE span, per this function's own contract and every caller's use:
+  // [from, to] is `to - from + 1` blocks, so a single-block range is one step
+  // rather than none (divergence, see the banner).
+  const span = toBlockNumber - fromBlockNumber + 1;
+  if (span <= 0) return events;
+  const numSteps = Math.ceil(span / interval);
   const steps = [...range(numSteps, interval, fromBlockNumber)];
 
   for (let i = 0; i < steps.length; i++) {
@@ -184,7 +202,9 @@ export async function fetchEventsInBlockRangeChunked(
     const to = i === steps.length - 1 ? toBlockNumber : steps[i + 1]! - 1;
     const chunkEvents = await fetchWorldEvents(from, to);
 
-    if (setPercentage) setPercentage(((i * interval) / delta) * 100);
+    // progress over STEPS, not over the block delta: the delta is 0 on a
+    // one-block range and 0/0 is NaN (§3.14)
+    if (setPercentage) setPercentage(((i + 1) / steps.length) * 100);
 
     events.push(...chunkEvents);
   }
