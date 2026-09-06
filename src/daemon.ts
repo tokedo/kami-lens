@@ -47,6 +47,7 @@ import { setupCacheInvalidationHandler } from 'network/systems/CacheInvalidation
 import { ConfigSource, KamiLensConfig, resolveConfigDetailed } from './config';
 import type { NativeBalanceReader } from './queries/build';
 import { KamidenFeeds, KamidenStatus } from './kamiden';
+import { type SyncHealth, syncHealthReport, unhealedForMs } from './sync-health';
 import { Tripwires, tripwireReport } from './tripwires';
 
 /** Documented error marker for refusing a cold start without a snapshot
@@ -118,6 +119,13 @@ export type DaemonStatus = {
    * reader must be able to tell "this account holds nothing" from "the read
    * did not happen". */
   rpcReads: { ok: number; failed: number; lastError?: string };
+  /** §3.17 (0.6.0): the sync layer's own recovery health. Counters since
+   * process start. Deliberately NOT tripwires — reconnects are nonzero
+   * within a minute of every healthy start, and a tripwire marks the daemon
+   * degraded. The ONE condition here that is a real chain-correctness fault
+   * (an unhealed range that has outlived two reconcile intervals) does reach
+   * `degraded`, as `unhealed-ranges:<N>`. */
+  sync: SyncHealth & { reconcileIntervalMs: number };
   bootstrapAttempts: number;
   startedAt: string;
   liveAt: string | null;
@@ -132,6 +140,7 @@ export type DaemonStatus = {
     enrich: boolean;
     dataDir: string;
     checkpointIntervalMs: number;
+    reconcileIntervalMs: number;
   };
 };
 
@@ -386,8 +395,16 @@ export class KamiLensDaemon {
       })
     );
 
-    const { chainId, worldAddress, jsonRpcUrl, wsRpcUrl, kamigazeUrl, initialBlockNumber, dataDir } =
-      this.config;
+    const {
+      chainId,
+      worldAddress,
+      jsonRpcUrl,
+      wsRpcUrl,
+      kamigazeUrl,
+      initialBlockNumber,
+      dataDir,
+      reconcileIntervalMs,
+    } = this.config;
     const syncWorkerConfig: SyncWorkerConfig = {
       provider: { chainId, jsonRpcUrl, wsRpcUrl, options: { batch: false } },
       worldContract: { address: worldAddress, abi: new Interface(worldAbi) },
@@ -397,6 +414,7 @@ export class KamiLensDaemon {
       initialBlockNumber,
       dataDir,
       fetchSystemCalls: false,
+      reconcileIntervalMs,
     };
     worker.input$.next({ type: InputType.Config, data: syncWorkerConfig });
   }
@@ -662,8 +680,18 @@ export class KamiLensDaemon {
       enrich,
       dataDir,
       checkpointIntervalMs,
+      reconcileIntervalMs,
     } = this.config;
     const tripwires = tripwireReport();
+    const sync = syncHealthReport();
+    // §3.17: the mirror is KNOWN-INCOMPLETE and has not recovered on its own
+    // across two reconcile passes. Every other sync counter stays out of
+    // `degraded` on purpose; this one is chain correctness, which is exactly
+    // what `degraded` is for.
+    const unhealedStale =
+      sync.unhealedRanges.length > 0 &&
+      reconcileIntervalMs > 0 &&
+      unhealedForMs() > 2 * reconcileIntervalMs;
     const streamSilentMs =
       this.liveAt && this.lastStreamEventAtWallMs > 0
         ? Date.now() - this.lastStreamEventAtWallMs
@@ -689,6 +717,7 @@ export class KamiLensDaemon {
           ? [`pre-live-stall:${Math.floor(preLiveStalledMs / 1000)}s`]
           : []),
         ...(streamStalled ? [`stream-stalled:${Math.floor(streamSilentMs / 1000)}s`] : []),
+        ...(unhealedStale ? [`unhealed-ranges:${sync.unhealedRanges.length}`] : []),
         ...Object.entries(tripwires)
           .filter(([, count]) => count > 0)
           .map(([name, count]) => `${name}:${count}`),
@@ -699,6 +728,7 @@ export class KamiLensDaemon {
         failed: this.rpcFailed,
         ...(this.rpcLastError !== null ? { lastError: this.rpcLastError } : {}),
       },
+      sync: { ...sync, reconcileIntervalMs },
       bootstrapAttempts: this.bootstrapAttempts,
       startedAt: this.startedAt,
       liveAt: this.liveAt,
@@ -713,6 +743,7 @@ export class KamiLensDaemon {
         enrich,
         dataDir,
         checkpointIntervalMs,
+        reconcileIntervalMs,
       },
     };
   }

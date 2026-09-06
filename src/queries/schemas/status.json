@@ -19,7 +19,8 @@
         "clockOffsetMs",
         "config",
         "configSources",
-        "rpcReads"
+        "rpcReads",
+        "sync"
       ],
       "properties": {
         "version": {
@@ -42,7 +43,7 @@
         },
         "blockLag": {
           "type": "number",
-          "description": "§3.15 (0.5.1): chain head minus the mirror's last-applied block (`liveBlockNumber`), from one eth_blockNumber taken at status time. Declared since 0.5.0 and never populated until now. ABSENT — together with headBlockNumber and headSampledAt — when the RPC read fails: never 0, never null (§3.14). A nonzero lag is the NORMAL resting state of a healthy mirror, because liveBlockNumber does not advance on a block that produced no world events; it is information, not a fault, and `meta.stale` is NOT derived from it."
+          "description": "\u00a73.15 (0.5.1): chain head minus the mirror's last-applied block (`liveBlockNumber`), from one eth_blockNumber taken at status time. Declared since 0.5.0 and never populated until now. ABSENT \u2014 together with headBlockNumber and headSampledAt \u2014 when the RPC read fails: never 0, never null (\u00a73.14). A nonzero lag is the NORMAL resting state of a healthy mirror, because liveBlockNumber does not advance on a block that produced no world events; it is information, not a fault, and `meta.stale` is NOT derived from it."
         },
         "startedAt": {
           "type": "string"
@@ -77,7 +78,7 @@
           "items": {
             "type": "string"
           },
-          "description": "§1.2 (0.5.2): Kamiden FEED health, shaped like `degraded` so a caller gates on it the same way, and kept separate from it because `degraded` is chain-only and drives meta.stale (§3.2). 'kamiden-stream:<state>' whenever the stream is not live; 'kamiden-silent:<N>s' past SILENT_STALL_MS. Empty array when healthy — never absent."
+          "description": "\u00a71.2 (0.5.2): Kamiden FEED health, shaped like `degraded` so a caller gates on it the same way, and kept separate from it because `degraded` is chain-only and drives meta.stale (\u00a73.2). 'kamiden-stream:<state>' whenever the stream is not live; 'kamiden-silent:<N>s' past SILENT_STALL_MS. Empty array when healthy \u2014 never absent."
         },
         "kamiden": {
           "$ref": "#/$defs/KamidenStatus"
@@ -121,7 +122,7 @@
             },
             "enrich": {
               "type": "boolean",
-              "description": "§3.12 payload enrichment. Always present, so the switch is visible whether it is on or off — the one key by which a flag-off 0.4.0 answer differs from 0.3.0 (G3.g)."
+              "description": "\u00a73.12 payload enrichment. Always present, so the switch is visible whether it is on or off \u2014 the one key by which a flag-off 0.4.0 answer differs from 0.3.0 (G3.g)."
             },
             "defaultOperator": {
               "type": "number"
@@ -131,6 +132,10 @@
             },
             "checkpointIntervalMs": {
               "type": "number"
+            },
+            "reconcileIntervalMs": {
+              "type": "number",
+              "description": "\u00a73.17 (0.6.0): period of the sync layer's periodic chain reconcile. 0 = disabled, and status.sync carries the same number so a reader can tell a backstop that is off from one that has simply not fired."
             }
           }
         },
@@ -158,7 +163,7 @@
         "rpcReads": {
           "type": "object",
           "additionalProperties": false,
-          "description": "§3.13 (0.5.0): health of the ONE chain read the query layer makes (the account gas balance). Reported here for exactly the reason the per-feed Kamiden block is: the answer that needed it simply OMITS the block, so a reader must be able to tell \"this account holds nothing\" from \"the read did not happen\".",
+          "description": "\u00a73.13 (0.5.0): health of the ONE chain read the query layer makes (the account gas balance). Reported here for exactly the reason the per-feed Kamiden block is: the answer that needed it simply OMITS the block, so a reader must be able to tell \"this account holds nothing\" from \"the read did not happen\".",
           "required": [
             "ok",
             "failed"
@@ -178,11 +183,14 @@
         },
         "headBlockNumber": {
           "type": "number",
-          "description": "§3.15 (0.5.1): the chain head this lag was computed against. Served beside the lag so the subtraction is auditable rather than asserted."
+          "description": "\u00a73.15 (0.5.1): the chain head this lag was computed against. Served beside the lag so the subtraction is auditable rather than asserted."
         },
         "headSampledAt": {
           "type": "string",
-          "description": "§3.15 (0.5.1): when the head read landed (§3.8 clock). A head number of unknown age is not evidence."
+          "description": "\u00a73.15 (0.5.1): when the head read landed (\u00a73.8 clock). A head number of unknown age is not evidence."
+        },
+        "sync": {
+          "$ref": "#/$defs/Sync"
         }
       }
     },
@@ -311,6 +319,77 @@
           "additionalProperties": {
             "type": "number"
           }
+        }
+      }
+    },
+    "Sync": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "\u00a73.17 (0.6.0): health of the sync layer's own recovery, all counters since PROCESS START (a restart zeroes them). Deliberately not tripwires: `reconnects` is nonzero within a minute of every healthy start, because the production stream server closes the subscription every ~30-40 s by design, and a tripwire marks the daemon degraded. The one condition here that IS a chain-correctness fault reaches `degraded` as `unhealed-ranges:<N>`.",
+      "required": [
+        "reconnects",
+        "gapsHealed",
+        "gapsDeferred",
+        "reconcilePasses",
+        "reconciledThrough",
+        "lastReconcileAt",
+        "unhealedRanges",
+        "lastHealMs",
+        "reconcileIntervalMs"
+      ],
+      "properties": {
+        "reconnects": {
+          "type": "number",
+          "description": "raw stream (re)subscriptions after the first. Its healthy resting state RISES: the server closes the subscription roughly every 30-40 s by design."
+        },
+        "gapsHealed": {
+          "type": "number",
+          "description": "recovery ranges read from the chain and applied."
+        },
+        "gapsDeferred": {
+          "type": "number",
+          "description": "recovery ranges NOT applied \u2014 the RPC node was behind the range end, or the subscription was torn down mid-heal. Each one is recorded in unhealedRanges; nothing was partially applied."
+        },
+        "reconcilePasses": {
+          "type": "number",
+          "description": "periodic reconcile ticks processed, including the ones whose range was empty (the common case)."
+        },
+        "reconciledThrough": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "every block up to and including this one has been covered by a COMPLETE chain range read. Unlike `liveBlockNumber` \u2014 which is the block of the last APPLIED EVENT and so does not move across event-less blocks (\u00a73.15) \u2014 this advances whether or not the range carried logs, which makes it the honest lower bound on what the mirror has actually read. null until the bootstrap gap-fill seeds it."
+        },
+        "lastReconcileAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "when the last reconcile tick was processed (ISO). null before the first one."
+        },
+        "unhealedRanges": {
+          "type": "array",
+          "description": "block ranges [from, to] that recovery could not apply, oldest first, capped at 64. NON-EMPTY MEANS THE MIRROR IS KNOWN-INCOMPLETE over those blocks. The periodic reconcile retries them; a list that survives two reconcile intervals raises `unhealed-ranges:<N>` in `degraded`.",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2
+          }
+        },
+        "lastHealMs": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "wall duration of the most recent heal attempt, successful or deferred."
+        },
+        "reconcileIntervalMs": {
+          "type": "number",
+          "description": "the configured reconcile period, echoed here so a reader can tell a backstop that is switched off (0) from one that has simply not fired yet."
         }
       }
     }

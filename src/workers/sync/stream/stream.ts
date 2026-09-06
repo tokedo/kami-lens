@@ -46,8 +46,16 @@
  *              fires from the same raw tap, because the worker's own health
  *              check reads it to decide whether the stream is alive.
  *
- *           Retry hygiene (5) and the reconcile tick (6) are described at
- *           their own sites below. `createClient` is a test seam: the
+ *           5. A PERIODIC RECONCILE, because recovery that only runs when the
+ *              stream notices a gap can only fix gaps the stream noticed. A
+ *              tick every RECONCILE_INTERVAL_MS re-reads
+ *              [reconciledThrough + 1, cursor] from the chain, INSIDE this
+ *              same serialized pipeline so it can never race a chunk. It is
+ *              the backstop for every loss class the continuity check cannot
+ *              see, and the thing that eventually applies a range an earlier
+ *              heal had to defer.
+ *
+ *           Retry hygiene is described at `createClient` is a test seam: the
  *           recovery path had no hermetic coverage at all before 0.6.0
  *           (test/stream-heal.test.ts). Body otherwise verbatim.
  */
@@ -57,6 +65,7 @@ import {
   finalize,
   from,
   map,
+  merge,
   Observable,
   of,
   race,
@@ -65,6 +74,7 @@ import {
   Subscription,
   switchMap,
   take,
+  takeUntil,
   tap,
   throwError,
   timeout,
@@ -83,6 +93,7 @@ import { NetworkComponentUpdate, NetworkEvent } from '../../types';
 import { createFetchWorldEventsInBlockRange } from '../utils';
 import { parseGetEventsSinceResponse } from './gapfill';
 import {
+  abandonHeal,
   GAP_RPC_MAX_BLOCKS,
   healRange,
   settleHeal,
@@ -105,6 +116,13 @@ export const STREAM_TIMEOUT_BUFFER_MS = 500;
 /** Buffer added to keepalive interval for health check threshold (ms) */
 export const HEALTH_CHECK_BUFFER_MS = 2000;
 
+/** Default period of the reconcile tick (§3.17). Two minutes is chosen
+ * against the measured reconnect cadence — one subscription close every
+ * ~55 s over the 2026-08-26..09-06 log — so a tick lands every second or
+ * third connection and its range stays a handful of blocks wide. 0 disables
+ * it, and `status.sync` says so. */
+export const RECONCILE_INTERVAL_MS = 120_000;
+
 export interface StreamOptions {
   url: string;
   worldAddress: string;
@@ -115,6 +133,11 @@ export interface StreamOptions {
   rpcHead: RpcHeadSource;
   wakeSignal$?: Subject<void>;
   blockUpdate$?: Subject<number>;
+  /** seeds reconciledThrough once the bootstrap gap-fill has landed; until
+   * then every reconcile tick is a counted no-op (§3.17) */
+  reconcileFrom$?: Subject<number>;
+  /** 0 disables the periodic reconcile (and `status.sync` says so) */
+  reconcileIntervalMs?: number;
   onMessage?: () => void;
   /** test seam (see the banner); defaults to createKamigazeClient */
   createClient?: (url: string) => StreamClient;
@@ -161,6 +184,8 @@ export function createStream(options: StreamOptions): Observable<NetworkEvent> {
     rpcHead,
     wakeSignal$,
     blockUpdate$,
+    reconcileFrom$,
+    reconcileIntervalMs = RECONCILE_INTERVAL_MS,
     onMessage,
     createClient = createKamigazeClient,
     timeoutMs = KEEPALIVE_INTERVAL_MS + STREAM_TIMEOUT_BUFFER_MS,
@@ -183,6 +208,27 @@ export function createStream(options: StreamOptions): Observable<NetworkEvent> {
     if (blockNumber > trackingState.expectedPrevLogBlock) {
       log.debug(`[kamigaze] Block update from main thread: ${blockNumber}`);
       trackingState.expectedPrevLogBlock = blockNumber;
+    }
+  });
+
+  // The tick source and its timer live HERE, in the closure that survives
+  // `retry`, for the same reason trackingState does: createRawStream is
+  // rebuilt on every reconnect, and at the measured cadence (one close per
+  // ~55 s) an interval owned by the raw subscription would be reset before a
+  // 120 s tick ever fired.
+  const reconcileTick$ = new Subject<void>();
+  let reconcileTimer: ReturnType<typeof setInterval> | null = null;
+  if (reconcileIntervalMs > 0) {
+    reconcileTimer = setInterval(() => reconcileTick$.next(), reconcileIntervalMs);
+    reconcileTimer.unref?.();
+  } else {
+    log.warn('[stream] periodic reconcile DISABLED (reconcileIntervalMs = 0)');
+  }
+
+  const reconcileFromSub = reconcileFrom$?.subscribe((blockNumber) => {
+    if (syncHealth.reconciledThrough === null || blockNumber > syncHealth.reconciledThrough) {
+      log.info(`[heal] reconcile baseline seeded at block ${blockNumber}`);
+      syncHealth.reconciledThrough = blockNumber;
     }
   });
 
@@ -211,6 +257,7 @@ export function createStream(options: StreamOptions): Observable<NetworkEvent> {
       timeoutMs,
       headWaitMs,
       headPollMs,
+      reconcileTick$,
       onMessage,
     }).subscribe({
       next: (v) => subscriber.next(v),
@@ -259,6 +306,9 @@ export function createStream(options: StreamOptions): Observable<NetworkEvent> {
     // releases them by going away.
     finalize(() => {
       blockUpdateSub?.unsubscribe();
+      reconcileFromSub?.unsubscribe();
+      if (reconcileTimer) clearInterval(reconcileTimer);
+      reconcileTick$.complete();
     })
   );
 }
@@ -276,6 +326,7 @@ interface RawStreamOptions {
   timeoutMs: number;
   headWaitMs?: number;
   headPollMs?: number;
+  reconcileTick$: Subject<void>;
   onMessage?: () => void;
 }
 
@@ -296,6 +347,7 @@ function createRawStream(options: RawStreamOptions): Observable<NetworkEvent> {
     timeoutMs,
     headWaitMs,
     headPollMs,
+    reconcileTick$,
     onMessage,
   } = options;
 
@@ -316,7 +368,10 @@ function createRawStream(options: RawStreamOptions): Observable<NetworkEvent> {
 
     // divergence 4: the no-data timeout sits on the RAW FRAMES, so it
     // measures server silence and not the duration of a heal. onMessage
-    // fires from the same tap for the same reason.
+    // fires from the same tap for the same reason — the worker's health
+    // check reads it, and a reconcile tick of our own must never make a
+    // silent stream look alive.
+    const rawDone$ = new Subject<void>();
     const raw$ = from(response).pipe(
       timeout({
         first: timeoutMs,
@@ -327,13 +382,59 @@ function createRawStream(options: RawStreamOptions): Observable<NetworkEvent> {
             return new Error(`Stream timeout - no data received for ${timeoutMs / 1000}s`);
           }),
       }),
-      tap(() => onMessage?.())
+      tap(() => onMessage?.()),
+      map((chunk) => ({ kind: 'chunk' as const, chunk })),
+      // the ticks below never end on their own, so merge() would never
+      // complete and a clean server end would hang instead of resubscribing.
+      // The raw source drives completion.
+      finalize(() => rawDone$.next())
+    );
+    const ticks$ = reconcileTick$.pipe(
+      map(() => ({ kind: 'tick' as const })),
+      takeUntil(rawDone$)
     );
 
+    /**
+     * One reconcile pass, serialized with chunk processing by the same
+     * concatMap. Re-reads [reconciledThrough + 1, cursor] from the chain:
+     * a complete range ending AT THE CURSOR, which is exactly the condition
+     * under which re-applying cannot regress a key (§3.17).
+     */
+    const reconcilePass = async (): Promise<NetworkComponentUpdate<Components>[]> => {
+      syncHealth.reconcilePasses++;
+      syncHealth.lastReconcileAt = new Date().toISOString();
+      const through = syncHealth.reconciledThrough;
+      const cursor = trackingState.expectedPrevLogBlock;
+      // not yet seeded, or nothing new since the last pass: a real no-op
+      if (through === null || cursor < 0 || cursor <= through) return [];
+      const from_ = through + 1;
+      const r = await healRange({
+        from: from_,
+        to: cursor,
+        reason: 'reconcile',
+        fetchWorldEvents,
+        rpcHead,
+        signal: abort.signal,
+        headWaitMs,
+        headPollMs,
+      });
+      if (!r.ok) return [];
+      if (closed) {
+        log.warn('[stream] subscription torn down during heal; reconcile NOT advanced');
+        abandonHeal(from_, cursor, r.ms);
+        return [];
+      }
+      settleHeal(from_, cursor, r.ms);
+      syncHealth.reconciledThrough = cursor;
+      return r.events;
+    };
+
     let sub: Subscription | undefined;
-    sub = raw$
+    sub = merge(raw$, ticks$)
       .pipe(
-        concatMap(async (responseChunk) => {
+        concatMap(async (item) => {
+          if (item.kind === 'tick') return reconcilePass();
+          const responseChunk = item.chunk;
           clock.observeBlockTimestamp(responseChunk.blockTimestamp);
           let events: NetworkComponentUpdate<Components>[] = (await transformWorldEvents(
             responseChunk
@@ -382,12 +483,20 @@ function createRawStream(options: RawStreamOptions): Observable<NetworkEvent> {
                 // heal covers the widened span. Nothing is applied.
                 return [];
               }
-              events = [...healed, ...events];
+              if (closed) {
+                // the fetch landed but we are gone; it is NOT applied, so
+                // the range goes back on the unhealed list (ruling (g)6)
+                log.warn('[stream] subscription torn down during heal; cursor NOT advanced');
+                abandonHeal(healed.from, healed.to, healed.ms);
+                return [];
+              }
+              settleHeal(healed.from, healed.to, healed.ms);
+              events = [...healed.events, ...events];
             }
           }
 
           if (closed) {
-            log.warn('[stream] subscription torn down during heal; cursor NOT advanced');
+            log.warn('[stream] subscription torn down; cursor NOT advanced');
             return [];
           }
 
@@ -435,12 +544,19 @@ interface HealGapOptions {
  * subscription — and then the head it may have half-ingested is topped up
  * from the chain, never the reverse order.
  *
- * @returns the events to apply, or null when nothing may be applied (the
- * caller must then leave the cursor alone; the range is already recorded).
+ * @returns the events to apply together with the range they cover, or null
+ * when nothing may be applied (the caller must then leave the cursor alone;
+ * the range is already recorded). The caller settles or abandons the range,
+ * because only the caller knows whether it actually applied the events.
  */
-async function healGap(
-  options: HealGapOptions
-): Promise<NetworkComponentUpdate<Components>[] | null> {
+type HealedGap = {
+  events: NetworkComponentUpdate<Components>[];
+  from: number;
+  to: number;
+  ms: number;
+};
+
+async function healGap(options: HealGapOptions): Promise<HealedGap | null> {
   const {
     client,
     decode,
@@ -466,8 +582,7 @@ async function healGap(
       headPollMs,
     });
     if (!r.ok) return null;
-    settleHeal(fromBlock, to, r.ms);
-    return r.events;
+    return { events: r.events, from: fromBlock, to, ms: r.ms };
   }
 
   log.warn(
@@ -507,6 +622,5 @@ async function healGap(
     path: latestBlock === null ? 'rpc' : 'kamigaze+rpc',
   });
   if (!top.ok) return null;
-  settleHeal(fromBlock, to, top.ms);
-  return [...diffEvents, ...top.events];
+  return { events: [...diffEvents, ...top.events], from: fromBlock, to, ms: top.ms };
 }

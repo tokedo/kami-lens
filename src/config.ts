@@ -17,6 +17,8 @@ import path from 'node:path';
 
 import { parse as parseToml } from 'smol-toml';
 
+import { RECONCILE_INTERVAL_MS } from './workers/sync/stream';
+
 // Production Yominet values from the upstream README (public deployment
 // constants, re-verified against the pin; DESIGN §5).
 export const YOMINET_DEFAULTS = {
@@ -64,6 +66,10 @@ export type KamiLensConfig = {
   defaultOperator?: number;
   dataDir: string;
   checkpointIntervalMs: number;
+  /** period of the sync layer's periodic chain reconcile (DESIGN §3.17).
+   * 0 disables it, and `status.sync.reconcileIntervalMs` says so — a
+   * backstop you cannot see is not a backstop. */
+  reconcileIntervalMs: number;
 };
 
 export type ConfigSource = 'override' | 'flag' | 'env' | 'file' | 'default';
@@ -128,6 +134,7 @@ const FILE_KEYS: Record<string, { field: keyof KamiLensConfig; type: 'number' | 
   default_operator: { field: 'defaultOperator', type: 'number' },
   data_dir: { field: 'dataDir', type: 'string' },
   checkpoint_interval_ms: { field: 'checkpointIntervalMs', type: 'number' },
+  reconcile_interval_ms: { field: 'reconcileIntervalMs', type: 'number' },
 };
 
 const ENV_KEYS: Record<string, keyof KamiLensConfig> = {
@@ -145,6 +152,7 @@ const ENV_KEYS: Record<string, keyof KamiLensConfig> = {
   KAMI_LENS_DEFAULT_OPERATOR: 'defaultOperator',
   KAMI_LENS_DATA_DIR: 'dataDir',
   KAMI_LENS_CHECKPOINT_INTERVAL_MS: 'checkpointIntervalMs',
+  KAMI_LENS_RECONCILE_INTERVAL_MS: 'reconcileIntervalMs',
 };
 
 const NUMBER_FIELDS = new Set<keyof KamiLensConfig>([
@@ -154,6 +162,7 @@ const NUMBER_FIELDS = new Set<keyof KamiLensConfig>([
   'chatMaxBytes',
   'defaultOperator',
   'checkpointIntervalMs',
+  'reconcileIntervalMs',
 ]);
 const BOOLEAN_FIELDS = new Set<keyof KamiLensConfig>(['chatEnabled', 'enrich']);
 /** URL keys accept the literal 'none' = explicitly unset at that level */
@@ -292,6 +301,7 @@ export function resolveConfigDetailed(
     defaultOperator: take<number | undefined>('defaultOperator', undefined),
     dataDir: take('dataDir', getDataDir()),
     checkpointIntervalMs: take('checkpointIntervalMs', 10 * 60 * 1000),
+    reconcileIntervalMs: take('reconcileIntervalMs', RECONCILE_INTERVAL_MS),
   };
   return { config, sources, configFile };
 }
@@ -320,6 +330,7 @@ export const CONFIG_FLAGS: Record<string, keyof KamiLensConfig | 'configFile'> =
   '--default-operator': 'defaultOperator',
   '--data-dir': 'dataDir',
   '--checkpoint-interval-ms': 'checkpointIntervalMs',
+  '--reconcile-interval-ms': 'reconcileIntervalMs',
   '--config': 'configFile',
 };
 

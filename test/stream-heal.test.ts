@@ -543,3 +543,175 @@ describe('stream gap handling reads the chain (§3.17)', () => {
     expect(syncHealth.gapsDeferred).toBe(1);
   });
 });
+
+// ---------------------------------------------- 4. the periodic reconcile --
+
+import { Subject } from 'rxjs';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { KamiLensDaemon } from '../src/daemon';
+import { buildStatusData } from '../src/server';
+
+/** two chained frames, no gap: the cursor moves without a heal */
+const noGapScript = (): Step[] => [
+  { frame: frame(100, 5, 99, 3) }, // first message adopts the cursor
+  { delayMs: 5, frame: frame(105, 2, 100, 5) }, // prev chains exactly
+];
+
+describe('the periodic reconcile (§3.17)', () => {
+  it('heals [reconciledThrough + 1, cursor] and advances reconciledThrough', async () => {
+    resetSyncHealth();
+    const fetchWorldEvents = makeFetchWorldEvents();
+    const client = makeClient(noGapScript());
+    const reconcileFrom$ = new Subject<number>();
+    const stream$ = createStream({
+      ...baseOptions(),
+      fetchWorldEvents,
+      rpcHead: makeRpcHead({ cached: 10_000 }),
+      createClient: () => client,
+      timeoutMs: 30_000,
+      reconcileFrom$,
+      reconcileIntervalMs: 25,
+    });
+    reconcileFrom$.next(100); // the bootstrap gap-fill landed at block 100
+    expect(syncHealth.reconciledThrough).toBe(100);
+
+    const sub = stream$.subscribe(() => {});
+    await new Promise((r) => setTimeout(r, 220));
+    sub.unsubscribe();
+
+    // the cursor reached 105 with no continuity gap, so the ONLY read here
+    // is the reconcile's — and it covers exactly the blocks in between
+    expect(fetchWorldEvents.ranges).toEqual([[101, 105]]);
+    expect(syncHealth.reconciledThrough).toBe(105);
+    expect(syncHealth.gapsHealed).toBe(1);
+    expect(syncHealth.reconcilePasses).toBeGreaterThan(1);
+    expect(syncHealth.lastReconcileAt).not.toBeNull();
+  });
+
+  it('a pass whose range is empty is counted and reads nothing', async () => {
+    resetSyncHealth();
+    const fetchWorldEvents = makeFetchWorldEvents();
+    const client = makeClient([{ frame: frame(100, 5, 99, 3) }]);
+    const reconcileFrom$ = new Subject<number>();
+    const stream$ = createStream({
+      ...baseOptions(),
+      fetchWorldEvents,
+      rpcHead: makeRpcHead({ cached: 10_000 }),
+      createClient: () => client,
+      timeoutMs: 30_000,
+      reconcileFrom$,
+      reconcileIntervalMs: 20,
+    });
+    reconcileFrom$.next(100); // already at the cursor the stream will adopt
+    const sub = stream$.subscribe(() => {});
+    await new Promise((r) => setTimeout(r, 150));
+    sub.unsubscribe();
+
+    expect(syncHealth.reconcilePasses).toBeGreaterThan(2);
+    expect(fetchWorldEvents.ranges).toEqual([]);
+    expect(syncHealth.gapsHealed).toBe(0);
+  });
+
+  it('before the baseline is seeded every pass is a counted no-op', async () => {
+    resetSyncHealth();
+    const fetchWorldEvents = makeFetchWorldEvents();
+    const client = makeClient(noGapScript());
+    const stream$ = createStream({
+      ...baseOptions(),
+      fetchWorldEvents,
+      rpcHead: makeRpcHead({ cached: 10_000 }),
+      createClient: () => client,
+      timeoutMs: 30_000,
+      reconcileIntervalMs: 20, // no reconcileFrom$ at all
+    });
+    const sub = stream$.subscribe(() => {});
+    await new Promise((r) => setTimeout(r, 150));
+    sub.unsubscribe();
+
+    expect(syncHealth.reconciledThrough).toBeNull();
+    expect(syncHealth.reconcilePasses).toBeGreaterThan(2);
+    expect(fetchWorldEvents.ranges).toEqual([]);
+  });
+
+  it('reconcileIntervalMs = 0 disables the pass entirely', async () => {
+    resetSyncHealth();
+    const fetchWorldEvents = makeFetchWorldEvents();
+    const client = makeClient(noGapScript());
+    const reconcileFrom$ = new Subject<number>();
+    const stream$ = createStream({
+      ...baseOptions(),
+      fetchWorldEvents,
+      rpcHead: makeRpcHead({ cached: 10_000 }),
+      createClient: () => client,
+      timeoutMs: 30_000,
+      reconcileFrom$,
+      reconcileIntervalMs: 0,
+    });
+    reconcileFrom$.next(100);
+    const sub = stream$.subscribe(() => {});
+    await new Promise((r) => setTimeout(r, 150));
+    sub.unsubscribe();
+
+    expect(syncHealth.reconcilePasses).toBe(0);
+    expect(fetchWorldEvents.ranges).toEqual([]);
+  });
+
+  it('the tick timer is released with the stream, not leaked across it', async () => {
+    resetSyncHealth();
+    const fetchWorldEvents = makeFetchWorldEvents();
+    const client = makeClient(noGapScript());
+    const reconcileFrom$ = new Subject<number>();
+    const sub = createStream({
+      ...baseOptions(),
+      fetchWorldEvents,
+      rpcHead: makeRpcHead({ cached: 10_000 }),
+      createClient: () => client,
+      timeoutMs: 30_000,
+      reconcileFrom$,
+      reconcileIntervalMs: 20,
+    }).subscribe(() => {});
+    reconcileFrom$.next(100);
+    await new Promise((r) => setTimeout(r, 120));
+    sub.unsubscribe();
+    const after = syncHealth.reconcilePasses;
+    await new Promise((r) => setTimeout(r, 120));
+    expect(syncHealth.reconcilePasses).toBe(after);
+  });
+});
+
+// ------------------------------------------------- 4b. the status surface --
+
+describe('status.sync is declared where it must be', () => {
+  const schema = JSON.parse(
+    readFileSync(path.resolve(__dirname, '../src/queries/schemas/status.json'), 'utf8')
+  ) as {
+    $defs: {
+      Status: { required: string[]; properties: Record<string, unknown> };
+      Sync: { required: string[]; properties: Record<string, unknown>; additionalProperties: boolean };
+    };
+  };
+
+  it('the served block is exactly the declared block (additionalProperties: false)', () => {
+    const daemon = new KamiLensDaemon({ dataDir: path.resolve(__dirname, '../gates/.artifacts/void-sync') });
+    const data = buildStatusData(daemon) as { sync: Record<string, unknown> };
+    expect(Object.keys(data.sync).sort()).toEqual(Object.keys(schema.$defs.Sync.properties).sort());
+    expect(schema.$defs.Sync.required.sort()).toEqual(Object.keys(data.sync).sort());
+    expect(schema.$defs.Sync.additionalProperties).toBe(false);
+    expect(schema.$defs.Status.required).toContain('sync');
+  });
+
+  it('every string leaf of the block is classified (or the envelope deletes it)', () => {
+    const cls = JSON.parse(
+      readFileSync(path.resolve(__dirname, '../docs/string-classification.json'), 'utf8')
+    ) as { types: Record<string, Record<string, string>> };
+    const stringLeaves = Object.entries(schema.$defs.Sync.properties)
+      .filter(([, v]) => {
+        const t = (v as { type?: unknown }).type;
+        return t === 'string' || (Array.isArray(t) && t.includes('string'));
+      })
+      .map(([k]) => k);
+    expect(stringLeaves).toEqual(['lastReconcileAt']);
+    for (const leaf of stringLeaves) expect(cls.types.Sync?.[leaf]).toBe('system');
+  });
+});

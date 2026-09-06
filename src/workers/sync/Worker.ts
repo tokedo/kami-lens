@@ -39,6 +39,12 @@
  *              Kamigaze diff. Its own wait-for-the-node ladder in blocks.ts
  *              is unreachable here: it is gated on supportsBatchQueries and
  *              the daemon sets `batch: false`.
+ *           7. reconcileFrom$ (0.6.0): once fillGap has closed the bootstrap
+ *              gap, every block up to streamStartBlockNumber has been read
+ *              as a COMPLETE range, so that block seeds the stream's periodic
+ *              reconcile baseline. Before it is seeded every reconcile tick
+ *              is a counted no-op, which is what keeps the reconcile from
+ *              fighting the bootstrap.
  *           Type-hole fix: the snapshot catch block reads e.code on an
  *           unknown catch variable — cast to {code?: unknown} (upstream is
  *           vite-transpiled and never typechecked; no behavior change).
@@ -131,6 +137,10 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
   private output$ = new Subject<NetworkEvent<C>>();
   private wakeSignal$ = new Subject<void>();
   private blockUpdate$ = new Subject<number>();
+  /** seeds the stream's reconcile baseline once the bootstrap gap-fill has
+   * landed (§3.17): every block up to streamStartBlockNumber is then known
+   * to have been read completely. */
+  private reconcileFrom$ = new Subject<number>();
   private lastMessageTime = Date.now();
   private syncState: SyncStatus = { state: SyncState.CONNECTING, msg: '', percentage: 0 };
   private config?: SyncWorkerConfig;
@@ -234,6 +244,7 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
       worldContract,
       provider: { options: providerOptions },
       fetchSystemCalls,
+      reconcileIntervalMs,
     } = config;
 
     // Set up shared primitives
@@ -361,6 +372,8 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
           rpcHead,
           wakeSignal$: this.wakeSignal$,
           blockUpdate$: this.blockUpdate$,
+          reconcileFrom$: this.reconcileFrom$,
+          reconcileIntervalMs,
           onMessage: () => {
             this.lastMessageTime = Date.now();
           },
@@ -407,6 +420,11 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
 
     // Merge gap events and live events buffered during gap fill
     storeStateEvents(stateCache.current, [...gapStateEvents, ...initialLiveEvents]);
+
+    // divergence 7 (§3.17): the reconcile baseline. Everything up to the
+    // stream's start block has now been read as a complete range, so the
+    // periodic reconcile starts from here rather than from block 0.
+    this.reconcileFrom$.next(streamStartBlockNumber);
 
     /*
      * INITIALIZE STATE

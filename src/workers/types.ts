@@ -10,7 +10,10 @@
  *           Worker.ts reads it, so the type now tells the truth. dataDir
  *           is the storage-backend injection the browser never needed
  *           (IndexedDB is ambient; the file-snapshot store is not —
- *           swap point 3). Everything else verbatim.
+ *           swap point 3). 0.6.0 adds reconcileIntervalMs (DESIGN §3.17,
+ *           "L-1"): the period of the stream's periodic chain reconcile,
+ *           configured by the daemon. Upstream has no such pass — a page
+ *           reload is its reconcile. Everything else verbatim.
  */
 
 import { Components, ComponentValue, EntityID, SchemaOf } from 'engine/recs';
@@ -93,6 +96,7 @@ export type SyncWorkerConfig = {
   initialBlockNumber?: number;
   dataDir?: string;
   fetchSystemCalls?: boolean;
+  reconcileIntervalMs?: number;
   snapshotNumChunks?: number;
   pruneOptions?: { playerAddress: string; hashedComponentId: string };
 };

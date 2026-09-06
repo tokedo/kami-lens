@@ -11,6 +11,7 @@ export {
   createStream,
   HEALTH_CHECK_BUFFER_MS,
   KEEPALIVE_INTERVAL_MS,
+  RECONCILE_INTERVAL_MS,
   type FetchWorldEvents,
   type StreamClient,
   type StreamOptions,

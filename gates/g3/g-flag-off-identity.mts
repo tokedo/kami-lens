@@ -151,12 +151,44 @@ const STATUS_EXPECTED_CHANGED = 'version';
 const ADDITIVE_LEAVES_052 = ['cooldownUntil', 'margin', 'feedsDegraded'];
 const ADDITIVE_LEAVES_053 = ['blocked'];
 
+/** 0.6.0 adds one BLOCK, on the same terms as the leaves above.
+ *
+ * `status.sync` (§3.17): the sync layer's own recovery health. It lands on
+ * `status` unconditionally — including on this gate's UNSTARTED daemon,
+ * where the counters are all zero, `reconciledThrough` and `lastReconcileAt`
+ * are null and `unhealedRanges` is empty, so its leaf is `sync.unhealedRanges[]`
+ * (leaves() renders an empty array that way). The matcher below strips ONE
+ * trailing `[n]`/`[]` from the last dot-segment, which is exactly enough for
+ * that leaf; a NON-empty list would render `sync.unhealedRanges[0][1]` and
+ * would not match — irrelevant on an unstarted daemon, recorded here so the
+ * next release does not discover it as a surprise.
+ *
+ * Declared rather than re-capturing the baselines, exactly as 0.5.2's three
+ * and 0.5.3's one were: a re-capture would also absorb any change nobody
+ * intended, while this list is reviewable and anything NOT on it still
+ * fails. */
+const ADDITIVE_LEAVES_060 = [
+  'reconnects',
+  'gapsHealed',
+  'gapsDeferred',
+  'reconcilePasses',
+  'reconciledThrough',
+  'lastReconcileAt',
+  'unhealedRanges',
+  'lastHealMs',
+  'reconcileIntervalMs',
+];
+
 /** Does a leaf path belong to a 0.5.2 additive field? Matches the last
  * dot-segment (array indices stripped), so `kamis[3].cooldownUntil` and
  * `harvests[0].vitals.cooldownUntil` both resolve to `cooldownUntil`. */
 function isAdditive052(path: string): boolean {
   const leaf = (path.split('.').pop() ?? '').replace(/\[\d*\]$/, '');
-  return ADDITIVE_LEAVES_052.includes(leaf) || ADDITIVE_LEAVES_053.includes(leaf);
+  return (
+    ADDITIVE_LEAVES_052.includes(leaf) ||
+    ADDITIVE_LEAVES_053.includes(leaf) ||
+    ADDITIVE_LEAVES_060.includes(leaf)
+  );
 }
 
 /** Pinned instant for the §3.8 clock. The verify run and its reference

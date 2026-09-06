@@ -144,6 +144,13 @@ export function buildStatusData(
     // the answer omits the block when a read fails, so its health is
     // reported here rather than nowhere
     rpcReads: s.rpcReads as unknown as Record<string, unknown>,
+    // §3.17 (0.6.0): the sync layer's own recovery health. The 2026-09-06
+    // phantom-harvest loss was undiagnosable because none of this existed:
+    // gap-fills announced themselves at DEBUG, a cursor that advanced over
+    // unapplied blocks announced itself not at all, and nothing said the
+    // mirror was known-incomplete. `reconciledThrough` is the complete-range
+    // lower bound that `liveBlockNumber` is not (§3.15).
+    sync: s.sync as unknown as Record<string, unknown>,
     clockOffsetMs: clock.offset(),
     clockLastSyncWallMs: clock.lastObservedAtWallMs(),
     config: {
