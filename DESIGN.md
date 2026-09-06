@@ -3,7 +3,8 @@
 Status: **v1 — settled** (2026-07-20; untrusted-text policy §3.10 and
 Kamiden scope settled in design session 2, same date; §3.7
 parity-reference standard amended 2026-07-21; §3.1/§3.2 gap-recovery
-inverted and §3.17 added 2026-09-06, describes 0.6.0). Evidence base:
+inverted and §3.17 added 2026-09-06; §3.8 clock fields renamed and §3.15
+freshness paragraph added 2026-09-06, describes 0.6.1). Evidence base:
 [docs/upstream-client-architecture.md](docs/upstream-client-architecture.md)
 (study of the official client at upstream commit `ef898fc9`),
 re-verified claim-by-claim against a fresh clone on 2026-07-20 (see
@@ -297,18 +298,40 @@ that measures a thing is not the release that acts on it (§3.15's rule,
 applied again). What ships instead is `meta.asOf`, on every envelope, in the
 one place every answer passes through:
 
-    asOf: { block, projectedAtSec, observedBlock, observedBlockTime,
-            clockOffsetMs, observedAgoMs }
+    asOf: { block, projectedAtSec, clockSampleBlock, clockSampleBlockTime,
+            clockOffsetMs, clockSampleAgoMs }
 
 The fields are kept **separate and unfused on purpose**. `block` is the
 mirror's lower bound (§3.15); `projectedAtSec` is the instant the projection
-math actually used; `observedBlock` / `observedBlockTime` are the *different,
-older* block whose header produced the current correction, and
-`observedAgoMs` says how stale that is. Pairing a mirror block with a clock
+math actually used; `clockSampleBlock` / `clockSampleBlockTime` are the
+*different, older* block whose header produced the current correction, and
+`clockSampleAgoMs` says how stale that is. Pairing a mirror block with a clock
 anchored on another block, as one "as of" claim, would be a lie of
 convenience. The last four are **absent together** until the first
 observation, on the §3.15 head-fields precedent: a served `clockOffsetMs: 0`
 would read as a measurement.
+
+**What the clock sample is, and what it is not (0.6.1 — the rename).** It is
+the block whose header timestamp last calibrated the offset-corrected clock,
+refreshed every `CLOCK_SYNC_INTERVAL_MS` = 300 s (`src/daemon.ts` `syncClock`).
+So `clockSampleAgoMs` **cycles 0–300 s on a perfectly healthy mirror**, and a
+value near 300 s means the next sync is due — not that anything is late. It is
+**not mirror lag**, it is not the age of the answer, and it says nothing
+whatever about applied state. Mirror lag is `status.blockLag`
+(`headBlockNumber − meta.blockNumber`); verified applied state is
+`meta.reconciledThrough` (§3.15).
+
+These fields were called `observedBlock` / `observedBlockTime` /
+`observedAgoMs` from 0.5.2 to 0.6.0, and a consumer read them as mirror lag
+**twice** — hybrid-play ledger row L-2 on 2026-08-29, then again at the 0.6.0
+sync on 2026-09-06 — gating live play decisions on a number that was doing
+exactly its job, and filing a lens defect against it. The paragraph above
+said so, in this document and in `src/queries/envelope.ts`, the whole time.
+That is the lesson worth keeping: **a doc comment loses to a field name.**
+"Observed" invited the reading, because the mirror also observes things. So
+0.6.1 renames rather than re-explains, and the old names ship one more
+release carrying identical values (SPEC §1.4) before they are removed at
+0.7.0.
 
 `cooldownUntil` follows from the same reasoning at the field level: the raw
 on-chain cooldown end time, served beside the projected `cooldownSec`, so a
@@ -896,6 +919,28 @@ separately instead of forging a block number into the event path. The
 distinction matters at exactly one moment — after a quiet period, where a
 mirror that has read everything and a mirror that has read nothing look
 identical in `liveBlockNumber` and differ in `reconciledThrough`.
+
+**The verified lower bound rides on every answer (0.6.1).** `meta.blockNumber`
+is the lower bound of APPLIED state: the highest block whose updates the
+mirror had applied when the answer began building, advanced by whatever the
+stream happened to deliver. `meta.reconciledThrough` is the lower bound of
+**chain-verified** applied state: every block up to and including it has been
+re-read from the chain and applied (§3.17). The second is the stronger claim,
+and it is the one a reader wants when it is about to act.
+
+It was reachable only through `status` until now, which is the wrong surface
+for it. A caller that has just sent a transaction and wants to know whether
+this mirror can yet see it must compare the receipt's block against something,
+and the honest something is the verified bound — but `status` is a *different
+answer*, taken at a *different instant*, so pairing it with a world read is
+the same lie of convenience §3.8 refuses for the clock. **A reader comparing a
+receipt block should use `meta.reconciledThrough` when it is present, and
+`meta.blockNumber` only as the weaker fallback.**
+
+It is `number | null`, never optional and never `0`. `null` means this process
+has verified nothing — before the bootstrap seeds the baseline, and on any
+path with no sync worker behind it, such as the stateless CLI. A `0` would
+read as "verified through block 0", which is §3.14's whole objection.
 
 ### 3.16 The kami sheet, and a flag that pays for itself (0.5.1)
 

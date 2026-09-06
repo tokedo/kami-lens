@@ -89,7 +89,7 @@ being guessed at.
 
 ## Status
 
-**0.6.0, pre-release.** Daemon, CLI, and library are implemented and
+**0.6.1, pre-release.** Daemon, CLI, and library are implemented and
 gate-verified against the pinned upstream commit and the live game,
 with dated per-run evidence in `docs/measurements/`. The verification
 suite is G0–G9 (G8 and G9 are manual and live); every run writes its
@@ -97,6 +97,46 @@ own dated record, and the record — not this paragraph — is what a
 given release rests on. The contract registry is [SPEC.md](SPEC.md);
 per-surface coverage — what is served, what is deferred, what is out
 of scope — is [docs/coverage.md](docs/coverage.md).
+
+### What changed in 0.6.1, for the things that read this daemon
+
+Two changes to what every answer tells you, and both are about a reader
+knowing how fresh an answer is without having to ask twice.
+
+**Every answer now says how far it has been verified.** `meta` carries a
+new `reconciledThrough`: the block through which this mirror has genuinely
+read everything from the chain and applied it. It sits beside
+`blockNumber`, and the difference between them matters. `blockNumber` is
+the newest block the mirror has applied *something* from — it moves on
+whatever the stream happened to deliver. `reconciledThrough` moves only
+over blocks that were read completely from the chain. **If you have just
+sent a transaction and want to know whether this daemon can see it yet,
+compare its receipt block against `reconciledThrough`.** The number
+existed in 0.6.0 but only on `status`, which is a separate question asked
+at a separate moment — so pairing it with a world read was comparing two
+different instants. Now it rides on the answer itself. It reads `null`,
+never `0`, when nothing has been verified yet.
+
+**Three fields are renamed, because their old names misled people.**
+`observedBlock`, `observedBlockTime` and `observedAgoMs` are now
+`clockSampleBlock`, `clockSampleBlockTime` and `clockSampleAgoMs`. They
+were never about how fresh the mirror is. They describe the daemon's
+*clock*: which block's timestamp it last used to check its own sense of
+time, something it redoes every five minutes on a timer. So
+`clockSampleAgoMs` climbing toward 300,000 is a healthy daemon counting
+down to its next check, and nothing more. Twice, readers took it for how
+far behind the mirror was and made decisions on it — the second time
+after we had written the explanation down in two places. The explanation
+was not the problem; the word "observed" was.
+
+**The old names still work, and only until the next release.** They carry
+identical values through 0.6.1 and are removed in 0.7.0, so you have one
+version to switch. If you want mirror lag, it is `status.blockLag`. If you
+want verified freshness, it is `meta.reconciledThrough`.
+
+Also in this release, and invisible from the outside: two of our own
+verification gates could have reported success while checking almost
+nothing, and both are fixed. Details in SPEC.md's changelog.
 
 ### What changed in 0.6.0, for the things that read this daemon
 
