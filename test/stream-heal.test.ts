@@ -715,3 +715,91 @@ describe('status.sync is declared where it must be', () => {
     for (const leaf of stringLeaves) expect(cls.types.Sync?.[leaf]).toBe('system');
   });
 });
+
+// ------------------------------------------------- 5. reconnect hygiene ----
+
+import { RATE_LIMIT_DELAY_CAP_MS, retryDelayFor } from 'workers/sync/stream';
+
+describe('reconnect hygiene (§3.2)', () => {
+  it('honours a RESOURCE_EXHAUSTED retry hint, rounded up', () => {
+    const d = retryDelayFor(
+      { message: '/kamigaze.KamigazeService/SubscribeToStream RESOURCE_EXHAUSTED: rate limit exceeded, retry in 20s' },
+      0
+    );
+    expect(d).toEqual({ ms: 20_000, reason: 'rate-limit', suggestedSec: 20 });
+    expect(retryDelayFor({ message: 'rate limit exceeded, retry in 1.2s' }, 0).ms).toBe(2_000);
+  });
+
+  it('caps a pathological suggestion instead of obeying it', () => {
+    const d = retryDelayFor({ message: 'RESOURCE_EXHAUSTED: rate limit exceeded, retry in 900s' }, 0);
+    expect(d.ms).toBe(RATE_LIMIT_DELAY_CAP_MS);
+    expect(d.suggestedSec).toBe(900);
+  });
+
+  it('falls back to the ladder when there is no hint, and caps it', () => {
+    expect(retryDelayFor({ message: 'Response closed without grpc-status' }, 0).ms).toBe(1_000);
+    expect(retryDelayFor({ message: 'boom' }, 1).ms).toBe(2_000);
+    expect(retryDelayFor({ message: 'boom' }, 4).ms).toBe(10_000);
+    expect(retryDelayFor({ message: 'boom' }, 40).ms).toBe(10_000);
+    expect(retryDelayFor(undefined, 0).reason).toBe('ladder');
+  });
+
+  it('a "retry in Ns" that is not a rate limit does not hijack the ladder', () => {
+    expect(retryDelayFor({ message: 'bootstrap error: retrying after 5s' }, 2).reason).toBe('ladder');
+  });
+
+  it('wake signals retry immediately', () => {
+    expect(retryDelayFor({ message: 'Wake signal - forcing reconnection' }, 9)).toEqual({
+      ms: 0,
+      reason: 'wake',
+    });
+  });
+
+  it('the ladder resets on a working subscription, so late reconnects are not capped', async () => {
+    resetSyncHealth();
+    // three subscriptions, each of which DELIVERS a frame and then closes.
+    // Without resetOnSuccess retryCount would climb 0,1,2… for the life of
+    // the process; with it, every reconnect after a working one pays 1 s.
+    let opened = 0;
+    const fetchWorldEvents = makeFetchWorldEvents();
+    const client: StreamClient = {
+      subscribeToStream: (() => {
+        opened++;
+        return (async function* () {
+          yield frame(100 + opened, 1, 99 + opened, 1);
+          throw new Error('Response closed without grpc-status (Headers only)');
+        })();
+      }) as StreamClient['subscribeToStream'],
+      getEventsSince: (async () => ({ events: [], latestBlock: 0 })) as never,
+    };
+    const delays: number[] = [];
+    const t0 = Date.now();
+    let last = t0;
+    const sub = createStream({
+      ...baseOptions(),
+      fetchWorldEvents,
+      rpcHead: makeRpcHead({ cached: 10_000 }),
+      createClient: () => client,
+      timeoutMs: 30_000,
+      reconcileIntervalMs: 0,
+    }).subscribe({
+      next: () => {
+        const now = Date.now();
+        delays.push(now - last);
+        last = now;
+      },
+      error: () => {},
+    });
+    await new Promise((r) => setTimeout(r, 6_500));
+    sub.unsubscribe();
+
+    // WITH the reset every delay is the same ladder step (2 s), so four
+    // subscriptions fit in the window and no gap approaches the cap.
+    // WITHOUT it the delays would climb 2, 3, 5, 10 and the window would
+    // hold three subscriptions with a 5 s gap in it — which is what this
+    // discriminates.
+    expect(opened).toBeGreaterThanOrEqual(4);
+    expect(syncHealth.reconnects).toBeGreaterThanOrEqual(3);
+    for (const d of delays.slice(1)) expect(d).toBeLessThan(3_500);
+  }, 20_000);
+});

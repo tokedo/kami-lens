@@ -55,9 +55,19 @@
  *              see, and the thing that eventually applies a range an earlier
  *              heal had to defer.
  *
- *           Retry hygiene is described at `createClient` is a test seam: the
- *           recovery path had no hermetic coverage at all before 0.6.0
- *           (test/stream-heal.test.ts). Body otherwise verbatim.
+ *           6. RECONNECT HYGIENE. The retry ladder resets on a working
+ *              subscription, which upstream never does — without it
+ *              retryCount only rises and every reconnect after the fifth
+ *              paid the capped 10 s for the life of the process, on a stream
+ *              that reconnects every ~55 s. And a RESOURCE_EXHAUSTED error
+ *              carrying "retry in <N>s" is honoured (rounded up, capped at
+ *              30 s) instead of being answered with a 1 s ladder that spends
+ *              the very budget the limit protects. Both are logged at WARN
+ *              with the delay chosen.
+ *
+ *           `createClient` is a test seam: the recovery path had no hermetic
+ *           coverage at all before 0.6.0 (test/stream-heal.test.ts). Body
+ *           otherwise verbatim.
  */
 
 import {
@@ -157,9 +167,48 @@ interface StreamTrackingState {
 /** Fixed retry delays in seconds, capped at last value */
 const RETRY_DELAYS_SECONDS = [1, 2, 3, 5, 10];
 
+/** Ceiling on a server-suggested retry delay. The server has been observed
+ * asking for ~20 s; this bounds a pathological suggestion without ignoring
+ * a reasonable one. */
+export const RATE_LIMIT_DELAY_CAP_MS = 30_000;
+
 function getRetryDelay(retryCount: number): number {
   const index = Math.min(retryCount, RETRY_DELAYS_SECONDS.length - 1);
   return RETRY_DELAYS_SECONDS[index] * 1000;
+}
+
+/**
+ * How long to wait before resubscribing, and why (divergence, DESIGN §3.2).
+ *
+ * Upstream climbs a fixed ladder and ignores what the server said. Both
+ * halves matter to a daemon:
+ *
+ * - When the server answers RESOURCE_EXHAUSTED it says how long to wait
+ *   ("rate limit exceeded, retry in 20s"). Climbing a 1 s ladder into a
+ *   rate limit spends the budget the limit is protecting; 57 of the 59
+ *   logged gap-fill failures in the 2026-08-26..09-06 daemon log were that
+ *   error. The suggestion is honoured, rounded up and capped.
+ * - The ladder itself is reset on success (`resetOnSuccess`), which upstream
+ *   never does. Without it `retryCount` only ever rises, so from the sixth
+ *   reconnect of the process onward EVERY reconnect paid the capped 10 s —
+ *   and the same log shows 17,369 reconnects over eleven days, i.e. one per
+ *   ~55 s. A page reload resets upstream's counter; nothing reset ours.
+ */
+export function retryDelayFor(
+  error: { message?: string } | undefined,
+  retryCount: number
+): { ms: number; reason: 'wake' | 'rate-limit' | 'ladder'; suggestedSec?: number } {
+  if (error?.message?.includes('Wake signal')) return { ms: 0, reason: 'wake' };
+  const hint = /retry in\s+([0-9]+(?:\.[0-9]+)?)\s*s/i.exec(error?.message ?? '');
+  if (hint && /RESOURCE_EXHAUSTED|rate limit/i.test(error?.message ?? '')) {
+    const seconds = Math.ceil(Number(hint[1]));
+    return {
+      ms: Math.min(seconds * 1000, RATE_LIMIT_DELAY_CAP_MS),
+      reason: 'rate-limit',
+      suggestedSec: seconds,
+    };
+  }
+  return { ms: getRetryDelay(retryCount), reason: 'ladder' };
 }
 
 /**
@@ -271,17 +320,30 @@ export function createStream(options: StreamOptions): Observable<NetworkEvent> {
     };
   }).pipe(
     retry({
+      // divergence 6: reset the ladder on a working subscription. Without
+      // this the count only rises and every reconnect after the fifth pays
+      // the capped delay for the life of the process.
+      resetOnSuccess: true,
       delay: (error, retryCount) => {
+        const chosen = retryDelayFor(error, retryCount);
+
         // Immediate retry on wake signal
-        if (error.message?.includes('Wake signal')) {
+        if (chosen.reason === 'wake') {
           log.debug('[kamigaze] Immediate retry due to wake signal');
           return timer(0);
         }
 
-        const delayMs = getRetryDelay(retryCount);
-        log.debug(
-          `[kamigaze] Retrying stream subscription... attempt ${retryCount} (waiting ${delayMs / 1000}s)`
-        );
+        const delayMs = chosen.ms;
+        if (chosen.reason === 'rate-limit') {
+          log.warn(
+            `[kamigaze] rate limited — the server asked for ${chosen.suggestedSec}s; ` +
+              `resubscribing in ${delayMs / 1000}s (attempt ${retryCount})`
+          );
+        } else {
+          log.warn(
+            `[kamigaze] resubscribing in ${delayMs / 1000}s (attempt ${retryCount}): ${error?.message ?? 'unknown error'}`
+          );
+        }
 
         // Race between normal delay and wake signal - whichever emits first wins.
         // This catches wake signals that arrive during retry delay (when wakeSub is unsubscribed).
