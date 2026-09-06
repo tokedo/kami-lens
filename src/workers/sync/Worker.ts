@@ -31,6 +31,14 @@
  *              state forever with its bounded-retry schedule never engaged.
  *              The message is sanitized of the substring 'retrying in',
  *              which onFailed reads as "the worker is handling this itself".
+ *           6. rpcHead (0.6.0, DESIGN §3.17, "L-1"): the sync worker builds
+ *              the chain-head source the stream's heal precondition reads —
+ *              the newest blockNumber$ value as a free first check, the HTTP
+ *              provider's getBlockNumber() as the authority. Upstream has no
+ *              recovery precondition to serve, because upstream trusts the
+ *              Kamigaze diff. Its own wait-for-the-node ladder in blocks.ts
+ *              is unreachable here: it is gated on supportsBatchQueries and
+ *              the daemon sets `batch: false`.
  *           Type-hole fix: the snapshot catch block reads e.code on an
  *           unknown catch variable — cast to {code?: unknown} (upstream is
  *           vite-transpiled and never typechecked; no behavior change).
@@ -85,7 +93,13 @@ import {
   saveStateCacheToStore,
   storeStateEvents,
 } from './state';
-import { createStream, fillGap, HEALTH_CHECK_BUFFER_MS, KEEPALIVE_INTERVAL_MS } from './stream';
+import {
+  createStream,
+  fillGap,
+  HEALTH_CHECK_BUFFER_MS,
+  KEEPALIVE_INTERVAL_MS,
+  type RpcHeadSource,
+} from './stream';
 import {
   createFetchSystemCallsFromEvents,
   createFetchWorldEventsInBlockRange,
@@ -245,6 +259,22 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
     const { blockNumber$, dispose: disposeBlockNumberStream } = createBlockNumberStream(providers);
     this.disposers.push(disposeBlockNumberStream);
 
+    // divergence 6 (§3.17, ruling (g)3): the chain head the heal precondition
+    // reads. blockNumber$ is FREE and is therefore asked first — but it rides
+    // the WebSocket provider, which 0.5.2 established can go permanently
+    // silent without ever erroring, so a cached value BELOW the target is not
+    // trusted as a refusal and the HTTP provider is asked directly. A stale
+    // head must never turn every heal into a deferral.
+    let newestBlockNumber: number | undefined;
+    const headSub = blockNumber$.subscribe((n) => {
+      if (newestBlockNumber === undefined || n > newestBlockNumber) newestBlockNumber = n;
+    });
+    this.disposers.push(() => headSub.unsubscribe());
+    const rpcHead: RpcHeadSource = {
+      cached: () => newestBlockNumber,
+      fetch: () => provider.getBlockNumber(),
+    };
+
     /*
      * LOAD INITIAL STATE (BACKFILL)
      * - use IndexedDB Storage state cache if not expired
@@ -328,6 +358,7 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
           decode,
           includeSystemCalls: Boolean(fetchSystemCalls),
           fetchWorldEvents,
+          rpcHead,
           wakeSignal$: this.wakeSignal$,
           blockUpdate$: this.blockUpdate$,
           onMessage: () => {
