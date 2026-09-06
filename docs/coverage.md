@@ -46,7 +46,7 @@ than left as an implied `planned`.
 | menu | UI navigation chrome, no world state | — | out-of-scope | — |
 | notifications | client-local derivations: quest completability, kamiden reveal events (`DTRevealerSystem`) | chain + kamiden | **deferred** — the served inputs are quests (G3.a) and feed (G4.b); the reveal input is itself unserved (see the gacha/reveal row), and the derived "alerts" digest needs its own design pass (DESIGN §6) | — |
 | action queue | local tx queue (requires acting) | — | out-of-scope (read-only) | — |
-| sync/loading state | `component.LoadingState` → daemon status | chain | served (G3.e) — and from 0.5.2 BOUNDED: a pre-LIVE daemon that stops making progress for 90 s restarts its bootstrap through the same retry schedule, `degraded` carries `pre-live-stall:<N>s`, and world reads answer `NOT_READY` rather than `NOT_FOUND` while the mirror is empty | G3.e, G9.a |
+| sync/loading state | `component.LoadingState` → daemon status | chain | served (G3.e) — and from 0.5.2 BOUNDED: a pre-LIVE daemon that stops making progress for 90 s restarts its bootstrap through the same retry schedule, `degraded` carries `pre-live-stall:<N>s`, and world reads answer `NOT_READY` rather than `NOT_FOUND` while the mirror is empty. From 0.6.0 the POST-LIVE side is bounded too (DESIGN §3.17): stream-gap recovery reads the chain rather than the Kamigaze diff, a range is applied completely or not at all, a 120 s reconcile re-reads `[reconciledThrough + 1, cursor]` whether or not a gap was noticed, and `status.sync` carries the counters — with `unhealed-ranges:<N>` in `degraded` when the mirror is known-incomplete and has not recovered across two passes | G3.e, G9.a, G8.b |
 
 ## Modals
 
@@ -119,7 +119,7 @@ formula-class hand review (DESIGN §7).
 | `authored-id` | kami `Name`, account `Name` (≤16 bytes, unique, non-empty; **no charset restriction**) — inline by default, always envelope-tagged, withheld in name-free mode |
 | `authored-prose` | account bio (≤140 bytes); chat `Message.Message` (unbounded) — never volunteered; opt-in only |
 | `registry` | item/quest/skill/goal/room/node names & descriptions, NPC dialogue trees, `constants/**` display text (incl. `constants/leaderboards` titles); since 0.4.0 also the interpreted text the pinned client derives from registry allocations and conditions — item effect lines, quest reward lines, item use-requirement text (§3.12 enrichment) |
-| `system` | addresses, entity/order/commit IDs, enum & state labels, `MediaURI` values, numeric amounts serialized as proto strings |
+| `system` | addresses, entity/order/commit IDs, enum & state labels, `MediaURI` values, numeric amounts serialized as proto strings, ISO timestamps the daemon itself stamps (`status.headSampledAt`, `status.sync.lastReconcileAt`) |
 
 Known but unserved: kamiden `RankRow.KamiName`/`OwnerName`
 (`authored-id`; `RankRow` is dead proto surface — referenced by no RPC at
@@ -200,7 +200,14 @@ docs/measurements/g4*-2026-07-21.json):
   produced an earlier false "no DEAD writes" reading).
 - **Kamiden unary history depth is recorded per gate run, never
   asserted** — service retention is unverified (the same epistemic
-  status as `GetEventsSince`).
+  status as `GetEventsSince`). *0.6.0 sharpens what that status is for
+  the chain side: `GetEventsSince` is no longer the recovery
+  authority at all. It answers a deduplicated latest-value diff whose
+  store is filled log by log in step with the stream, so its head is
+  systematically incomplete at exactly the moment a reconnect reads it
+  (measured 2026-09-06). Chain rows now heal from `eth_getLogs`;
+  the diff is kept for bootstrap and for gaps wider than 2,000 blocks,
+  where it is followed by a chain top-up of the head — DESIGN §3.17.*
 - `GetOpenOffers` is defined at the pin but uncalled by the web client;
   kami-lens serves it per PORT_PLAN M4 with observed semantics recorded
   by G4.a.

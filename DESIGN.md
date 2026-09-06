@@ -2,7 +2,8 @@
 
 Status: **v1 — settled** (2026-07-20; untrusted-text policy §3.10 and
 Kamiden scope settled in design session 2, same date; §3.7
-parity-reference standard amended 2026-07-21). Evidence base:
+parity-reference standard amended 2026-07-21; §3.1/§3.2 gap-recovery
+inverted and §3.17 added 2026-09-06, describes 0.6.0). Evidence base:
 [docs/upstream-client-architecture.md](docs/upstream-client-architecture.md)
 (study of the official client at upstream commit `ef898fc9`),
 re-verified claim-by-claim against a fresh clone on 2026-07-20 (see
@@ -38,8 +39,13 @@ public Yominet RPC taken the same day (§4.1).
   incremental from the cached block; a nonce mismatch forces a full
   reload) is the bootstrap path — and a **hard dependency for cold
   start**.
-- Kamigaze `SubscribeToStream` for push; gaps healed by
-  `GetEventsSince`, with RPC `eth_getLogs` replay as fallback.
+- Kamigaze `SubscribeToStream` for push; **gaps healed from the chain**
+  (`eth_getLogs` on the World contract), with Kamigaze `GetEventsSince`
+  reserved for bootstrap and for gaps wider than `GAP_RPC_MAX_BLOCKS`,
+  followed by a chain top-up of the head. This is an INVERSION of what
+  this line said until 0.6.0 ("gaps healed by `GetEventsSince`, with RPC
+  `eth_getLogs` replay as fallback"), and it is deliberate; the argument
+  and the measurements are §3.17 (dated 2026-09-06).
 - Pure-RPC event replay (`ComponentValueSet` /
   `ComponentValueRemoved` World logs) is used exactly where the web
   client uses it: gap-fill over recent blocks, and dev/local chains.
@@ -119,6 +125,24 @@ Two changes, and the second is the one that generalizes:
 The general form: **the retry schedule bounds failures; something else has
 to bound silence.** A daemon cannot assume that everything which goes wrong
 will announce itself, and every await on the bootstrap path was trusted to.
+
+**A retry ladder that never resets is a constant delay (0.6.0).** Upstream's
+stream reconnect climbs a fixed ladder — 1, 2, 3, 5, 10 s, capped — and its
+counter is reset by the only thing that resets anything in a browser tab: a
+reload. A daemon has no reload. Measured over the 2026-08-26 → 09-06 daemon
+log: 17,369 reconnects in eleven days, about one every 55 s, because the
+production server closes the subscription every ~30-40 s by design. So from
+the sixth reconnect of the process onward, every single reconnect paid the
+capped 10 s, forever. `retry({ resetOnSuccess: true })` makes the ladder mean
+what it reads as.
+
+The same log holds the second half. 57 of its 59 gap-fill failures are
+`RESOURCE_EXHAUSTED: rate limit exceeded, retry in N s` — the server saying
+exactly how long to wait — and answering that with a 1 s ladder step spends
+the budget the limit exists to protect. A rate-limit error's own suggestion is
+now honoured, rounded up and capped at 30 s. Both paths log at **WARN with the
+delay chosen**; the old ladder logged at DEBUG, and the daemon runs at INFO,
+which is why none of this was visible while it was happening.
 
 **Kamiden feed health has its own gate (0.5.2).** `degraded` stays
 CHAIN-only — a Kamiden outage must never stamp a chain answer stale, which
@@ -857,6 +881,22 @@ means — so a threshold set before anyone has seen the distribution would
 stamp healthy answers stale. The lag is information; the release that
 measures a thing is not the release that acts on it.
 
+**What a heal moves, and what it does not (0.6.0).** `liveBlockNumber` is the
+block of the last event APPLIED, so it does not move across a block that
+produced no world events — and a recovery range that turns out to be empty is
+exactly such a case. Heal events carry the block stamp
+`createFetchWorldEventsInBlockRange` already gives them, the END of their
+chunk, so a heal that finds logs does advance `liveBlockNumber`; a heal over
+an event-less range advances nothing, and that is honest rather than
+convenient. What it can always advance is `status.sync.reconciledThrough`:
+every block up to and including it has been covered by a COMPLETE chain
+range read, whether or not those blocks carried logs. That is the lower bound
+`liveBlockNumber` has never been, and it is why the reconcile reports it
+separately instead of forging a block number into the event path. The
+distinction matters at exactly one moment — after a quiet period, where a
+mirror that has read everything and a mirror that has read nothing look
+identical in `liveBlockNumber` and differ in `reconciledThrough`.
+
 ### 3.16 The kami sheet, and a flag that pays for itself (0.5.1)
 
 Settled with the 0.5.1 surface. **A fact the projection already computed
@@ -930,6 +970,106 @@ the vector produced `"shift": null` for every kami and looked like data
 chain's stored value is not, so G2.d records both numbers and fails rather
 than tolerating a divergence it cannot explain.
 
+### 3.17 Recovery reads the chain (0.6.0)
+
+Settled 2026-09-06 after the L-1 investigation. **The fast path may be
+wrong; the authority may not.**
+
+The occasion. On 2026-09-06 the lens served six kamis as HARVESTING for three
+and a half hours after they had stopped harvesting on chain, and a seventh
+for the same reason a minute later. Twelve more kamis lost the identical way
+in the next two blocks and were invisible, because they restarted harvesting
+later and the restart overwrote the loss. A restart of the daemon healed all
+seven, which is the signature of a mirror that is wrong rather than a chain
+that is: the checkpoint path refetches a now-complete range, and live events
+are never folded into it (§3.5).
+
+**What was measured** (against `api.prod.kamigotchi.io`, 04:10–04:30 UTC;
+scripts and raw outputs in the L-1 evidence bundle):
+
+1. `GetEventsSince(sinceBlock)` is INCLUSIVE of `sinceBlock`, has no upper
+   bound, and answers a **deduplicated latest-value diff** — 43,529 events
+   over 43,529 distinct `component|entity` keys — not an event log. Its store
+   is filled log by log **in step with the stream**: a read ~1 s after a
+   block's first log returned 49 of that block's 60 writes, and the count
+   kept climbing for seconds afterwards. The `latestBlock` it reports names a
+   block that may still be half-ingested.
+2. The stream is ONE CHUNK PER LOG, and the server closes the subscription
+   every ~30-40 s by design. The 2026-08-26 → 09-06 daemon log holds 17,369
+   gap-fills. **Every one of them was a read of (1) at the worst possible
+   moment** — the instant after a reconnect, when the diff's head is exactly
+   the part still being ingested.
+3. Three code facts made a loss permanent rather than transient. The 10.5 s
+   no-data timeout sat DOWNSTREAM of the awaited gap-fill, so a slow fill
+   tripped it, `retry` resubscribed, the old pipeline's events went to a dead
+   subscriber, and its continuation still advanced the SHARED cursor. The
+   inner teardown was `() => {}`, so the old gRPC call was never cancelled
+   and two pipelines could run against one cursor. And
+   `fetchEventsInBlockRangeChunked(from, to)` with `from === to` yielded zero
+   steps, so the RPC fallback fetched nothing for a same-block gap — the
+   common case, since one chunk per log means gaps open mid-block (136 of the
+   17,369).
+
+**The principle.** Kamigaze's stream and its diff are fast paths. The chain
+is the only authority, and every recovery path reads it. The mirror is
+"latest write per key across everything applied", so there is exactly one
+ordering invariant: **never apply a log older than one already applied for
+the same key.** With a serialized pipeline that holds whenever a recovery
+range ENDS AT THE CURRENT CURSOR and the RPC node is at or past that block.
+Both conditions are enforced rather than assumed.
+
+**One primitive.** `healRange(from, to)` reads the range inclusive through
+the existing 50-block chunks and returns every event in it or none. Its
+precondition is `rpcHead >= to`: the free `blockNumber$` value is checked
+first and trusted only when it already satisfies the target — a cached head
+BELOW it is not a refusal, because an ethers v6 `WebSocketProvider` can go
+permanently silent without erroring (§3.2, 0.5.2), and a stale head must
+never turn every heal into a deferral — after which the HTTP provider is
+asked once a second for at most fifteen. Note that upstream's own
+wait-for-the-node ladder in `evm/blocks.ts` is unreachable here: it is gated
+on `supportsBatchQueries` and the daemon sets `batch: false`. This guard is
+the only one in the process.
+
+**A deferred range is never partially applied.** If the node is behind, or
+the subscription is torn down mid-heal, the range is recorded in
+`status.sync.unhealedRanges`, the cursor stays where it is, and nothing is
+applied. Partial application with an advancing cursor is precisely the 0.5.3
+defect. The next gap heal covers the widened span, and the periodic reconcile
+covers it regardless.
+
+**A periodic reconcile, because a gap-triggered heal can only fix gaps the
+stream noticed.** Every `reconcile_interval_ms` (120 s by default; 0 disables
+it and `status.sync` says so) a tick is merged into the stream pipeline
+AHEAD of its `concatMap`, so it is processed serialized with chunks and can
+never race one. It heals `[reconciledThrough + 1, cursor]` and, on success,
+moves `reconciledThrough` to the cursor. Its source and timer live in the
+closure that survives `retry`, alongside the cursor itself: at one
+subscription close per ~55 s, an interval owned by the raw subscription would
+be reset before a 120 s tick ever fired. 120 s is chosen against that same
+cadence — a tick lands every second or third connection, and its range stays
+a handful of blocks wide.
+
+**Kamigaze is not deleted, it is bounded.** A gap wider than
+`GAP_RPC_MAX_BLOCKS` (2,000 — about 40 chunked `eth_getLogs`, long enough to
+outlive the subscription) is served by the diff first and then topped up from
+the chain over `[latestBlock - 2, cursor]`, for the head the diff may have
+half-ingested. **Never the reverse order.** In practice this branch is
+approximately dead: the measured gap distribution is modal at 4 blocks and
+nothing observed came near 2,000, so the diff's remaining real job is the
+bootstrap `fillGap`. That is the intended consequence, not an accident.
+
+**Cost.** One `eth_getLogs` for a 2-block World range measured 616 ms and 18
+logs (2026-09-05, public endpoint), against ~1,580 gap heals per day at the
+observed cadence. The traffic moves off the rate-limited Kamigaze budget the
+live daemon shares and onto the public RPC, where it is comfortably within
+tolerance.
+
+**Enforcement.** `test/stream-heal.test.ts` is hermetic and covers the range
+arithmetic, the head guard, both deferral paths, the abort, the timeout
+placement, the reconcile and the retry policy — none of which had any test at
+all before this release. G8.b measures the live half: three severs on a real
+daemon, then a chain cross-check of every ACTIVE harvest.
+
 ## 4. Architecture
 
 ### 4.1 Sync layer
@@ -963,6 +1103,31 @@ Port hygiene — upstream artifacts **not** to lift as-is:
 - The snapshot health check uses browser-only fetch `mode: 'cors'`.
 - Upstream persists the state cache exactly once per session; the
   daemon adds periodic checkpointing (§3.5).
+- **A chunked range fetch that fetches nothing** (0.6.0, L-1):
+  `fetchEventsInBlockRangeChunked` derives its step count from the
+  EXCLUSIVE delta, so `from === to` yields zero steps and it returns
+  `[]` having read nothing — while its own doc comment and every
+  caller treat `[from, to]` as inclusive. That is the same-block gap
+  the stream opens most often; 136 of 17,369 gap-fills over eleven
+  days had `from === to` and healed nothing. The port takes the count
+  from the inclusive span. Its progress fraction divided by the same
+  delta and so was `0/0` = `NaN` on a one-block range, which
+  `Worker.ts` pipes straight into the LoadingState component (§3.14).
+- **A teardown that does not tear anything down** (0.6.0, L-1): the
+  inner stream Observable returns `() => {}`, so the gRPC call
+  outlives its subscriber and two pipelines can run against one
+  cursor. The port gives each subscription an `AbortController` passed
+  to `subscribeToStream` and aborted in the teardown — the lifecycle
+  `src/kamiden.ts` already uses.
+- **A cursor written after the subscriber is gone** (0.6.0, L-1): the
+  chunk handler advances the shared `trackingState` at the end of an
+  `async` body that has already awaited a gap-fill, with no check that
+  the subscription still exists. Unsubscribing does not cancel a
+  promise, so on a timeout-driven retry the dying pipeline advanced the
+  cursor over blocks whose events had gone nowhere. The port checks a
+  `closed` flag after every await and returns without touching the
+  cursor. This is the L-1 defect proper; the two above are what made it
+  unrecoverable.
 - **Undecodable state rows** (decision, 2026-07-20 implementation
   session): upstream aborts the whole sync attempt when any
   snapshot/stream/gap-fill row fails component-value decode — bounded

@@ -89,7 +89,7 @@ being guessed at.
 
 ## Status
 
-**0.5.3, pre-release.** Daemon, CLI, and library are implemented and
+**0.6.0, pre-release.** Daemon, CLI, and library are implemented and
 gate-verified against the pinned upstream commit and the live game,
 with dated per-run evidence in `docs/measurements/`. The verification
 suite is G0–G9 (G8 and G9 are manual and live); every run writes its
@@ -97,6 +97,42 @@ own dated record, and the record — not this paragraph — is what a
 given release rests on. The contract registry is [SPEC.md](SPEC.md);
 per-surface coverage — what is served, what is deferred, what is out
 of scope — is [docs/coverage.md](docs/coverage.md).
+
+### What changed in 0.6.0, for the things that read this daemon
+
+One change, and it is about staying right rather than answering more.
+
+**The mirror no longer trusts the stream service to tell it what it
+missed.** On 2026-09-06 this daemon reported six kamis as harvesting for
+three and a half hours after they had stopped harvesting on chain, and a
+seventh a minute later. Nothing was wrong with the chain and nothing was
+wrong with the query — the mirror itself had a hole in it, and it had no
+way to know. The stream server closes its connection every half minute or
+so, and every time it reconnects the client asks "what did I miss?". The
+service that answers is filling its own store at the same moment, so the
+answer was reliably missing the newest few blocks — and the client took it,
+believed it, and moved its bookmark past the blocks it had never read. Once
+the bookmark moves, nothing goes back.
+
+From 0.6.0 every recovery read goes to **the chain**, which cannot be half
+finished. A recovery range is read completely or not at all; if the node
+serving it is not far enough along yet, the range is written down as unread
+rather than half-applied, and retried. On top of that a **reconcile pass**
+re-reads everything since the last confirmed block every two minutes,
+whether or not anything looked wrong — because a gap you never noticed is
+the one that costs you.
+
+You can see all of it. `status` gains a `sync` block: how many times the
+stream reconnected, how many ranges were healed, how many were deferred, and
+`reconciledThrough` — the block through which this mirror has genuinely read
+everything. If a range stays unread for two reconcile passes, `degraded`
+says `unhealed-ranges:N`, which means: **this mirror knows it is
+incomplete.** That sentence did not exist before, and its absence is why the
+2026-09-06 loss ran for three and a half hours before a human noticed a kami
+that should not have been harvesting.
+
+Two settings, both optional: `reconcile_interval_ms` (default 120000; set it
+to 0 to switch the pass off, and `status` will say so).
 
 ### What changed in 0.5.3, for the things that read this daemon
 
