@@ -40,10 +40,10 @@ const span = q - c1.blockNumber;
 console.log(`[g1.c] replaying C1 ${c1.blockNumber} → ${q} (${span} blocks) via RPC`);
 const t0 = Date.now();
 const { replayOnto } = await import('./lib.mts');
-await replayOnto(c1, fetchWorldEvents, q);
+await replayOnto(c1, fetchWorldEvents, q, { provider });
 const replayMs = Date.now() - t0;
 console.log(`[g1.c] healing C2 ${c2.blockNumber} → ${q}`);
-await replayOnto(c2, fetchWorldEvents, q);
+await replayOnto(c2, fetchWorldEvents, q, { provider });
 
 const h1 = canonicalStateHash(c1);
 const h2 = canonicalStateHash(c2);

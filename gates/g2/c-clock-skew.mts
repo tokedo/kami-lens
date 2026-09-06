@@ -106,7 +106,7 @@ if (mode === 'dump') {
   const cache = await loadCacheFromSnapshotFile(snapPath, config);
   const healed = cloneStateCache(cache);
   const provider = makeProvider(config);
-  await replayOnto(healed, makeFetchWorldEvents(provider, config), targetBlock);
+  await replayOnto(healed, makeFetchWorldEvents(provider, config), targetBlock, { provider });
   provider.destroy();
 
   const { world, components } = buildMirror(healed);

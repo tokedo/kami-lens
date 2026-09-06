@@ -67,8 +67,8 @@ const provider = makeProvider(config);
 const fetchWorldEvents = makeFetchWorldEvents(provider, config);
 const q = Math.max(warmMirror.blockNumber, coldMirror.blockNumber) + 2;
 console.log(`[g1.d] converging both mirrors to block ${q}`);
-await replayOnto(warmMirror, fetchWorldEvents, q);
-await replayOnto(coldMirror, fetchWorldEvents, q);
+await replayOnto(warmMirror, fetchWorldEvents, q, { provider });
+await replayOnto(coldMirror, fetchWorldEvents, q, { provider });
 const hWarm = canonicalStateHash(warmMirror);
 const hCold = canonicalStateHash(coldMirror);
 

@@ -202,7 +202,7 @@ const obsMirrors = new Map<number, ReturnType<typeof buildMirror>>();
   let rolling = cloneStateCache(baseCache);
   const fetchWorldEvents = makeFetchWorldEvents(provider, config);
   for (const b of distinctBlocks) {
-    await replayOnto(rolling, fetchWorldEvents, b);
+    await replayOnto(rolling, fetchWorldEvents, b, { provider });
     obsMirrors.set(b, buildMirror(rolling));
     rolling = cloneStateCache(rolling);
   }

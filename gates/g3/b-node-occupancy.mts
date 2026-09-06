@@ -53,10 +53,10 @@ const cache = await loadCacheFromSnapshotFile(path.join(ARTIFACTS_DIR, 'c2.v8sna
   const p = makeProvider(config);
   const coarse = (await p.getBlockNumber()) - 8;
   console.log(`[g3.b] coarse heal ${cache.blockNumber} → ${coarse}`);
-  await replayOnto(cache, makeFetchWorldEvents(p, config), coarse);
+  await replayOnto(cache, makeFetchWorldEvents(p, config), coarse, { provider: p });
   const target = (await p.getBlockNumber()) - 8;
   console.log(`[g3.b] delta re-pin ${cache.blockNumber} → ${target}`);
-  await replayOnto(cache, makeFetchWorldEvents(p, config), target);
+  await replayOnto(cache, makeFetchWorldEvents(p, config), target, { provider: p });
   p.destroy();
 }
 const { world, components } = buildMirror(cache);

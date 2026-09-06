@@ -126,6 +126,45 @@ export function makeFetchWorldEvents(provider: JsonRpcProvider, config: KamiLens
   );
 }
 
+/** Measured `eth_getLogs` retention on the public Yominet endpoint: the
+ * trailing ~1.02 M blocks (~25 days). Re-measured by bisection on every G1.f
+ * run — 1,025,971 blocks at head 31,230,021, 2026-07-22, 0.6 % off the
+ * DESIGN §4.1 figure (SPEC §2 row; docs/measurements/g1f-retention-*.json).
+ *
+ * Beyond it the endpoint answers an EMPTY result with HTTP 200 — not an
+ * error — which is the entire reason the guard below exists. */
+export const RETENTION_BLOCKS = 1_025_971;
+
+/** Thrown by replayOnto when the range it was asked for cannot be honestly
+ * read. Carries the numbers, so a caller's failure line does not have to
+ * re-derive them. */
+export class ReplayRetentionError extends Error {
+  constructor(
+    readonly detail: {
+      reason: string;
+      fromBlock: number;
+      toBlock: number;
+      head: number | null;
+      spanBlocks: number;
+      blocksBehindHead: number | null;
+      retentionBlocks: number;
+    }
+  ) {
+    super(
+      `replayOnto refused: ${detail.reason} — range [${detail.fromBlock}, ${detail.toBlock}] ` +
+        `(span ${detail.spanBlocks} blocks` +
+        (detail.head !== null
+          ? `, fromBlock ${detail.blocksBehindHead} blocks behind head ${detail.head}`
+          : '') +
+        `) against a measured log retention of ${detail.retentionBlocks} blocks. ` +
+        `Beyond retention eth_getLogs answers EMPTY with HTTP 200, so this replay would ` +
+        `build a mirror with a silent hole in it and every comparison against it would be ` +
+        `meaningless. Capture a fresh snapshot (G1.a) rather than replaying this one.`
+    );
+    this.name = 'ReplayRetentionError';
+  }
+}
+
 /**
  * Replay World events (cache.blockNumber, toBlock] onto the cache via RPC
  * and stamp the cache at toBlock.
@@ -135,15 +174,67 @@ export function makeFetchWorldEvents(provider: JsonRpcProvider, config: KamiLens
  * newest event), and replaying that block re-applies its full event set —
  * ECS events are idempotent whole-value upserts, so the cache converges to
  * the exact post-toBlock state.
+ *
+ * RETENTION GUARD (0.6.1). A replay whose range has fallen out of the RPC's
+ * log-retention window returns no logs and no error, so the cache is stamped
+ * at toBlock while holding none of the state between — and every gate built
+ * on it then compares the chain against a mirror with a hole in it and PASSES
+ * for nothing. That is the class of gate this repo does not keep, and it was
+ * not hypothetical: on 2026-09-06 `gates/.artifacts/c2.v8snap` sat 1,207,995
+ * blocks behind head against ~1.02 M blocks of retention, and a probe of the
+ * 200 blocks immediately after the fixture's own block — a range the fixture
+ * itself proves was live — returned ZERO logs with HTTP 200
+ * (docs/measurements/fixture-retention-2026-09-06.json).
+ *
+ * The load-bearing predicate is `head - fromBlock`, NOT the span. Retention is
+ * measured backwards from the CHAIN HEAD, so a short replay between two blocks
+ * that are both a year old is exactly as pruned as a long one — and it is the
+ * short-span case that would slip past a span check while being just as
+ * silently wrong. The span check is kept as a cheap second condition (a range
+ * longer than the whole window cannot fit inside it wherever it sits), and
+ * both numbers are named in the refusal.
+ *
+ * Pass `provider` to arm the guard. Without one the head is unknown and only
+ * the span condition can be checked; callers that replay against live RPC
+ * SHOULD pass it — every gate in this repo does.
  */
 export async function replayOnto(
   cache: StateCache,
   fetchWorldEvents: ReturnType<typeof makeFetchWorldEvents>,
   toBlock: number,
-  chunkSize = 500
+  opts: { provider?: JsonRpcProvider; chunkSize?: number; retentionBlocks?: number } = {}
 ): Promise<void> {
+  const { provider, chunkSize = 500, retentionBlocks = RETENTION_BLOCKS } = opts;
   const fromBlock = cache.blockNumber + 1;
   if (fromBlock > toBlock) return;
+
+  const spanBlocks = toBlock - fromBlock + 1;
+  const head = provider ? await provider.getBlockNumber() : null;
+  const blocksBehindHead = head === null ? null : head - fromBlock;
+
+  if (blocksBehindHead !== null && blocksBehindHead > retentionBlocks) {
+    throw new ReplayRetentionError({
+      reason: 'the range STARTS beyond the log-retention horizon',
+      fromBlock,
+      toBlock,
+      head,
+      spanBlocks,
+      blocksBehindHead,
+      retentionBlocks,
+    });
+  }
+  if (spanBlocks > retentionBlocks) {
+    throw new ReplayRetentionError({
+      reason: 'the range is LONGER than the whole retention window',
+      fromBlock,
+      toBlock,
+      head,
+      spanBlocks,
+      blocksBehindHead,
+      retentionBlocks,
+    });
+  }
+
   const events = await fetchEventsInBlockRangeChunked(fetchWorldEvents, fromBlock, toBlock, chunkSize);
   storeStateEvents(cache, events);
   // storeEvents leaves blockNumber one behind the newest event's block;
