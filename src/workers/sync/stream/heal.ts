@@ -199,7 +199,17 @@ export async function healRange(options: HealRangeOptions): Promise<HealResult> 
 export function settleHeal(from: number, to: number, ms: number): void {
   syncHealth.gapsHealed++;
   syncHealth.lastHealMs = ms;
+  const before = syncHealth.unhealedRanges.length;
   clearUnhealed(from, to);
+  const after = syncHealth.unhealedRanges.length;
+  // the mirror going from known-incomplete back to whole is worth a line:
+  // `degraded` shows the fault appearing, and nothing showed it clearing.
+  if (after < before) {
+    log.info(
+      `[heal] ${from}..${to} recovered ${before - after} previously unhealed range(s); ` +
+        `${after} remaining`
+    );
+  }
 }
 
 /** Book a heal whose events were discarded because the subscription went
