@@ -127,13 +127,24 @@ export function makeFetchWorldEvents(provider: JsonRpcProvider, config: KamiLens
 }
 
 /** Measured `eth_getLogs` retention on the public Yominet endpoint: the
- * trailing ~1.02 M blocks (~25 days). Re-measured by bisection on every G1.f
- * run — 1,025,971 blocks at head 31,230,021, 2026-07-22, 0.6 % off the
- * DESIGN §4.1 figure (SPEC §2 row; docs/measurements/g1f-retention-*.json).
+ * trailing ~1.02 M blocks (~25 days). Beyond it the endpoint answers an EMPTY
+ * result with HTTP 200 — not an error — which is the entire reason the guard
+ * below exists.
  *
- * Beyond it the endpoint answers an EMPTY result with HTTP 200 — not an
- * error — which is the entire reason the guard below exists. */
-export const RETENTION_BLOCKS = 1_025_971;
+ * G1.f re-measures it by bisection on every run, and the value drifts:
+ *
+ *   1,025,971 @ head 31,230,021 (2026-07-22)
+ *   1,025,888 @ head 33,004,025 (2026-09-06)
+ *
+ * This constant takes the SMALLEST measurement on record, not the newest and
+ * not an average. The guard's job is to refuse a replay that would read
+ * pruned logs, so where the measurements disagree the conservative one is the
+ * only honest choice — a horizon set 83 blocks too generous is 83 blocks in
+ * which the guard passes a replay whose logs are already gone. No safety
+ * margin is invented on top: every number here is one G1.f measured.
+ *
+ * A future G1.f run that measures lower should lower this. */
+export const RETENTION_BLOCKS = 1_025_888;
 
 /** Thrown by replayOnto when the range it was asked for cannot be honestly
  * read. Carries the numbers, so a caller's failure line does not have to

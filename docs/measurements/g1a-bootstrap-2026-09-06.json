@@ -1,0 +1,23 @@
+{
+  "gate": "g1a-bootstrap",
+  "measuredAt": "2026-09-06T14:20:01.213Z",
+  "timeToLiveColdMs": 52310,
+  "checkpoint": {
+    "blockNumber": 33004057,
+    "kamigazeNonce": 96,
+    "stateEntries": 2991019,
+    "numComponents": 99,
+    "numEntities": 1287193,
+    "at": "2026-09-06T14:20:01.209Z",
+    "durationMs": 0
+  },
+  "tripwires": {
+    "unknownComponentIds": 0,
+    "unknownComponentSchemas": 0,
+    "decodeFailures": 0,
+    "kamigazeNonceBumps": 0,
+    "nonFiniteValues": 0,
+    "configUnavailable": 0
+  },
+  "degraded": []
+}
