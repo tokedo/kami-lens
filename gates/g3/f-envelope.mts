@@ -19,6 +19,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
+import * as clock from '../../src/clock';
 import { resolveConfig } from '../../src/config';
 import { serveQuery } from '../../src/queries';
 import { loadSchema } from '../../src/queries/registry';
@@ -300,6 +301,88 @@ const BASE_PRESENCE: { query: string; args: string[]; paths: string[] }[] = [
   { query: 'items', args: [], paths: ['itemsTotal'] },
 ];
 
+// --- 0.6.1: the envelope's META, which no schema describes ------------------
+//
+// The checked-in schemas under src/queries/schemas/ describe `data` ONLY, and
+// G3.a validates `envelope.data`, so until 0.6.1 nothing anywhere
+// machine-checked the shape of `meta`. `meta.reconciledThrough` (§3.15) and
+// the §3.8 clock-sample rename would both have shipped with no gate at all.
+// This is that gate: asserted on EVERY envelope the gate already serves, not
+// on one sampled answer, because "the same shape on every answer" is the
+// claim SPEC §1.2 actually makes.
+//
+// Derived here INDEPENDENTLY of src/queries/envelope.ts, in this gate's own
+// style: the expected key sets are written out literally below rather than
+// imported from the type they are meant to check.
+const META_KEYS = ['servedAt', 'blockNumber', 'reconciledThrough', 'stale', 'mode', 'asOf'];
+const ASOF_ALWAYS = ['block', 'projectedAtSec'];
+/** the four §3.8 clock fields plus the three 0.6.1-deprecated aliases: all
+ * seven present together, or all seven absent together (§3.14) */
+const ASOF_CLOCK_NEW = ['clockSampleBlock', 'clockSampleBlockTime', 'clockSampleAgoMs'];
+const ASOF_CLOCK_OLD = ['observedBlock', 'observedBlockTime', 'observedAgoMs'];
+const ASOF_ALIAS_PAIRS: [string, string][] = [
+  ['observedBlock', 'clockSampleBlock'],
+  ['observedBlockTime', 'clockSampleBlockTime'],
+  ['observedAgoMs', 'clockSampleAgoMs'],
+];
+
+const metaProblems: Record<string, unknown>[] = [];
+let metaChecked = 0;
+
+function checkMeta(label: string, meta: Record<string, unknown>): void {
+  metaChecked++;
+  const say = (reason: string, detail: Record<string, unknown> = {}) =>
+    metaProblems.push({ case: label, reason, ...detail });
+
+  const keys = Object.keys(meta).filter((k) => k !== 'suppressed');
+  const missing = META_KEYS.filter((k) => !(k in meta));
+  const extra = keys.filter((k) => !META_KEYS.includes(k));
+  if (missing.length > 0) say('meta is missing contract keys', { missing });
+  if (extra.length > 0) say('meta carries keys the contract does not name', { extra });
+
+  // §3.15 (0.6.1): present on every answer, number or null — never absent,
+  // never 0-for-unknown
+  if (!('reconciledThrough' in meta)) {
+    say('reconciledThrough absent — it is on EVERY answer, not an optional');
+  } else if (meta.reconciledThrough !== null && typeof meta.reconciledThrough !== 'number') {
+    say('reconciledThrough is neither a number nor null', { got: meta.reconciledThrough });
+  }
+
+  const asOf = meta.asOf as Record<string, unknown> | undefined;
+  if (!asOf || typeof asOf !== 'object') {
+    say('asOf missing');
+    return;
+  }
+  for (const k of ASOF_ALWAYS) {
+    if (typeof asOf[k] !== 'number') say(`asOf.${k} must be a number on every answer`);
+  }
+  const clockKeys = [...ASOF_CLOCK_NEW, ...ASOF_CLOCK_OLD, 'clockOffsetMs'];
+  const presentClock = clockKeys.filter((k) => k in asOf);
+  if (presentClock.length !== 0 && presentClock.length !== clockKeys.length) {
+    say('the clock fields must be present together or absent together (§3.14)', {
+      present: presentClock,
+      expected: clockKeys,
+    });
+  }
+  // §1.4: a rename ships both names for one release, carrying identical values
+  if (presentClock.length === clockKeys.length) {
+    for (const [oldName, newName] of ASOF_ALIAS_PAIRS) {
+      if (asOf[oldName] !== asOf[newName]) {
+        say('a deprecated alias does not equal the field it mirrors', {
+          alias: oldName,
+          field: newName,
+          aliasValue: asOf[oldName],
+          fieldValue: asOf[newName],
+        });
+      }
+    }
+  }
+  const extraAsOf = Object.keys(asOf).filter(
+    (k) => !ASOF_ALWAYS.includes(k) && !clockKeys.includes(k)
+  );
+  if (extraAsOf.length > 0) say('asOf carries keys the contract does not name', { extra: extraAsOf });
+}
+
 const mismatches: Record<string, unknown>[] = [];
 let compared = 0;
 for (const c of CASES) {
@@ -312,10 +395,33 @@ for (const c of CASES) {
     .filter((p) => present(envelope.data, p))
     .sort();
   compared++;
+  checkMeta(`${c.query} ${c.args.join(' ')}`.trim(), envelope.meta as Record<string, unknown>);
   if (JSON.stringify(derived) !== JSON.stringify(envelope.untrusted)) {
     mismatches.push({ ...c, derived, emitted: envelope.untrusted });
   }
 }
+
+// the clock is UNOBSERVED in this hermetic gate until something pins it, so
+// the loop above proves the absent-together half. Pin it and re-serve one
+// answer to prove the present-together half and the alias equality — both
+// halves of the §3.14 contract, in one gate run.
+clock.observeBlockTimestamp(1_755_000_000, 31_780_000);
+{
+  const pinned = await serveQuery(mirror, 'room', [String(accountRoom)], {
+    stale: false,
+    mode: 'daemon',
+  });
+  checkMeta('room [clock pinned]', pinned.meta as Record<string, unknown>);
+  const asOf = pinned.meta.asOf as Record<string, unknown>;
+  if (asOf.clockSampleBlock !== 31_780_000 || asOf.clockSampleBlockTime !== 1_755_000_000) {
+    metaProblems.push({
+      case: 'room [clock pinned]',
+      reason: 'the pinned clock sample did not reach asOf',
+      asOf,
+    });
+  }
+}
+clock.reset();
 
 // --- §3.12 presence: the fail-safe would have deleted an unclassified field
 const missingEnriched: Record<string, unknown>[] = [];
@@ -408,21 +514,31 @@ await writeMeasurement('g3f-envelope', {
   nameFreeChecks,
   enrichedPresenceChecked: presenceChecked,
   enrichedPresenceProblems: missingEnriched,
+  metaChecked,
+  metaProblems,
   match:
     mismatches.length === 0 &&
     nameFreeOk &&
     missingEnriched.length === 0 &&
-    missingBase.length === 0,
+    missingBase.length === 0 &&
+    metaProblems.length === 0,
 });
 
-if (mismatches.length > 0 || !nameFreeOk || missingEnriched.length > 0 || missingBase.length > 0) {
+if (
+  mismatches.length > 0 ||
+  !nameFreeOk ||
+  missingEnriched.length > 0 ||
+  missingBase.length > 0 ||
+  metaProblems.length > 0
+) {
   fail('G3.f', {
     reason:
-      'envelope divergence, an enriched field that is not where it must be, or a 0.5.0 base-surface field the fail-safe would have deleted',
+      'envelope divergence, an enriched field that is not where it must be, a 0.5.0 base-surface field the fail-safe would have deleted, or a meta shape violation',
     mismatches,
     nameFreeChecks,
     missingEnriched,
     missingBase,
+    metaProblems,
   });
 }
 pass('G3.f', {
@@ -430,5 +546,6 @@ pass('G3.f', {
   nameFreeChecks,
   enrichedPresence: presenceChecked,
   basePresence: basePresenceChecked,
+  metaChecked,
 });
 process.exit(0);
