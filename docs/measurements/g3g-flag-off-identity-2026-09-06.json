@@ -1,7 +1,7 @@
 {
   "gate": "g3g-flag-off-identity",
-  "measuredAt": "2026-09-06T13:58:01.311Z",
-  "snapshotBlock": 31782245,
+  "measuredAt": "2026-09-06T15:05:29.872Z",
+  "snapshotBlock": 33004688,
   "clockPinSec": 1755000000,
   "baselines": [
     {
@@ -11,29 +11,33 @@
     {
       "label": "base2",
       "clockPinSec": 1755086400
+    },
+    {
+      "label": "base3",
+      "clockPinSec": 1755172800
     }
   ],
   "comparedAgainst": "base1",
   "statusExpectedChanged": {
     "path": "version",
-    "to": "0.6.0"
+    "to": "0.6.1"
   },
   "cases": [
     {
       "case": "kami",
-      "leaves": 16,
+      "leaves": 17,
       "masked": 0,
-      "compared": 16,
+      "compared": 17,
       "added": 0,
-      "additive052": 1,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
     {
       "case": "account",
-      "leaves": 549,
+      "leaves": 537,
       "masked": 0,
-      "compared": 549,
+      "compared": 537,
       "added": 0,
       "additive052": 0,
       "removed": 0,
@@ -41,9 +45,9 @@
     },
     {
       "case": "account+prose",
-      "leaves": 550,
+      "leaves": 538,
       "masked": 0,
-      "compared": 550,
+      "compared": 538,
       "added": 0,
       "additive052": 0,
       "removed": 0,
@@ -51,19 +55,19 @@
     },
     {
       "case": "party",
-      "leaves": 1003,
+      "leaves": 1033,
       "masked": 49,
-      "compared": 954,
+      "compared": 984,
       "added": 0,
-      "additive052": 50,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
     {
       "case": "roster",
-      "leaves": 607,
+      "leaves": 589,
       "masked": 0,
-      "compared": 607,
+      "compared": 589,
       "added": 0,
       "additive052": 0,
       "removed": 0,
@@ -71,9 +75,9 @@
     },
     {
       "case": "roster+nameFree",
-      "leaves": 607,
+      "leaves": 589,
       "masked": 0,
-      "compared": 607,
+      "compared": 589,
       "added": 0,
       "additive052": 0,
       "removed": 0,
@@ -191,9 +195,9 @@
     },
     {
       "case": "node",
-      "leaves": 130,
+      "leaves": 157,
       "masked": 0,
-      "compared": 130,
+      "compared": 157,
       "added": 0,
       "additive052": 0,
       "removed": 0,
@@ -201,21 +205,21 @@
     },
     {
       "case": "node+vitals",
-      "leaves": 581,
-      "masked": 41,
-      "compared": 540,
+      "leaves": 757,
+      "masked": 50,
+      "compared": 707,
       "added": 0,
-      "additive052": 41,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
     {
       "case": "node+attacker",
-      "leaves": 831,
-      "masked": 41,
-      "compared": 790,
+      "leaves": 1113,
+      "masked": 50,
+      "compared": 1063,
       "added": 0,
-      "additive052": 84,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
@@ -351,19 +355,19 @@
     },
     {
       "case": "party+full",
-      "leaves": 2586,
-      "masked": 101,
-      "compared": 2485,
+      "leaves": 2670,
+      "masked": 99,
+      "compared": 2571,
       "added": 0,
-      "additive052": 134,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
     {
       "case": "room+full",
-      "leaves": 1103,
+      "leaves": 1091,
       "masked": 0,
-      "compared": 1103,
+      "compared": 1091,
       "added": 0,
       "additive052": 0,
       "removed": 0,
@@ -371,11 +375,11 @@
     },
     {
       "case": "node+vitals+full",
-      "leaves": 787,
-      "masked": 41,
-      "compared": 746,
+      "leaves": 3548,
+      "masked": 177,
+      "compared": 3371,
       "added": 0,
-      "additive052": 41,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     },
@@ -391,9 +395,9 @@
     },
     {
       "case": "leaderboard+full",
-      "leaves": 7380,
+      "leaves": 7440,
       "masked": 0,
-      "compared": 7380,
+      "compared": 7440,
       "added": 0,
       "additive052": 0,
       "removed": 0,
@@ -401,9 +405,9 @@
     },
     {
       "case": "trades+full",
-      "leaves": 4216,
+      "leaves": 4139,
       "masked": 0,
-      "compared": 4216,
+      "compared": 4139,
       "added": 0,
       "additive052": 0,
       "removed": 0,
@@ -411,17 +415,17 @@
     },
     {
       "case": "status",
-      "leaves": 79,
+      "leaves": 90,
       "masked": 3,
-      "compared": 76,
+      "compared": 87,
       "added": 0,
-      "additive052": 11,
+      "additive052": 0,
       "removed": 0,
       "mismatches": 0
     }
   ],
-  "leavesCompared": 31532,
-  "leavesMasked": 304,
+  "leavesCompared": 34663,
+  "leavesMasked": 456,
   "maskedSamples": [
     "party:kamis[10].cooldownSec",
     "party:kamis[11].cooldownSec",

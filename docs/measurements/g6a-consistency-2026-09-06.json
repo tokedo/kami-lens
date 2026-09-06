@@ -1,0 +1,21 @@
+{
+  "gate": "g6a-consistency",
+  "measuredAt": "2026-09-06T15:05:55.132Z",
+  "snapshotBlock": 33004688,
+  "nodeIndex": 12,
+  "counts": {
+    "vitalsCompared": 30,
+    "levelingCompared": 30,
+    "rosterVsPartyLeveling": 385,
+    "skillsCompared": 6,
+    "liquidationRows": 30,
+    "staminaChecked": 10,
+    "inventoriesChecked": 10,
+    "listingsChecked": 16,
+    "phaseChecked": 1,
+    "leaderboardsChecked": 3
+  },
+  "problems": [],
+  "problemCount": 0,
+  "match": true
+}

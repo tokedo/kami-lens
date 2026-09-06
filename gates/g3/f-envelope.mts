@@ -137,6 +137,42 @@ for (const idx of kamiIndexes) {
 }
 if (!anAccount) throw new Error('no sampled kami with an owning account');
 
+// A NAMED BLOCKED ATTACKER for the `attacker.blocked` presence case (0.6.1).
+//
+// That assertion only bites while the attacker's own gate is CLOSED, because
+// `present()` counts `null` as absent and a healthy attacker reads `null`.
+// It used to ride on `firstKami` being starving in the old snapshot, and the
+// 0.5.3 note beside the case said in as many words that a re-cut fixture with
+// a healthy first kami would fail it and would want a named starving attacker
+// rather than a relaxed check. The 0.6.1 fixture recapture is exactly that
+// re-cut, and this is that named attacker — chosen mechanically rather than
+// hardcoded, so the next re-cut does not need a code change either.
+//
+// It REFUSES rather than skips when no blocked attacker exists in the sample:
+// this case guards the taint fail-safe blind spot (an unclassified string is
+// DELETED from every non-prose answer — the `Quests.view` trap of 0.5.0), and
+// silently dropping the assertion is how that blind spot reopens.
+let blockedAttacker = '';
+for (const idx of kamiIndexes) {
+  const d = (
+    await serveQuery(mirror, 'node', ['62', String(idx), '--with-vitals'], {
+      stale: false,
+      mode: 'daemon',
+    })
+  ).data as { attacker?: { blocked?: string | null } };
+  if (d.attacker?.blocked) {
+    blockedAttacker = String(idx);
+    break;
+  }
+}
+if (!blockedAttacker) {
+  fail('G3.f', {
+    reason:
+      'no attacker with a CLOSED gate among the sampled kamis — the attacker.blocked presence case cannot be asserted, and skipping it would reopen the taint fail-safe blind spot it exists to guard',
+    sampled: kamiIndexes.length,
+  });
+}
+
 // the sampled account's room — a real occupancy answer for the room case
 const accountRoom = (
   (await serveQuery(mirror, 'account', [String(anAccount)], { stale: false, mode: 'daemon' }))
@@ -278,15 +314,15 @@ const BASE_PRESENCE: { query: string; args: string[]; paths: string[] }[] = [
   // and the classification default is `authored-prose` — an unclassified
   // string field is deleted from every non-prose answer by the fail-safe,
   // which is exactly the blind spot this set exists for (it caught
-  // `Quests.view` at 0.5.0). NOTE the dependency this assertion carries:
-  // `present()` counts `null` as ABSENT, so it only bites while the fixture's
-  // `firstKami` is an attacker whose own gate is CLOSED. It is — the same
-  // selection rule G3.g uses picks kami 2, starving in this snapshot under
-  // both the wall clock and G3.g's pin (measured 2026-08-28, node 62: all 41
-  // rows `reason: ATTACKER_STARVING`). If the fixture is ever re-cut with a
-  // healthy first kami this fails loudly and wants a named starving attacker
-  // here rather than a relaxed check.
-  { query: 'node', args: ['62', firstKami, '--with-vitals'], paths: ['attacker.blocked'] },
+  // `Quests.view` at 0.5.0).
+  //
+  // It runs against `blockedAttacker`, NOT `firstKami` (0.6.1): `present()`
+  // counts `null` as absent, so the assertion only bites while the attacker's
+  // own gate is closed. It rode on firstKami being starving in the pre-0.6.1
+  // snapshot; the 0.6.1 fixture recapture re-cut that fixture with a healthy
+  // first kami and this failed loudly, exactly as the 0.5.3 note here
+  // predicted it would. See the selection above.
+  { query: 'node', args: ['62', blockedAttacker, '--with-vitals'], paths: ['attacker.blocked'] },
   // quests: the compact surface and the per-requirement detail
   {
     query: 'quests',

@@ -1,0 +1,206 @@
+{
+  "gate": "g7a-consistency",
+  "measuredAt": "2026-09-06T15:06:27.842Z",
+  "snapshotBlock": 33004688,
+  "accountsSampled": 25,
+  "counts": {
+    "questAnswers": 12,
+    "objectivesChecked": 833,
+    "compactQuestAnswers": 12,
+    "compactQuestRows": 2244,
+    "requirementsChecked": 1737,
+    "openQuestRows": 47,
+    "keyedQuestAnswers": 12,
+    "rostersChecked": 25,
+    "rosterRowsChecked": 3125,
+    "rosterLevelingRowsChecked": 1045,
+    "rosterStatsRowsChecked": 50,
+    "cappedListingsChecked": 5,
+    "poolsServed": 6,
+    "vendorChecked": 1
+  },
+  "questRowsWithAccount": 2244,
+  "questAccountAnswerMeanMs": 32.5,
+  "registryObjectivesScanned": 198,
+  "objectivesWithForComponent": 0,
+  "compaction": {
+    "measured": true,
+    "accountIndex": 3053,
+    "kamis": 1045,
+    "rosterBytes": 58335,
+    "partyBytes": 395569,
+    "rosterMarginalBytesPerKami": 46.86,
+    "partyMarginalBytesPerKami": 378.45,
+    "marginalRatio": 0.1238,
+    "threshold": 0.25,
+    "projectedAt150": {
+      "roster": 16398,
+      "party": 56857
+    },
+    "enriched": {
+      "rosterBytes": 58381,
+      "fixedOverheadDeltaBytes": 46,
+      "rosterMarginalBytesPerKami": 46.86,
+      "marginalRatio": 0.1238
+    },
+    "leveling": {
+      "fixedOverheadDeltaBytes": 9317,
+      "marginalWithSets": 46.857416,
+      "marginalWithoutSets": 46.857416
+    },
+    "stats": {
+      "note": "RECORDED, NOT ASSERTED against the frozen ratio — see the comment above and DESIGN §3.13",
+      "rosterBytes": 26234,
+      "kamisServed": 50,
+      "kamisTotal": 1045,
+      "rosterMarginalBytesPerKami": 336.6,
+      "marginalRatioAgainstParty": 0.8894,
+      "flagOffMarginalBytesPerKami": 46.86,
+      "projectedUncappedBytesAtFullRoster": 361151
+    }
+  },
+  "capReport": [
+    {
+      "query": "room 12",
+      "total": 1563,
+      "served": 50,
+      "compactBytes": 2691,
+      "fullBytes": 364897
+    },
+    {
+      "query": "node 9 --with-vitals",
+      "total": 798,
+      "served": 50,
+      "compactBytes": 14812,
+      "fullBytes": 401933
+    },
+    {
+      "query": "party 3053",
+      "total": 1045,
+      "served": 50,
+      "compactBytes": 18937,
+      "fullBytes": 395569
+    },
+    {
+      "query": "leaderboard",
+      "total": 1487,
+      "served": 50,
+      "compactBytes": 3579,
+      "fullBytes": 176136
+    },
+    {
+      "query": "trades",
+      "total": 375,
+      "served": 50,
+      "compactBytes": 11872,
+      "fullBytes": 109278
+    }
+  ],
+  "enrichedRoster": {
+    "measured": true,
+    "accountIndex": 3053,
+    "room": {
+      "index": 12,
+      "name": "Scrap Confluence"
+    },
+    "untrusted": []
+  },
+  "poolsServed": 6,
+  "vacuous": [],
+  "pools": [
+    {
+      "id": "0x756d631b9b01b8047bd966a57c660900aa51f205d4400c3bd1c3f82c61273b3f",
+      "items": [
+        1,
+        2
+      ],
+      "feeBps": 30,
+      "reserves": [
+        4052820,
+        4217310
+      ]
+    },
+    {
+      "id": "0x1bde161d8506c5e6aa7d4edb0e3ef415fc23289aad12a4fe8c594458b24c9296",
+      "items": [
+        1,
+        100
+      ],
+      "feeBps": 30,
+      "reserves": [
+        24473144,
+        49223
+      ]
+    },
+    {
+      "id": "0x10753fe7ffeb9c05aabdb985f8c12c1d84b7c88195ca8682a7e56d2532bd7b48",
+      "items": [
+        1,
+        1001
+      ],
+      "feeBps": 30,
+      "reserves": [
+        1197493,
+        606760
+      ]
+    },
+    {
+      "id": "0xbe7995a3a678b770f4a4bc2adb8ad731c8a62c7feb63cbbc9e4dc1af6eedd03b",
+      "items": [
+        1,
+        1002
+      ],
+      "feeBps": 30,
+      "reserves": [
+        183055,
+        93165
+      ]
+    },
+    {
+      "id": "0x657317a1349a30bd7d857a1c4f5b581a470d5f36f54e414c0de46760c6c9fd7c",
+      "items": [
+        1,
+        1004
+      ],
+      "feeBps": 30,
+      "reserves": [
+        3702104,
+        16831
+      ]
+    },
+    {
+      "id": "0xfe69a21d39e77148c76186b297965adb666e55c6991e0ab190a19b6cf1f60eea",
+      "items": [
+        1,
+        1005
+      ],
+      "feeBps": 30,
+      "reserves": [
+        437471,
+        43662
+      ]
+    }
+  ],
+  "newbieVendor": {
+    "displayedKamiIndices": [
+      3541,
+      3546,
+      3574
+    ],
+    "poolSize": 893,
+    "cycleStart": 1773163103,
+    "cycleSeconds": 172800,
+    "secondsToNextRotation": 7916
+  },
+  "tripwires": {
+    "unknownComponentIds": 0,
+    "unknownComponentSchemas": 0,
+    "decodeFailures": 0,
+    "kamigazeNonceBumps": 0,
+    "nonFiniteValues": 0,
+    "configUnavailable": 0
+  },
+  "problems": [],
+  "problemCount": 0,
+  "match": true
+}

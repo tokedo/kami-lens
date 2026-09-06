@@ -217,23 +217,34 @@ if (nodeCases.length < 3) {
  * the scan order is the mirror's own. */
 async function findBlockedAttacker(
   want: 'ATTACKER_STARVING' | 'ATTACKER_COOLDOWN',
-  node: number,
+  nodes: number[],
   limit = 400
-): Promise<{ attacker: number; blocked: string; targets: number } | null> {
+): Promise<{ attacker: number; blocked: string; targets: number; foundOnNode: number } | null> {
   const candidates = queryKamis(components)
     .slice(0, limit)
     .map((e) => getKamiIndex(components, e))
     .filter((i) => i > 0);
+  // Search every node the assertions will run over, not one hardcoded node
+  // (0.6.1). The case this builds is "a blocked attacker that HAS targets in
+  // reach", and which node those targets sit on is incidental to the 0.5.3
+  // claim — but it is entirely a property of the fixture. The pre-0.6.1
+  // fixture happened to satisfy it on node 62; the recaptured one has 57
+  // starving attackers on node 62 and no targets in reach on any of them, so
+  // a search pinned to that node refused a case the fixture could in fact
+  // build elsewhere. Refusing when the case is genuinely absent is right;
+  // refusing because we only looked in one place is not.
   for (const atk of candidates) {
-    let answer: NodeAnswer;
-    try {
-      answer = (await served(node, atk, false)).data as NodeAnswer;
-    } catch {
-      continue;
+    for (const node of nodes) {
+      let answer: NodeAnswer;
+      try {
+        answer = (await served(node, atk, false)).data as NodeAnswer;
+      } catch {
+        continue;
+      }
+      if (answer.attacker?.blocked !== want) continue;
+      const targets = targetSide(answer.harvests).length;
+      if (targets > 0) return { attacker: atk, blocked: want, targets, foundOnNode: node };
     }
-    if (answer.attacker?.blocked !== want) continue;
-    const targets = targetSide(answer.harvests).length;
-    if (targets > 0) return { attacker: atk, blocked: want, targets };
   }
   return null;
 }
@@ -338,7 +349,7 @@ async function assertBlocked(
   return cases;
 }
 
-const starvingPick = await findBlockedAttacker('ATTACKER_STARVING', 62);
+const starvingPick = await findBlockedAttacker('ATTACKER_STARVING', WANTED_NODES);
 if (!starvingPick) {
   fail('G7.c', {
     reason: 'no starving attacker with a target in reach in the fixture — the 0.5.3 case cannot be built',
@@ -498,6 +509,7 @@ const record = await writeMeasurement('g7c-payload-flags', {
     starving: {
       attacker: starvingPick.attacker,
       targetsOnSearchNode: starvingPick.targets,
+      searchNode: starvingPick.foundOnNode,
       nodesChecked: starvingCases.length,
       cases: starvingCases,
     },

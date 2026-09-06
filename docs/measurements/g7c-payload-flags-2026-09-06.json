@@ -1,0 +1,324 @@
+{
+  "gate": "g7c-payload-flags",
+  "measuredAt": "2026-09-06T15:08:47.054Z",
+  "snapshotBlock": 33004688,
+  "attackerKamiIndex": 1,
+  "eligibleOnly": {
+    "reductionCaveat": "fixture attacker is eligible against most occupants, so the fixture reduction is not representative; the equality check is the assertion, the bytes are a record",
+    "nodesChecked": 9,
+    "allByteEqualToClientSideFilter": true,
+    "healthyAttackerPredicatesCoincide": true,
+    "cases": [
+      {
+        "node": 9,
+        "harvestsTotal": 798,
+        "harvestsEligible": 0,
+        "attackerBlocked": null,
+        "fullPairingRows": 0,
+        "targetSideRows": 0,
+        "predicatesCoincide": true,
+        "bytesFull": 508188,
+        "bytesEligibleOnly": 362,
+        "reductionPct": 99.93,
+        "byteEqualToClientSideFilter": true
+      },
+      {
+        "node": 86,
+        "harvestsTotal": 1752,
+        "harvestsEligible": 0,
+        "attackerBlocked": null,
+        "fullPairingRows": 0,
+        "targetSideRows": 0,
+        "predicatesCoincide": true,
+        "bytesFull": 1118467,
+        "bytesEligibleOnly": 369,
+        "reductionPct": 99.97,
+        "byteEqualToClientSideFilter": true
+      },
+      {
+        "node": 10,
+        "harvestsTotal": 22,
+        "harvestsEligible": 2,
+        "attackerBlocked": null,
+        "fullPairingRows": 2,
+        "targetSideRows": 2,
+        "predicatesCoincide": true,
+        "bytesFull": 14308,
+        "bytesEligibleOnly": 1557,
+        "reductionPct": 89.12,
+        "byteEqualToClientSideFilter": true
+      },
+      {
+        "node": 62,
+        "harvestsTotal": 177,
+        "harvestsEligible": 0,
+        "attackerBlocked": null,
+        "fullPairingRows": 0,
+        "targetSideRows": 0,
+        "predicatesCoincide": true,
+        "bytesFull": 113766,
+        "bytesEligibleOnly": 356,
+        "reductionPct": 99.69,
+        "byteEqualToClientSideFilter": true
+      },
+      {
+        "node": 1,
+        "harvestsTotal": 0,
+        "harvestsEligible": 0,
+        "attackerBlocked": null,
+        "fullPairingRows": 0,
+        "targetSideRows": 0,
+        "predicatesCoincide": true,
+        "bytesFull": 335,
+        "bytesEligibleOnly": 356,
+        "reductionPct": -6.27,
+        "byteEqualToClientSideFilter": true
+      },
+      {
+        "node": 2,
+        "harvestsTotal": 0,
+        "harvestsEligible": 0,
+        "attackerBlocked": null,
+        "fullPairingRows": 0,
+        "targetSideRows": 0,
+        "predicatesCoincide": true,
+        "bytesFull": 336,
+        "bytesEligibleOnly": 357,
+        "reductionPct": -6.25,
+        "byteEqualToClientSideFilter": true
+      },
+      {
+        "node": 3,
+        "harvestsTotal": 0,
+        "harvestsEligible": 0,
+        "attackerBlocked": null,
+        "fullPairingRows": 0,
+        "targetSideRows": 0,
+        "predicatesCoincide": true,
+        "bytesFull": 331,
+        "bytesEligibleOnly": 352,
+        "reductionPct": -6.34,
+        "byteEqualToClientSideFilter": true
+      },
+      {
+        "node": 5,
+        "harvestsTotal": 0,
+        "harvestsEligible": 0,
+        "attackerBlocked": null,
+        "fullPairingRows": 0,
+        "targetSideRows": 0,
+        "predicatesCoincide": true,
+        "bytesFull": 336,
+        "bytesEligibleOnly": 357,
+        "reductionPct": -6.25,
+        "byteEqualToClientSideFilter": true
+      },
+      {
+        "node": 6,
+        "harvestsTotal": 0,
+        "harvestsEligible": 0,
+        "attackerBlocked": null,
+        "fullPairingRows": 0,
+        "targetSideRows": 0,
+        "predicatesCoincide": true,
+        "bytesFull": 333,
+        "bytesEligibleOnly": 354,
+        "reductionPct": -6.31,
+        "byteEqualToClientSideFilter": true
+      }
+    ]
+  },
+  "blockedAttacker": {
+    "starving": {
+      "attacker": 32,
+      "targetsOnSearchNode": 4,
+      "searchNode": 10,
+      "nodesChecked": 9,
+      "cases": [
+        {
+          "node": 9,
+          "attacker": 32,
+          "attackerBlocked": "ATTACKER_STARVING",
+          "harvestsTotal": 798,
+          "targetsInReach": 0,
+          "servedRows": 0,
+          "harvestsEligible": 0,
+          "rowsThe052PredicateWouldHaveServed": 0,
+          "bytesFull": 503809,
+          "bytesEligibleOnly": 388,
+          "reductionPct": 99.92
+        },
+        {
+          "node": 86,
+          "attacker": 32,
+          "attackerBlocked": "ATTACKER_STARVING",
+          "harvestsTotal": 1752,
+          "targetsInReach": 0,
+          "servedRows": 0,
+          "harvestsEligible": 0,
+          "rowsThe052PredicateWouldHaveServed": 0,
+          "bytesFull": 1109259,
+          "bytesEligibleOnly": 395,
+          "reductionPct": 99.96
+        },
+        {
+          "node": 10,
+          "attacker": 32,
+          "attackerBlocked": "ATTACKER_STARVING",
+          "harvestsTotal": 22,
+          "targetsInReach": 4,
+          "servedRows": 4,
+          "harvestsEligible": 4,
+          "rowsThe052PredicateWouldHaveServed": 0,
+          "bytesFull": 14341,
+          "bytesEligibleOnly": 2902,
+          "reductionPct": 79.76
+        },
+        {
+          "node": 62,
+          "attacker": 32,
+          "attackerBlocked": "ATTACKER_STARVING",
+          "harvestsTotal": 177,
+          "targetsInReach": 0,
+          "servedRows": 0,
+          "harvestsEligible": 0,
+          "rowsThe052PredicateWouldHaveServed": 0,
+          "bytesFull": 112684,
+          "bytesEligibleOnly": 382,
+          "reductionPct": 99.66
+        },
+        {
+          "node": 1,
+          "attacker": 32,
+          "attackerBlocked": "ATTACKER_STARVING",
+          "harvestsTotal": 0,
+          "targetsInReach": 0,
+          "servedRows": 0,
+          "harvestsEligible": 0,
+          "rowsThe052PredicateWouldHaveServed": 0,
+          "bytesFull": 361,
+          "bytesEligibleOnly": 382,
+          "reductionPct": -5.82
+        },
+        {
+          "node": 2,
+          "attacker": 32,
+          "attackerBlocked": "ATTACKER_STARVING",
+          "harvestsTotal": 0,
+          "targetsInReach": 0,
+          "servedRows": 0,
+          "harvestsEligible": 0,
+          "rowsThe052PredicateWouldHaveServed": 0,
+          "bytesFull": 362,
+          "bytesEligibleOnly": 383,
+          "reductionPct": -5.8
+        },
+        {
+          "node": 3,
+          "attacker": 32,
+          "attackerBlocked": "ATTACKER_STARVING",
+          "harvestsTotal": 0,
+          "targetsInReach": 0,
+          "servedRows": 0,
+          "harvestsEligible": 0,
+          "rowsThe052PredicateWouldHaveServed": 0,
+          "bytesFull": 357,
+          "bytesEligibleOnly": 378,
+          "reductionPct": -5.88
+        },
+        {
+          "node": 5,
+          "attacker": 32,
+          "attackerBlocked": "ATTACKER_STARVING",
+          "harvestsTotal": 0,
+          "targetsInReach": 0,
+          "servedRows": 0,
+          "harvestsEligible": 0,
+          "rowsThe052PredicateWouldHaveServed": 0,
+          "bytesFull": 362,
+          "bytesEligibleOnly": 383,
+          "reductionPct": -5.8
+        },
+        {
+          "node": 6,
+          "attacker": 32,
+          "attackerBlocked": "ATTACKER_STARVING",
+          "harvestsTotal": 0,
+          "targetsInReach": 0,
+          "servedRows": 0,
+          "harvestsEligible": 0,
+          "rowsThe052PredicateWouldHaveServed": 0,
+          "bytesFull": 359,
+          "bytesEligibleOnly": 380,
+          "reductionPct": -5.85
+        }
+      ]
+    },
+    "cooling": {
+      "built": false,
+      "reason": "a pinned ATTACKER_COOLDOWN case reads targetSide 0 when the clock is pinned after this gate's earlier queries (28 in a pin-first process, same pin and fixture); the projection path is stateful across the process beyond KamiCache/HarvestCache/HarvestLastTs/RateCache, so the case would have asserted 0 == 0. Wants its own pin-first script — see the note in this file.",
+      "measuredPinFirst": {
+        "pin": 1755000000,
+        "node": 62,
+        "attacker": 83,
+        "targetsInReach": 28
+      }
+    }
+  },
+  "slim": {
+    "accountsChecked": 7,
+    "largestRosterInSample": 337,
+    "cases": [
+      {
+        "account": 12,
+        "kamis": 337,
+        "bytesFull": 45645,
+        "bytesSlim": 308,
+        "reductionPct": 99.33
+      },
+      {
+        "account": 117,
+        "kamis": 174,
+        "bytesFull": 23392,
+        "bytesSlim": 309,
+        "reductionPct": 98.68
+      },
+      {
+        "account": 9,
+        "kamis": 172,
+        "bytesFull": 23540,
+        "bytesSlim": 313,
+        "reductionPct": 98.67
+      },
+      {
+        "account": 176,
+        "kamis": 0,
+        "bytesFull": 340,
+        "bytesSlim": 310,
+        "reductionPct": 8.82
+      },
+      {
+        "account": 177,
+        "kamis": 0,
+        "bytesFull": 334,
+        "bytesSlim": 308,
+        "reductionPct": 7.78
+      },
+      {
+        "account": 399,
+        "kamis": 0,
+        "bytesFull": 345,
+        "bytesSlim": 317,
+        "reductionPct": 8.12
+      },
+      {
+        "account": 400,
+        "kamis": 0,
+        "bytesFull": 338,
+        "bytesSlim": 310,
+        "reductionPct": 8.28
+      }
+    ]
+  },
+  "problems": []
+}
