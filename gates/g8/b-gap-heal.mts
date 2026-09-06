@@ -447,15 +447,19 @@ try {
     source: new Contract(compAddrs.source, COMPONENT_ABI, provider),
     holder: new Contract(compAddrs.holder, COMPONENT_ABI, provider),
   };
-  const readRaw = async (contract: Contract, entityId: string): Promise<string | null> => {
+  const readRaw = async (
+    contract: Contract,
+    entityId: string,
+    atBlock: number = pinnedBlock
+  ): Promise<string | null> => {
     for (let attempt = 0; attempt < 4; attempt++) {
       const via = attempt === 0 ? provider! : makeProvider(config);
       try {
         const c =
           attempt === 0 ? contract : new Contract(await contract.getAddress(), COMPONENT_ABI, via);
-        const exists: boolean = await c.has(BigInt(entityId), { blockTag: pinnedBlock });
+        const exists: boolean = await c.has(BigInt(entityId), { blockTag: atBlock });
         if (!exists) return null;
-        return (await c.getRaw(BigInt(entityId), { blockTag: pinnedBlock })) as string;
+        return (await c.getRaw(BigInt(entityId), { blockTag: atBlock })) as string;
       } catch (e) {
         if (attempt === 3) throw e;
         await sleep(500 * (attempt + 1));
@@ -494,14 +498,50 @@ try {
   const crosscheckMs = Date.now() - tCheck;
 
   // --- arbitrate: skew, or a real phantom? ---------------------------------
+  //
+  // BOTH SIDES ARE RE-READ (0.6.1). Until now the arbitration re-read only the
+  // MIRROR and compared it against the PINNED chain fact, on the assumption
+  // that a harvest which stops stays stopped. It does not. A harvest can stop
+  // and restart within the arbitration window, and the restart REUSES the same
+  // harvest entity id — so the mirror is legitimately ACTIVE again at a later
+  // block, the stale pinned read still says INACTIVE, and the gate reported a
+  // phantom that was never there.
+  //
+  // That is not hypothetical: the first run of the fixed fleet stride
+  // (2026-09-06, kami 7799 / node 79) failed on exactly this, and the chain
+  // itself settled it — INACTIVE at head-90, ACTIVE at head-30 and head-4, the
+  // same harvest id throughout. The mirror was right and the gate was wrong.
+  // A gate that cries phantom on a healthy mirror gets ignored, which costs
+  // exactly as much as one that misses a real phantom.
+  //
+  // So an apparent divergence is now arbitrated against a FRESH chain read as
+  // well, and only a row where the mirror still says ACTIVE *and the chain
+  // still disagrees* is a phantom — the L-1 shape, which persisted for 3.5
+  // hours when it really happened.
   const phantoms: Record<string, unknown>[] = [];
   const skew: Record<string, unknown>[] = [];
+  const reArbitrationHead = apparent.length > 0 ? await provider.getBlockNumber() : null;
+  const reArbitrationPin = reArbitrationHead === null ? null : reArbitrationHead - 4;
   for (const a of apparent) {
     const answer = nodeOf(CONTAINER, a.nodeIndex as number);
-    const still = (answer?.harvests ?? []).some(
+    const mirrorStillActive = (answer?.harvests ?? []).some(
       (h) => h.id === a.harvestId && (h.state === 'ACTIVE' || h.state === 'HARVESTING')
     );
-    (still ? phantoms : skew).push({ ...a, mirrorStillActive: still });
+    let chainStateNow: string | null = null;
+    if (reArbitrationPin !== null) {
+      const raw = await readRaw(contracts.state, a.harvestId as string, reArbitrationPin);
+      chainStateNow = raw === null ? null : (abi.decode(['string'], raw)[0] as string);
+    }
+    const row = {
+      ...a,
+      mirrorStillActive,
+      chainStateNow,
+      reArbitratedAtBlock: reArbitrationPin,
+    };
+    // a phantom is a mirror that insists on ACTIVE while a FRESH chain read
+    // still says it is not
+    if (mirrorStillActive && chainStateNow !== 'ACTIVE') phantoms.push(row);
+    else skew.push({ ...row, resolution: mirrorStillActive ? 'harvest restarted on chain' : 'mirror corrected itself' });
   }
   mark('crosscheck-done', {
     ms: crosscheckMs,
@@ -509,6 +549,7 @@ try {
     apparent: apparent.length,
     phantoms: phantoms.length,
     skew: skew.length,
+    reArbitratedAtBlock: reArbitrationPin,
   });
 
   const final = statusOf(CONTAINER)!;
@@ -546,7 +587,7 @@ try {
       phantomRows: phantoms,
       skewRows: skew.slice(0, 10),
       arbitration:
-        'the container is live, so a harvest can legitimately stop between the mirror answer and the pinned chain read. Every apparent divergence is re-read from the container afterwards: mirror since corrected = skew; mirror still ACTIVE while the chain says otherwise = a phantom, the L-1 shape, which persisted for 3.5 hours when it happened.',
+        'the container is live, so a harvest can legitimately stop — or stop and RESTART, reusing the same harvest entity id — between the mirror answer and the pinned chain read. Every apparent divergence is therefore re-read on BOTH sides: the mirror from the container, and the chain at a fresh pin. A phantom is a row where the mirror still says ACTIVE and the fresh chain read still disagrees — the L-1 shape, which persisted for 3.5 hours when it happened. Mirror corrected, or chain now ACTIVE again, is skew. Re-reading only the mirror against the STALE pinned fact reported a false phantom on 2026-09-06 (kami 7799: INACTIVE at head-90, ACTIVE at head-30 and head-4, same harvest id) and that is why both sides are read.',
     },
     syncFinal: final.sync,
     timeline,
