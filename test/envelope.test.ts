@@ -295,3 +295,87 @@ describe('meta.reconciledThrough (§3.15, 0.6.1)', () => {
     );
   });
 });
+
+// --- §3.8: the clock sample, renamed, with one release of aliases ----------
+
+describe('meta.asOf clock-sample fields (§3.8, renamed 0.6.1)', () => {
+  const META = { blockNumber: 7, stale: false, mode: 'daemon' as const };
+  const DATA = { rooms: [] };
+  const asOfOf = () => buildEnvelope(structuredClone(DATA), loadSchema('room'), META).meta.asOf;
+
+  const NEW_NAMES = ['clockSampleBlock', 'clockSampleBlockTime', 'clockSampleAgoMs'] as const;
+  const OLD_NAMES = ['observedBlock', 'observedBlockTime', 'observedAgoMs'] as const;
+
+  beforeEach(() => {
+    resetSyncHealth();
+    clock.reset();
+  });
+  afterEach(() => {
+    resetSyncHealth();
+    clock.reset();
+  });
+
+  it('serves the new names once a clock observation exists', () => {
+    clock.observeBlockTimestamp(1_755_000_000, 32_000_123);
+    const asOf = asOfOf();
+    expect(asOf.clockSampleBlock).toBe(32_000_123);
+    expect(asOf.clockSampleBlockTime).toBe(1_755_000_000);
+    expect(typeof asOf.clockSampleAgoMs).toBe('number');
+    expect(asOf.clockSampleAgoMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it('the deprecated aliases carry values EQUAL to the fields they mirror', () => {
+    clock.observeBlockTimestamp(1_755_000_000, 32_000_123);
+    const asOf = asOfOf();
+    expect(asOf.observedBlock).toBe(asOf.clockSampleBlock);
+    expect(asOf.observedBlockTime).toBe(asOf.clockSampleBlockTime);
+    expect(asOf.observedAgoMs).toBe(asOf.clockSampleAgoMs);
+  });
+
+  it('the aliases are equal across repeated builds, not merely on the first', () => {
+    clock.observeBlockTimestamp(1_754_000_000, 31_000_001);
+    for (let i = 0; i < 5; i++) {
+      const asOf = asOfOf();
+      expect(asOf.observedBlock).toBe(asOf.clockSampleBlock);
+      expect(asOf.observedBlockTime).toBe(asOf.clockSampleBlockTime);
+      // the ago-value moves between builds; the invariant is that the pair
+      // agrees WITHIN a build — one measurement, emitted twice
+      expect(asOf.observedAgoMs).toBe(asOf.clockSampleAgoMs);
+    }
+  });
+
+  it('all seven travel together: present together after an observation', () => {
+    clock.observeBlockTimestamp(1_755_000_000, 32_000_123);
+    const asOf = asOfOf() as Record<string, unknown>;
+    const present = [...NEW_NAMES, ...OLD_NAMES, 'clockOffsetMs'].filter((k) => k in asOf);
+    expect(present).toHaveLength(7);
+  });
+
+  it('all seven travel together: absent together before the first observation', () => {
+    const asOf = asOfOf() as Record<string, unknown>;
+    const present = [...NEW_NAMES, ...OLD_NAMES, 'clockOffsetMs'].filter((k) => k in asOf);
+    expect(present).toEqual([]);
+    // §3.14: a served clockOffsetMs of 0 would read as a measurement
+    expect(asOf.clockOffsetMs).toBeUndefined();
+    expect(Object.keys(asOf).sort()).toEqual(['block', 'projectedAtSec']);
+  });
+
+  it('block and clockSampleBlock are different facts and are not fused', () => {
+    clock.observeBlockTimestamp(1_755_000_000, 31_999_000);
+    const asOf = buildEnvelope(structuredClone(DATA), loadSchema('room'), {
+      blockNumber: 32_000_500,
+      stale: false,
+      mode: 'daemon',
+    }).meta.asOf;
+    expect(asOf.block).toBe(32_000_500);
+    expect(asOf.clockSampleBlock).toBe(31_999_000);
+    expect(asOf.block).not.toBe(asOf.clockSampleBlock);
+  });
+
+  it('a clock observation that names no block reports 0, on both names', () => {
+    clock.observeBlockTimestamp(1_755_000_000); // the stream tap names none
+    const asOf = asOfOf();
+    expect(asOf.clockSampleBlock).toBe(0);
+    expect(asOf.observedBlock).toBe(0);
+  });
+});

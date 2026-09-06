@@ -57,32 +57,52 @@ export type EnvelopeOptions = {
  * `projectedAtSec` is the instant the projection math used; they are not the
  * same fact and pairing them as one would be a lie of convenience, because
  * the clock correction is anchored on a DIFFERENT, older block than the
- * mirror's newest. That anchor is named outright: `observedBlock` and
- * `observedBlockTime` are the block whose header timestamp produced the
- * current correction, `observedAgoMs` is how long ago that was, and
- * `clockOffsetMs` is the correction itself.
+ * mirror's newest.
  *
- * The last four are ABSENT TOGETHER until the first clock observation
- * (§3.14, the §3.15 head-fields precedent): before it there is no
- * measurement, the offset is 0 because nothing was measured rather than
+ * WHAT THE CLOCK SAMPLE IS, AND WHAT IT IS NOT (0.6.1). It is the block
+ * whose header timestamp last calibrated the offset-corrected clock,
+ * refreshed every `CLOCK_SYNC_INTERVAL_MS` = 300 s (src/daemon.ts syncClock),
+ * so `clockSampleAgoMs` cycles 0-300 s on a perfectly healthy mirror. It is
+ * NOT mirror lag and says nothing about applied state. Mirror lag is
+ * `status.blockLag`; verified applied state is `meta.reconciledThrough`.
+ *
+ * This comment said as much from 0.5.2 and a consumer still misread the
+ * fields as lag twice (hybrid-play ledger L-2, and again at the 0.6.0 sync),
+ * gating play decisions on a number that was doing its job. A doc comment
+ * loses to a field name every time, so 0.6.1 renames them: the fields are
+ * `clockSampleBlock`, `clockSampleBlockTime` and `clockSampleAgoMs`.
+ *
+ * DEPRECATED ALIASES, ONE RELEASE ONLY (§1.4). `observedBlock`,
+ * `observedBlockTime` and `observedAgoMs` remain, carrying identical values,
+ * and are REMOVED in 0.7.0. All six travel with `clockOffsetMs`: seven
+ * present together, or all seven absent together until the first clock
+ * observation (§3.14, the §3.15 head-fields precedent) — before it there is
+ * no measurement, the offset is 0 because nothing was measured rather than
  * because the clocks agree, and a served 0 would read as evidence. */
 export type AsOf = {
   /** mirror block, same value as `meta.blockNumber` — a LOWER BOUND (§3.15) */
   block: number;
   /** the offset-corrected instant every projection in this answer used */
   projectedAtSec: number;
-  /** the block whose header timestamp produced the current correction; 0
-   * when the observation did not name one */
-  observedBlock?: number;
+  /** the block whose header timestamp produced the current clock correction;
+   * 0 when the observation did not name one. NOT the mirror's position — see
+   * the type comment above. */
+  clockSampleBlock?: number;
   /** that block's header timestamp (chain seconds) */
-  observedBlockTime?: number;
+  clockSampleBlockTime?: number;
   /** the correction itself. Measured live 2026-08-27 at −7.7 s to −17.4 s:
    * it is dominated by the Kamigaze stream's end-to-end lag, NOT by
    * wall-clock skew (§3.8) */
   clockOffsetMs?: number;
-  /** wall-clock ms since that observation; bounded above by the 300 s clock
-   * sync cadence in the healthy case and by NOTHING when the observation
-   * keeps failing or the stream is stalled (§3.8) */
+  /** wall-clock ms since that clock sample. Cycles 0-300 s on a healthy
+   * mirror (the sync cadence) and is bounded by NOTHING when the observation
+   * keeps failing or the stream is stalled (§3.8). NOT mirror lag. */
+  clockSampleAgoMs?: number;
+  /** @deprecated 0.6.1, removed 0.7.0 — use `clockSampleBlock` */
+  observedBlock?: number;
+  /** @deprecated 0.6.1, removed 0.7.0 — use `clockSampleBlockTime` */
+  observedBlockTime?: number;
+  /** @deprecated 0.6.1, removed 0.7.0 — use `clockSampleAgoMs` */
   observedAgoMs?: number;
 };
 
@@ -110,20 +130,34 @@ export type Envelope<T> = {
   };
 };
 
-/** Build the §3.8 asOf block for one answer. */
+/** Build the §3.8 asOf block for one answer.
+ *
+ * The clock-sample fields and their 0.6.1-deprecated aliases are emitted in
+ * ONE conditional spread, deliberately: the contract is that they are present
+ * together or absent together, and computing the aliases separately is how
+ * that invariant would quietly stop being true. Each alias reads the same
+ * expression as the field it mirrors — no second measurement. */
 export function buildAsOf(blockNumber: number): AsOf {
   const observation = clock.lastObservation();
+  // evaluation order preserved from 0.5.2: clock.now() before Date.now(), so
+  // the rename moves no number at all
+  const projectedAtSec = Math.floor(clock.now() / 1000);
+  if (!observation) return { block: blockNumber, projectedAtSec };
+  const clockSampleBlock = observation.blockNumber;
+  const clockSampleBlockTime = observation.blockTimestampSec;
+  const clockSampleAgoMs = Date.now() - observation.atWallMs;
   return {
     block: blockNumber,
-    projectedAtSec: Math.floor(clock.now() / 1000),
-    ...(observation
-      ? {
-          observedBlock: observation.blockNumber,
-          observedBlockTime: observation.blockTimestampSec,
-          clockOffsetMs: clock.offset(),
-          observedAgoMs: Date.now() - observation.atWallMs,
-        }
-      : {}),
+    projectedAtSec,
+    clockSampleBlock,
+    clockSampleBlockTime,
+    clockOffsetMs: clock.offset(),
+    clockSampleAgoMs,
+    // deprecated 0.6.1, removed 0.7.0 (§1.4): a rename ships both names for
+    // exactly one release, same values.
+    observedBlock: clockSampleBlock,
+    observedBlockTime: clockSampleBlockTime,
+    observedAgoMs: clockSampleAgoMs,
   };
 }
 

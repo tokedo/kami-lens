@@ -545,9 +545,12 @@ export class KamiLensDaemon {
       { chainId, name: 'yominet' },
       { staticNetwork: true }
     );
-    const observedBlock = this.liveBlockNumber;
-    const block = await this.clockProvider.getBlock(observedBlock);
-    if (block) clock.observeBlockTimestamp(block.timestamp, observedBlock);
+    // the CLOCK sample (§3.8): this names the block whose header timestamp
+    // calibrates the offset, not the mirror's position. Renamed from
+    // `observedBlock` in 0.6.1 with the envelope fields it feeds.
+    const clockSampleBlock = this.liveBlockNumber;
+    const block = await this.clockProvider.getBlock(clockSampleBlock);
+    if (block) clock.observeBlockTimestamp(block.timestamp, clockSampleBlock);
   }
 
   /** Bounded bootstrap retry (DESIGN §3.2): upstream shows the player an
