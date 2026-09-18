@@ -1,0 +1,77 @@
+{
+  "gate": "g5a-cleanroom",
+  "measuredAt": "2026-09-18T16:34:36.038Z",
+  "tarball": "kami-lens-0.6.3.tgz",
+  "diagnosis": "the zero-config daemon ran out of JS heap during the cold load",
+  "secondsToExit": 25,
+  "steps": {
+    "containerUp": true,
+    "install": true,
+    "version": true,
+    "daemonStarted": true,
+    "live": false,
+    "checkpointChildShipped": true,
+    "queryOk": false
+  },
+  "timeToLiveSeconds": 25,
+  "nodeHeapLimitMiB": 2096,
+  "oomInDaemonLog": true,
+  "healthPolls": [
+    {
+      "atSeconds": 6,
+      "state": "BACKFILL",
+      "rc": 1
+    },
+    {
+      "atSeconds": 12,
+      "state": "BACKFILL",
+      "rc": 1
+    },
+    {
+      "atSeconds": 20,
+      "state": "BACKFILL",
+      "rc": 1
+    },
+    {
+      "atSeconds": 25,
+      "state": "NO_DAEMON",
+      "rc": 1
+    }
+  ],
+  "queryError": "skipped: the daemon never reached LIVE",
+  "daemonAliveAtQuery": false,
+  "daemonLogTail": [
+    "{\"at\":\"2026-09-18T16:34:30.058Z\",\"state\":\"BACKFILL\",\"msg\":\"Querying for State (6/9 chunks fetched)\",\"percentage\":72.5,\"liveBlockNumber\":0,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-09-18T16:34:30.058Z\",\"state\":\"BACKFILL\",\"msg\":\"Querying for State (6/9 chunks fetched)\",\"percentage\":72.5,\"liveBlockNumber\":0,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-09-18T16:34:30.058Z\",\"state\":\"BACKFILL\",\"msg\":\"Querying for State (6/9 chunks fetched)\",\"percentage\":72.6,\"liveBlockNumber\":0,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-09-18T16:34:30.238Z\",\"state\":\"BACKFILL\",\"msg\":\"Querying for State (6/9 chunks fetched)\",\"percentage\":72.6,\"liveBlockNumber\":0,\"checkpoint\":null,\"degraded\":[]}",
+    "",
+    "<--- Last few GCs --->",
+    "",
+    "[66:0x2cf02eb0]    20751 ms: Scavenge (reduce) 2043.1 (2077.4) -> 2042.1 (2076.6) MB, 7.18 / 0.00 ms  (average mu = 0.262, current mu = 0.257) allocation failure; ",
+    "[66:0x2cf02eb0]    20797 ms: Scavenge (reduce) 2042.8 (2076.6) -> 2042.2 (2076.9) MB, 6.20 / 0.00 ms  (average mu = 0.262, current mu = 0.257) allocation failure; ",
+    "[66:0x2cf02eb0]    20856 ms: Scavenge (reduce) 2043.0 (2076.9) -> 2042.2 (2076.9) MB, 4.75 / 0.00 ms  (average mu = 0.262, current mu = 0.257) allocation failure; ",
+    "",
+    "",
+    "<--- JS stacktrace --->",
+    "",
+    "FATAL ERROR: Ineffective mark-compacts near heap limit Allocation failed - JavaScript heap out of memory",
+    "----- Native stack trace -----",
+    "",
+    " 1: 0xb73e90 node::OOMErrorHandler(char const*, v8::OOMDetails const&) [node]",
+    " 2: 0xeacd2c v8::Utils::ReportOOMFailure(v8::internal::Isolate*, char const*, v8::OOMDetails const&) [node]",
+    " 3: 0xeacefc v8::internal::V8::FatalProcessOutOfMemory(v8::internal::Isolate*, char const*, v8::OOMDetails const&) [node]",
+    " 4: 0x10b5c1c  [node]",
+    " 5: 0x10b6138 v8::internal::Heap::RecomputeLimits(v8::internal::GarbageCollector) [node]",
+    " 6: 0x10cb920 v8::internal::Heap::PerformGarbageCollection(v8::internal::GarbageCollector, v8::internal::GarbageCollectionReason, char const*) [node]",
+    " 7: 0x10cbf6c v8::internal::Heap::CollectGarbage(v8::internal::AllocationSpace, v8::internal::GarbageCollectionReason, v8::GCCallbackFlags) [node]",
+    " 8: 0x10cde60 v8::internal::Heap::HandleGCRequest() [node]",
+    " 9: 0x103dbcc v8::internal::StackGuard::HandleInterrupts() [node]",
+    "10: 0x149767c v8::internal::Runtime_StackGuard(int, unsigned long*, v8::internal::Isolate*) [node]",
+    "11: 0x1899e24  [node]",
+    "Aborted (core dumped)",
+    ""
+  ],
+  "daemonLogSaved": "/Users/anatolyzaytsev/kami-lens/gates/.artifacts/g5a-daemon.log",
+  "match": false
+}
