@@ -98,6 +98,59 @@ given release rests on. The contract registry is [SPEC.md](SPEC.md);
 per-surface coverage — what is served, what is deferred, what is out
 of scope — is [docs/coverage.md](docs/coverage.md).
 
+### What changed in 0.6.3, for the things that read this daemon
+
+Three things a reader of this daemon can feel, and they are all about the
+daemon being AVAILABLE rather than about what it says.
+
+**`status` no longer goes quiet every ten minutes.** Every ten minutes
+this daemon refreshes the world file it keeps on disk, and writing that
+file — about 230 MB — used to occupy the single thread that also answers
+your questions. On a small machine that meant **20 to 32 seconds with no
+answer at all**, every ten minutes; on a fast laptop, four or five
+seconds. Anything polling the daemon for health saw a dead process, and
+on the server it was watched by, the watchdog restarted it — in the
+middle of the write, which is the one moment a restart is expensive. The
+refresh now happens in a separate process, so the daemon keeps answering
+throughout. If you have a monitor that tolerated those gaps, it no longer
+has to.
+
+**And it will tell you when one is happening.** `status.checkpoint` gains
+`inFlight`: true while that refresh is running. It is worth having mostly
+because it is now answerable — before this release, asking during a
+refresh did not get you a reply to read the field from.
+
+**A first start on a small machine no longer needs a second attempt.** A
+daemon with no saved state downloads the world in pieces. On a
+two-processor server, applying one piece kept the process busy long
+enough that the other downloads timed out against their own clock and had
+to start over, and long enough that the daemon's internal "am I stuck?"
+check concluded it was — and restarted a start-up that was going fine.
+First start took four and a half minutes instead of two. The apply now
+hands the process back regularly while it works, reports its progress
+continuously instead of once per piece, and downloads fewer pieces at
+once when there are few processors to go round. None of the timeouts were
+loosened; they were being told the wrong thing.
+
+**One field reads honestly now.** `lastFullLoad` said how this daemon's
+world arrived, and on a restart from saved state it reported the small
+catch-up as though it were a full download — "from the snapshot service,
+1.4 seconds", for something that takes a minute and a half. It now
+carries `kind`, either `full` or `delta`, so the 1.4 seconds has
+something to belong to.
+
+**Two strings you should have been getting, and were not.** A bug in how
+this daemon decides which text is machine-written and which is
+player-written meant `status.config.stateCdnUrl` has been **removed from
+every status answer since 0.6.2**, and entries in `feedsDegraded` have
+been removed since 0.5.2 whenever there were any. Both were listed in
+`meta.suppressed`, so the answers were honest about withholding them —
+they were simply withheld for no reason. Both are back.
+
+**No query answer changes otherwise.** No field was renamed, retyped,
+removed or given a new meaning, and the deprecated clock-field aliases
+from 0.6.1 are still here — they go in 0.7.0 as promised.
+
 ### What changed in 0.6.2, for the things that read this daemon
 
 One change you will notice, one you will only notice if you were

@@ -269,6 +269,75 @@ parallel fetch. SQLite (`node:sqlite`) is the named upgrade if
 checkpoint cost bites (§6); `v8.serialize`'s Node-version coupling is
 acceptable for a disposable cache.
 
+**The checkpoint runs OFF THE MAIN THREAD (0.6.3, divergence 16).**
+`v8.serialize` is synchronous, so writing a ~230 MB cache holds the one
+thread that also owns the query socket and every timer — and the
+checkpoint deserializes the stored cache synchronously before its delta.
+Measured on the VM (2026-09-18): **the daemon does not answer `status`
+for 20-32 s every ten minutes** (4-5 s on the Mac). That breaks the
+promise this document and `server.ts` both make — `status` is the one
+query that must always answer — and it is worse than a broken promise,
+because the VM watchdog reads "no status answer from a running unit" as a
+dead unit and restarts it, landing the SIGTERM in the middle of the
+write. The health check manufactured the outage it was watching for
+(L-8/L-10 class).
+
+The refresh is movable for one reason, stated here because everything
+below depends on it: **it never touches the live mirror.** It reads the
+STORED cache off disk, deltas it, and writes it back; the recs world and
+the live stream are a different object, and live events are never folded
+into the persisted cache (the checkpoint model above). So the whole of it
+— deserialize, delta, serialize, commit — runs in a forked child
+(`src/checkpoint-child.ts`, `src/workers/checkpoint/`) with its own heap
+cap, and the main thread gets a small `CheckpointReport`.
+
+*A child process rather than a worker thread,* and that is a measured
+choice rather than a preference. The port's file bodies are upstream's,
+which means they import through the tsconfig `paths` aliases (swap point
+7, §4.1). tsx resolves those on a main thread and **does not** resolve
+them inside a `worker_threads` Worker — measured four ways on 2026-09-18,
+each failing `Cannot find package 'utils' imported from …/src/<worker>.ts`
+while the identical import resolves on a main thread and in a forked
+child; vitest is the same story by a different route, since
+`vite-tsconfig-paths` rewrites what Vite transforms and a raw
+`new Worker('…/x.ts')` is not that. A worker checkpoint would therefore
+only ever have worked against `dist/`, so every gate that builds a daemon
+from source — G1.a, G10.a, G10.e, and this release's own hermetic tests —
+would have exercised a different code path than production, and the first
+proof of the real one would have been a live VM. The child also isolates
+the ~2.5 GB of deserialize-plus-serialize into its own address space
+rather than carving it out of the daemon's heap cap, and a child that dies
+takes one checkpoint with it and nothing else. The cost is one Node start
+(~150 ms) every ten minutes.
+
+*Shutdown protocol.* **The commit ORDER is the crash safety, not the
+waiting:** temp file → fsync → rotate the primary to `.prev` → atomic
+rename. At every instant there is a valid primary or a valid `.prev` and
+never neither — before the rotation the old primary is intact, between the
+two renames the primary is missing and `.prev` is the old one, after them
+both are good — which is what the two-candidate read at boot relies on.
+A kill is therefore safe wherever it lands. What the protocol adds is only
+that a *completed* delta is not thrown away: on `stop()` an in-flight
+checkpoint is DRAINED rather than raced (starting a second writer beside
+it is how two writers end up in one file), the child signals when it is
+about to save, and the drain is bounded — ordinary grace, then one extra
+window if the save has begun, then a kill **by that child's PID**. A
+checkpoint that is killed before its commit costs one interval and
+nothing else. `status.checkpoint.inFlight` says when one is running, and
+is answerable at all only because the write moved: before 0.6.3 a `status`
+asked during a checkpoint did not come back.
+
+The other two save call sites do NOT move, for reasons that are about
+where the data lives. The bootstrap's own save ("Saving State Cache",
+`Worker.ts`) serializes the LIVE initial state, which is in the main
+thread's heap — shipping it across a process boundary is a full copy of
+the thing whose copy is the expense. It is pre-LIVE, so no reader is being
+starved of `status` answers it would have acted on, and the pre-LIVE stall
+bound already accounts for that phase by name. `FileStateStore.set/flush`
+is reached only through those two save sites, so it is unchanged, and the
+child reaches exactly the same commit code — the on-disk contract is one
+implementation, not two.
+
 ### 3.6 Interface: on-demand pull, JSON out
 
 No ambient push. The lens never alters what the world contains; it
@@ -1207,6 +1276,59 @@ not have: the port skips an undecodable row rather than aborting the load
 undecodable answers short rather than empty, and the delta would not run.
 Counted as `decodeFailures` either way. Recorded here rather than assumed
 away; the case needs a chain-side answer, not a gapfill-side guess.
+
+**The apply yields to the event loop (0.6.3, L-11).** The CDN loader's
+values and entities applies, and the gRPC path's values apply, run in
+~50 ms time-budgeted slices that park on `setImmediate` between them
+(`workers/sync/state/apply.ts`). Upstream does not, and could not know it
+mattered: `storeValues` loops `value = await decode(...)`, `decode` is an
+`async function` that never awaits anything, and an await on an
+already-resolved promise yields to MICROTASKS only — never to the
+macrotask queue, which is where socket reads and timers are serviced. On
+2 vCPUs a values chunk takes ~11 s to apply, so for 11 s at a time the
+process reads no socket data and fires no timer on time. Two things
+followed, both measured on kami-factory on 2026-09-18:
+
+- the other in-flight chunks' body reads starved until their
+  `AbortSignal.timeout(CHUNK_TIMEOUT_MS = 30 s)` — a WALL clock — expired:
+  a self-inflicted `TimeoutError` and a full ~11 MB re-fetch, on a link
+  that was never the problem (`fetchSecondsInflatedByBlocking` 165 s
+  against 80 s of wall);
+- the only progress the daemon's pre-LIVE stall watchdog could see was "a
+  whole values chunk applied" — four steps for an entire load — so one
+  chunk that needed a retry exceeded 90 s of fingerprint silence and the
+  daemon **tore down a load that was working**: cold→LIVE 271 s instead
+  of 118 s.
+
+The budget is in MILLISECONDS rather than rows because the same row costs
+14.7 µs there and 1.5 µs on the Mac: any fixed row count is free-and-
+useless on one machine or a yield-per-row tax on the other. The slicing
+happens at the CALL SITE, not inside `storeValues`, which keeps the shared
+upstream row loop byte-identical and works the same way for the
+synchronous `storeEntities`. Two consequences are handled rather than
+hoped over: progress moves on ROWS (fractional per chunk, so upstream's
+single monotonic-by-construction derivation survives a denominator that
+does not change), and concurrent chunk fetches are capped by
+`os.availableParallelism()` so a small box is not holding five bodies it
+cannot read. `PRELIVE_STALL_MS` and `CHUNK_TIMEOUT_MS` are untouched: the
+fix is to stop lying to the watchdog, not to loosen it.
+
+*Interleaving is safe, and it is not new.* Parking between slices lets two
+values chunks interleave their applies at slice granularity — but they
+already interleave at ROW granularity, because of the same per-row await
+described above, and the chunks are consumed in whatever order the network
+serves them, so the apply order across chunks is already arbitrary. What
+that arbitrary order is allowed to be is bounded by the image: a values
+chunk set is a partition of ONE state image at ONE block, where a
+(component, entity) key has exactly one current value, so the same key
+never arrives from two chunks and last-write-per-key cannot arise. The
+gRPC path says the same thing from the other side — its delta resume
+rewinds one block precisely because re-serving a boundary block's rows is
+idempotent. The two orderings that ARE load-bearing are preserved:
+components land before any value, and entities stay strictly in index
+order (one sequential awaited loop, and slicing an array in order
+preserves order inside a chunk too, which is what the append-at-the-tail
+check requires).
 
 Port hygiene — upstream artifacts **not** to lift as-is:
 
