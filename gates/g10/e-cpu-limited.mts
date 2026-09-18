@@ -186,36 +186,95 @@ function progressSilence(samples: Sample[]): { maxMs: number; on: string } {
   return { maxMs, on };
 }
 
-/** Longest stretch with no ANSWERED status, over a window. A sample that
- * failed contributes its own latency (the poller's timeout) plus the gap to
- * the next answered one, which is exactly what a watchdog would have
- * experienced. */
-function statusGap(samples: Sample[], fromMs: number, toMs: number): { maxMs: number; at: string } {
-  let lastOkAt = 0;
-  let maxMs = 0;
-  let at = '';
+/**
+ * How long `status` went unanswered, over a window — THREE numbers,
+ * because the first cut of this reported the least meaningful of them.
+ *
+ *   waitedMs   the longest a single poll waited for its answer. THIS is
+ *              the operative one and the one the bound is asserted on: it
+ *              is what a watchdog with a timeout actually experiences, and
+ *              "the daemon did not answer for N seconds" means this. An
+ *              unanswered poll contributes the poller's own timeout.
+ *   betweenMs  the longest interval between consecutive ANSWERS arriving.
+ *              Includes the poll interval, so on 1 s polling it is
+ *              waitedMs plus up to a second of ordinary idleness.
+ *   idleMs     answer-to-next-request. What the first version measured,
+ *              kept only because it is the one that flatters the result
+ *              and should be visible beside the others rather than alone.
+ */
+function statusGap(
+  samples: Sample[],
+  fromMs: number,
+  toMs: number
+): { waitedMs: number; waitedAt: string; betweenMs: number; idleMs: number } {
+  let lastAnswerAt = 0;
+  let waitedMs = 0;
+  let waitedAt = '';
+  let betweenMs = 0;
+  let idleMs = 0;
   for (const s of samples) {
     const t = Date.parse(s.t);
     if (t < fromMs || t > toMs) continue;
+    // an unanswered poll waited its whole timeout; that IS the silence
+    if (s.latencyMs > waitedMs) {
+      waitedMs = s.latencyMs;
+      waitedAt = s.t;
+    }
     if (!s.ok) continue;
     const answeredAt = t + s.latencyMs;
-    if (lastOkAt !== 0 && t - lastOkAt > maxMs) {
-      maxMs = t - lastOkAt;
-      at = s.t;
+    if (lastAnswerAt !== 0) {
+      betweenMs = Math.max(betweenMs, answeredAt - lastAnswerAt);
+      idleMs = Math.max(idleMs, t - lastAnswerAt);
     }
-    lastOkAt = answeredAt;
+    lastAnswerAt = answeredAt;
   }
-  return { maxMs, at };
+  return { waitedMs, waitedAt, betweenMs, idleMs };
 }
 
-const jsonAfter = (line: string): Record<string, unknown> | null => {
-  const brace = line.indexOf('{');
+/**
+ * Read one `log.info(message, object)` payload out of `docker logs`.
+ *
+ * IT IS NOT JSON AND IT IS NOT ONE LINE. utils/logger writes through
+ * console.log, so from OUTSIDE the process the object arrives as Node's
+ * own inspect output — unquoted keys, single-quoted strings, and wrapped
+ * across lines once it is wide:
+ *
+ *     [cdn] load profile {
+ *       wallSeconds: 16.38,
+ *       applyShareOfWall: '70%',
+ *       ...
+ *     }
+ *
+ * The first recorded run of this leg took the brace-to-end-of-LINE and
+ * JSON.parsed it — which is right for gates/g10/lib.mts, where the gate
+ * hosts the daemon in-process and its own console tap renders each arg
+ * with JSON.stringify — and here it returned null for both the load
+ * profile and the checkpoint line, losing the numbers the leg exists to
+ * record. Same source, two different formats; this is the docker-logs one.
+ */
+const inspectAfter = (lines: string[], needle: string): Record<string, unknown> | null => {
+  const at = lines.map((l, i) => ({ l, i })).reverse().find(({ l }) => l.includes(needle))?.i;
+  if (at === undefined) return null;
+  const brace = lines[at]!.indexOf('{');
   if (brace < 0) return null;
-  try {
-    return JSON.parse(line.slice(brace)) as Record<string, unknown>;
-  } catch {
-    return null;
+  // accumulate to the closing brace at column 0 of its own line
+  const body: string[] = [];
+  for (let i = at + 1; i < lines.length && i < at + 200; i++) {
+    if (/^\s*\}/.test(lines[i]!)) break;
+    body.push(lines[i]!);
   }
+  const out: Record<string, unknown> = {};
+  for (const raw of body) {
+    const m = /^\s*([A-Za-z_][A-Za-z0-9_]*):\s*(.+?),?\s*$/.exec(raw);
+    if (!m) continue;
+    const value = m[2]!.trim();
+    if (/^-?\d+(\.\d+)?$/.test(value)) out[m[1]!] = Number(value);
+    else if (/^'.*'$/.test(value) || /^".*"$/.test(value)) out[m[1]!] = value.slice(1, -1);
+    else if (value === 'true' || value === 'false') out[m[1]!] = value === 'true';
+    else if (value === 'null') out[m[1]!] = null;
+    else out[m[1]!] = value;
+  }
+  return Object.keys(out).length > 0 ? out : null;
 };
 
 // --------------------------------------------------------------------- run
@@ -385,12 +444,16 @@ try {
   checks.progressSilenceUnderBound = silence.maxMs < MAX_PROGRESS_SILENCE_MS;
 
   // the load profile and the concurrency the loader actually chose
-  const profileLine = [...logs.split('\n')].reverse().find((l) => l.includes('[cdn] load profile'));
-  detail.loadProfile = profileLine ? jsonAfter(profileLine) : null;
-  const concurrencyLine = [...logs.split('\n')]
-    .reverse()
-    .find((l) => l.includes('[cdn] chunk fetch concurrency'));
-  detail.chunkFetchConcurrency = concurrencyLine ? jsonAfter(concurrencyLine) : null;
+  const logLines = logs.split('\n');
+  detail.loadProfile = inspectAfter(logLines, '[cdn] load profile');
+  detail.chunkFetchConcurrency = inspectAfter(logLines, '[cdn] chunk fetch concurrency');
+  // REFUSE RATHER THAN RECORD A HOLE. The load profile is the whole
+  // point of measuring on one core: parkedSeconds and applySlices are
+  // divergence 13's cost, and microsecondsPerValueRow is what this box is
+  // compared with the Mac and the VM by. A null here means the parser
+  // broke, not that the daemon did, and it must not pass silently.
+  checks.loadProfileRecorded =
+    !!detail.loadProfile && typeof (detail.loadProfile as Record<string, unknown>).wallSeconds === 'number';
   checks.servedByCdn = /full load served by CDN/.test(logs);
 
   // ---- through one periodic checkpoint -----------------------------------
@@ -429,18 +492,18 @@ try {
   // 4. status never went quiet for long, across that window
   const gap = statusGap(samples, liveAtMs, windowEndMs);
   detail.postLiveWindowSeconds = +((windowEndMs - liveAtMs) / 1000).toFixed(1);
-  detail.maxStatusGapMs = gap.maxMs;
-  detail.maxStatusGapAt = gap.at;
+  // the asserted one: the longest a single poll waited for its answer
+  detail.maxStatusWaitMs = gap.waitedMs;
+  detail.maxStatusWaitAt = gap.waitedAt;
+  detail.maxBetweenAnswersMs = gap.betweenMs;
+  detail.maxStatusIdleMs = gap.idleMs;
   detail.statusSamplesPostLive = samples.filter((s) => Date.parse(s.t) > liveAtMs).length;
   detail.statusFailuresPostLive = samples.filter(
     (s) => !s.ok && Date.parse(s.t) > liveAtMs
   ).length;
-  detail.maxStatusLatencyMsPostLive = Math.max(
-    0,
-    ...samples.filter((s) => s.ok && Date.parse(s.t) > liveAtMs).map((s) => s.latencyMs)
-  );
+
   checks.checkpointObserved = sawInFlight && sawFinished;
-  checks.statusAnsweredThroughCheckpoint = gap.maxMs < MAX_STATUS_GAP_MS;
+  checks.statusAnsweredThroughCheckpoint = gap.waitedMs < MAX_STATUS_GAP_MS;
   checks.noStatusFailuresPostLive = detail.statusFailuresPostLive === 0;
 
   // THE COMBINED FIGURE, which is the one a host memory budget is read
@@ -468,7 +531,8 @@ try {
   detail.maxNodeProcsSeen = Math.max(0, ...samples.map((s) => s.procs?.length ?? 0));
 
   const offThread = logs.split('\n').filter((l) => l.includes('checkpoint written off-thread'));
-  detail.checkpointLines = offThread;
+  detail.checkpointLineCount = offThread.length;
+  detail.checkpointReport = inspectAfter(logs.split('\n'), 'checkpoint written off-thread');
   detail.peakContainerMemoryBytes = peakMemBytes;
   detail.peakContainerMemoryGiB = +(peakMemBytes / 1024 ** 3).toFixed(2);
   detail.logTail = logs.split('\n').slice(-80);
@@ -488,7 +552,7 @@ await writeMeasurement('g10e-cdn-cold-boot-1cpu', {
   ...detail,
   bounds: {
     maxProgressSilenceMs: MAX_PROGRESS_SILENCE_MS,
-    maxStatusGapMs: MAX_STATUS_GAP_MS,
+    maxStatusWaitMs: MAX_STATUS_GAP_MS,
     liveBudgetMs: LIVE_BUDGET_MS,
   },
   samples: samples.length,
@@ -499,8 +563,10 @@ if (!match) fail('G10.e', { checks, detail });
 pass('G10.e', {
   coldToLiveSeconds: detail.coldToLiveSeconds,
   maxProgressSilentMs: detail.maxProgressSilentMs,
-  maxStatusGapMs: detail.maxStatusGapMs,
-  peakContainerMemoryGiB: detail.peakContainerMemoryGiB,
+  maxStatusWaitMs: detail.maxStatusWaitMs,
+  maxBetweenAnswersMs: detail.maxBetweenAnswersMs,
+  peakDuringCheckpointGiB: detail.peakDuringCheckpointGiB,
+  microsecondsPerValueRow: (detail.loadProfile as Record<string, unknown> | null)?.microsecondsPerValueRow,
   chunkTimeoutRetries: detail.chunkTimeoutRetries,
 });
 process.exit(0);
