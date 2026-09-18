@@ -99,6 +99,29 @@
  *              the full window instead. `skipRpcFallback` is never passed on
  *              this path, and bridge.ts's `gap` callback no longer takes it.
  *              Reasoning in full in bridge.ts's own banner.
+ *          13. THE STATE APPLY YIELDS TO THE EVENT LOOP (0.6.3, L-11), on a
+ *              50 ms time budget, in the CDN loader's values and entities
+ *              applies and in the gRPC path's values apply. Upstream holds
+ *              the one JS thread for a whole chunk — `await decode()` per
+ *              row yields to MICROTASKS only — which on 2 vCPUs is ~11 s
+ *              with no socket read and no timer serviced. Bodies in this
+ *              file are untouched; the divergence lives in
+ *              state/apply.ts (rationale, measurement, interleaving-safety
+ *              argument), snapshot/fetchFromCdn.ts and snapshot/fetch.ts.
+ *          14. PROGRESS ON ROWS, NOT WHOLE CHUNKS (0.6.3), and a chunk fetch
+ *              or retry changes the message. This is divergence 10's
+ *              premise taken the rest of the way: the fingerprint the stall
+ *              watchdog compares moved FOUR times for an entire load, so one
+ *              retried chunk plus its apply exceeded PRELIVE_STALL_MS and
+ *              the daemon restarted a healthy load (cold->LIVE 271 s instead
+ *              of 118 s). `PRELIVE_STALL_MS` is still not touched.
+ *          15. CONCURRENT CDN CHUNK FETCHES CAPPED BY AVAILABLE PARALLELISM
+ *              (0.6.3): 2 in flight at <= 2 cores, upstream's 6 otherwise.
+ *              `CHUNK_TIMEOUT_MS` stays upstream's 30 s.
+ *          16. THE PERIODIC CHECKPOINT RUNS OFF THE MAIN THREAD (0.6.3),
+ *              which is daemon.ts's business rather than this file's and is
+ *              numbered here only to keep one numbering space. See
+ *              workers/checkpoint/host.ts.
  *           Type-hole fix: the snapshot catch block reads e.code on an
  *           unknown catch variable — cast to {code?: unknown} (upstream is
  *           vite-transpiled and never typechecked; no behavior change).

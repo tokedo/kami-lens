@@ -9,7 +9,22 @@
  *           (DESIGN §7): a Kamigaze nonce change against a previously
  *           synced nonce increments tripwires.kamigazeNonceBumps at the
  *           existing full-reload branch (a first sync from an empty cache,
- *           nonce 0, does not count). Everything else verbatim.
+ *           nonce 0, does not count).
+ *           Divergence 13 (0.6.3, L-11): fetchStateValues applies its chunk
+ *           through applyInSlices, so the thread yields to the MACROTASK
+ *           queue every ~50 ms instead of holding it for the whole chunk.
+ *           The reason is the same one the CDN loader has (state/apply.ts)
+ *           and it bites here too, differently: this path is sequential, so
+ *           it starves no sibling chunk — but `withTimeout(processChunk,
+ *           CHUNK_TIMEOUT_MS)` races the APPLY against a 30 s wall clock,
+ *           and on a box where a chunk takes tens of seconds to decode that
+ *           timer fires on work that is progressing normally. It also keeps
+ *           the gRPC stream's own body reads serviced. fetchEntities is
+ *           deliberately NOT sliced: its per-chunk apply is a fraction of
+ *           the values one (12.1 s against 44.6 s over a whole image,
+ *           measured 2026-09-18) and it is not worth a second divergence in
+ *           this body until a measurement asks for it.
+ *           Everything else verbatim.
  */
 
 import { ClientError, Status } from 'nice-grpc-web';
@@ -20,6 +35,7 @@ import { createDecode } from 'engine/encoders';
 import { log } from 'utils/logger';
 import {
   StateCache,
+  applyInSlices,
   createStateCache,
   removeStateValues,
   storeStateBlock,
@@ -388,7 +404,11 @@ async function fetchStateValues({
         removals: false,
       }),
     processChunk: async (chunk) => {
-      await storeStateValues(stateCache, chunk.state, decode);
+      // divergence 13: sliced, so this apply does not hold the thread for
+      // the whole chunk while its own 30 s wall-clock bound runs
+      await applyInSlices(chunk.state, (slice) =>
+        storeStateValues(stateCache, slice, decode)
+      );
       if (chunk.lastBlockNumber > stateCache.lastStateValuesBlock) {
         stateCache.lastStateValuesBlock = chunk.lastBlockNumber;
       }

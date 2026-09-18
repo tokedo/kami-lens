@@ -5,11 +5,44 @@
  * forward-port: @ 21f419e63e0a7f6b642c255efeb89dd1c288de1c (sync-affecting
  *           bucket, ahead of the pin — SPEC §4.2). The file does not exist
  *           at the pin; it arrives whole with Asphodel-OS/kamigotchi#2475.
- * changes:  none. Every byte of the body is upstream's, including the
- *           comments — the lens's divergences around this path live in
- *           Worker.ts (divergences 8-11), never in here, so a later
- *           upstream revision of this file drops straight in.
+ * changes:  THREE divergences as of 0.6.3 (L-11), and until then none — the
+ *           0.6.2 banner said "every byte of the body is upstream's" and
+ *           that is no longer true, so it is restated rather than amended.
+ *           All three are the same measured defect (kami-factory,
+ *           2026-09-18: a HEALTHY CDN load killed by the daemon's own 90-s
+ *           pre-LIVE stall watchdog, cold->LIVE 271 s instead of 118 s):
+ *
+ *          13. THE APPLY YIELDS TO THE EVENT LOOP. Every values and entities
+ *              apply runs through `applyInSlices` (state/apply.ts) on a
+ *              50 ms time budget, parking on `setImmediate` between slices.
+ *              Upstream applies a whole chunk in one synchronous-to-the-
+ *              macrotask-queue stretch — `await decode()` per row yields to
+ *              MICROTASKS only — which on 2 vCPUs is ~11 s per chunk with no
+ *              socket read and no timer serviced. Rationale, the measurement
+ *              and the interleaving-safety argument: state/apply.ts and the
+ *              note above `applyValues` below.
+ *          14. PROGRESS IS REPORTED ON ROWS, NOT ON WHOLE CHUNKS, and a
+ *              chunk fetch and a chunk retry change the MESSAGE. The
+ *              daemon's stall watchdog compares
+ *              `state|percentage|msg|liveBlockNumber` (divergence 10), and
+ *              on whole-chunk progress that fingerprint moved four times for
+ *              the entire load — so one retried chunk plus its apply
+ *              exceeded 90 s of silence and the daemon restarted a load that
+ *              was working. Upstream's single monotonic-by-construction
+ *              derivation is KEPT; only the numerators become fractional
+ *              (see `reportProgress`).
+ *          15. CONCURRENT CHUNK FETCHES ARE CAPPED BY AVAILABLE PARALLELISM.
+ *              Upstream's 6 stands on a box with cores to spare; on a 2-vCPU
+ *              box it means five ~11 MB bodies in flight that the thread
+ *              cannot read while it applies the sixth, each on a wall-clock
+ *              `AbortSignal.timeout`. `CHUNK_TIMEOUT_MS` itself is
+ *              untouched (upstream's 30 s).
+ *
+ *           The lens's OTHER divergences around this path still live in
+ *           Worker.ts (divergences 8-12), not in here.
  */
+
+import os from 'node:os';
 
 import {
   ComponentsResponse,
@@ -20,6 +53,7 @@ import {
 import { createDecode } from 'engine/encoders';
 import { log } from 'utils/logger';
 import {
+  applyInSlices,
   createStateCache,
   StateCache,
   storeStateBlock,
@@ -144,7 +178,12 @@ export const planCdnLoad = async (
   return manifest;
 };
 
-const fetchChunk = async (url: string): Promise<Uint8Array> => {
+// divergence 14: `onRetry` is the only addition — a retry is ACTIVITY, and
+// the daemon's stall watchdog can only learn that from a fingerprint change.
+const fetchChunk = async (
+  url: string,
+  onRetry?: (attempt: number, max: number) => void
+): Promise<Uint8Array> => {
   let retryCount = 0;
 
   while (retryCount <= MAX_RETRIES) {
@@ -161,11 +200,35 @@ const fetchChunk = async (url: string): Promise<Uint8Array> => {
 
       const delay = RETRY_DELAYS[Math.min(retryCount - 1, RETRY_DELAYS.length - 1)];
       log.warn(`[cdn] chunk retry ${retryCount}/${MAX_RETRIES} in ${delay / 1000}s`, { url, e });
+      onRetry?.(retryCount, MAX_RETRIES);
       await sleep(delay);
     }
   }
 
   throw new Error(`[cdn] chunk ${url} failed after ${MAX_RETRIES} retries`);
+};
+
+/**
+ * Divergence 15: how many chunk bodies may be in flight at once.
+ *
+ * Upstream's 6 is right on a machine with cores to spare. It is wrong on a
+ * 2-vCPU box, where the ONE JS thread spends ~11 s applying a values chunk
+ * and cannot read the other five bodies while it does — and each of those
+ * bodies is racing `AbortSignal.timeout(CHUNK_TIMEOUT_MS)`, a WALL clock.
+ * Measured (kami-factory, 2026-09-18): three `TimeoutError` chunk retries
+ * across two bootstrap attempts, each a full ~11 MB re-fetch, on a link that
+ * was never the problem — `fetchSecondsInflatedByBlocking` 165 s against
+ * 80 s of wall.
+ *
+ * `availableParallelism()` reads the process's CPU AFFINITY on Linux, not
+ * the cgroup CPU quota — so `docker --cpus 1` alone does NOT narrow this and
+ * gate G10.e pins with `--cpuset-cpus` as well. That is a property of the
+ * gate, not a reason to pick a different signal: affinity is what a real
+ * small VM actually has (kami-factory: 2).
+ */
+export const cdnFetchConcurrency = (): number => {
+  const cores = os.availableParallelism?.() ?? 6;
+  return cores <= 2 ? 2 : 6;
 };
 
 // starts every task with at most `limit` in flight, handing back one promise per task
@@ -220,21 +283,50 @@ export const fetchFromCdn = async (
   //                        for JS to read the body. High fetchMs alongside high applyMs
   //                        means blocking, not a slow link
   //   protoMs vs valuesApplyMs — protobuf parse against the per-row ABI decode
+  //   parkedMs           — divergence 13: time the applies handed BACK to
+  //                        the event loop. It is not apply time and it is
+  //                        not fetch time; it is the cost of the fix, and
+  //                        `microsecondsPerValueRow` excludes it so the
+  //                        decode figure stays comparable across releases
   const t = {
     fetchMs: 0,
     protoMs: 0,
     valuesApplyMs: 0,
     entitiesApplyMs: 0,
+    parkedMs: 0,
+    applySlices: 0,
+    chunkRetries: 0,
     valueRows: 0,
     entityRows: 0,
     bytes: 0,
   };
   const wallStart = performance.now();
-  const timedFetch = (url: string) => async () => {
+
+  // divergence 14: the message carries chunk-level activity, because
+  // `percentage` cannot move while a chunk is merely being FETCHED and the
+  // watchdog's fingerprint includes `msg`. Deliberately free of the substring
+  // 'retrying in': daemon.ts onFailed reads that as "the worker is handling
+  // this itself" and stands down (its own sanitizer exists for the same
+  // reason).
+  let chunksFetched = 0;
+  const chunkTotal = manifest.values + manifest.entities;
+  let lastRetryNote = '';
+  const stateMessage = () => {
+    const fetched = `${chunksFetched}/${chunkTotal} chunks fetched`;
+    setMessage?.(`Querying for State (${fetched}${lastRetryNote})`);
+  };
+
+  const timedFetch = (url: string, name: string) => async () => {
     const started = performance.now();
-    const bytes = await fetchChunk(url);
+    const bytes = await fetchChunk(url, (attempt, max) => {
+      t.chunkRetries++;
+      lastRetryNote = `, retry ${name} ${attempt}/${max}`;
+      stateMessage();
+    });
     t.fetchMs += performance.now() - started;
     t.bytes += bytes.byteLength;
+    chunksFetched++;
+    stateMessage();
     return bytes;
   };
 
@@ -245,12 +337,24 @@ export const fetchFromCdn = async (
     cache.lastKamigazeComponent = cache.components.length - 1;
     setPercentage(5);
 
-    setMessage?.('Querying for State');
-    const urls = [
-      ...Array.from({ length: manifest.values }, (_, i) => `${prefix}/values-${i}.pb.gz`),
-      ...Array.from({ length: manifest.entities }, (_, i) => `${prefix}/entities-${i}.pb.gz`),
+    stateMessage();
+    const names = [
+      ...Array.from({ length: manifest.values }, (_, i) => `values-${i}`),
+      ...Array.from({ length: manifest.entities }, (_, i) => `entities-${i}`),
     ];
-    const chunks = startWithLimit(urls.map(timedFetch));
+    // divergence 15: the in-flight cap comes from available parallelism.
+    // Logged, because a boot that behaved differently from the last one
+    // must be able to say why without a second run.
+    const limit = cdnFetchConcurrency();
+    log.info('[cdn] chunk fetch concurrency', {
+      limit,
+      availableParallelism: os.availableParallelism?.() ?? null,
+      chunks: chunkTotal,
+    });
+    const chunks = startWithLimit(
+      names.map((name) => timedFetch(`${prefix}/${name}.pb.gz`, name)),
+      limit
+    );
     const valueChunks = chunks.slice(0, manifest.values);
     const entityChunks = chunks.slice(manifest.values);
 
@@ -263,12 +367,64 @@ export const fetchFromCdn = async (
     // The split is weighted by where the time goes, not by chunk count. A measured cold
     // boot spends 36.3s in values against 1.4s in entities, so dividing the bar evenly
     // across nine chunks would sprint through five of them and stall on the rest.
+    //
+    // DIVERGENCE 14 KEEPS THAT DERIVATION AND MAKES THE NUMERATORS
+    // FRACTIONAL. Each chunk contributes `rowsApplied / rowsInChunk` ∈ [0,1]
+    // instead of 0-then-1, so the bar moves roughly once per 50 ms slice
+    // while the denominators stay the manifest's fixed chunk counts. It is
+    // monotonic for exactly upstream's reason — every per-chunk term only
+    // ever increases, so their sum only ever increases — which a
+    // rows-over-estimated-total formula would NOT have been, because the
+    // estimate of the total shrinks as fatter chunks decode.
+    //
+    // DIVERGENCE 13 (the sliced apply) AND WHY INTERLEAVING IS SAFE.
+    // `applyInSlices` parks between slices, so two values chunks can now
+    // interleave their applies at slice granularity. That is not a new
+    // property: `storeValues` does `await decode(...)` PER ROW, and `decode`
+    // is an async function that never awaits, so concurrent applies already
+    // interleave at ROW granularity today — and the chunks themselves are
+    // consumed in whatever order the network serves them, so the apply order
+    // ACROSS chunks is already arbitrary. What that arbitrary order is
+    // allowed to be is bounded by the image itself: a values chunk set is a
+    // partition of ONE state image at ONE block, where a (component, entity)
+    // key has exactly one current value, so `valueCache.set(packedIdx, …)`
+    // never sees the same key from two chunks and last-write-per-key cannot
+    // arise. The gRPC path says the same thing from the other side: its
+    // resume rewinds one block precisely BECAUSE re-serving a boundary
+    // block's rows is idempotent (fetch.ts `resumeBlock`).
+    // The two orderings that ARE load-bearing are untouched: components land
+    // before any value (`storeStateComponents` above, awaited, and the
+    // decode stub in test/cdn-full-load.test.ts is component-sensitive to
+    // keep it that way), and entities stay strictly in index order —
+    // `applyEntitiesInOrder` is still one sequential awaited loop, and
+    // slicing an array in order preserves order within a chunk too, which is
+    // what `storeStateEntities`' append-at-the-tail check requires.
     let valuesApplied = 0;
     let entitiesApplied = 0;
     const reportProgress = () => {
       const values = (valuesApplied / manifest.values) * 90;
       const entities = (entitiesApplied / manifest.entities) * 5;
       setPercentage(+(5 + values + entities).toFixed(1));
+    };
+    /** One chunk's fractional contribution, reported as its rows land.
+     * `settle()` credits the remainder when the chunk is done — an EMPTY
+     * chunk reports no slices at all, and without this the bar would stop
+     * short of 100 on an image the manifest declared but the exporter left
+     * empty. Upstream's whole-chunk counter could not have that hole. */
+    const chunkProgress = (counter: 'values' | 'entities') => {
+      let credited = 0;
+      const credit = (share: number) => {
+        const delta = share - credited;
+        credited = share;
+        if (counter === 'values') valuesApplied += delta;
+        else entitiesApplied += delta;
+        reportProgress();
+      };
+      return {
+        onSlice: (rowsApplied: number, rowsTotal: number) =>
+          credit(rowsTotal > 0 ? rowsApplied / rowsTotal : 1),
+        settle: () => credit(1),
+      };
     };
 
     const applyValues = valueChunks.map((chunk) =>
@@ -277,13 +433,17 @@ export const fetchFromCdn = async (
         const state = StateResponse.decode(bytes).state;
         t.protoMs += performance.now() - protoStart;
 
-        const applyStart = performance.now();
-        await storeStateValues(cache, state, decode);
-        t.valuesApplyMs += performance.now() - applyStart;
+        const progress = chunkProgress('values');
+        const sliced = await applyInSlices(
+          state,
+          (slice) => storeStateValues(cache, slice, decode),
+          { onSlice: progress.onSlice }
+        );
+        progress.settle();
+        t.valuesApplyMs += sliced.applyMs;
+        t.parkedMs += sliced.parkedMs;
+        t.applySlices += sliced.slices;
         t.valueRows += state.length;
-
-        valuesApplied++;
-        reportProgress();
       })
     );
 
@@ -294,13 +454,17 @@ export const fetchFromCdn = async (
         const entities = EntitiesResponse.decode(bytes).entities;
         t.protoMs += performance.now() - protoStart;
 
-        const applyStart = performance.now();
-        storeStateEntities(cache, entities);
-        t.entitiesApplyMs += performance.now() - applyStart;
+        const progress = chunkProgress('entities');
+        const sliced = await applyInSlices(
+          entities,
+          (slice) => storeStateEntities(cache, slice),
+          { onSlice: progress.onSlice }
+        );
+        progress.settle();
+        t.entitiesApplyMs += sliced.applyMs;
+        t.parkedMs += sliced.parkedMs;
+        t.applySlices += sliced.slices;
         t.entityRows += entities.length;
-
-        entitiesApplied++;
-        reportProgress();
       }
     };
 
@@ -316,6 +480,13 @@ export const fetchFromCdn = async (
       entitiesApplySeconds: +(t.entitiesApplyMs / 1000).toFixed(2),
       protoParseSeconds: +(t.protoMs / 1000).toFixed(2),
       fetchSecondsInflatedByBlocking: +(t.fetchMs / 1000).toFixed(2),
+      // divergence 13's own cost and frequency, so a boot can be read
+      // against the release that introduced it rather than against a guess.
+      // `applySeconds` and `microsecondsPerValueRow` EXCLUDE parked time.
+      parkedSeconds: +(t.parkedMs / 1000).toFixed(2),
+      applySlices: t.applySlices,
+      chunkFetchConcurrency: cdnFetchConcurrency(),
+      chunkRetries: t.chunkRetries,
       valueRows: t.valueRows,
       entityRows: t.entityRows,
       microsecondsPerValueRow: +((t.valuesApplyMs * 1000) / Math.max(t.valueRows, 1)).toFixed(1),
