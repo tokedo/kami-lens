@@ -44,7 +44,11 @@ const abi = AbiCoder.defaultAbiCoder();
 // measurement), so the mirror is healed to a near-head block first and
 // every verification read pins to that fresh block inside the window.
 const config = resolveConfig();
-const cache = await loadCacheFromSnapshotFile(path.join(ARTIFACTS_DIR, 'c2.v8snap'), config);
+// The snapshot is overridable (0.6.2) so G10.b can re-run this cross-check
+// against the state a CDN cold boot loaded, rather than against the shared c2
+// fixture. Unset, it is c2 exactly as before.
+const snapshot = process.env.G3B_SNAPSHOT ?? path.join(ARTIFACTS_DIR, 'c2.v8snap');
+const cache = await loadCacheFromSnapshotFile(snapshot, config);
 {
   // two-stage heal (lesson recorded at G6.b, 2026-07-22): the coarse
   // replay over an aged snapshot takes minutes, so a target computed
@@ -206,6 +210,7 @@ for (const other of nodes) {
 provider.destroy();
 
 await writeMeasurement('g3b-node-occupancy', {
+  snapshot,
   pinnedBlock,
   verifyElapsedMs: Date.now() - verifyStartedAt,
   rpcStateDepthNote: 'eth_call state served only ~50-120 blocks deep (measured 2026-07-21: ok@50, reverted@120)',
