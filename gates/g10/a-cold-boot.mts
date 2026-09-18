@@ -33,13 +33,26 @@
 // grow between two live daemons), entities and values only within the block
 // delta's growth.
 //
-// The drift probe is the lab's (kami-lab provisioning/local-lens), and it is
-// a TEMPLATE: install.sh substitutes __NODE__ and __LENS_DIR__, and it has no
-// socket or data-dir knob at all — it talks to whatever daemon this repo's
-// dist/cli.js resolves by default, which is the PRODUCTION one. So this gate
-// makes its own substituted copy in the data dir and injects `--data-dir`
-// into the probe's single CLI helper, asserting each substitution landed
-// rather than hoping. Recorded as a finding: the probe wants that knob.
+// The drift probe is the lab's (kami-lab provisioning/local-lens) and is now
+// CALLED DIRECTLY (0.6.3). The 0.6.2 run had to make a substituted copy of
+// it in the data dir — rewriting __NODE__, __LENS_DIR__, the single CLI call
+// site to inject `--data-dir`, and two budget constants — because the repo
+// copy was an install.sh template with no knobs, so an un-substituted run
+// would have talked to the PRODUCTION daemon and "passed" this gate while
+// proving nothing about the CDN-loaded state. That finding was acted on: the
+// probe is watchdog v4 and takes --node, --cli, --data-dir, --lens-timeout,
+// --self-timeout, --catchup-max, --env-file and --log. The copy machinery
+// and its substitution assertions are GONE with it: there is nothing left to
+// assert landed, because nothing is being rewritten.
+//
+// The budgets are still raised on the call, and the reason is unchanged: the
+// probe drives the lens through `node dist/cli.js`, one fresh process per
+// call, ~51 calls, measured at 1.1-3.2 s each while a gate process holds a
+// 4.25 GB heap. The template's 10 s per call and 45 s overall are right for
+// the production watchdog — a quiet box, and a self-bound that must not
+// wedge it — and wrong beside a multi-GB cold boot. The gate's own
+// subprocess timeout stays above the probe's raised self-bound, so whichever
+// fires first, a number was read rather than inferred.
 //
 // The oracle token is read by the probe itself from ~/.blocklife-keys/.env at
 // call time. It is never passed on a command line, never written to a
@@ -267,67 +280,35 @@ console.log(`[g10.b] socket ${socketPath(G10_DATA_DIR)}`);
 
 // 2. the lab drift probe, against THIS socket
 //
-// The repo copy is a template with no data-dir knob, so make a substituted
-// copy and inject one. Every substitution is asserted: a probe that silently
-// kept talking to the production daemon would "pass" this gate while proving
-// nothing about the CDN-loaded state, which is the one outcome that must be
-// impossible here.
-//
-// ITS TIME BUDGETS ARE ALSO RAISED, IN THE COPY ONLY, and the first run is why.
-// The probe drives the lens through `node dist/cli.js`, one fresh process per
-// call, ~51 calls. Measured on this box while a gate process held a 4.25 GB
-// heap: 1.1-3.2 s per cold call, dominated by Node start plus loading the
-// 1.5 MB bundle. Against the template's LENS_TIMEOUT of 10 s the FIRST call
-// (`status`) timed out, and even without that, 51 calls at ~1.5 s cannot fit
-// the template's 45 s SELF_TIMEOUT_S. Those numbers are right for the
-// production watchdog — a quiet box, and a self-bound that must not wedge it —
-// and wrong for a gate that runs the probe beside a multi-GB cold boot. So the
-// copy gets room and the gate's own subprocess timeout does the bounding
-// instead. The TEMPLATE IN kami-lab IS NOT TOUCHED. Recorded as a finding: the
-// knob the probe wants is not just --data-dir but configurable budgets.
+// Called directly, with the v4 flags (see the header note). The probe is
+// pointed at THIS daemon's data dir, which is the one thing that must be
+// true: a probe that talked to the production daemon instead would "pass"
+// this gate while proving nothing about the CDN-loaded state.
 //
 // A warm-up `status` round trip goes first, from the gate itself over the
 // socket, so the probe's first call is not also paying for a cold page cache.
+const DRIFT_LOG = path.join(G10_DATA_DIR, 'drift_probe.log');
 let drift: Record<string, unknown> = { skipped: 'probe not found', path: DRIFT_PROBE };
 let warmup = 'not attempted';
+let driftArgv: string[] = [];
 try {
-  const template = await fs.readFile(DRIFT_PROBE, 'utf8');
-  let probe = template
-    .split('__NODE__')
-    .join(process.execPath)
-    .split('__LENS_DIR__')
-    .join(REPO_ROOT)
-    .split('__HOME__')
-    .join(process.env.HOME ?? '');
-  const callSite = '[NODE, CLI] + args,';
-  if (!probe.includes(callSite)) {
-    throw new Error(
-      `the drift probe's CLI call site moved — expected ${JSON.stringify(callSite)}. ` +
-        `Re-read provisioning/local-lens/drift_probe.py before trusting this leg.`
-    );
-  }
-  probe = probe
-    .split(callSite)
-    .join(`[NODE, CLI] + args + ["--data-dir", ${JSON.stringify(G10_DATA_DIR)}],`);
-  if (probe.includes('__NODE__') || probe.includes('__LENS_DIR__')) {
-    throw new Error('a drift-probe placeholder was left unsubstituted');
-  }
-  // budgets, in the copy only — asserted like every other substitution
-  const budgets: [string, string][] = [
-    ['LENS_TIMEOUT = 10', 'LENS_TIMEOUT = 40'],
-    ['SELF_TIMEOUT_S = 45', 'SELF_TIMEOUT_S = 420'],
+  await fs.access(DRIFT_PROBE);
+  driftArgv = [
+    DRIFT_PROBE,
+    '--node',
+    process.execPath,
+    '--cli',
+    path.join(REPO_ROOT, 'dist', 'cli.js'),
+    '--data-dir',
+    G10_DATA_DIR,
+    // raised for this gate only; the lab's own watchdog keeps its defaults
+    '--lens-timeout',
+    '40',
+    '--self-timeout',
+    '420',
+    '--log',
+    DRIFT_LOG,
   ];
-  for (const [before, after] of budgets) {
-    if (!probe.includes(before)) {
-      throw new Error(
-        `the drift probe's budget line moved — expected ${JSON.stringify(before)}. ` +
-          `Re-read provisioning/local-lens/drift_probe.py before trusting this leg.`
-      );
-    }
-    probe = probe.split(before).join(after);
-  }
-  const probePath = path.join(G10_DATA_DIR, 'drift_probe.g10.py');
-  await fs.writeFile(probePath, probe, { mode: 0o755 });
   // warm the CLI bundle and the daemon's head-sample provider, so the probe's
   // first call is not the one paying for a cold start (see the note above)
   try {
@@ -345,8 +326,8 @@ try {
     warmup = `failed: ${e instanceof Error ? e.message : String(e)}`;
   }
   // read the exit code, not the output alone — 2 is a SKIP, not a pass. The
-  // gate's bound is deliberately above the copy's raised SELF_TIMEOUT_S.
-  const { stdout } = await execFileAsync('python3', [probePath], {
+  // gate's bound is deliberately above the probe's raised --self-timeout.
+  const { stdout } = await execFileAsync('python3', driftArgv, {
     encoding: 'utf8',
     timeout: 600_000,
     maxBuffer: 16 * 1024 * 1024,
@@ -364,6 +345,9 @@ try {
 }
 bDetail.drift = drift;
 bDetail.socketWarmup = warmup;
+// the exact invocation, so the measurement says which daemon was probed
+// rather than leaving a reader to trust that it was the right one
+bDetail.driftArgv = driftArgv;
 // 0 divergences on a probe that actually RAN. A skip (exit 2) is not a pass:
 // the whole point of this leg is that the comparison happened.
 bChecks.driftProbeRan = drift.exitCode === 0 && !drift.skipped;

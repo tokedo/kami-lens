@@ -57,9 +57,39 @@ const RETENTION_SEARCH_SPAN = 1_100_000;
 // hardcoded upstream (engine/encoders/decode.ts): world.component.components
 const COMPONENTS_KEY = '0x4350dba81aa91e31664a09d24a668f006169a11b3d962b7557aed362d3252aec';
 
-const dataDir = path.join(ARTIFACTS_DIR, 'g1-data');
+// DATA DIR. Default gates/.artifacts/g1-data (gitignored), overridable with
+// G1_DATA_DIR so the one daemon this leg runs can be pointed at a scratch
+// path outside the repo — which is what every other live gate already
+// allows and this one, until 0.6.3, did not (AUDIT_062 residual: it was the
+// single daemon of the 0.6.2 gate run writing inside the repo). It is
+// DELETED to force a cold boot, so it must never name a data dir a live
+// daemon owns.
+const dataDir = process.env.G1_DATA_DIR ?? path.join(ARTIFACTS_DIR, 'g1-data');
 await fs.rm(dataDir, { recursive: true, force: true });
 await fs.mkdir(dataDir, { recursive: true });
+console.log(`[g1] data dir ${dataDir}`);
+
+/**
+ * THE C1/C2 FIXTURES ARE NOT OVERWRITTEN BY DEFAULT (0.6.3).
+ *
+ * This leg used to copy its two checkpoints straight onto
+ * gates/.artifacts/c1.v8snap and c2.v8snap — the SHARED replay fixtures
+ * that G3.a, G3.f, G3.g, G2.a, G2.b, G4.c, G6.a/b/d, G7.a/b/c and G8.b all
+ * read. So running G1 rewrote the base every hermetic gate compares
+ * against, which made gate ORDER load-bearing with nothing saying so
+ * (AUDIT_062, "gate ordering hazard"), and a G1 run mid-release silently
+ * re-baselined the release's own conformance evidence.
+ *
+ * Default now: write dated artifacts and leave the fixtures alone.
+ * G1_RECAPTURE=1 is the fixtures procedure — the deliberate act of moving
+ * the shared base forward, which is a decision and now looks like one.
+ */
+const RECAPTURE = process.env.G1_RECAPTURE === '1';
+const today = new Date().toISOString().slice(0, 10);
+const checkpointTargets = (which: 'c1' | 'c2'): string[] =>
+  RECAPTURE
+    ? [path.join(ARTIFACTS_DIR, `${which}.v8snap`), path.join(ARTIFACTS_DIR, `${which}-${today}.v8snap`)]
+    : [path.join(ARTIFACTS_DIR, `${which}-${today}.v8snap`)];
 
 const config = resolveConfig({ dataDir, checkpointIntervalMs: 3_600_000 });
 const daemon = new KamiLensDaemon({ dataDir, checkpointIntervalMs: 3_600_000 });
@@ -96,9 +126,13 @@ pass('G1.a', {
 
 // C1: refresh checkpoint (Kamigaze-consistent, block-exact) and copy.
 const c1Report = await daemon.checkpoint();
-const c1Path = path.join(ARTIFACTS_DIR, 'c1.v8snap');
-await fs.copyFile(snapshotFilePath(config), c1Path);
-console.log(`[g1] C1 checkpoint copied at block ${c1Report.blockNumber} (${c1Report.durationMs}ms refresh)`);
+const c1Targets = checkpointTargets('c1');
+for (const target of c1Targets) await fs.copyFile(snapshotFilePath(config), target);
+const c1Path = c1Targets[0]!;
+console.log(
+  `[g1] C1 checkpoint copied at block ${c1Report.blockNumber} (${c1Report.durationMs}ms refresh) -> ${c1Targets.join(', ')}` +
+    (RECAPTURE ? ' [G1_RECAPTURE: the SHARED fixture was moved forward]' : ' [shared fixtures untouched]')
+);
 
 // ---------------------------------------------------------------- G1.b
 
@@ -392,14 +426,18 @@ while (daemon.getStatus().liveBlockNumber - c1Report.blockNumber < SPAN_TARGET_B
 }
 const c2Report = await daemon.checkpoint();
 await daemon.stop(); // runs one final refresh; C2 copy taken after stop
-const c2Path = path.join(ARTIFACTS_DIR, 'c2.v8snap');
-await fs.copyFile(snapshotFilePath(config), c2Path);
+const c2Targets = checkpointTargets('c2');
+for (const target of c2Targets) await fs.copyFile(snapshotFilePath(config), target);
+const c2Path = c2Targets[0]!;
 const c2Final = await loadCacheFromSnapshotFile(c2Path, config);
 console.log(
   `[g1] C2 checkpoint copied at block ${c2Final.blockNumber} (span ${c2Final.blockNumber - c1Report.blockNumber})`
 );
 
 await writeArtifact('g1a-result.json', {
+  recapture: RECAPTURE,
+  c1Artifacts: c1Targets,
+  c2Artifacts: c2Targets,
   timeToLiveColdMs,
   c1Block: c1Report.blockNumber,
   c2Block: c2Final.blockNumber,
