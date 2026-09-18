@@ -6,8 +6,11 @@
 // cold→LIVE wall time, the `[cdn] load profile` numbers, the longest
 // progress-silent interval (divergence 10 — the pre-LIVE stall watchdog sees
 // only what setLoadingState emits, and PRELIVE_STALL_MS is 90 s), peak RSS,
-// and the bridge path taken: whether the streamer answered the whole window
-// or the snapshot delta had to run first.
+// and the bridge path taken with the delta's block span. Since divergence 12
+// the bridge is DELTA-FIRST, so "which path" is no longer "did the delta run"
+// (it always does) but "did it SUCCEED": delta-ok means the gap-fill covered
+// only the snapshot service's sync period, delta-failed means it log-scanned
+// the whole window from the chain.
 //
 // G10.b: the load is only worth anything if what it loaded is RIGHT. Three
 // checks against THIS daemon, while it is still LIVE on its own socket:
@@ -116,21 +119,34 @@ const profile = loadProfile(tap.lines);
 const cdnLines = linesMatching(tap.lines, '[cdn]');
 const bridgeLines = linesMatching(tap.lines, '[bridge]');
 const gapfillLines = linesMatching(tap.lines, '[gapfill]');
-// WHETHER THE SNAPSHOT DELTA RAN, from a signal that exists at INFO. bridgeBoot
-// logs when it STARTS and when the delta FAILS, but not when the delta merely
-// runs, and the gapfill lines that would say so are DEBUG. What is unmissable
-// is state/cache.ts storeBlock: it prints `Stored block <n>` every time a cache
-// is stamped, and exactly one stamp happens per load — the CDN load, plus one
-// more if fetchSnapshot ran as the delta. So the count IS the answer.
+// `Stored block <n>` (state/cache.ts storeBlock) is printed once per cache
+// stamp, so on the delta-first bridge it should be exactly TWO: the CDN load
+// and the delta. Recorded as a cross-check on the bridge lines rather than as
+// the signal itself — since divergence 12 the delta is unconditional, so a
+// count of one means the delta THREW before it stamped anything.
 const storedBlocks = linesMatching(tap.lines, 'Stored block').length;
+const deltaApplied = bridgeLines.find((l) => l.includes('snapshot delta applied'));
+const deltaFailed = bridgeLines.some((l) => l.includes('snapshot delta FAILED'));
+/** the delta's own {from, to, blocks} payload — the span the CDN image was
+ * carried over before the gap-fill took the rest */
+const deltaSpan = ((): Record<string, unknown> | null => {
+  if (!deltaApplied) return null;
+  const brace = deltaApplied.indexOf('{');
+  if (brace < 0) return null;
+  try {
+    return JSON.parse(deltaApplied.slice(brace)) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+})();
 const bridgePath =
   bridgeLines.length === 0
     ? 'no-bridge (fillGap ran — the CDN load did not happen, or there is no stream URL)'
-    : bridgeLines.some((l) => l.includes('snapshot delta failed'))
-      ? 'delta-failed, log-scanned the full window with RPC on'
-      : storedBlocks > 1
-        ? 'streamer answered empty, snapshot delta ran, streamer re-asked from the new head'
-        : 'streamer-first answered the whole window';
+    : deltaFailed
+      ? 'delta FAILED — gap-filled the full window from the chain with RPC on'
+      : deltaApplied
+        ? 'delta-first: delta applied, then gap-filled from the delta head'
+        : 'bridge entered but neither outcome logged — READ THE LINES, do not trust this field';
 
 const record = {
   outcome: 'LIVE',
@@ -153,6 +169,7 @@ const record = {
   },
   memory: { peakRssKb: watch.peakRssKb, peakHeapRssKb: watch.peakHeapRssKb, samples: watch.rssSamples },
   bridgePath,
+  deltaSpan,
   bridgeLines,
   gapfillLines,
   storedBlocks,
@@ -172,12 +189,24 @@ if (!record.prefix) {
   fail('G10.a', { reason: 'the CDN load named no export prefix — which image was loaded is unknowable' });
 }
 await writeMeasurement('g10a-cdn-cold-boot', record);
+// The bridge must have been ENTERED. A CDN load that reached LIVE through
+// fillGap instead means divergence 11's gate or divergence 12's wiring is not
+// doing what the banner says, and that is a silent correctness question, not a
+// cosmetic one.
+if (bridgeLines.length === 0) {
+  await writeMeasurement('g10a-cdn-cold-boot', { ...record, outcome: 'NO-BRIDGE' });
+  fail('G10.a', {
+    reason: 'the CDN load did not go through bridgeBoot — fillGap closed the window instead',
+    bridgePath,
+  });
+}
 pass('G10.a', {
   timeToLiveMs: watch.timeToLiveMs,
   prefix: record.prefix,
   longestSilentMs: watch.longestSilentMs,
   peakRssKb: watch.peakRssKb,
   bridgePath,
+  deltaSpan,
 });
 if (watch.longestSilentMs > SILENCE_CONCERN_MS) {
   console.warn(

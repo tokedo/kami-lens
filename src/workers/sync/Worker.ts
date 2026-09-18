@@ -74,14 +74,31 @@
  *              90, entities 5). Measured on the G10.a cold boot; the bound
  *              itself is not touched.
  *          11. the bridge requires a STREAM url, not just a snapshot one
- *              (0.6.2, divergence 2): upstream asserts streamServiceUrl
- *              non-null inside the bridge branch because its config always
- *              carries both. The lens allows a snapshot URL with no stream
- *              URL, and in that mode the bridge's whole premise is gone —
- *              its first ask would return [] for want of a streamer and its
- *              second would too, which reads as "no events in the window"
- *              and would land LIVE over an unfilled gap. That mode takes
- *              fillGap, whose RPC path closes the window honestly.
+ *              (0.6.2, divergence 2). NOTE this is no longer a correctness
+ *              requirement after divergence 12: a delta-first bridge whose
+ *              gap-fill has the RPC fallback ON closes its window from the
+ *              chain whether or not a streamer exists, so it would be safe
+ *              here. The gate is kept as conservatism — no-stream mode goes
+ *              on taking the exact path it took before this release, and
+ *              changing that is not what this release is for. Stated rather
+ *              than left to read as load-bearing.
+ *          12. THE BRIDGE IS DELTA-FIRST, where upstream's is streamer-first
+ *              (0.6.2 ruling). Upstream reads an EMPTY streamer answer as
+ *              "out of range" and runs the snapshot delta only then. In the
+ *              lens "empty" conflates refused / threw-and-was-swallowed /
+ *              genuinely-empty / SHORT (the port skips an undecodable row
+ *              where upstream aborts), and the whole bridge window sits
+ *              BELOW the reconcile baseline seeded right after it — where
+ *              every reconcile tick is a counted no-op by design — so a
+ *              short answer would land LIVE, `degraded: []`, over a
+ *              permanent hole. That is the L-1 class. So the delta runs
+ *              ALWAYS (the same partial fetchSnapshot the 10-minute
+ *              checkpoint already trusts, on a cache whose cursors
+ *              fetchFromCdn set), then the ORDINARY fillGap from the delta
+ *              head with the RPC fallback ON; a delta that throws gap-fills
+ *              the full window instead. `skipRpcFallback` is never passed on
+ *              this path, and bridge.ts's `gap` callback no longer takes it.
+ *              Reasoning in full in bridge.ts's own banner.
  *           Type-hole fix: the snapshot catch block reads e.code on an
  *           unknown catch variable — cast to {code?: unknown} (upstream is
  *           vite-transpiled and never typechecked; no behavior change).
@@ -146,7 +163,6 @@ import {
 } from './state';
 import {
   createStream,
-  fetchGapEvents,
   fillGap,
   HEALTH_CHECK_BUFFER_MS,
   KEEPALIVE_INTERVAL_MS,
@@ -547,23 +563,26 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
       percentage: 0,
     });
 
-    // divergence 11: the bridge needs a STREAM url, not just a snapshot one —
-    // without a streamer its "empty means out of range" inference has nothing
-    // to infer from, and both its asks would answer [].
+    // divergence 11: the bridge branch requires a STREAM url and not merely a
+    // snapshot one. After divergence 12 that is conservatism, not correctness
+    // (fillGap's RPC path would close the window without a streamer) — it
+    // keeps no-stream mode on the path it already took.
+    // divergence 12: delta-first. `gap` is the ORDINARY fillGap — streamer
+    // first, RPC fallback ON — and takes no skipRpcFallback flag, because
+    // nothing on this path may answer [] for a reason it cannot name.
     const gapStateEvents =
       loadedFromCdn && kamigazeClient && streamServiceUrl
         ? await bridgeBoot({
             cache: stateCache,
             toBlock: streamStartBlockNumber,
-            gap: (fromBlock, skipRpcFallback) =>
-              fetchGapEvents({
+            gap: (fromBlock) =>
+              fillGap({
                 kamigazeUrl: streamServiceUrl,
                 decode,
                 fetchWorldEvents,
                 fromBlock,
                 toBlock: streamStartBlockNumber,
                 setPercentage,
-                skipRpcFallback,
               }),
             fetchDelta: (cache) =>
               fetchSnapshot(

@@ -10,7 +10,13 @@
 #                 export prefix. Records cold->LIVE wall time, the
 #                 `[cdn] load profile` numbers, the longest progress-silent
 #                 interval (against PRELIVE_STALL_MS 90 s — Worker.ts
-#                 divergence 10), peak RSS, and the bridge path taken.
+#                 divergence 10), peak RSS, and the bridge path taken with
+#                 the delta's block span. Since divergence 12 the bridge is
+#                 DELTA-FIRST, so the question is not "did the delta run" (it
+#                 always does) but "did it SUCCEED" — delta-ok means the
+#                 gap-fill covered only the snapshot service's sync period,
+#                 delta-failed means it log-scanned the whole window from the
+#                 chain. A CDN load that never entered the bridge FAILS.
 #
 #   G10.b [live]  parity of what that boot loaded, against the SAME daemon
 #                 while it is still LIVE: `sync.unhealedRanges` empty and the
