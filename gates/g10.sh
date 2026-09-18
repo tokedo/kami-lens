@@ -36,6 +36,23 @@
 #                 the evidence that the fallback was entered, and the gate
 #                 still reports the decision proven.
 #
+#   G10.e [live]  THE SAME COLD BOOT ON ONE CPU, in a container, on the
+#                 PACKAGED artifact — plus a `status` poll straight through
+#                 one periodic checkpoint. This Mac cannot see what the VM
+#                 sees: G10.a's longest progress silence was 2.4 s against
+#                 the 90 s bound, while the same boot on 2 vCPUs was torn
+#                 down by that bound mid-load (L-11), and the same daemon
+#                 stops answering `status` for 20-32 s every ten minutes
+#                 while it writes a checkpoint. PASS needs all four: LIVE on
+#                 bootstrap attempt ONE, zero TimeoutError chunk retries,
+#                 longest pre-LIVE progress silence < 30 s, and — across a
+#                 checkpoint the poll must actually SEE — longest
+#                 unanswered `status` gap < 2 s. `--cpuset-cpus` as well as
+#                 `--cpus`, because availableParallelism reads AFFINITY and
+#                 a cgroup quota does not narrow it (divergence 15 would
+#                 otherwise be measured in a configuration no VM has).
+#                 Rations its own CDN pulls: three, by a counter artifact.
+#
 #   G10.d [hermetic]  runs in vitest, not here: test/cdn-full-load.test.ts.
 #                 Nonce mismatch declines; a gone chunk restarts once from a
 #                 newer manifest and rejects on the same block; a malformed
@@ -43,8 +60,11 @@
 #                 fatal. `npm test` covers it, and that file's header maps
 #                 each case onto the test that carries it.
 #
-# DO NOT RUN G10.a MORE THAN THREE TIMES IN TOTAL. Each is a ~30 MB CDN pull:
-# cheap, not free, and the point is one clean record rather than a sample.
+# DO NOT RUN G10.a MORE THAN THREE TIMES IN TOTAL. Each is a ~80 MB CDN pull
+# (79.6 MB gzipped on the wire / 204.6 MB applied, measured 0.6.2): cheap,
+# not free, and the point is one clean record rather than a sample. G10.e
+# has the same cap and enforces it itself (gates/.artifacts/g10e-runs.json)
+# rather than relying on this comment being read.
 #
 # DATA DIRS. Both legs run on G10_DATA_DIR (default gates/.artifacts/g10-data,
 # gitignored; G10.c uses that path + '-grpc') and DELETE it first to force a
@@ -78,5 +98,12 @@ $TSX gates/g10/c-fallback.mts || rc=$?
 printf 'G10.c exit %s\n' "$rc"
 [ "$rc" -eq 0 ] || exit "$rc"
 
+printf '\n== G10.e cold boot on ONE CPU + status through a checkpoint (live, docker) ==\n'
+rc=0
+$TSX gates/g10/e-cpu-limited.mts || rc=$?
+printf 'G10.e exit %s\n' "$rc"
+[ "$rc" -eq 0 ] || exit "$rc"
+
 printf '\nG10 PASS — check docs/measurements/g10a-cdn-cold-boot-*.json,\n'
-printf '           g10b-cdn-parity-*.json and g10c-cdn-fallback-*.json\n'
+printf '           g10b-cdn-parity-*.json, g10c-cdn-fallback-*.json and\n'
+printf '           g10e-cdn-cold-boot-1cpu-*.json\n'

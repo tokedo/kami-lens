@@ -28,6 +28,28 @@ export default tseslint.config(
     languageOptions: { globals: { URL: 'readonly' } },
   },
   {
+    // CommonJS gate helpers that run INSIDE the packaged container, under
+    // bare `node` with no tsx and no tsconfig (gates/g10/e-poller.cjs).
+    // They are plain CJS by necessity, so require() and the Node globals
+    // are declared rather than linted against.
+    files: ['**/*.cjs'],
+    languageOptions: {
+      sourceType: 'commonjs',
+      globals: {
+        require: 'readonly',
+        module: 'writable',
+        process: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        setInterval: 'readonly',
+        clearInterval: 'readonly',
+        console: 'readonly',
+        __dirname: 'readonly',
+      },
+    },
+    rules: { '@typescript-eslint/no-require-imports': 'off' },
+  },
+  {
     // Ported and vendored trees stay byte-faithful to upstream (DESIGN §3.4),
     // so style rules that would force edits there are off. Native kami-lens
     // code (src/*.ts at the top level, gates, scripts, tests) keeps them.
