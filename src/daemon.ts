@@ -16,6 +16,16 @@
 // warm-restart heal — splice at the Kamigaze cursors and refetch — assumes
 // Kamigaze indexing throughout; upstream avoids this by construction
 // because the browser saves exactly once, before any live events.)
+//
+// AND SINCE 0.6.3 THAT IS WHY IT RUNS SOMEWHERE ELSE (divergence 16). The
+// refresh never touches the live mirror, so the whole of it — deserialize
+// the stored cache, delta, serialize, commit — happens in a child process
+// (workers/checkpoint/) and the main thread gets a small report. Measured
+// reason: the synchronous v8.serialize of ~230 MB left the daemon unable to
+// answer `status` for 20-32 s every ten minutes on the VM, which is both a
+// broken promise (DESIGN/server.ts: `status` is the one query that must
+// always answer) and the trigger for a watchdog restart that lands mid-write
+// — the L-8/L-10 class, manufactured by the health check itself.
 
 import { keccak256 } from '@mud-classic/utils';
 import { Interface, JsonRpcProvider } from 'ethers';
@@ -26,7 +36,6 @@ import * as clock from 'clock';
 import { abi as worldAbi } from 'abi/World.json';
 import { VERSION as CACHE_VERSION } from 'cache/db';
 import { GodID, SyncState, SyncStatus } from 'engine/constants';
-import { createDecode } from 'engine/encoders';
 import { createWorld, World } from 'engine/recs';
 import { Components } from 'network/';
 import { createComponents } from 'network/components';
@@ -34,13 +43,9 @@ import { applyNetworkUpdates } from 'network/setup';
 import { log } from 'utils/logger';
 import { createSyncWorker } from 'workers/create';
 import { Ack, InputType } from 'workers/sync';
-import { createSnapshotClient, fetchSnapshot } from 'workers/sync/snapshot';
-import {
-  getStateStore,
-  loadStateCacheFromStore,
-  saveStateCacheToStore,
-} from 'workers/sync/state';
+import { getStateStore } from 'workers/sync/state';
 import { SyncWorkerConfig, isNetworkComponentUpdateEvent } from 'workers/types';
+import { CheckpointHost } from 'workers/checkpoint/host';
 
 import { setupCacheInvalidationHandler } from 'network/systems/CacheInvalidationSystem';
 
@@ -54,7 +59,7 @@ import {
   syncHealthReport,
   unhealedForMs,
 } from './sync-health';
-import { Tripwires, tripwireReport } from './tripwires';
+import { Tripwires, absorbTripwires, tripwireReport } from './tripwires';
 
 /** Documented error marker for refusing a cold start without a snapshot
  * source (DESIGN §3.1; asserted by gate G1.e). */
@@ -109,8 +114,9 @@ export type DaemonStatus = {
   bootstrapMode: 'warm' | 'cold' | 'unknown';
   /** cached block the warm resume started from (0 when cold) */
   resumeFromBlock: number;
-  /** last Kamigaze-consistent checkpoint (null before first LIVE) */
-  checkpoint: CheckpointReport | null;
+  /** last Kamigaze-consistent checkpoint (null before first LIVE), plus
+   * whether one is being written right now (0.6.3) */
+  checkpoint: (CheckpointReport & { inFlight: boolean }) | null;
   checkpointCount: number;
   tripwires: Tripwires;
   /** nonzero tripwires, rendered as 'name:count' — empty means healthy.
@@ -184,6 +190,8 @@ export class KamiLensDaemon {
   private checkpointCount = 0;
   private lastCheckpoint: CheckpointReport | null = null;
   private checkpointInFlight = false;
+  /** the off-thread checkpoint runner (§3.5, divergence 16) */
+  private readonly checkpointHost = new CheckpointHost();
   private liveBlockNumber = 0;
   private lastStreamEventAtWallMs = 0;
   private bootstrapMode: 'warm' | 'cold' | 'unknown' = 'unknown';
@@ -619,33 +627,39 @@ export class KamiLensDaemon {
     this.checkpointInFlight = true;
     const t0 = Date.now();
     try {
-      const store = await getStateStore(
-        this.config.chainId,
-        this.config.worldAddress,
-        CACHE_VERSION,
-        this.config.dataDir
-      );
-      let cache = await loadStateCacheFromStore(store);
-      const client = createSnapshotClient(this.config.kamigazeUrl);
-      cache = await fetchSnapshot(
-        cache,
-        client,
-        createDecode(),
-        10,
-        () => {},
-        () => {}
-      );
-      await saveStateCacheToStore(store, cache);
+      // divergence 16 (0.6.3): the whole refresh runs in a child process.
+      // The body that used to be here is workers/checkpoint/job.ts,
+      // unchanged in substance — this method now only asks for it and
+      // records the receipt, which is the point: nothing below this line
+      // deserializes or serializes anything on this thread.
+      const { report, durationMs } = await this.checkpointHost.run({
+        chainId: this.config.chainId,
+        worldAddress: this.config.worldAddress,
+        cacheVersion: CACHE_VERSION,
+        dataDir: this.config.dataDir,
+        kamigazeUrl: this.config.kamigazeUrl,
+        snapshotNumChunks: 10,
+      });
+      // the counters moved with the work, so they have to come back — a
+      // nonce bump or a decode failure raised by the delta must still reach
+      // `status.degraded` (tripwires.ts absorbTripwires)
+      absorbTripwires(report.tripwires);
       this.checkpointCount++;
       this.lastCheckpoint = {
-        blockNumber: cache.blockNumber,
-        kamigazeNonce: cache.kamigazeNonce,
-        stateEntries: cache.state.size,
-        numComponents: cache.components.length,
-        numEntities: cache.entities.length,
+        blockNumber: report.blockNumber,
+        kamigazeNonce: report.kamigazeNonce,
+        stateEntries: report.stateEntries,
+        numComponents: report.numComponents,
+        numEntities: report.numEntities,
         at: new Date().toISOString(),
         durationMs: Date.now() - t0,
       };
+      log.info('[daemon] checkpoint written off-thread', {
+        blockNumber: report.blockNumber,
+        stateEntries: report.stateEntries,
+        durationMs,
+        childPeakRssKb: report.peakRssKb,
+      });
       this.status$.next(this.getStatus());
       return this.lastCheckpoint;
     } finally {
@@ -728,7 +742,16 @@ export class KamiLensDaemon {
       streamSilentMs,
       bootstrapMode: this.bootstrapMode,
       resumeFromBlock: this.resumeFromBlock,
-      checkpoint: this.lastCheckpoint,
+      // §3.5 (0.6.3): `inFlight` is additive and costs nothing to answer.
+      // It is here because it is now ANSWERABLE — before divergence 16 a
+      // `status` asked during a checkpoint did not return at all, so the
+      // honest value of this field was unobservable by construction. null
+      // stays null: a checkpoint cannot be in flight before the first one
+      // has been adopted (the interval timer starts at LIVE, after the
+      // post-backfill save is read), so there is no state this hides.
+      checkpoint: this.lastCheckpoint
+        ? { ...this.lastCheckpoint, inFlight: this.checkpointInFlight }
+        : null,
       checkpointCount: this.checkpointCount,
       tripwires,
       degraded: [
@@ -791,7 +814,21 @@ export class KamiLensDaemon {
     if (this.clockSyncTimer) clearInterval(this.clockSyncTimer);
     this.clockProvider?.destroy();
     if (this.retryTimer) clearTimeout(this.retryTimer);
-    if (this.liveAt && this.config.kamigazeUrl) {
+    // §3.5 (0.6.3), shutdown protocol. A checkpoint already in flight is
+    // DRAINED rather than raced: it is doing the same work the final
+    // refresh would do, and starting a second one beside it is how two
+    // writers end up in one file. The drain is bounded and ends in a kill
+    // by PID; the file is safe at every instant either way, because
+    // commitSnapshotFile's order leaves a valid primary or a valid `.prev`
+    // and never neither (the L-8/L-10 class).
+    if (this.checkpointInFlight) {
+      try {
+        const outcome = await this.checkpointHost.drain();
+        log.warn('[daemon] in-flight checkpoint drained at shutdown', { outcome });
+      } catch (e) {
+        log.error('[daemon] draining the checkpoint child failed', e);
+      }
+    } else if (this.liveAt && this.config.kamigazeUrl) {
       try {
         await this.checkpoint();
       } catch (e) {

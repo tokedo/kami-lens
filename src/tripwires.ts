@@ -34,3 +34,22 @@ export const tripwires: Tripwires = {
 export function tripwireReport(): Tripwires {
   return { ...tripwires };
 }
+
+/**
+ * Fold counters raised in a CHILD process into this process's totals
+ * (0.6.3: the periodic checkpoint runs off the main thread,
+ * workers/checkpoint/).
+ *
+ * Without this the counters would silently move with the work. The
+ * checkpoint's delta is exactly where `kamigazeNonceBumps` fires and one of
+ * two places `decodeFailures` does, and the child exits — so a nonce bump
+ * that used to mark the daemon `degraded` for the rest of its life would
+ * have been counted into a process that no longer exists. Deltas, never
+ * absolutes: the child starts from zero every time.
+ */
+export function absorbTripwires(delta: Partial<Tripwires>): void {
+  for (const key of Object.keys(tripwires) as (keyof Tripwires)[]) {
+    const n = delta[key];
+    if (typeof n === 'number' && Number.isFinite(n) && n > 0) tripwires[key] += n;
+  }
+}

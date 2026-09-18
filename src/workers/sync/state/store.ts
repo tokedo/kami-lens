@@ -20,6 +20,14 @@
  *           The data directory comes from src/config.ts, overridable per
  *           store via the dataDir parameter — the same injection slot where
  *           upstream's get() accepts a custom idb?: IDBFactory.
+ *           0.6.3: the commit sequence is EXTRACTED into commitSnapshotFile
+ *           without changing a single step of it. The order is the crash
+ *           safety (see that function), so it is now one named thing with
+ *           the invariant written on it and an abort-point seam a test can
+ *           drive — and the periodic checkpoint, which since 0.6.3 runs in
+ *           a child process (workers/checkpoint/), reaches exactly this
+ *           code, so the on-disk contract is the same code and not a second
+ *           implementation of it.
  */
 
 import { promises as fs } from 'node:fs';
@@ -127,23 +135,7 @@ export class FileStateStore {
       blockNumber: (this.stores.get('BlockNumber')?.get('current') as number) ?? 0,
     };
     const buffer = v8.serialize({ header, stores: this.stores });
-
-    await fs.mkdir(path.dirname(this.filePath), { recursive: true });
-    const tmpPath = `${this.filePath}.tmp`;
-    const handle = await fs.open(tmpPath, 'w');
-    try {
-      await handle.writeFile(buffer);
-      await handle.sync();
-    } finally {
-      await handle.close();
-    }
-    // keep one previous generation
-    try {
-      await fs.rename(this.filePath, `${this.filePath}.prev`);
-    } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
-    }
-    await fs.rename(tmpPath, this.filePath);
+    await commitSnapshotFile(this.filePath, buffer);
     log.debug('[StateStore] snapshot flushed', {
       file: this.filePath,
       bytes: buffer.byteLength,
@@ -151,6 +143,60 @@ export class FileStateStore {
     });
   }
 }
+
+/** Where a commit is, for the abort-point test seam below. */
+export type CommitStage = 'tmp-written' | 'rotated' | 'committed';
+
+/**
+ * Write one snapshot generation: temp file → fsync → rotate → atomic rename.
+ *
+ * THE ORDER IS THE CRASH SAFETY, and it is what makes a SIGTERM (or a
+ * `kill` of the checkpoint child, 0.6.3) survivable at every instant:
+ *
+ *   before anything        primary valid (old), `.prev` valid (older)
+ *   after the tmp write    unchanged — `.tmp` is not read by anyone
+ *   after the rotation     primary MISSING, `.prev` valid (the old primary)
+ *   after the rename       primary valid (new), `.prev` valid (the old one)
+ *
+ * So there is never an instant with neither a valid primary nor a valid
+ * `.prev`, which is what readSnapshotFile's two-candidate walk relies on
+ * (the L-8/L-10 class: a daemon killed mid-checkpoint). The guarantee comes
+ * from the ORDER, not from anybody waiting politely — a waiter only avoids
+ * losing the work, never the file.
+ *
+ * `onStage` exists so a test can abort at each of those instants against
+ * this code rather than against a re-implementation of it. Production
+ * callers pass nothing.
+ */
+export async function commitSnapshotFile(
+  filePath: string,
+  buffer: Buffer | Uint8Array,
+  onStage?: (stage: CommitStage) => void | Promise<void>
+): Promise<void> {
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  const tmpPath = `${filePath}.tmp`;
+  const handle = await fs.open(tmpPath, 'w');
+  try {
+    await handle.writeFile(buffer);
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+  await onStage?.('tmp-written');
+  // keep one previous generation
+  try {
+    await fs.rename(filePath, `${filePath}.prev`);
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
+  }
+  await onStage?.('rotated');
+  await fs.rename(tmpPath, filePath);
+  await onStage?.('committed');
+}
+
+/** Read a snapshot file the way a boot does — primary first, then `.prev`.
+ * Exported for the crash-safety test (0.6.3); the class uses it internally. */
+export const readSnapshot = readSnapshotFile;
 
 async function readSnapshotFile(
   filePath: string

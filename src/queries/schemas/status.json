@@ -60,7 +60,14 @@
             "object",
             "null"
           ],
-          "additionalProperties": true
+          "additionalProperties": true,
+          "description": "\u00a73.5: the last Kamigaze-consistent checkpoint, plus `inFlight` (0.6.3) \u2014 whether one is being written right now. NULL before the first LIVE, and then never again; a checkpoint cannot be in flight before the first has been adopted, so null hides no state. `inFlight` is answerable at all only because the write moved off the main thread (DESIGN \u00a73.5, divergence 16): before 0.6.3 a `status` asked during a checkpoint did not return for 20-32 s. additionalProperties stays true \u2014 the report's own fields are the daemon's CheckpointReport and are not re-declared here.",
+          "properties": {
+            "inFlight": {
+              "type": "boolean",
+              "description": "a checkpoint refresh is running in the checkpoint child right now. Additive in 0.6.3 (ADDITIVE_LEAVES_063)."
+            }
+          }
         },
         "tripwires": {
           "type": "object",

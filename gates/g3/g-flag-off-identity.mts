@@ -199,6 +199,10 @@ const ADDITIVE_LEAVES_060 = [
  * list above was: a re-capture absorbs changes nobody intended, and anything
  * NOT on these lists still fails. */
 const ADDITIVE_LEAVES_062 = ['lastFullLoad', 'stateCdnUrl'];
+// 0.6.3: `checkpoint.inFlight` (the checkpoint moved off the main thread,
+// so "is one being written" became answerable) and `lastFullLoad.kind`
+// (a warm boot's delta read as a full load).
+const ADDITIVE_LEAVES_063 = ['inFlight', 'kind'];
 
 /** Does a leaf path belong to a 0.5.2 additive field? Matches the last
  * dot-segment (array indices stripped), so `kamis[3].cooldownUntil` and
@@ -209,7 +213,8 @@ function isAdditive052(path: string): boolean {
     ADDITIVE_LEAVES_052.includes(leaf) ||
     ADDITIVE_LEAVES_053.includes(leaf) ||
     ADDITIVE_LEAVES_060.includes(leaf) ||
-    ADDITIVE_LEAVES_062.includes(leaf)
+    ADDITIVE_LEAVES_062.includes(leaf) ||
+    ADDITIVE_LEAVES_063.includes(leaf)
   );
 }
 

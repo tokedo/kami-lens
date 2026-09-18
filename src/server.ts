@@ -130,6 +130,12 @@ export function buildStatusData(
     resumeFromBlock: s.resumeFromBlock,
     startedAt: s.startedAt,
     liveAt: s.liveAt,
+    // §3.5 (0.6.3): the report plus `inFlight`. Since divergence 16 the
+    // write happens in a child process, so "a checkpoint is being written"
+    // is a state this answer can actually be given DURING — before it, a
+    // `status` asked mid-checkpoint did not come back at all (20-32 s of
+    // silence every ten minutes on the VM), which is what the watchdog read
+    // as a dead unit.
     checkpoint: s.checkpoint as unknown as Record<string, unknown> | null,
     tripwires: s.tripwires as unknown as Record<string, number>,
     degraded: s.degraded,
