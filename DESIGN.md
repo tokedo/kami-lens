@@ -4,7 +4,8 @@ Status: **v1 — settled** (2026-07-20; untrusted-text policy §3.10 and
 Kamiden scope settled in design session 2, same date; §3.7
 parity-reference standard amended 2026-07-21; §3.1/§3.2 gap-recovery
 inverted and §3.17 added 2026-09-06; §3.8 clock fields renamed and §3.15
-freshness paragraph added 2026-09-06, describes 0.6.1). Evidence base:
+freshness paragraph added 2026-09-06; §3.1 state-CDN cold boot and §4.1
+bridge added 2026-09-17, describes 0.6.2). Evidence base:
 [docs/upstream-client-architecture.md](docs/upstream-client-architecture.md)
 (study of the official client at upstream commit `ef898fc9`),
 re-verified claim-by-claim against a fresh clone on 2026-07-20 (see
@@ -56,6 +57,52 @@ public Yominet RPC taken the same day (§4.1).
   because its production config always sets the Kamigaze URL; its
   no-snapshot code path is exercised only against short local dev
   chains, where replay-from-genesis is cheap and complete.
+- **A cold boot streams the full image from the state CDN first
+  (0.6.2), and falls back to the gRPC path above.** The bullet at the
+  top of this section describes what a cold start COSTS, and the cost
+  was the problem: one gRPC `GetState` stream carrying the whole ECS
+  image, which failed five times running on the VM on 2026-09-12 —
+  `UNKNOWN: Response closed without headers` at "Querying for State",
+  the 90-s pre-LIVE watchdog (§3.2) cutting each retry ladder, every
+  attempt restarting from block 0. The only cold start that worked
+  afterwards was copying a 230 MB checkpoint file between machines by
+  hand, which is not a procedure. Upstream moved the image off the
+  snapshot service: an exporter writes it to S3 behind CloudFront
+  (`state.prod.kamigotchi.io`) every ~2 h with a 2-day object expiry,
+  and the deployed web client cold-boots from it in parallel chunks.
+  kami-lens does the same, with the CDN **on by default** (§5
+  zero-config: a fresh machine should take the fast path without being
+  told to). The shape:
+  - `latest.json` names the export — nonce, block, key prefix, and the
+    number of values and entities chunks. It is fetched on a tight
+    budget, because a stalled read here is dead time in front of the
+    fallback, and it is REFUSED unless the prefix is non-empty and
+    every count is a positive integer. A zero count is the dangerous
+    shape and the reason the validation exists: it would fetch
+    nothing, raise no 404, and still finalise the cache at
+    `manifest.block` — a mirror silently missing everything below a
+    block it claims.
+  - The manifest's nonce must equal the nonce a live `GetStateBlock`
+    reports, checked before a byte of state is fetched. The manifest
+    is up to one export interval old, so after a reindex it still
+    names the previous nonce while its indices are dead.
+  - Components land FIRST (values decode against them), then values
+    and entities in parallel with a bounded number of chunks in
+    flight; entities strictly in index order, because the cache only
+    appends at the tail.
+  - **Everything else takes the gRPC path, and that is the contract**:
+    an unreadable or malformed manifest, a nonce disagreement, a cache
+    warm enough to serve a delta, any chunk failure, and a chunk set
+    that aged out of the bucket while `latest.json` survived (404 or
+    403 — never retried; the manifest is re-read ONCE in case the
+    exporter simply moved on, and a manifest still naming the same
+    block is a real failure). Switching `stateCdnUrl` off is the same
+    path unconditionally.
+  - Nothing is believed about the world that Kamigaze does not also
+    say. It is the same image by a cheaper route, stamped at the same
+    nonce, and `status.lastFullLoad` records which route was taken,
+    with the export prefix — because "which image is this daemon
+    holding" must be answerable without grepping a log.
 - One deliberate divergence: upstream, configured without a snapshot
   source against a pruned RPC, would silently replay empty ranges
   and report LIVE over an incomplete world. kami-lens refuses to
@@ -215,7 +262,10 @@ model and swaps the store for a **single-file binary snapshot**:
 
 The cache is **disposable by design** (a Kamigaze nonce change
 already forces full reload upstream), which is what makes this choice
-cheap to revise. SQLite (`node:sqlite`) is the named upgrade if
+cheap to revise. From 0.6.2 it is disposable in practice as well as in
+principle: a cold checkpoint is no longer a file someone copies between
+machines by hand, because §3.1's CDN path rebuilds one in a single
+parallel fetch. SQLite (`node:sqlite`) is the named upgrade if
 checkpoint cost bites (§6); `v8.serialize`'s Node-version coupling is
 acceptable for a disposable cache.
 
@@ -1135,6 +1185,29 @@ swap points (re-verified exhaustive, with amendments):
    localStorage local-cache helpers** (→ strip both)
 7. Vite path aliases (→ tsconfig/tsup)
 
+**The bridge from a CDN image to the live stream (0.6.2).** A CDN load
+lands at the exporter's block, which is up to an export interval behind
+the stream's start, and that window is closed differently from the
+snapshot path's: the streamer is asked FIRST over the whole window with
+the RPC fallback OFF, because the window can be two hours wide and the
+log scan walks it fifty blocks at a time. An EMPTY answer is read as "the
+streamer's cache no longer reaches back that far" — which the snapshot
+delta fixes, after which the streamer is asked again from the new head,
+since the snapshot itself always trails the chain by its sync period. If
+the delta fails, the whole window is log-scanned with RPC on. The
+reconcile baseline (§3.17) seeds after the bridge exactly as it does
+after `fillGap`: the bridge closes the same window, and a baseline left
+unseeded would make every reconcile tick a counted no-op.
+
+Reading empty as out-of-range holds only while the streamer REFUSES an
+ask below its eviction watermark rather than answering short — upstream
+says so, and in kami-lens there is a second precondition upstream does
+not have: the port skips an undecodable row rather than aborting the load
+(the hygiene divergence below), so a window whose only rows were
+undecodable answers short rather than empty, and the delta would not run.
+Counted as `decodeFailures` either way. Recorded here rather than assumed
+away; the case needs a chain-side answer, not a gapfill-side guess.
+
 Port hygiene — upstream artifacts **not** to lift as-is:
 
 - The worker never reads `config.initialBlockNumber`; a fresh cache
@@ -1298,13 +1371,29 @@ Never silent gaps.
 - **Zero-config by default**: baked defaults are the production
   Yominet values from the upstream README — chain id
   `428962654539583`, world `0x2729174c265dbBd8416C6449E0E813E88f43D0E7`,
-  initial block `44577`, the public Initia RPC/WSS endpoints, and
-  `https://api.prod.kamigotchi.io`. `kami-lens daemon` works with no
-  config file.
+  initial block `44577`, the public Initia RPC/WSS endpoints,
+  `https://api.prod.kamigotchi.io`, and — from 0.6.2 —
+  `https://state.prod.kamigotchi.io` as `stateCdnUrl`, the production
+  value the deployed web client's own bundle ships (§3.1).
+  `kami-lens daemon` works with no config file.
+- **`stateCdnUrl` is the one optional URL whose default is ON, and it is
+  switched off by value rather than by omission.** Upstream's flag is
+  inert until set; here the default is set, because zero-config means a
+  fresh machine takes the FAST cold start without being told to, and the
+  slow one is what every failure mode already falls back to. Off is the
+  empty string, `false`, or `none` (and the TOML boolean `false`), at any
+  precedence level, and off means today's gRPC cold start byte for byte.
+  ONE CAVEAT, and it is stated because it cannot be fixed without
+  changing every key: an EMPTY environment variable does not disable it.
+  The env layer maps an empty variable to "not set" for every key, so
+  `KAMI_LENS_STATE_CDN_URL=` falls through to the default;
+  `KAMI_LENS_STATE_CDN_URL=none` is the spelling that works. The flag and
+  the config file accept the empty string.
 - **Config precedence**: CLI flags > env vars (`KAMI_LENS_*`) > TOML
   file (`~/.config/kami-lens/config.toml` or platform equivalent) >
   baked defaults. Keys: chain id, world address, RPC/WSS URLs,
-  Kamigaze URL, data dir, checkpoint interval, optional default
+  Kamigaze URL, state CDN URL, data dir, checkpoint interval,
+  reconcile interval, optional default
   operator (a convenience prefill for the general operator-argument
   tools — never a special path).
 - **Data dir**: platform data directory, cache files keyed

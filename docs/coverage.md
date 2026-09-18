@@ -46,7 +46,7 @@ than left as an implied `planned`.
 | menu | UI navigation chrome, no world state | — | out-of-scope | — |
 | notifications | client-local derivations: quest completability, kamiden reveal events (`DTRevealerSystem`) | chain + kamiden | **deferred** — the served inputs are quests (G3.a) and feed (G4.b); the reveal input is itself unserved (see the gacha/reveal row), and the derived "alerts" digest needs its own design pass (DESIGN §6) | — |
 | action queue | local tx queue (requires acting) | — | out-of-scope (read-only) | — |
-| sync/loading state | `component.LoadingState` → daemon status | chain | served (G3.e) — and from 0.5.2 BOUNDED: a pre-LIVE daemon that stops making progress for 90 s restarts its bootstrap through the same retry schedule, `degraded` carries `pre-live-stall:<N>s`, and world reads answer `NOT_READY` rather than `NOT_FOUND` while the mirror is empty. From 0.6.0 the POST-LIVE side is bounded too (DESIGN §3.17): stream-gap recovery reads the chain rather than the Kamigaze diff, a range is applied completely or not at all, a 120 s reconcile re-reads `[reconciledThrough + 1, cursor]` whether or not a gap was noticed, and `status.sync` carries the counters — with `unhealed-ranges:<N>` in `degraded` when the mirror is known-incomplete and has not recovered across two passes. **From 0.6.1 the verified bound reaches the answer itself**: `meta.reconciledThrough` on every envelope, so a reader comparing a receipt block does not have to pair a world read with a separately-taken `status` | G3.e, G9.a, G8.b, G3.f |
+| sync/loading state | `component.LoadingState` → daemon status | chain | served (G3.e) — and from 0.5.2 BOUNDED: a pre-LIVE daemon that stops making progress for 90 s restarts its bootstrap through the same retry schedule, `degraded` carries `pre-live-stall:<N>s`, and world reads answer `NOT_READY` rather than `NOT_FOUND` while the mirror is empty. From 0.6.0 the POST-LIVE side is bounded too (DESIGN §3.17): stream-gap recovery reads the chain rather than the Kamigaze diff, a range is applied completely or not at all, a 120 s reconcile re-reads `[reconciledThrough + 1, cursor]` whether or not a gap was noticed, and `status.sync` carries the counters — with `unhealed-ranges:<N>` in `degraded` when the mirror is known-incomplete and has not recovered across two passes. **From 0.6.1 the verified bound reaches the answer itself**: `meta.reconciledThrough` on every envelope, so a reader comparing a receipt block does not have to pair a world read with a separately-taken `status`. **From 0.6.2 the COLD-START side changes route** (DESIGN §3.1): the full image is streamed from the S3/CloudFront state export in parallel chunks and bridged forward to the live stream, with the Kamigaze gRPC cold start as the fallback for every decline and every failure, and `status.lastFullLoad` naming which route served this process — `null` on a warm boot, which ran no full load. Nothing a query answers changes | G3.e, G9.a, G8.b, G3.f, G10 |
 
 ## Modals
 
@@ -761,6 +761,17 @@ fields. Nothing was renamed or retyped and no field changed meaning; every
 dropped field is reachable through `--full`, and both shapes validate against
 one checked-in schema (G3.a, both modes). The additive-only reading of the
 SPEC §1.4 row ends here, and that row says so.
+
+## 0.6.2 — cold boot from the state CDN (2026-09-17)
+
+**Nothing player-visible changes.** No query gains, loses or retypes a
+field; every answer is byte-identical to 0.6.1's at the same state. The
+release changes how a COLD daemon acquires that state (DESIGN §3.1: the
+S3/CloudFront full-state export first, the Kamigaze gRPC stream as the
+fallback for every decline and every failure) and adds one diagnostic,
+`status.lastFullLoad`, saying which route was taken — so the only row this
+file would otherwise touch is the sync/loading-state one, and it is
+updated in place rather than restated here.
 
 ## Maintenance
 

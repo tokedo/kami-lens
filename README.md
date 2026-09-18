@@ -89,14 +89,59 @@ being guessed at.
 
 ## Status
 
-**0.6.1, pre-release.** Daemon, CLI, and library are implemented and
+**0.6.2, pre-release.** Daemon, CLI, and library are implemented and
 gate-verified against the pinned upstream commit and the live game,
 with dated per-run evidence in `docs/measurements/`. The verification
-suite is G0–G9 (G8 and G9 are manual and live); every run writes its
-own dated record, and the record — not this paragraph — is what a
+suite is G0–G10 (G8, G9 and G10 are manual and live); every run writes
+its own dated record, and the record — not this paragraph — is what a
 given release rests on. The contract registry is [SPEC.md](SPEC.md);
 per-surface coverage — what is served, what is deferred, what is out
 of scope — is [docs/coverage.md](docs/coverage.md).
+
+### What changed in 0.6.2, for the things that read this daemon
+
+One change you will notice, one you will only notice if you were
+watching the daemon come up, and one you would never have noticed and
+should know about anyway.
+
+**A fresh daemon starts much faster, and you do not have to do
+anything.** Until now, a daemon with no saved state fetched the whole
+world down one streaming connection from the game's snapshot service.
+When that connection broke — and through early September it broke
+repeatedly — the daemon started over from the beginning, every time. The
+game's own web client no longer works that way: the world is exported to
+a file store every couple of hours, and the client downloads it in
+several pieces at once. This daemon now does the same, out of the box,
+with no configuration.
+
+**If it cannot, it quietly does what it used to.** Every way this can go
+wrong — the export is missing, unreadable, out of date against the live
+world, or its files have expired — falls back to the old path. You can
+also turn it off outright, with `--state-cdn-url none` (or `false`, or
+the empty string), and then the daemon behaves exactly as 0.6.1 did.
+Turning it off is a setting, not a workaround: nothing about the answers
+changes either way.
+
+**`status` now tells you which way it came up.** A new `lastFullLoad`
+says whether this daemon's world came from the file store or from the
+snapshot service, which export it was, which block and nonce it is
+stamped at, and how long it took. It reads `null` on a daemon that
+resumed from saved state, which is the normal restart — that is not a
+problem, it just means no full load happened. `status.config` gains
+`stateCdnUrl` when the file store is in use, and `configSources` always
+says which level decided it.
+
+**No query answer changes.** No field was renamed, retyped, removed or
+given a new meaning, and the deprecated clock-field aliases from 0.6.1
+are still here — they go in 0.7.0 as promised, not in a patch.
+
+Under the hood, two bugs we had never picked up from upstream are fixed.
+One made a busy snapshot service look like a broken one. The other could
+silently drop the tail of a block from the saved world file, and drop it
+permanently — some values are written once and never repeated, so a
+missed one stays missed. Both are the snapshot path, both are described
+in SPEC.md's changelog, and neither was visible from the outside, which
+is precisely why they are worth naming here.
 
 ### What changed in 0.6.1, for the things that read this daemon
 

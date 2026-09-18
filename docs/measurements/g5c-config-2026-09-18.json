@@ -1,0 +1,200 @@
+{
+  "gate": "g5c-config",
+  "measuredAt": "2026-09-18T04:38:59.195Z",
+  "pairs": [
+    {
+      "pair": "flag>env",
+      "expected": 333000,
+      "got": {
+        "value": 333000,
+        "source": "flag"
+      },
+      "ok": true
+    },
+    {
+      "pair": "flag>file",
+      "expected": 333000,
+      "got": {
+        "value": 333000,
+        "source": "flag"
+      },
+      "ok": true
+    },
+    {
+      "pair": "flag>default",
+      "expected": 333000,
+      "got": {
+        "value": 333000,
+        "source": "flag"
+      },
+      "ok": true
+    },
+    {
+      "pair": "env>file",
+      "expected": 222000,
+      "got": {
+        "value": 222000,
+        "source": "env"
+      },
+      "ok": true
+    },
+    {
+      "pair": "env>default",
+      "expected": 222000,
+      "got": {
+        "value": 222000,
+        "source": "env"
+      },
+      "ok": true
+    },
+    {
+      "pair": "file>default",
+      "expected": 111000,
+      "got": {
+        "value": 111000,
+        "source": "file"
+      },
+      "ok": true
+    }
+  ],
+  "enrichPairs": [
+    {
+      "case": "default",
+      "expected": false,
+      "got": {
+        "value": false,
+        "source": "default"
+      },
+      "ok": true
+    },
+    {
+      "case": "flag(true)>env",
+      "expected": true,
+      "got": {
+        "value": true,
+        "source": "flag"
+      },
+      "ok": true
+    },
+    {
+      "case": "flag(false)>env",
+      "expected": false,
+      "got": {
+        "value": false,
+        "source": "flag"
+      },
+      "ok": true
+    },
+    {
+      "case": "flag(true)>file",
+      "expected": true,
+      "got": {
+        "value": true,
+        "source": "flag"
+      },
+      "ok": true
+    },
+    {
+      "case": "flag(false)>file",
+      "expected": false,
+      "got": {
+        "value": false,
+        "source": "flag"
+      },
+      "ok": true
+    },
+    {
+      "case": "flag(true)>default",
+      "expected": true,
+      "got": {
+        "value": true,
+        "source": "flag"
+      },
+      "ok": true
+    },
+    {
+      "case": "flag(false)>default",
+      "expected": false,
+      "got": {
+        "value": false,
+        "source": "flag"
+      },
+      "ok": true
+    },
+    {
+      "case": "env(true)>file",
+      "expected": true,
+      "got": {
+        "value": true,
+        "source": "env"
+      },
+      "ok": true
+    },
+    {
+      "case": "env(false)>file",
+      "expected": false,
+      "got": {
+        "value": false,
+        "source": "env"
+      },
+      "ok": true
+    },
+    {
+      "case": "env(true)>default",
+      "expected": true,
+      "got": {
+        "value": true,
+        "source": "env"
+      },
+      "ok": true
+    },
+    {
+      "case": "env(false)>default",
+      "expected": false,
+      "got": {
+        "value": false,
+        "source": "env"
+      },
+      "ok": true
+    },
+    {
+      "case": "file(true)>default",
+      "expected": true,
+      "got": {
+        "value": true,
+        "source": "file"
+      },
+      "ok": true
+    },
+    {
+      "case": "file(false)>default",
+      "expected": false,
+      "got": {
+        "value": false,
+        "source": "file"
+      },
+      "ok": true
+    },
+    {
+      "case": "env '1' rejected",
+      "expected": true,
+      "got": true,
+      "ok": true
+    }
+  ],
+  "statusIntegration": {
+    "ok": true,
+    "checkpointIntervalMs": 333000,
+    "source": "flag",
+    "defaultOperator": 2160,
+    "configFile": "/Users/anatolyzaytsev/kami-lens/gates/.artifacts/g5c-scratch/config-111000.toml",
+    "enrich": true,
+    "enrichSource": "flag"
+  },
+  "noneSemantics": {
+    "ok": true,
+    "kamidenUrl": null,
+    "source": "flag"
+  },
+  "match": true
+}
