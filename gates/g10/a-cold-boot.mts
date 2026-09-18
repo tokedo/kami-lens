@@ -49,9 +49,10 @@
 // G10_DATA_DIR (see gates/g10/lib.mts), reads the production daemon's log
 // read-only, and signals nothing.
 
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { promisify } from 'node:util';
 
 import { resolveConfig } from '../../src/config';
 import { KamiLensDaemon } from '../../src/daemon';
@@ -73,6 +74,31 @@ const PRELIVE_STALL_MS = 90_000;
 /** the brief's own threshold: a silence past this on a 10-core Mac is a
  * warning about the 2-vCPU VM, whose decode throughput is about half */
 const SILENCE_CONCERN_MS = 60_000;
+/**
+ * EVERY SUBPROCESS ON THIS LEG IS AWAITED, NEVER execFileSync'd, AND THAT IS
+ * LOAD-BEARING RATHER THAN STYLE.
+ *
+ * The daemon under test is IN THIS PROCESS (swap point 2, in-process worker)
+ * and so is its query socket. `execFileSync` blocks the event loop for the
+ * whole life of the child, so a child that asks this daemon a question over
+ * that socket can never be answered: the gate waits for the child, the child
+ * waits for the socket, and the socket is served by the loop the gate is
+ * blocking. The first two G10.b runs deadlocked exactly there — the drift
+ * probe's `status` call timed out at 10 s and then at 40 s, and the raised
+ * budget bought nothing because no amount of time helps a deadlock. The
+ * symptom reads like a slow box, which is what made it worth writing down.
+ *
+ * G3.b never touches the socket (it reads a snapshot file and the chain), so
+ * it would have survived execFileSync — it is awaited too, so that the daemon
+ * keeps applying stream events and reconciling during the minutes that leg
+ * takes, instead of going artificially stale inside its own parity gate.
+ *
+ * The ONE sync child that stays sync is the `ps` RSS sample in lib.mts: it
+ * returns in milliseconds, never speaks to the socket, and making it async
+ * would let the sampler interleave with itself.
+ */
+const execFileAsync = promisify(execFile);
+
 const DRIFT_PROBE = path.join(
   process.env.HOME ?? '',
   'kami-lab',
@@ -256,13 +282,14 @@ console.log(`[g10.b] socket ${socketPath(G10_DATA_DIR)}`);
 // the template's 45 s SELF_TIMEOUT_S. Those numbers are right for the
 // production watchdog — a quiet box, and a self-bound that must not wedge it —
 // and wrong for a gate that runs the probe beside a multi-GB cold boot. So the
-// copy gets room and the gate's own execFileSync timeout does the bounding
+// copy gets room and the gate's own subprocess timeout does the bounding
 // instead. The TEMPLATE IN kami-lab IS NOT TOUCHED. Recorded as a finding: the
 // knob the probe wants is not just --data-dir but configurable budgets.
 //
 // A warm-up `status` round trip goes first, from the gate itself over the
 // socket, so the probe's first call is not also paying for a cold page cache.
 let drift: Record<string, unknown> = { skipped: 'probe not found', path: DRIFT_PROBE };
+let warmup = 'not attempted';
 try {
   const template = await fs.readFile(DRIFT_PROBE, 'utf8');
   let probe = template
@@ -304,18 +331,27 @@ try {
   // warm the CLI bundle and the daemon's head-sample provider, so the probe's
   // first call is not the one paying for a cold start (see the note above)
   try {
-    execFileSync(process.execPath, [path.join(REPO_ROOT, 'dist', 'cli.js'), 'status', '--data-dir', G10_DATA_DIR], {
-      encoding: 'utf8',
-      timeout: 60_000,
-      stdio: ['ignore', 'ignore', 'ignore'],
-    });
-  } catch {
-    /* the probe reports an unreachable lens itself, and more usefully */
+    await execFileAsync(
+      process.execPath,
+      [path.join(REPO_ROOT, 'dist', 'cli.js'), 'status', '--data-dir', G10_DATA_DIR],
+      { encoding: 'utf8', timeout: 60_000 }
+    );
+    warmup = 'ok';
+  } catch (e) {
+    // NOT swallowed silently: a failing warm-up is the first sign the socket
+    // is not answering, which is precisely the failure the async rewrite
+    // above exists to prevent. The probe reports it more usefully, so this
+    // does not gate — but it is recorded.
+    warmup = `failed: ${e instanceof Error ? e.message : String(e)}`;
   }
   // read the exit code, not the output alone — 2 is a SKIP, not a pass. The
   // gate's bound is deliberately above the copy's raised SELF_TIMEOUT_S.
-  const out = execFileSync('python3', [probePath], { encoding: 'utf8', timeout: 600_000 });
-  drift = JSON.parse(out.trim().split('\n').filter(Boolean).pop() ?? '{}') as Record<string, unknown>;
+  const { stdout } = await execFileAsync('python3', [probePath], {
+    encoding: 'utf8',
+    timeout: 600_000,
+    maxBuffer: 16 * 1024 * 1024,
+  });
+  drift = JSON.parse(stdout.trim().split('\n').filter(Boolean).pop() ?? '{}') as Record<string, unknown>;
   drift.exitCode = 0;
 } catch (e) {
   const err = e as { status?: number; stdout?: string; message?: string };
@@ -327,6 +363,7 @@ try {
   };
 }
 bDetail.drift = drift;
+bDetail.socketWarmup = warmup;
 // 0 divergences on a probe that actually RAN. A skip (exit 2) is not a pass:
 // the whole point of this leg is that the comparison happened.
 bChecks.driftProbeRan = drift.exitCode === 0 && !drift.skipped;
@@ -345,7 +382,7 @@ await fs.copyFile(snapshotFilePath(config), g10Snapshot);
 console.log(`[g10.b] checkpoint at block ${cp.blockNumber} copied for the G3.b cross-check`);
 let occupancy: Record<string, unknown>;
 try {
-  const out = execFileSync(
+  const { stdout } = await execFileAsync(
     'npx',
     ['tsx', '--tsconfig', 'tsconfig.json', 'gates/g3/b-node-occupancy.mts'],
     {
@@ -353,9 +390,10 @@ try {
       encoding: 'utf8',
       env: { ...process.env, G3B_SNAPSHOT: g10Snapshot },
       timeout: 1_800_000,
+      maxBuffer: 64 * 1024 * 1024,
     }
   );
-  occupancy = { exitCode: 0, tail: out.trim().split('\n').slice(-3) };
+  occupancy = { exitCode: 0, tail: stdout.trim().split('\n').slice(-3) };
 } catch (e) {
   const err = e as { status?: number; stdout?: string; stderr?: string; message?: string };
   occupancy = {

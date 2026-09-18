@@ -1,65 +1,66 @@
 {
   "gate": "g10a-cdn-cold-boot",
-  "measuredAt": "2026-09-18T05:19:14.567Z",
+  "measuredAt": "2026-09-18T05:22:45.801Z",
   "outcome": "LIVE",
   "cdnUrl": "https://state.prod.kamigotchi.io",
-  "timeToLiveMs": 24922,
+  "timeToLiveMs": 24692,
   "servedBy": "cdn",
-  "servedLine": "[state] full load served by CDN {\"source\":\"https://state.prod.kamigotchi.io\",\"cdnConfigured\":true,\"prefix\":\"96/33440132/2026-09-18T04Z\",\"block\":33440132,\"nonce\":96,\"components\":99,\"entities\":1299199,\"values\":3026892,\"seconds\":8.08}",
+  "servedLine": "[state] full load served by CDN {\"source\":\"https://state.prod.kamigotchi.io\",\"cdnConfigured\":true,\"prefix\":\"96/33440132/2026-09-18T04Z\",\"block\":33440132,\"nonce\":96,\"components\":99,\"entities\":1299199,\"values\":3026892,\"seconds\":8.12}",
   "prefix": "96/33440132/2026-09-18T04Z",
   "loadProfile": {
-    "wallSeconds": 8.08,
-    "applySeconds": 6.2,
+    "wallSeconds": 8.12,
+    "applySeconds": 6.28,
     "applyShareOfWall": "77%",
-    "valuesApplySeconds": 4.34,
-    "entitiesApplySeconds": 1.86,
-    "protoParseSeconds": 1,
-    "fetchSecondsInflatedByBlocking": 22.69,
+    "valuesApplySeconds": 4.43,
+    "entitiesApplySeconds": 1.85,
+    "protoParseSeconds": 0.96,
+    "fetchSecondsInflatedByBlocking": 20.62,
     "valueRows": 3026892,
     "entityRows": 1299198,
-    "microsecondsPerValueRow": 1.4,
+    "microsecondsPerValueRow": 1.5,
     "megabytes": 204.6,
-    "megabytesPerSecond": 25.3
+    "megabytesPerSecond": 25.2
   },
   "lastFullLoad": {
     "source": "cdn",
     "prefix": "96/33440132/2026-09-18T04Z",
     "block": 33440132,
     "nonce": 96,
-    "seconds": 8.08,
-    "at": "2026-09-18T05:18:59.718Z"
+    "seconds": 8.12,
+    "at": "2026-09-18T05:22:31.092Z"
   },
   "progress": {
+    "maxSilenceMs": 2656,
     "longestSilentMs": 0,
-    "longestSilentOn": "LIVE|100|Streaming Live Events|33441286",
+    "longestSilentOn": "BACKFILL|77.5|Querying for State|0",
     "preLiveStallBoundMs": 90000,
-    "headroomMs": 90000,
+    "headroomMs": 87344,
     "concernThresholdMs": 60000,
     "overConcernThreshold": false,
     "silences": [],
     "samples": 90
   },
   "memory": {
-    "peakRssKb": 4253744,
-    "peakHeapRssKb": 4253744,
+    "peakRssKb": 4190256,
+    "peakHeapRssKb": 4190256,
     "samples": 17
   },
   "bridgePath": "delta-first: delta applied, then gap-filled from the delta head",
   "deltaSpan": {
     "from": 33440132,
-    "to": 33441287,
-    "blocks": 1155,
-    "toBlock": 33441288
+    "to": 33441361,
+    "blocks": 1229,
+    "toBlock": 33441364
   },
   "bridgeLines": [
-    "[bridge] delta-first bridge {\"from\":33440132,\"toBlock\":33441288}",
-    "[bridge] snapshot delta applied {\"from\":33440132,\"to\":33441287,\"blocks\":1155,\"toBlock\":33441288}"
+    "[bridge] delta-first bridge {\"from\":33440132,\"toBlock\":33441364}",
+    "[bridge] snapshot delta applied {\"from\":33440132,\"to\":33441361,\"blocks\":1229,\"toBlock\":33441364}"
   ],
   "gapfillLines": [],
   "storedBlocks": 2,
   "cdnLines": [
     "[cdn] cold boot: loading full state from CDN {\"block\":33440132,\"nonce\":96,\"values\":4,\"entities\":5}",
-    "[cdn] load profile {\"wallSeconds\":8.08,\"applySeconds\":6.2,\"applyShareOfWall\":\"77%\",\"valuesApplySeconds\":4.34,\"entitiesApplySeconds\":1.86,\"protoParseSeconds\":1,\"fetchSecondsInflatedByBlocking\":22.69,\"valueRows\":3026892,\"entityRows\":1299198,\"microsecondsPerValueRow\":1.4,\"megabytes\":204.6,\"megabytesPerSecond\":25.3}"
+    "[cdn] load profile {\"wallSeconds\":8.12,\"applySeconds\":6.28,\"applyShareOfWall\":\"77%\",\"valuesApplySeconds\":4.43,\"entitiesApplySeconds\":1.85,\"protoParseSeconds\":0.96,\"fetchSecondsInflatedByBlocking\":20.62,\"valueRows\":3026892,\"entityRows\":1299198,\"microsecondsPerValueRow\":1.5,\"megabytes\":204.6,\"megabytesPerSecond\":25.2}"
   ],
   "checkpoint": {
     "blockNumber": 33440132,
@@ -67,7 +68,7 @@
     "stateEntries": 3026892,
     "numComponents": 99,
     "numEntities": 1299199,
-    "at": "2026-09-18T05:19:14.565Z",
+    "at": "2026-09-18T05:22:45.799Z",
     "durationMs": 0
   },
   "sync": {
@@ -75,7 +76,7 @@
     "gapsHealed": 0,
     "gapsDeferred": 0,
     "reconcilePasses": 0,
-    "reconciledThrough": 33441288,
+    "reconciledThrough": 33441364,
     "lastReconcileAt": null,
     "unhealedRanges": [],
     "lastHealMs": null,
