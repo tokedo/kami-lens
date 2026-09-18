@@ -39,6 +39,79 @@ describe('classifyPaths (§3.10 derivation)', () => {
     expect(classifyPaths(schema).get('surprise')).toBe('authored-prose');
   });
 
+  // 0.6.3: the walk compared `node.type === 'object'` against a bare
+  // string, so a NULLABLE block — `type: ['object', 'null']`, which is how
+  // `checkpoint` has been declared since 0.2.0 and `lastFullLoad` since
+  // 0.6.2 — was never descended into, and every classification entry under
+  // one was inert. Silent both ways: nothing was mis-listed, and nothing
+  // was classified either, so a string under such a block took the
+  // artifact's default without anyone choosing it.
+  it('descends a NULLABLE object block and classifies the strings under it', () => {
+    const schema = {
+      $ref: '#/$defs/Top',
+      $defs: {
+        Top: {
+          type: 'object',
+          properties: { block: { $ref: '#/$defs/Nullable' } },
+        },
+        Nullable: {
+          type: ['object', 'null'],
+          properties: { tag: { type: 'string' }, note: { type: 'string' } },
+        },
+      },
+    };
+    const classes = classifyPaths(schema);
+    // walked at all — before 0.6.3 the map was EMPTY for this schema
+    expect([...classes.keys()]).toEqual(['block.tag', 'block.note']);
+    // and the artifact's own classification is what decides the class
+    expect(classes.get('block.tag')).toBe('authored-prose'); // unlisted → default
+  });
+
+  it('descends an anyOf whose other branch is null', () => {
+    const schema = {
+      $ref: '#/$defs/Top',
+      $defs: {
+        Top: {
+          type: 'object',
+          properties: {
+            block: { anyOf: [{ type: 'object', properties: { tag: { type: 'string' } } }, { type: 'null' }] },
+            list: { anyOf: [{ type: 'array', items: { type: 'string' } }, { type: 'null' }] },
+          },
+        },
+      },
+    };
+    const classes = classifyPaths(schema);
+    expect(classes.get('block.tag')).toBe('authored-prose');
+    expect(classes.get('list[]')).toBe('authored-prose');
+  });
+
+  it('the real status schema classifies the strings under its nullable blocks', () => {
+    const classes = classifyPaths(loadSchema('status'));
+    // lastFullLoad is `type: ['object','null']`; its entries were declared
+    // in 0.6.2 and never reached until the walk was fixed
+    expect(classes.get('lastFullLoad.source')).toBe('system');
+    expect(classes.get('lastFullLoad.prefix')).toBe('system');
+    expect(classes.get('lastFullLoad.kind')).toBe('system');
+    expect(classes.get('lastFullLoad.at')).toBe('system');
+  });
+
+  // Found BY the fix above, and pre-existing: neither of these was ever
+  // classified, so both took the authored-prose default and were therefore
+  // DELETED from a served answer with a receipt in `meta.suppressed` —
+  // `config.stateCdnUrl` from every status answer since 0.6.2, and every
+  // `feedsDegraded` entry since 0.5.2 whenever the array was non-empty. The
+  // envelope and the derivation agreed, which is why G3.f passed: they were
+  // consistently wrong. Both are machine-produced strings, so `system`.
+  it('classifies every status string that a reader is meant to receive', () => {
+    const classes = classifyPaths(loadSchema('status'));
+    expect(classes.get('config.stateCdnUrl')).toBe('system');
+    expect(classes.get('feedsDegraded[]')).toBe('system');
+    // nothing in status may default: it is all daemon-produced text
+    for (const [p, c] of classes) {
+      expect(c, `status path ${p} is unclassified`).not.toBe('authored-prose');
+    }
+  });
+
   it('every query schema derives without error and lists only present classes', () => {
     for (const name of [...QUERY_NAMES, 'status', 'kami-stateless'] as const) {
       const classes = classifyPaths(loadSchema(name as never));

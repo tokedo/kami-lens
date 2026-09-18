@@ -186,11 +186,33 @@ export function loadClassification(): Classification {
 }
 
 type SchemaNode = {
-  type?: string;
+  /** a single type, or JSON Schema's list form — `['object', 'null']` for a
+   * nullable block, which is what 0.6.3 fixed the walk to descend into */
+  type?: string | string[];
   properties?: Record<string, SchemaNode>;
   items?: SchemaNode;
   $ref?: string;
+  anyOf?: SchemaNode[];
   [k: string]: unknown;
+};
+
+/** Does this node admit `t`, however its schema spells the type?
+ *
+ * 0.6.3: before this, the walk compared `node.type === 'object'` and
+ * `node.type === 'string'` against a bare string, so EVERY NULLABLE BLOCK
+ * WAS SKIPPED — `checkpoint` since 0.2.0 and `lastFullLoad` since 0.6.2 are
+ * `type: ['object', 'null']`, so the walk never descended and their
+ * classification entries were inert. Silent in both directions: nothing
+ * listed a path it should not have, and nothing was classified either, so a
+ * string under a nullable block would have taken the artifact's default
+ * without anybody choosing it. An `anyOf` with a null branch is the other
+ * spelling of the same thing and is handled here too, rather than waiting
+ * to be discovered by whichever schema uses it first. */
+const admits = (node: SchemaNode, t: 'object' | 'string' | 'array'): boolean => {
+  if (node.type === t) return true;
+  if (Array.isArray(node.type) && node.type.includes(t)) return true;
+  if (Array.isArray(node.anyOf)) return node.anyOf.some((branch) => admits(branch, t));
+  return false;
 };
 
 /** Walk a query's output schema and derive, for every string-valued path,
@@ -214,21 +236,27 @@ export function classifyPaths(schema: QuerySchema): Map<string, StringClass> {
   const walk = (raw: SchemaNode, atPath: string, defName?: string): void => {
     const { node, defName: refName } = resolve(raw);
     const owner = refName ?? defName;
-    if (node.type === 'string') {
+    if (admits(node, 'string')) {
       const leaf = (atPath.split('.').pop() ?? '').replace(/\[\]$/, '');
       const listed = owner ? cls.types[owner]?.[leaf] : undefined;
       out.set(atPath, listed ?? cls.default);
       return;
     }
-    if (node.type === 'object' && node.properties) {
-      for (const [key, child] of Object.entries(node.properties)) {
+    // `properties` may sit on the node itself or inside an anyOf branch
+    // beside a null one — a nullable block, which before 0.6.3 was skipped
+    // entirely (see `admits`).
+    const properties =
+      node.properties ?? node.anyOf?.find((branch) => branch.properties)?.properties;
+    if (admits(node, 'object') && properties) {
+      for (const [key, child] of Object.entries(properties)) {
         // the resolved owner propagates through anonymous nested objects
         walk(child, atPath === '' ? key : `${atPath}.${key}`, refName ?? defName);
       }
       return;
     }
-    if (node.type === 'array' && node.items) {
-      walk(node.items, `${atPath}[]`, refName ?? defName);
+    const items = node.items ?? node.anyOf?.find((branch) => branch.items)?.items;
+    if (admits(node, 'array') && items) {
+      walk(items, `${atPath}[]`, refName ?? defName);
     }
   };
 
