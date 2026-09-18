@@ -166,32 +166,64 @@ try {
     if (!steps.checkpointBootHealthy) {
       fail('G5.b', { reason: 'the checkpoint-phase boot never went healthy', thirdSeconds, steps });
     }
-    // checkpoint #1 is the boot's adopted post-backfill save; a PERIODIC
-    // one takes the count past it
-    const countAtLive = statusField<number>('checkpointCount');
+    // WHAT COUNTS AS "A PERIODIC CHECKPOINT RAN", using only what the
+    // daemon actually SERVES. The first attempt asked for
+    // `status.checkpointCount`, which the daemon keeps and never surfaces
+    // (DaemonStatus has it; buildStatusData does not emit it and the
+    // schema does not declare it) — so the check read `undefined >
+    // undefined` and failed a phase whose every other assertion passed.
+    // Reported as a finding; not worked around by adding a served field
+    // mid-gate.
+    //
+    // The two facts that ARE observable, and together they are stronger
+    // than a counter: this container's log gains a "checkpoint written
+    // off-thread" line (the child forked, ran and reported — the whole of
+    // divergence 16), and `status.checkpoint.blockNumber` advances (it
+    // wrote a NEWER image, not the same one again). The container is fresh
+    // for this phase, so its log starts empty and any such line is a
+    // PERIODIC checkpoint: a warm boot ADOPTS the stored one and writes
+    // nothing.
+    const offThreadCount = (): number =>
+      run('docker', ['logs', CONTAINER], 120_000)
+        .split('\n')
+        .filter((l) => l.includes('checkpoint written off-thread')).length;
     const blockAtLive = (statusField<CheckpointBlock>('checkpoint'))?.blockNumber ?? 0;
-    let countNow = countAtLive;
+    const offThreadAtLive = offThreadCount();
     let blockNow = blockAtLive;
+    let offThreadNow = offThreadAtLive;
     const deadline = Date.now() + CHECKPOINT_INTERVAL_MS * 4;
     while (Date.now() < deadline) {
       await sleep(5_000);
-      countNow = statusField<number>('checkpointCount');
+      offThreadNow = offThreadCount();
       blockNow = (statusField<CheckpointBlock>('checkpoint'))?.blockNumber ?? 0;
-      console.log(`[g5.b] checkpointCount ${countAtLive} -> ${countNow} (block ${blockNow})`);
-      if (countNow > countAtLive) break;
+      console.log(
+        `[g5.b] off-thread checkpoints ${offThreadAtLive} -> ${offThreadNow}, ` +
+          `checkpoint block ${blockAtLive} -> ${blockNow}`
+      );
+      if (offThreadNow > offThreadAtLive && blockNow > blockAtLive) break;
     }
-    checkpointPhase = { thirdSeconds, countAtLive, countNow, blockAtLive, blockNow };
-    steps.periodicCheckpointRan = countNow > countAtLive;
-    // the same fact from the other side: the daemon says where it wrote it
     const logs = run('docker', ['logs', CONTAINER], 120_000);
     const offThread = logs.split('\n').filter((l) => l.includes('checkpoint written off-thread'));
     const failedLines = logs.split('\n').filter((l) => l.includes('checkpoint failed'));
-    checkpointPhase.offThreadLines = offThread.length;
-    checkpointPhase.offThreadSample = offThread.slice(-1);
-    checkpointPhase.failedLines = failedLines;
+    checkpointPhase = {
+      thirdSeconds,
+      blockAtLive,
+      blockNow,
+      offThreadAtLive,
+      offThreadNow,
+      offThreadSample: offThread.slice(-1),
+      failedLines,
+      // the child's own peak RSS, as it reported it — the number a memory
+      // budget for this container has to cover on top of the daemon's
+      // searched over the WHOLE log, not over the matched lines: the
+      // daemon pretty-prints that object across several lines, so
+      // `childPeakRssKb` sits BELOW the line the filter matched (it came
+      // back null on the first recorded run for exactly that reason)
+      childPeakRssKb: /childPeakRssKb: (\d+)/.exec(logs)?.[1] ?? null,
+    };
+    steps.periodicCheckpointRan = offThreadNow > offThreadAtLive;
     steps.checkpointRanOffThread = offThread.length > 0;
     steps.noCheckpointFailures = failedLines.length === 0;
-    // it wrote a NEWER image, not the same one again
     steps.checkpointBlockAdvanced = blockNow > blockAtLive;
   }
 } finally {
