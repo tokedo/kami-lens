@@ -55,6 +55,26 @@ RUN set -eu; \
 ENV KAMI_LENS_DATA_DIR=/data
 VOLUME /data
 
+# HEAP CAP, AND IT IS NOT OPTIONAL (0.6.3). A cold boot builds the whole
+# ECS image in memory: peak RSS 4.19-4.39 GB measured on the Mac
+# (g10a/g10c, 0.6.2) and 3.58-3.83 GB on the VM. Node picks its own
+# old-space default from the machine it finds, and in a container that
+# default is far below what this needs — measured 2,096 MiB in
+# node:20-slim on an 11.65 GiB host, where the zero-config daemon died
+# `FATAL ERROR: Ineffective mark-compacts near heap limit` at 2,042 MB,
+# 20 s in, 71.9 % through the values apply. Every daemon that has worked
+# was started with this flag by hand (the Mac service, and the VM unit at
+# 4096 then 6144); the image never set it, and nothing caught that because
+# G5.a had not run since 0.2.0, when the world still fit.
+#
+# 6144 matches the VM unit: ~1.4x the measured peak, and it is a CAP rather
+# than a reservation — V8 grows into it lazily, which is why the same boot
+# peaks LOWER under a smaller cap (3.58 GB at 6144 on the VM against
+# 4.39 GB at 8192 on the Mac). The checkpoint child carries its OWN cap
+# (workers/checkpoint/host.ts) and does not draw on this one, so a
+# container needs headroom above this for both.
+ENV NODE_OPTIONS=--max-old-space-size=6144
+
 # healthy = the daemon answers its own status query with LIVE; the start
 # period covers a cold bootstrap (G1.a measured ~44 s; warm ~15 s)
 HEALTHCHECK --interval=30s --timeout=15s --start-period=180s --retries=3 \

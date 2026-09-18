@@ -22,8 +22,36 @@ import { loadSchema } from '../../src/queries/registry';
 import { fail, pass, REPO_ROOT, sleep, writeMeasurement } from '../g1/lib.mts';
 
 const CONTAINER = 'kami-lens-g5a';
+const DAEMON_LOG = '/daemon.log';
 const run = (cmd: string, args: string[], timeoutMs = 120_000): string =>
   execFileSync(cmd, args, { encoding: 'utf8', timeout: timeoutMs, cwd: REPO_ROOT });
+const runQuiet = (cmd: string, args: string[], timeoutMs = 120_000): string => {
+  try {
+    return run(cmd, args, timeoutMs);
+  } catch {
+    return '';
+  }
+};
+
+/** node:20-slim has neither `ps` nor `pgrep`, so liveness is read from
+ * /proc: any process whose comm is `node`. */
+const containerHasNode = (): boolean =>
+  runQuiet('docker', [
+    'exec', CONTAINER, 'sh', '-c',
+    'for p in /proc/[0-9]*; do [ "$(cat $p/comm 2>/dev/null)" = node ] && echo yes && break; done',
+  ]).includes('yes');
+
+const daemonLog = (): string => runQuiet('docker', ['exec', CONTAINER, 'cat', DAEMON_LOG], 60_000);
+
+/** What old-space cap Node picked for ITSELF in this container — the
+ * number the OOM diagnosis turns on. */
+const nodeHeapLimitMiB = (): number =>
+  Number(
+    runQuiet('docker', [
+      'exec', CONTAINER, 'node', '-p',
+      'Math.round(require("v8").getHeapStatistics().heap_size_limit/1048576)',
+    ]).trim()
+  ) || -1;
 
 // docker present?
 try {
@@ -59,8 +87,10 @@ try {
   steps.version = version.includes('kami-lens') && /[0-9a-f]{40}/.test(version);
   console.log(version.trim());
 
-  // zero-config daemon (baked Yominet defaults), detached
-  run('docker', ['exec', '-d', CONTAINER, 'kami-lens', 'daemon']);
+  // zero-config daemon (baked Yominet defaults), detached. Its output goes
+  // to a file so a failure can be READ rather than inferred — see the
+  // diagnosis in the wait loop below.
+  run('docker', ['exec', '-d', CONTAINER, 'sh', '-c', `kami-lens daemon > ${DAEMON_LOG} 2>&1`]);
   steps.daemonStarted = true;
 
   const t0 = Date.now();
@@ -73,6 +103,28 @@ try {
       break;
     } catch {
       /* not LIVE yet */
+    }
+    // DIAGNOSE, DO NOT JUST TIME OUT (0.6.3). This leg spent 500 s
+    // reporting "did not reach LIVE" for a daemon that had been dead for
+    // 480 of them, with the reason sitting in its own log. A dead process
+    // is a verdict, not a reason to keep waiting.
+    if (!containerHasNode()) {
+      const log = daemonLog();
+      const oom = /Ineffective mark-compacts near heap limit|heap out of memory/.test(log);
+      fail('G5.a', {
+        reason: oom
+          ? 'the zero-config daemon ran out of JS heap during the cold load'
+          : 'the daemon process exited before reaching LIVE',
+        heapLimitMiB: nodeHeapLimitMiB(),
+        note: oom
+          ? 'a cold boot builds the whole ECS image in memory (peak RSS 4.19-4.39 GB measured, ' +
+            'g10a/g10c 0.6.2). Node picks its old-space default from the machine it finds, and in ' +
+            'a container that default is far below this. Remedy: NODE_OPTIONS=--max-old-space-size=6144.'
+          : undefined,
+        secondsToExit: Math.round((Date.now() - t0) / 1000),
+        logTail: log.split('\n').slice(-25),
+        steps,
+      });
     }
   }
   coldSeconds = Math.round((Date.now() - t0) / 1000);

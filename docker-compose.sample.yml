@@ -4,11 +4,18 @@
 # (disposable by design — DESIGN §3.5) and the query socket
 # (/data/kami-lens.sock; join the volume from another container, or use
 # `docker compose exec kami-lens kami-lens <query> ...`).
+#
+# MEMORY IS NOT OPTIONAL. A cold boot builds the whole ECS image in
+# memory — peak RSS 3.6-4.4 GB measured — so the image sets
+# NODE_OPTIONS=--max-old-space-size=6144 (see Dockerfile) and the host
+# needs room above that for the checkpoint child, which has its own heap.
+# A memory limit below ~7 GB will OOM the first cold boot.
 services:
   kami-lens:
     build: .
     # image: ghcr.io/tokedo/kami-lens:latest   # once published
     restart: unless-stopped
+    # mem_limit: 7g
     volumes:
       - kami-lens-data:/data
     # environment:

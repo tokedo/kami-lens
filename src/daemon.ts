@@ -660,6 +660,14 @@ export class KamiLensDaemon {
         durationMs,
         childPeakRssKb: report.peakRssKb,
       });
+      // CLEARED BEFORE THE EMISSION, not in the finally alone. The
+      // emission below is the one that ANNOUNCES this checkpoint, and with
+      // the flag still set it announced a finished checkpoint as
+      // `inFlight: true` — observed in the packaged daemon's own log line,
+      // 2026-09-18. A socket poll was always correct (the finally runs
+      // before any later request is served), so this is the event stream
+      // only; it is still a field reading as its own opposite.
+      this.checkpointInFlight = false;
       this.status$.next(this.getStatus());
       return this.lastCheckpoint;
     } finally {
