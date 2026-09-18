@@ -1,6 +1,6 @@
 {
   "gate": "g3g-flag-off-identity",
-  "measuredAt": "2026-09-18T16:04:12.991Z",
+  "measuredAt": "2026-09-18T17:21:32.227Z",
   "snapshotBlock": 33004688,
   "clockPinSec": 1755000000,
   "baselines": [
@@ -419,7 +419,7 @@
       "masked": 3,
       "compared": 87,
       "added": 0,
-      "additive052": 3,
+      "additive052": 6,
       "removed": 0,
       "mismatches": 0
     }

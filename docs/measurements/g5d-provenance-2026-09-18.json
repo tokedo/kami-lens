@@ -1,6 +1,6 @@
 {
   "gate": "g5d-provenance",
-  "measuredAt": "2026-09-18T16:04:14.365Z",
+  "measuredAt": "2026-09-18T17:21:33.562Z",
   "pin": "ef898fc9350a6085fb080419b12af96c2254e8f3",
   "checks": {
     "licenseFile": true,
@@ -13,9 +13,9 @@
   "packageLicense": "AGPL-3.0-only",
   "versionOutput": "kami-lens 0.6.3 (upstream Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3)",
   "files": {
-    "total": 431,
+    "total": 432,
     "vendor": 389,
-    "native": 42,
+    "native": 43,
     "badVendor": [],
     "unmarked": []
   },

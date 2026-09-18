@@ -1,6 +1,6 @@
 {
   "gate": "g5b-container",
-  "measuredAt": "2026-09-18T16:44:03.016Z",
+  "measuredAt": "2026-09-18T17:27:48.048Z",
   "image": "kami-lens:g5",
   "versionCheck": {
     "declared": "0.6.3",
@@ -9,19 +9,19 @@
     "installedPkg": "0.6.3",
     "installedPackages": "1"
   },
-  "coldSeconds": 35,
+  "coldSeconds": 40,
   "warmSeconds": 30,
   "checkpointPhase": {
-    "thirdSeconds": 25,
-    "blockAtLive": 33460930,
-    "blockNow": 33460960,
+    "thirdSeconds": 30,
+    "blockAtLive": 33462016,
+    "blockNow": 33462032,
     "offThreadAtLive": 0,
     "offThreadNow": 1,
     "offThreadSample": [
       "[daemon] checkpoint written off-thread {"
     ],
     "failedLines": [],
-    "childPeakRssKb": null
+    "childPeakRssKb": "1560552"
   },
   "steps": {
     "imageBuilt": true,

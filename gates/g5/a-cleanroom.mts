@@ -178,8 +178,13 @@ try {
   if (!live) diagnosis ??= `daemon did not reach LIVE within ${LIVE_BUDGET_MS / 1000} s`;
 
   if (live) {
-    // §3.1: the heap is the daemon's own doing, and it says so
-    detail.heapLimitAfterMb = primary.heapLimitMb();
+    // §3.1: the heap is the daemon's OWN doing, and this is the datum that
+    // proves it — a FRESH node process in the same container still gets
+    // Node's default, so the daemon's limit below is not an image-wide
+    // setting leaking in. Named for what it measures: the first cut called
+    // it `heapLimitAfterMb`, which read as the daemon's limit AFTER the
+    // re-exec and so contradicted the `heap.limitMb` two lines below it.
+    detail.freshProcessHeapLimitMb = primary.heapLimitMb();
     const statusOut = run('docker', ['exec', primary.container, 'kami-lens', 'status'], 60_000);
     const status = JSON.parse(statusOut) as {
       ok: boolean;
@@ -283,6 +288,7 @@ if (!match) {
     ...(diagnosis ? { reason: diagnosis } : {}),
     steps,
     heapLimitBeforeMb: detail.heapLimitBeforeMb,
+    freshProcessHeapLimitMb: detail.freshProcessHeapLimitMb,
     heap: detail.heap,
     oomInDaemonLog: oom,
     ...(oom
