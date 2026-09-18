@@ -47,7 +47,13 @@ import { setupCacheInvalidationHandler } from 'network/systems/CacheInvalidation
 import { ConfigSource, KamiLensConfig, resolveConfigDetailed } from './config';
 import type { NativeBalanceReader } from './queries/build';
 import { KamidenFeeds, KamidenStatus } from './kamiden';
-import { type SyncHealth, syncHealthReport, unhealedForMs } from './sync-health';
+import {
+  type FullLoadRecord,
+  fullLoadReport,
+  type SyncHealth,
+  syncHealthReport,
+  unhealedForMs,
+} from './sync-health';
 import { Tripwires, tripwireReport } from './tripwires';
 
 /** Documented error marker for refusing a cold start without a snapshot
@@ -126,6 +132,10 @@ export type DaemonStatus = {
    * (an unhealed range that has outlived two reconcile intervals) does reach
    * `degraded`, as `unhealed-ranges:<N>`. */
   sync: SyncHealth & { reconcileIntervalMs: number };
+  /** §3.1 (0.6.2): which source served this process's full state load, and
+   * how long it took. null on a WARM boot, which ran no full load at all —
+   * that is not a fault, and is why the field is null rather than absent. */
+  lastFullLoad: FullLoadRecord | null;
   bootstrapAttempts: number;
   startedAt: string;
   liveAt: string | null;
@@ -135,6 +145,7 @@ export type DaemonStatus = {
     jsonRpcUrl: string;
     wsRpcUrl?: string;
     kamigazeUrl?: string;
+    stateCdnUrl?: string;
     kamidenUrl?: string;
     chatEnabled: boolean;
     enrich: boolean;
@@ -401,6 +412,7 @@ export class KamiLensDaemon {
       jsonRpcUrl,
       wsRpcUrl,
       kamigazeUrl,
+      stateCdnUrl,
       initialBlockNumber,
       dataDir,
       reconcileIntervalMs,
@@ -411,6 +423,9 @@ export class KamiLensDaemon {
       chainId,
       snapshotServiceUrl: kamigazeUrl,
       streamServiceUrl: kamigazeUrl,
+      // §3.1 (0.6.2): set = a cold boot streams the full image from the state
+      // CDN and bridges forward; unset = today's gRPC cold start unchanged.
+      stateCdnUrl,
       initialBlockNumber,
       dataDir,
       fetchSystemCalls: false,
@@ -678,6 +693,7 @@ export class KamiLensDaemon {
       jsonRpcUrl,
       wsRpcUrl,
       kamigazeUrl,
+      stateCdnUrl,
       kamidenUrl,
       chatEnabled,
       enrich,
@@ -732,6 +748,7 @@ export class KamiLensDaemon {
         ...(this.rpcLastError !== null ? { lastError: this.rpcLastError } : {}),
       },
       sync: { ...sync, reconcileIntervalMs },
+      lastFullLoad: fullLoadReport(),
       bootstrapAttempts: this.bootstrapAttempts,
       startedAt: this.startedAt,
       liveAt: this.liveAt,
@@ -741,6 +758,7 @@ export class KamiLensDaemon {
         jsonRpcUrl,
         wsRpcUrl,
         kamigazeUrl,
+        stateCdnUrl,
         kamidenUrl,
         chatEnabled,
         enrich,

@@ -28,6 +28,13 @@ export const YOMINET_DEFAULTS = {
   jsonRpcUrl: 'https://jsonrpc-yominet-1.anvil.asia-southeast.initia.xyz',
   wsRpcUrl: 'wss://jsonrpc-ws-yominet-1.anvil.asia-southeast.initia.xyz',
   kamigazeUrl: 'https://api.prod.kamigotchi.io',
+  // §3.1 (0.6.2): the S3/CloudFront state export the deployed web client
+  // cold-boots from (the bundle at app.kamigotchi.io ships this exact value).
+  // Zero-config means a fresh machine takes the FAST cold start without being
+  // told to, so this is a baked default rather than upstream's inert
+  // "unset until configured" — the inverted default is the divergence, the
+  // semantics are upstream's.
+  stateCdnUrl: 'https://state.prod.kamigotchi.io',
 } as const;
 
 export type KamiLensConfig = {
@@ -38,6 +45,14 @@ export type KamiLensConfig = {
   wsRpcUrl?: string;
   /** undefined = no snapshot/stream service configured (loud-fail cold start) */
   kamigazeUrl?: string;
+  /** State CDN (DESIGN §3.1, 0.6.2: SOFT dependency — the S3/CloudFront full
+   * state export, ~2 h old, 2-day expiry). Set = cold boots stream the full
+   * ECS image from it in parallel chunks; unset (the empty string, `false`,
+   * or `none` at any level) = today's Kamigaze gRPC cold start, byte for
+   * byte. A manifest that cannot be read, whose nonce disagrees with the live
+   * one, or a chunk set that has aged out, all fall back to gRPC on their
+   * own — the URL being set is never a promise that it is reachable. */
+  stateCdnUrl?: string;
   /** Kamiden feed service (DESIGN §3.2: SOFT dependency — outage degrades
    * feed rows only, never daemon liveness). Upstream creates the Kamiden
    * channel on the Kamigaze URL (clients/kamiden/client.ts reads
@@ -126,6 +141,7 @@ const FILE_KEYS: Record<string, { field: keyof KamiLensConfig; type: 'number' | 
   rpc_url: { field: 'jsonRpcUrl', type: 'string' },
   rpc_ws_url: { field: 'wsRpcUrl', type: 'string' },
   kamigaze_url: { field: 'kamigazeUrl', type: 'string' },
+  state_cdn_url: { field: 'stateCdnUrl', type: 'string' },
   kamiden_url: { field: 'kamidenUrl', type: 'string' },
   kamiden_buffer_capacity: { field: 'kamidenBufferCapacity', type: 'number' },
   chat_enabled: { field: 'chatEnabled', type: 'boolean' },
@@ -144,6 +160,7 @@ const ENV_KEYS: Record<string, keyof KamiLensConfig> = {
   KAMI_LENS_RPC_URL: 'jsonRpcUrl',
   KAMI_LENS_RPC_WS_URL: 'wsRpcUrl',
   KAMI_LENS_KAMIGAZE_URL: 'kamigazeUrl',
+  KAMI_LENS_STATE_CDN_URL: 'stateCdnUrl',
   KAMI_LENS_KAMIDEN_URL: 'kamidenUrl',
   KAMI_LENS_KAMIDEN_BUFFER_CAPACITY: 'kamidenBufferCapacity',
   KAMI_LENS_CHAT_ENABLED: 'chatEnabled',
@@ -166,10 +183,33 @@ const NUMBER_FIELDS = new Set<keyof KamiLensConfig>([
 ]);
 const BOOLEAN_FIELDS = new Set<keyof KamiLensConfig>(['chatEnabled', 'enrich']);
 /** URL keys accept the literal 'none' = explicitly unset at that level */
-const NONEABLE_FIELDS = new Set<keyof KamiLensConfig>(['kamigazeUrl', 'kamidenUrl', 'wsRpcUrl']);
+const NONEABLE_FIELDS = new Set<keyof KamiLensConfig>([
+  'kamigazeUrl',
+  'kamidenUrl',
+  'wsRpcUrl',
+  'stateCdnUrl',
+]);
+
+/** …and stateCdnUrl (0.6.2) ALSO accepts the empty string, `false`, and the
+ * TOML boolean `false` as "unset". It is the one URL key with a switched-ON
+ * baked default, so "turn this off" has to be sayable the way a switch is,
+ * and the three spellings a reader reaches for all mean the same thing. The
+ * widening is deliberately scoped to this key: extending it to the other
+ * three would change what `--kamigaze-url false` has always meant (a literal,
+ * broken URL) as a side effect of an unrelated release.
+ *
+ * ENV CAVEAT, stated because it cannot be fixed here honestly:
+ * `KAMI_LENS_STATE_CDN_URL=` (empty) does NOT disable it. `env()` above maps
+ * an empty variable to undefined for EVERY key — an empty env var and an
+ * unset one are the same thing to it — so the layer never registers and the
+ * baked default wins. Use `KAMI_LENS_STATE_CDN_URL=none` (or `false`). The
+ * flag and the file accept the empty string. */
+const DISABLE_VALUES = new Set(['none', 'false', '']);
+const isDisabled = (field: keyof KamiLensConfig, raw: string): boolean =>
+  field === 'stateCdnUrl' ? DISABLE_VALUES.has(raw) : NONEABLE_FIELDS.has(field) && raw === 'none';
 
 function coerce(field: keyof KamiLensConfig, raw: string): unknown {
-  if (NONEABLE_FIELDS.has(field) && raw === 'none') return undefined;
+  if (isDisabled(field, raw)) return undefined;
   if (NUMBER_FIELDS.has(field)) {
     const n = Number(raw);
     if (!Number.isFinite(n)) throw new Error(`config: ${field} must be a number, got '${raw}'`);
@@ -215,7 +255,13 @@ function fileLayer(configFile: string | null): Layer {
       console.warn(`[config] ${configFile}: unknown key '${key}' ignored`);
       continue;
     }
-    if (NONEABLE_FIELDS.has(spec.field) && value === 'none') {
+    // the TOML boolean `false` is the other way to say "off" for a switched-on
+    // URL key, and it never reaches the type check below
+    if (spec.field === 'stateCdnUrl' && value === false) {
+      layer[spec.field] = undefined;
+      continue;
+    }
+    if (typeof value === 'string' && isDisabled(spec.field, value)) {
       layer[spec.field] = undefined;
       continue;
     }
@@ -285,6 +331,7 @@ export function resolveConfigDetailed(
   };
 
   const kamigazeUrl = take<string | undefined>('kamigazeUrl', YOMINET_DEFAULTS.kamigazeUrl);
+  const stateCdnUrl = take<string | undefined>('stateCdnUrl', YOMINET_DEFAULTS.stateCdnUrl);
   const config: KamiLensConfig = {
     chainId: take('chainId', YOMINET_DEFAULTS.chainId),
     worldAddress: take('worldAddress', YOMINET_DEFAULTS.worldAddress),
@@ -292,6 +339,7 @@ export function resolveConfigDetailed(
     jsonRpcUrl: take('jsonRpcUrl', YOMINET_DEFAULTS.jsonRpcUrl),
     wsRpcUrl: take<string | undefined>('wsRpcUrl', YOMINET_DEFAULTS.wsRpcUrl),
     kamigazeUrl,
+    stateCdnUrl,
     // default couples to the RESOLVED kamigazeUrl, not the baked one
     kamidenUrl: take<string | undefined>('kamidenUrl', kamigazeUrl),
     kamidenBufferCapacity: take('kamidenBufferCapacity', 4096),
@@ -322,6 +370,7 @@ export const CONFIG_FLAGS: Record<string, keyof KamiLensConfig | 'configFile'> =
   '--rpc-url': 'jsonRpcUrl',
   '--rpc-ws-url': 'wsRpcUrl',
   '--kamigaze-url': 'kamigazeUrl',
+  '--state-cdn-url': 'stateCdnUrl',
   '--kamiden-url': 'kamidenUrl',
   '--kamiden-buffer-capacity': 'kamidenBufferCapacity',
   '--chat-enabled': 'chatEnabled',

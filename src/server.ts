@@ -151,6 +151,11 @@ export function buildStatusData(
     // mirror was known-incomplete. `reconciledThrough` is the complete-range
     // lower bound that `liveBlockNumber` is not (§3.15).
     sync: s.sync as unknown as Record<string, unknown>,
+    // §3.1 (0.6.2): which source served this process's full state load. The
+    // answer to "did this daemon cold-boot from the CDN or from gRPC, and how
+    // long did it take" without grepping a log the reader may not have. null
+    // on a warm boot — no full load ran.
+    lastFullLoad: s.lastFullLoad as unknown as Record<string, unknown> | null,
     clockOffsetMs: clock.offset(),
     clockLastSyncWallMs: clock.lastObservedAtWallMs(),
     config: {
@@ -159,6 +164,11 @@ export function buildStatusData(
       jsonRpcUrl: s.config.jsonRpcUrl,
       ...(s.config.wsRpcUrl ? { wsRpcUrl: s.config.wsRpcUrl } : {}),
       ...(s.config.kamigazeUrl ? { kamigazeUrl: s.config.kamigazeUrl } : {}),
+      // §3.1 (0.6.2): absent when the state CDN is switched off, like every
+      // other optional URL here. `configSources.stateCdnUrl` is ALWAYS
+      // present, so which precedence level decided it — including a level
+      // that decided "off" — stays readable either way (G5.c).
+      ...(s.config.stateCdnUrl ? { stateCdnUrl: s.config.stateCdnUrl } : {}),
       ...(s.config.kamidenUrl ? { kamidenUrl: s.config.kamidenUrl } : {}),
       chatEnabled: s.config.chatEnabled,
       // the §3.12 enrichment flag, always surfaced (a switch you can only

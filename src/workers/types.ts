@@ -13,7 +13,10 @@
  *           swap point 3). 0.6.0 adds reconcileIntervalMs (DESIGN §3.17,
  *           "L-1"): the period of the stream's periodic chain reconcile,
  *           configured by the daemon. Upstream has no such pass — a page
- *           reload is its reconcile. Everything else verbatim.
+ *           reload is its reconcile. 0.6.2 takes stateCdnUrl from the
+ *           forward-port below. Everything else verbatim.
+ * forward-port: @ 21f419e63e0a7f6b642c255efeb89dd1c288de1c (sync-affecting
+ *           bucket, ahead of the pin — SPEC §4.2): stateCdnUrl?: string.
  */
 
 import { Components, ComponentValue, EntityID, SchemaOf } from 'engine/recs';
@@ -98,5 +101,6 @@ export type SyncWorkerConfig = {
   fetchSystemCalls?: boolean;
   reconcileIntervalMs?: number;
   snapshotNumChunks?: number;
+  stateCdnUrl?: string;
   pruneOptions?: { playerAddress: string; hashedComponentId: string };
 };

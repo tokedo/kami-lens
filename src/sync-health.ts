@@ -18,6 +18,13 @@
 // an unhealed range that has outlived two reconcile intervals means the
 // mirror is known-incomplete and has not recovered on its own.
 
+// 0.6.2 adds ONE more record here that is not a recovery counter:
+// `lastFullLoad`. It lives in this module for exactly the reason the counters
+// above do — the full load happens inside the sync worker (swap point 2,
+// in-process) and the daemon's status() has no handle on it — and it is
+// reported at `status.lastFullLoad`, NOT inside the `status.sync` block, so
+// the §3.17 block keeps meaning only what it has always meant.
+
 /** A block range [from, to] that recovery could not apply. */
 export type UnhealedRange = [number, number];
 
@@ -114,9 +121,40 @@ export function clearUnhealed(from: number, to: number): void {
   if (syncHealth.unhealedRanges.length === 0) unhealedSinceWallMs = null;
 }
 
+/** Which source served the last full state load of this process (§3.1, 0.6.2).
+ * 'cdn' = the S3/CloudFront state export; 'grpc' = the Kamigaze snapshot
+ * service. `prefix` is present only on the CDN path — it is the export's own
+ * key prefix, which is what identifies WHICH image was loaded (nonce and block
+ * do not identify one on their own). */
+export type FullLoadRecord = {
+  source: 'cdn' | 'grpc';
+  prefix?: string;
+  block: number;
+  nonce: number;
+  /** wall seconds the load took */
+  seconds: number;
+  /** when it finished (ISO) */
+  at: string;
+};
+
+/** null until a full load runs in this process — which on a WARM boot is
+ * never, and reads as "this daemon resumed a cache rather than loading an
+ * image". Not a fault, and distinguishable from a load that failed (that one
+ * never reaches LIVE at all). */
+let lastFullLoad: FullLoadRecord | null = null;
+
+export function recordFullLoad(record: FullLoadRecord): void {
+  lastFullLoad = record;
+}
+
+export function fullLoadReport(): FullLoadRecord | null {
+  return lastFullLoad === null ? null : { ...lastFullLoad };
+}
+
 /** Test-only: back to a fresh process's counters. */
 export function resetSyncHealth(): void {
   Object.assign(syncHealth, initial());
   syncHealth.unhealedRanges.length = 0;
   unhealedSinceWallMs = null;
+  lastFullLoad = null;
 }

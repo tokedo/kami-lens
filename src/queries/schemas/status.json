@@ -20,7 +20,8 @@
         "config",
         "configSources",
         "rpcReads",
-        "sync"
+        "sync",
+        "lastFullLoad"
       ],
       "properties": {
         "version": {
@@ -136,6 +137,10 @@
             "reconcileIntervalMs": {
               "type": "number",
               "description": "\u00a73.17 (0.6.0): period of the sync layer's periodic chain reconcile. 0 = disabled, and status.sync carries the same number so a reader can tell a backstop that is off from one that has simply not fired."
+            },
+            "stateCdnUrl": {
+              "type": "string",
+              "description": "\u00a73.1 (0.6.2): the S3/CloudFront state export a cold boot streams its full image from. ABSENT when switched off, like every other optional URL here \u2014 and then a cold boot takes the Kamigaze gRPC path byte for byte. Unlike the others its baked default is SET (the production value the deployed web client ships), so absence here means someone turned it off; `configSources.stateCdnUrl` says at which level."
             }
           }
         },
@@ -191,6 +196,9 @@
         },
         "sync": {
           "$ref": "#/$defs/Sync"
+        },
+        "lastFullLoad": {
+          "$ref": "#/$defs/LastFullLoad"
         }
       }
     },
@@ -390,6 +398,47 @@
         "reconcileIntervalMs": {
           "type": "number",
           "description": "the configured reconcile period, echoed here so a reader can tell a backstop that is switched off (0) from one that has simply not fired yet."
+        }
+      }
+    },
+    "LastFullLoad": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "description": "\u00a73.1 (0.6.2): which source served this PROCESS's full state load, and how long it took. NULL on a warm boot, which resumed a cached image and ran no full load \u2014 that is the normal restart and not a fault; a load that FAILED never reaches LIVE at all, so null never means \"it went wrong\". The same fact is logged as `[state] full load served by CDN|gRPC`; this field exists so a reader does not have to hold the log.",
+      "required": [
+        "source",
+        "block",
+        "nonce",
+        "seconds",
+        "at"
+      ],
+      "properties": {
+        "source": {
+          "type": "string",
+          "description": "'cdn' = the S3/CloudFront state export; 'grpc' = the Kamigaze snapshot service. A configured CDN that DECLINED (unreadable manifest, nonce disagreement, warm-enough cache) or that failed mid-load reads 'grpc' here \u2014 the fallback is the contract, and `config.stateCdnUrl` says whether it was configured at all."
+        },
+        "prefix": {
+          "type": "string",
+          "description": "the export's own key prefix, e.g. '96/33437307/2026-09-18T02Z'. Present only on the CDN path. It is what identifies WHICH image was loaded: nonce and block do not identify one on their own, and the exporter owns the layout."
+        },
+        "block": {
+          "type": "number",
+          "description": "the Kamigaze block the loaded image is stamped at (cache.lastKamigazeBlock). The gap from here to the stream's start is what the bridge closes."
+        },
+        "nonce": {
+          "type": "number",
+          "description": "the Kamigaze nonce of the loaded image. A change against a previously synced nonce is counted in tripwires.kamigazeNonceBumps."
+        },
+        "seconds": {
+          "type": "number",
+          "description": "wall seconds the load took, CDN or gRPC. The number the two paths are compared by."
+        },
+        "at": {
+          "type": "string",
+          "description": "when the load finished (ISO)."
         }
       }
     }

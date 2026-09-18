@@ -179,6 +179,27 @@ const ADDITIVE_LEAVES_060 = [
   'reconcileIntervalMs',
 ];
 
+/** 0.6.2 adds TWO leaves, on the same terms.
+ *
+ * - `lastFullLoad` (§3.1): which source served this process's full state
+ *   load. On this gate's UNSTARTED daemon no load has run, so the value is
+ *   null and `leaves()` renders the leaf as `lastFullLoad` itself — which is
+ *   why only the block name is listed and not its six inner keys. Listing
+ *   those would be worse than useless here: `source`, `block`, `nonce`, `at`
+ *   and `seconds` are generic enough that an entry for each would mask a
+ *   removal somewhere else in the tree, which is exactly what this list must
+ *   not do. A future release that captures baselines against a STARTED daemon
+ *   will see `lastFullLoad.source` and friends and has to say so then.
+ * - `stateCdnUrl` (§3.1): the config key, which lands on BOTH `config` and
+ *   `configSources` (configSources is keyed by every config field, so a new
+ *   field always adds a leaf there). One entry covers both, because the
+ *   matcher below resolves a path to its last dot-segment.
+ *
+ * Declared rather than re-capturing the baselines, for the same reason every
+ * list above was: a re-capture absorbs changes nobody intended, and anything
+ * NOT on these lists still fails. */
+const ADDITIVE_LEAVES_062 = ['lastFullLoad', 'stateCdnUrl'];
+
 /** Does a leaf path belong to a 0.5.2 additive field? Matches the last
  * dot-segment (array indices stripped), so `kamis[3].cooldownUntil` and
  * `harvests[0].vitals.cooldownUntil` both resolve to `cooldownUntil`. */
@@ -187,7 +208,8 @@ function isAdditive052(path: string): boolean {
   return (
     ADDITIVE_LEAVES_052.includes(leaf) ||
     ADDITIVE_LEAVES_053.includes(leaf) ||
-    ADDITIVE_LEAVES_060.includes(leaf)
+    ADDITIVE_LEAVES_060.includes(leaf) ||
+    ADDITIVE_LEAVES_062.includes(leaf)
   );
 }
 

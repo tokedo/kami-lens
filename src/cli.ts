@@ -13,6 +13,9 @@
 //   --rpc-ws-url --kamigaze-url --kamiden-url --kamiden-buffer-capacity
 //   --chat-enabled true|false --chat-max-bytes --default-operator
 //   --enrich true|false --data-dir <path> --checkpoint-interval-ms
+//   --reconcile-interval-ms (0 = off, §3.17)
+//   --state-cdn-url <url>|none|false|'' (§3.1; DEFAULT ON — the empty
+//     string, `none` or `false` takes the Kamigaze gRPC cold start instead)
 // The enrichment flag (§3.12) is a DAEMON setting: `kami-lens daemon
 // --enrich true` decides the surface every client of that daemon sees. Given
 // to a query invocation it parses and does nothing — the query path is a
@@ -62,7 +65,10 @@ function usage(): never {
       '  --rpc-url, --rpc-ws-url, --kamigaze-url, --kamiden-url,',
       '  --kamiden-buffer-capacity, --chat-enabled, --chat-max-bytes,',
       '  --enrich true|false (DAEMON-side payload enrichment, §3.12),',
-      '  --default-operator, --data-dir, --checkpoint-interval-ms',
+      '  --default-operator, --data-dir, --checkpoint-interval-ms,',
+      '  --reconcile-interval-ms (0 = off, §3.17),',
+      "  --state-cdn-url <url>|none|false|'' (state CDN cold boot, §3.1;",
+      '    default ON — switching it off takes the gRPC cold start)',
     ].join('\n')
   );
   process.exit(EXIT_USAGE);

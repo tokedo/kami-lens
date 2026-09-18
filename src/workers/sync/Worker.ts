@@ -2,6 +2,10 @@
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
  * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
  * path:     packages/client/src/workers/sync/Worker.ts
+ * forward-port: @ 21f419e63e0a7f6b642c255efeb89dd1c288de1c (sync-affecting
+ *           bucket, ahead of the pin — SPEC §4.2): the CDN cold-boot
+ *           integration (planCdnLoad -> fetchFromCdn with a gRPC fallback ->
+ *           bridgeBoot) and the one "[state] full load served by" log line.
  * changes:  port hygiene (DESIGN §4.1), each a one-line divergence:
  *           1. replay floor — upstream never reads initialBlockNumber, so a
  *              fresh cache gap-fills from block 0; the port seeds the gap
@@ -45,6 +49,39 @@
  *              reconcile baseline. Before it is seeded every reconcile tick
  *              is a counted no-op, which is what keeps the reconcile from
  *              fighting the bootstrap.
+ *           8. release a dead cache BEFORE the CDN load (0.6.2): when the
+ *              manifest's nonce differs from the loaded cache's and that
+ *              cache is non-empty, the old cache is already useless —
+ *              upstream's own fetchSnapshot would full-reload it on the same
+ *              nonce test — so initialState becomes a fresh cache before
+ *              fetchFromCdn runs. A browser tab can afford two 2-3 GB caches
+ *              alive at once for a few seconds; the VM (2 vCPU, 4 GB heap
+ *              cap, RSS 4.9 GB observed 2026-09-17, L-10) cannot. Same nonce
+ *              but further behind than CDN_FULL_THRESHOLD_BLOCKS keeps the
+ *              old cache, as upstream: the gRPC fallback resumes its delta
+ *              from it.
+ *           9. reconcileFrom$ after the BRIDGE too (0.6.2, divergence 7):
+ *              the bridge closes the same window fillGap does, so the
+ *              existing unconditional next() below the merge seeds the
+ *              baseline on both paths — deliberately left where it is
+ *              rather than duplicated into each branch, which is what would
+ *              let one of them drift.
+ *          10. progress fingerprint (0.6.2): the daemon's pre-LIVE stall
+ *              watchdog (daemon.ts progressKey, PRELIVE_STALL_MS 90 s) sees
+ *              ONLY what setLoadingState emits, so the CDN path has to emit
+ *              through it like every other phase — 5 % after components,
+ *              then a per-chunk percentage as each lands (values weighted
+ *              90, entities 5). Measured on the G10.a cold boot; the bound
+ *              itself is not touched.
+ *          11. the bridge requires a STREAM url, not just a snapshot one
+ *              (0.6.2, divergence 2): upstream asserts streamServiceUrl
+ *              non-null inside the bridge branch because its config always
+ *              carries both. The lens allows a snapshot URL with no stream
+ *              URL, and in that mode the bridge's whole premise is gone —
+ *              its first ask would return [] for want of a streamer and its
+ *              second would too, which reads as "no events in the window"
+ *              and would land LIVE over an unfilled gap. That mode takes
+ *              fillGap, whose RPC path closes the window honestly.
  *           Type-hole fix: the snapshot catch block reads e.code on an
  *           unknown catch variable — cast to {code?: unknown} (upstream is
  *           vite-transpiled and never typechecked; no behavior change).
@@ -89,7 +126,15 @@ import {
   NetworkEvents,
   SyncWorkerConfig,
 } from '../types';
-import { createSnapshotClient, fetchSnapshot, isRateLimited } from './snapshot';
+import { recordFullLoad } from '../../sync-health';
+import { bridgeBoot } from './bridge';
+import {
+  createSnapshotClient,
+  fetchFromCdn,
+  fetchSnapshot,
+  isRateLimited,
+  planCdnLoad,
+} from './snapshot';
 import {
   createStateCache,
   getStateCacheEntries,
@@ -101,6 +146,7 @@ import {
 } from './state';
 import {
   createStream,
+  fetchGapEvents,
   fillGap,
   HEALTH_CHECK_BUFFER_MS,
   KEEPALIVE_INTERVAL_MS,
@@ -298,27 +344,101 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
     let initialState = await loadStateCacheFromStore(indexedDB);
     console.log('INITIAL STATE (PRE-SYNC)', getStateReport(initialState));
 
-    if (snapshotUrl) {
+    const kamigazeClient = snapshotUrl ? createSnapshotClient(snapshotUrl) : undefined;
+    const setPercentage = (percentage: number) => this.setLoadingState({ percentage });
+    const setMessage = (msg: string) => this.setLoadingState({ msg });
+    let loadedFromCdn = false;
+
+    if (kamigazeClient) {
       this.setLoadingState({ msg: 'Querying for Components', percentage: 0 });
-      const kamigazeClient = createSnapshotClient(snapshotUrl);
 
       try {
-        initialState = await fetchSnapshot(
-          initialState,
-          kamigazeClient,
-          decode,
-          config.snapshotNumChunks ?? 10,
-          (percentage: number) => this.setLoadingState({ percentage }),
-          (msg: string) => this.setLoadingState({ msg })
-        );
+        const manifest = config.stateCdnUrl
+          ? await planCdnLoad(config.stateCdnUrl, kamigazeClient, initialState)
+          : undefined;
+
+        // divergence 8: the old cache is dead the moment the manifest's nonce
+        // disagrees with it — fetchSnapshot's own nonce test would throw it
+        // away too — so release it before a second multi-GB cache is built
+        // beside it. A same-nonce cache that is merely far behind is NOT
+        // released: the gRPC fallback still resumes its delta from it.
+        if (
+          manifest &&
+          manifest.nonce !== initialState.kamigazeNonce &&
+          initialState.state.size > 0
+        ) {
+          log.warn('[cdn] releasing a stale cache before the CDN load', {
+            cachedNonce: initialState.kamigazeNonce,
+            manifestNonce: manifest.nonce,
+            releasedEntries: initialState.state.size,
+          });
+          initialState = createStateCache();
+        }
+
+        const loadStartedAt = performance.now();
+        initialState = manifest
+          ? await fetchFromCdn(config.stateCdnUrl!, manifest, decode, setPercentage, setMessage)
+              .then((cache) => {
+                loadedFromCdn = true;
+                return cache;
+              })
+              .catch((e) => {
+                log.warn('[cdn] full load failed, falling back to gRPC', e);
+                return fetchSnapshot(
+                  initialState,
+                  kamigazeClient,
+                  decode,
+                  config.snapshotNumChunks ?? 10,
+                  setPercentage,
+                  setMessage
+                );
+              })
+          : await fetchSnapshot(
+              initialState,
+              kamigazeClient,
+              decode,
+              config.snapshotNumChunks ?? 10,
+              setPercentage,
+              setMessage
+            );
+
+        // Logged on both paths on purpose: if only the CDN path announced itself, a gRPC
+        // load would be indistinguishable from a log that never fired, which is exactly
+        // the question this is here to answer.
+        const loadSeconds = +((performance.now() - loadStartedAt) / 1000).toFixed(2);
+        log.info(`[state] full load served by ${loadedFromCdn ? 'CDN' : 'gRPC'}`, {
+          source: loadedFromCdn ? config.stateCdnUrl : snapshotUrl,
+          cdnConfigured: !!config.stateCdnUrl,
+          prefix: loadedFromCdn ? manifest?.prefix : undefined,
+          block: initialState.lastKamigazeBlock,
+          nonce: initialState.kamigazeNonce,
+          components: initialState.components.length,
+          entities: initialState.entities.length,
+          values: initialState.state.size,
+          seconds: loadSeconds,
+        });
+        // ...and RECORDED, not only logged: `status.lastFullLoad` is the field
+        // a reader asks instead of grepping a log it may not have (§3.1).
+        recordFullLoad({
+          source: loadedFromCdn ? 'cdn' : 'grpc',
+          ...(loadedFromCdn && manifest ? { prefix: manifest.prefix } : {}),
+          block: initialState.lastKamigazeBlock,
+          nonce: initialState.kamigazeNonce,
+          seconds: loadSeconds,
+          at: new Date().toISOString(),
+        });
       } catch (e) {
         console.log(snapshotUrl);
         var errorMessage: string;
 
-        if (await isRateLimited(snapshotUrl, e)) {
+        if (await isRateLimited(snapshotUrl!, e)) {
           errorMessage = "You're refreshing too much! Try again in a minute or two";
         } else {
-          errorMessage = `Unknown error: ${(e as { code?: unknown }).code}. Can you drop this in the discord if it persists?`;
+          // gRPC failures carry .code; CDN ones are fetch TypeErrors that do not, and
+          // reading .code off those rendered a literal "Unknown error: undefined".
+          const detail =
+            (e as { code?: unknown } | null)?.code ?? (e instanceof Error ? e.message : String(e));
+          errorMessage = `Unknown error: ${detail}. Can you drop this in the discord if it persists?`;
         }
         console.error('failed to retrieve state', e);
         this.setLoadingState({
@@ -409,21 +529,51 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
       percentage: 0,
     });
 
-    const gapStateEvents = await fillGap({
-      kamigazeUrl: streamServiceUrl,
-      decode,
-      fetchWorldEvents,
-      fromBlock: gapFromBlock,
-      toBlock: streamStartBlockNumber,
-      setPercentage: (percentage: number) => this.setLoadingState({ percentage }),
-    });
+    // divergence 11: the bridge needs a STREAM url, not just a snapshot one —
+    // without a streamer its "empty means out of range" inference has nothing
+    // to infer from, and both its asks would answer [].
+    const gapStateEvents =
+      loadedFromCdn && kamigazeClient && streamServiceUrl
+        ? await bridgeBoot({
+            cache: stateCache,
+            toBlock: streamStartBlockNumber,
+            gap: (fromBlock, skipRpcFallback) =>
+              fetchGapEvents({
+                kamigazeUrl: streamServiceUrl,
+                decode,
+                fetchWorldEvents,
+                fromBlock,
+                toBlock: streamStartBlockNumber,
+                setPercentage,
+                skipRpcFallback,
+              }),
+            fetchDelta: (cache) =>
+              fetchSnapshot(
+                cache,
+                kamigazeClient,
+                decode,
+                config.snapshotNumChunks ?? 10,
+                setPercentage,
+                setMessage
+              ),
+          })
+        : await fillGap({
+            kamigazeUrl: streamServiceUrl,
+            decode,
+            fetchWorldEvents,
+            fromBlock: gapFromBlock,
+            toBlock: streamStartBlockNumber,
+            setPercentage,
+          });
 
     // Merge gap events and live events buffered during gap fill
     storeStateEvents(stateCache.current, [...gapStateEvents, ...initialLiveEvents]);
 
-    // divergence 7 (§3.17): the reconcile baseline. Everything up to the
-    // stream's start block has now been read as a complete range, so the
-    // periodic reconcile starts from here rather than from block 0.
+    // divergence 7 (§3.17) + divergence 9 (0.6.2): the reconcile baseline.
+    // Everything up to the stream's start block has now been read as a
+    // complete range, so the periodic reconcile starts from here rather than
+    // from block 0. It fires HERE, below the merge, on BOTH gap paths — the
+    // bridge closes exactly the window fillGap does.
     this.reconcileFrom$.next(streamStartBlockNumber);
 
     /*
