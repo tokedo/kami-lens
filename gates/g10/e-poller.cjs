@@ -13,7 +13,18 @@
 // One JSONL line per sample to --out. The host reads the file, so the poll
 // loop never blocks on a pipe:
 //   {t, latencyMs, ok, state, percentage, msg, liveBlockNumber,
-//    checkpointInFlight, checkpointBlock, error}
+//    checkpointInFlight, checkpointBlock, rssKb, procs, error}
+//
+// IT ALSO SAMPLES MEMORY, and that is deliberate rather than convenient.
+// The figure the VM decision needs is the PEAK OF (daemon RSS +
+// checkpoint-child RSS) during a checkpoint — the child has its own heap
+// (divergence 16), so a host budget has to cover both at once. Reading it
+// from here costs one /proc walk per second in a process that is already
+// running; getting it from outside would mean a `docker exec` every couple
+// of seconds, and on a ONE-CORE container that spawn would steal the very
+// CPU whose contention this leg is measuring. `procs` keeps the split
+// visible, so the daemon and the child can be told apart rather than
+// inferred from a total.
 //
 // `timeoutMs` is what makes a sample a MEASUREMENT rather than a wait: a
 // daemon that does not answer inside it records ok:false with the timeout
@@ -42,6 +53,33 @@ const write = (row) => {
     /* the host reads whatever landed; a failed append must not kill the poll */
   }
 };
+
+/** Every `node` process in the container except this poller, with its
+ * VmRSS. node:20-slim has neither `ps` nor `pgrep`, so /proc is the only
+ * source — and it is the honest one: this is the kernel's own number for
+ * each process, not a cgroup total that also counts page cache. */
+function nodeProcs() {
+  const out = [];
+  let pids;
+  try {
+    pids = fs.readdirSync('/proc').filter((d) => /^\d+$/.test(d));
+  } catch {
+    return out;
+  }
+  for (const pid of pids) {
+    if (Number(pid) === process.pid) continue;
+    try {
+      if (fs.readFileSync(`/proc/${pid}/comm`, 'utf8').trim() !== 'node') continue;
+      const status = fs.readFileSync(`/proc/${pid}/status`, 'utf8');
+      const m = /^VmRSS:\s+(\d+) kB/m.exec(status);
+      out.push({ pid: Number(pid), rssKb: m ? Number(m[1]) : 0 });
+    } catch {
+      /* the process exited between readdir and read — a checkpoint child
+         doing exactly its job; it simply is not in this sample */
+    }
+  }
+  return out.sort((a, b) => b.rssKb - a.rssKb);
+}
 
 function sample() {
   return new Promise((resolve) => {
@@ -103,6 +141,11 @@ function sample() {
 (async () => {
   for (;;) {
     const row = await sample();
+    // taken AFTER the status round trip, so a sample whose answer was slow
+    // reports the memory of the moment that made it slow
+    const procs = nodeProcs();
+    row.procs = procs;
+    row.rssKb = procs.reduce((sum, p) => sum + p.rssKb, 0);
     write(row);
     const rest = intervalMs - row.latencyMs;
     if (rest > 0) await new Promise((r) => setTimeout(r, rest));

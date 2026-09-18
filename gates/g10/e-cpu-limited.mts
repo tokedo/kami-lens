@@ -65,7 +65,11 @@ const CONTAINER = 'kami-lens-g10e';
 const VOLUME = 'kami-lens-g10e-data';
 const POLL_OUT = '/tmp/g10e-poll.jsonl';
 
-/** the whole point of the leg */
+/** The whole point of the leg. `--cpuset-cpus 0` is the load-bearing one:
+ * it pins the AFFINITY, which is what `os.availableParallelism()` reads and
+ * therefore what divergence 15's cap turns on; `--cpus` bounds the quota
+ * alongside it so throughput and parallelism agree. ONE core is harsher
+ * than the 2-vCPU VM on purpose (lab ruling, 2026-09-18). */
 const CPUS = process.env.G10E_CPUS ?? '1';
 const CPUSET = process.env.G10E_CPUSET ?? '0';
 const MEMORY = process.env.G10E_MEMORY ?? '6g';
@@ -101,6 +105,10 @@ type Sample = {
   checkpointCount?: number | null;
   lastFullLoad?: Record<string, unknown> | null;
   degraded?: string[] | null;
+  /** sum of VmRSS over every node process in the container except the
+   * poller — i.e. the daemon plus, during a checkpoint, its child */
+  rssKb?: number;
+  procs?: { pid: number; rssKb: number }[];
   error?: string;
 };
 
@@ -399,15 +407,18 @@ try {
     samples = await readSamples();
     const after = samples.filter((s) => s.ok && Date.parse(s.t) > liveAtMs);
     // inFlight true at some point, and false again afterwards = one whole
-    // checkpoint inside the window
+    // checkpoint inside the window. Read from `checkpoint.inFlight`, which
+    // IS served — `status.checkpointCount` exists on DaemonStatus and is
+    // never emitted (found in G5.b), so nothing here asks for it.
     for (const s of after) {
       if (s.checkpointInFlight === true) sawInFlight = true;
       else if (sawInFlight && s.checkpointInFlight === false) sawFinished = true;
     }
-    const counts = after.map((s) => s.checkpointCount ?? 0);
+    const procPeak = Math.max(0, ...after.map((s) => s.rssKb ?? 0));
     console.log(
       `[g10.e] ${Math.round((Date.now() - cpWaitStart) / 1000)}s post-LIVE: ` +
-        `checkpointCount ${Math.max(0, ...counts)}, inFlight seen ${sawInFlight}, finished ${sawFinished}`
+        `inFlight seen ${sawInFlight}, finished ${sawFinished}, ` +
+        `peak node RSS ${(procPeak / 1024 / 1024).toFixed(2)} GiB`
     );
     if (sawInFlight && sawFinished) break;
   }
@@ -431,6 +442,30 @@ try {
   checks.checkpointObserved = sawInFlight && sawFinished;
   checks.statusAnsweredThroughCheckpoint = gap.maxMs < MAX_STATUS_GAP_MS;
   checks.noStatusFailuresPostLive = detail.statusFailuresPostLive === 0;
+
+  // THE COMBINED FIGURE, which is the one a host memory budget is read
+  // against: the checkpoint child has its own heap (divergence 16), so a
+  // box must hold the daemon AND the child at once. Taken from the
+  // poller's own /proc walk — kernel VmRSS per process, summed — rather
+  // than from the cgroup total, which also counts page cache.
+  const inFlightSamples = samples.filter((s) => s.checkpointInFlight === true);
+  const peakSample = samples.reduce<Sample | null>(
+    (best, s) => ((s.rssKb ?? 0) > (best?.rssKb ?? 0) ? s : best),
+    null
+  );
+  const peakDuringCheckpoint = inFlightSamples.reduce<Sample | null>(
+    (best, s) => ((s.rssKb ?? 0) > (best?.rssKb ?? 0) ? s : best),
+    null
+  );
+  detail.peakNodeRssKb = peakSample?.rssKb ?? 0;
+  detail.peakNodeRssGiB = +((peakSample?.rssKb ?? 0) / 1024 / 1024).toFixed(2);
+  detail.peakNodeRssAt = peakSample?.t ?? null;
+  detail.peakNodeRssProcs = peakSample?.procs ?? null;
+  detail.peakDuringCheckpointKb = peakDuringCheckpoint?.rssKb ?? 0;
+  detail.peakDuringCheckpointGiB = +((peakDuringCheckpoint?.rssKb ?? 0) / 1024 / 1024).toFixed(2);
+  detail.peakDuringCheckpointProcs = peakDuringCheckpoint?.procs ?? null;
+  detail.checkpointInFlightSamples = inFlightSamples.length;
+  detail.maxNodeProcsSeen = Math.max(0, ...samples.map((s) => s.procs?.length ?? 0));
 
   const offThread = logs.split('\n').filter((l) => l.includes('checkpoint written off-thread'));
   detail.checkpointLines = offThread;
