@@ -3,6 +3,15 @@
 // reaches LIVE → a sample query returns schema-valid JSON. Every step
 // exit-code-checked. The container has only the tarball — whatever the
 // package forgot to ship fails here.
+//
+// 0.6.3: it now also asserts that dist/checkpoint-child.js IS in the
+// installed package. The periodic checkpoint forks that file (divergence
+// 16), and a package that forgot it would install, reach LIVE and answer
+// every query here exactly as it does now — then fail its first checkpoint
+// ten minutes later, in production, with nothing in this gate having
+// noticed. THE FORK ITSELF is proven in G5.b, which has a volume and can
+// therefore let a checkpoint actually run; this leg keeps its zero-config
+// contract and only asserts the file shipped.
 
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
@@ -69,6 +78,18 @@ try {
   coldSeconds = Math.round((Date.now() - t0) / 1000);
   steps.live = live;
   if (!live) fail('G5.a', { reason: 'daemon did not reach LIVE in the container within 500 s', steps });
+
+  // divergence 16: the child entry must have SHIPPED. `ls` and not a
+  // checkpoint: this daemon runs with zero config, so its checkpoint
+  // interval is the ten-minute default and waiting for one here would buy
+  // in ten minutes what G5.b buys in one.
+  const childPath = '/usr/local/lib/node_modules/kami-lens/dist/checkpoint-child.js';
+  try {
+    run('docker', ['exec', CONTAINER, 'test', '-s', childPath]);
+    steps.checkpointChildShipped = true;
+  } catch {
+    steps.checkpointChildShipped = false;
+  }
 
   // sample query → schema-valid envelope with data
   const itemsOut = run('docker', ['exec', CONTAINER, 'kami-lens', 'items'], 60_000);

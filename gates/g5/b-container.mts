@@ -4,6 +4,20 @@
 // volume); restart the container; status must report an incremental (warm)
 // bootstrap and beat the cold time-to-healthy; healthcheck goes healthy again.
 //
+// 0.6.3 ADDS A THIRD PHASE: a PACKAGED CHECKPOINT ACTUALLY RUNS. The
+// periodic checkpoint forks dist/checkpoint-child.js (divergence 16), and
+// nothing in the first two phases would notice if that fork were broken —
+// `stop()` logs a failed final checkpoint and carries on, and the warm boot
+// after it resumes from the bootstrap save either way, so cold-healthy,
+// warm-healthy and warm-beats-cold would all still pass while the daemon
+// had silently stopped checkpointing. So a third boot runs on the same
+// volume with a SHORTENED interval and the gate waits for a checkpoint to
+// complete: `checkpointCount` must advance, the checkpoint's block must
+// advance with it, the off-thread log line must be there, and no
+// 'checkpoint failed' line may be. It is deliberately the LAST phase, so
+// the cold/warm timings above are measured without a checkpoint competing
+// for the box.
+
 // THE VERSION ASSERTION IS NOT DECORATION (0.5.0). Two stale release
 // tarballs were tracked in git; `COPY . .` carried them into the build stage
 // beside the freshly packed one, and `npm install -g /tmp/kami-lens-*.tgz`
@@ -58,9 +72,17 @@ const statusField = <T,>(field: string): T => {
   return resp.data[field];
 };
 
+/** Interval for the third phase. Short enough to wait for, long enough
+ * that a checkpoint is not still running when the phase ends (daemon.ts
+ * skips an interval while one is in flight, which would measure a
+ * different thing). */
+const CHECKPOINT_INTERVAL_MS = 45_000;
+type CheckpointBlock = { blockNumber: number; inFlight?: boolean } | null;
+
 const steps: Record<string, boolean> = {};
 let coldSeconds = -1;
 let warmSeconds = -1;
+let checkpointPhase: Record<string, unknown> = {};
 try {
   run('docker', ['rm', '-f', CONTAINER]);
 } catch { /* none */ }
@@ -119,6 +141,59 @@ try {
   steps.warmMode = statusField<string>('bootstrapMode') === 'warm';
   steps.warmResumeBlock = statusField<number>('resumeFromBlock') > 0;
   steps.warmBeatsCold = warmSeconds < coldSeconds;
+
+  // --- phase 3: a checkpoint runs, in the packaged form (divergence 16) --
+  {
+    const childPath = '/usr/local/lib/node_modules/kami-lens/dist/checkpoint-child.js';
+    try {
+      run('docker', ['exec', CONTAINER, 'test', '-s', childPath]);
+      steps.checkpointChildShipped = true;
+    } catch {
+      steps.checkpointChildShipped = false;
+      fail('G5.b', { reason: `${childPath} is not in the image — divergence 16 cannot run`, steps });
+    }
+
+    // a third boot on the SAME volume, with the interval shortened
+    run('docker', ['rm', '-f', CONTAINER]);
+    run('docker', [
+      'run', '-d', '--name', CONTAINER,
+      '-v', `${VOLUME}:/data`,
+      '-e', `KAMI_LENS_CHECKPOINT_INTERVAL_MS=${CHECKPOINT_INTERVAL_MS}`,
+      IMAGE,
+    ]);
+    const thirdSeconds = await waitHealthy(600);
+    steps.checkpointBootHealthy = thirdSeconds >= 0;
+    if (!steps.checkpointBootHealthy) {
+      fail('G5.b', { reason: 'the checkpoint-phase boot never went healthy', thirdSeconds, steps });
+    }
+    // checkpoint #1 is the boot's adopted post-backfill save; a PERIODIC
+    // one takes the count past it
+    const countAtLive = statusField<number>('checkpointCount');
+    const blockAtLive = (statusField<CheckpointBlock>('checkpoint'))?.blockNumber ?? 0;
+    let countNow = countAtLive;
+    let blockNow = blockAtLive;
+    const deadline = Date.now() + CHECKPOINT_INTERVAL_MS * 4;
+    while (Date.now() < deadline) {
+      await sleep(5_000);
+      countNow = statusField<number>('checkpointCount');
+      blockNow = (statusField<CheckpointBlock>('checkpoint'))?.blockNumber ?? 0;
+      console.log(`[g5.b] checkpointCount ${countAtLive} -> ${countNow} (block ${blockNow})`);
+      if (countNow > countAtLive) break;
+    }
+    checkpointPhase = { thirdSeconds, countAtLive, countNow, blockAtLive, blockNow };
+    steps.periodicCheckpointRan = countNow > countAtLive;
+    // the same fact from the other side: the daemon says where it wrote it
+    const logs = run('docker', ['logs', CONTAINER], 120_000);
+    const offThread = logs.split('\n').filter((l) => l.includes('checkpoint written off-thread'));
+    const failedLines = logs.split('\n').filter((l) => l.includes('checkpoint failed'));
+    checkpointPhase.offThreadLines = offThread.length;
+    checkpointPhase.offThreadSample = offThread.slice(-1);
+    checkpointPhase.failedLines = failedLines;
+    steps.checkpointRanOffThread = offThread.length > 0;
+    steps.noCheckpointFailures = failedLines.length === 0;
+    // it wrote a NEWER image, not the same one again
+    steps.checkpointBlockAdvanced = blockNow > blockAtLive;
+  }
 } finally {
   try {
     run('docker', ['rm', '-f', CONTAINER]);
@@ -133,9 +208,12 @@ await writeMeasurement('g5b-container', {
   versionCheck,
   coldSeconds,
   warmSeconds,
+  checkpointPhase,
   steps,
   match: Object.values(steps).every(Boolean),
 });
-if (!Object.values(steps).every(Boolean)) fail('G5.b', { steps, coldSeconds, warmSeconds });
-pass('G5.b', { coldSeconds, warmSeconds, ...steps });
+if (!Object.values(steps).every(Boolean)) {
+  fail('G5.b', { steps, coldSeconds, warmSeconds, checkpointPhase });
+}
+pass('G5.b', { coldSeconds, warmSeconds, checkpointPhase, ...steps });
 process.exit(0);
