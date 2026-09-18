@@ -160,6 +160,28 @@ import {
 
 const debug = parentDebug.extend('SyncWorker');
 
+/**
+ * Divergence 8 (0.6.2): should the loaded cache be released before the CDN
+ * load runs?
+ *
+ * Named and exported rather than inlined so the divergence is directly
+ * testable — driving it through initOnce would mean standing up providers and
+ * a stream to assert a memory property. YES exactly when the manifest's nonce
+ * disagrees with the cache's AND the cache actually holds state: the old
+ * cache is then already useless (upstream's own fetchSnapshot would
+ * full-reload it on the same nonce test), and keeping a reference to it while
+ * fetchFromCdn builds a second multi-GB cache beside it is what puts a 2 vCPU
+ * / 4 GB VM over its heap cap (RSS 4.9 GB observed 2026-09-17, L-10).
+ *
+ * NO when the nonce agrees, however far behind the cache is: that cache is
+ * still a valid delta base, and the gRPC fallback resumes from it. NO when
+ * the cache is empty, where there is nothing to release.
+ */
+export const shouldReleaseCacheForCdn = (
+  cache: { kamigazeNonce: number; state: { size: number } },
+  manifest: { nonce: number }
+): boolean => manifest.nonce !== cache.kamigazeNonce && cache.state.size > 0;
+
 export enum InputType {
   Ack,
   Config,
@@ -362,11 +384,7 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
         // away too — so release it before a second multi-GB cache is built
         // beside it. A same-nonce cache that is merely far behind is NOT
         // released: the gRPC fallback still resumes its delta from it.
-        if (
-          manifest &&
-          manifest.nonce !== initialState.kamigazeNonce &&
-          initialState.state.size > 0
-        ) {
+        if (manifest && shouldReleaseCacheForCdn(initialState, manifest)) {
           log.warn('[cdn] releasing a stale cache before the CDN load', {
             cachedNonce: initialState.kamigazeNonce,
             manifestNonce: manifest.nonce,
