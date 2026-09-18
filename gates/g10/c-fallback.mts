@@ -78,6 +78,10 @@ const record = {
   cdnLines,
   progress: watch
     ? {
+        // the TRUE maximum, whatever its size (lib.mts) — the gRPC path is the
+        // slower of the two, so this is the leg where a long silence is most
+        // likely and a thresholded 0 says least
+        maxSilenceMs: watch.maxSilenceMs,
         longestSilentMs: watch.longestSilentMs,
         longestSilentOn: watch.longestSilentOn,
         silences: watch.silences,

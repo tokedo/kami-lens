@@ -1,13 +1,13 @@
 {
   "gate": "g10b-cdn-parity",
-  "measuredAt": "2026-09-18T05:24:53.606Z",
+  "measuredAt": "2026-09-18T05:27:55.039Z",
   "checks": {
     "noUnhealedRanges": true,
     "reconcileBaselineSeeded": true,
     "reconciledThroughAtOrPastLoad": true,
-    "driftProbeRan": false,
-    "driftZeroDivergences": false,
-    "driftSampledEnough": false,
+    "driftProbeRan": true,
+    "driftZeroDivergences": true,
+    "driftSampledEnough": true,
     "occupancyVerified": true,
     "componentsMatchProduction": true,
     "entitiesAndValuesOrdered": true
@@ -17,7 +17,7 @@
     "gapsHealed": 0,
     "gapsDeferred": 0,
     "reconcilePasses": 0,
-    "reconciledThrough": 33441364,
+    "reconciledThrough": 33441466,
     "lastReconcileAt": null,
     "unhealedRanges": [],
     "lastHealMs": null,
@@ -28,19 +28,28 @@
     "prefix": "96/33440132/2026-09-18T04Z",
     "block": 33440132,
     "nonce": 96,
-    "seconds": 8.12,
-    "at": "2026-09-18T05:22:31.092Z"
+    "seconds": 9,
+    "at": "2026-09-18T05:27:02.628Z"
   },
   "drift": {
-    "exitCode": 1,
-    "error": "TimeoutExpired: Command '['/Users/anatolyzaytsev/.local/share/mise/installs/node/22.22.1/bin/node', '/Users/anatolyzaytsev/kami-lens/dist/cli.js', 'status', '--data-dir', '/private/tmp/claude-501/-Users-anatolyzaytsev-kami-lab/f5629c93-fd6c-4980-ab1b-3245ca1ba2db/scratchpad/lens-062/g10-data']' timed out after 40 seconds"
+    "ts": "2026-09-18T05:27:18Z",
+    "sampled": 50,
+    "divergent": 0,
+    "divergences": [],
+    "excused": 0,
+    "oracle_cursor_lag": 15.836652,
+    "lens_block": 33441478,
+    "ms": 12232,
+    "unreadable": 0,
+    "exitCode": 0
   },
-  "driftSampled": null,
+  "socketWarmup": "ok",
+  "driftSampled": 50,
   "driftSampleTarget": 50,
   "occupancy": {
     "exitCode": 0,
     "tail": [
-      "[g3.b] delta re-pin 33441403 → 33441403",
+      "[g3.b] delta re-pin 33441476 → 33441473",
       "[g3.b] node 61 (Musty Forest Path): 39 ACTIVE harvests",
       "PASS G3.b {\"node\":61,\"activeHarvests\":39,\"verified\":39,\"negativeSamples\":10}"
     ]
@@ -55,9 +64,9 @@
       "at": "2026-09-18T05:23:39.745Z",
       "durationMs": 4834
     },
-    "blockDelta": 9,
+    "blockDelta": 91,
     "cdn": {
-      "block": 33441394,
+      "block": 33441476,
       "components": 99,
       "entities": 1299206,
       "values": 3026931
@@ -72,5 +81,5 @@
     "entitiesOrdered": true,
     "valuesOrdered": true
   },
-  "match": false
+  "match": true
 }
