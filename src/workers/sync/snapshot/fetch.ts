@@ -2,6 +2,8 @@
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
  * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
  * path:     packages/client/src/workers/sync/snapshot/fetch.ts
+ * forward-port: @ 21f419e63e0a7f6b642c255efeb89dd1c288de1c (sync-affecting
+ *           bucket, ahead of the pin — SPEC §4.2)
  * changes:  port hygiene (DESIGN §4.1) — the dead test helper maybeThrow
  *           (throws with probability 0.6, unused) is not lifted. Tripwire
  *           (DESIGN §7): a Kamigaze nonce change against a previously
@@ -9,6 +11,8 @@
  *           existing full-reload branch (a first sync from an empty cache,
  *           nonce 0, does not count). Everything else verbatim.
  */
+
+import { ClientError, Status } from 'nice-grpc-web';
 
 import { KamigazeServiceClient } from 'clients/kamigaze';
 import { tripwires } from '../../../tripwires';
@@ -24,11 +28,25 @@ import {
   storeStateValues,
 } from '../state';
 
-const CHUNK_TIMEOUT_MS = 30000;
-const MAX_RETRIES = 20;
-const RETRY_DELAYS = [1000, 2000, 3000, 5000, 10000];
+export const CHUNK_TIMEOUT_MS = 30000;
+export const MAX_RETRIES = 20;
+export const RETRY_DELAYS = [1000, 2000, 3000, 5000, 10000];
+
+// ponytail: block-age heuristic. 30 days at 1s blocks, well past the ~25-30 day
+// break-even between a day of delta (1-5MB) and the full image (~120MB). It only
+// bounds the pathological case of a months-old cache; the exact value barely matters.
+export const CDN_FULL_THRESHOLD_BLOCKS = 2_592_000;
+
+// RESOURCE_EXHAUSTED is expected backpressure, not a failure, so it gets its own
+// retry budget separate from the fatal one, keeping transient saturation from
+// failing the whole load.
+const CAPACITY_RETRY_DELAY_MS = 10000;
+const MAX_CAPACITY_RETRIES = 60;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const isCapacityError = (error: unknown): boolean =>
+  error instanceof ClientError && error.code === Status.RESOURCE_EXHAUSTED;
 
 async function withTimeout<T>(fn: () => Promise<T>, ms: number): Promise<T> {
   return Promise.race([
@@ -61,6 +79,7 @@ async function fetchWithRetry<TChunk>({
   onRetry,
 }: StreamingFetchOptions<TChunk>): Promise<void> {
   let retryCount = 0;
+  let capacityRetryCount = 0;
   let chunkIndex = 0;
   let totalChunks = 0;
   const progressSpan = progressRange.end - progressRange.start;
@@ -93,11 +112,27 @@ async function fetchWithRetry<TChunk>({
           chunkIndex++;
         }, CHUNK_TIMEOUT_MS);
         retryCount = 0;
+        capacityRetryCount = 0;
       }
 
       log.debug(`[snapshot] ${name} completed`, { chunksProcessed: chunkIndex });
       return;
     } catch (error) {
+      if (isCapacityError(error)) {
+        capacityRetryCount++;
+        if (capacityRetryCount > MAX_CAPACITY_RETRIES) throw error;
+
+        log.info(
+          `[snapshot] ${name} server at capacity, backing off ${CAPACITY_RETRY_DELAY_MS / 1000}s (${capacityRetryCount}/${MAX_CAPACITY_RETRIES})`,
+          getRetryContext?.()
+        );
+        await sleep(CAPACITY_RETRY_DELAY_MS);
+
+        totalChunks = 0;
+        onRetry?.();
+        continue;
+      }
+
       retryCount++;
       log.warn(`[snapshot] ${name} error`, { retryCount, error });
       if (retryCount > MAX_RETRIES) throw error;
@@ -132,7 +167,7 @@ export const fetchSnapshot = async (
   setPercentage: (percentage: number) => void,
   setMessage?: (msg: string) => void
 ): Promise<StateCache> => {
-  let currentBlock = stateCache.lastKamigazeBlock;
+  const currentBlock = stateCache.lastKamigazeBlock;
   let initialLoad = currentBlock == 0;
 
   log.debug('[snapshot] fetchSnapshot started', {
@@ -155,7 +190,7 @@ export const fetchSnapshot = async (
   try {
     setMessage?.('Querying for State Info');
     log.debug('[snapshot] Fetching state block');
-    let BlockResponse = await fetchStateBlock(kamigazeClient);
+    const BlockResponse = await fetchStateBlock(kamigazeClient);
     log.debug('[snapshot] State block received', {
       blockNumber: BlockResponse.blockNumber,
       nonce: BlockResponse.nonce,
@@ -209,7 +244,7 @@ export const fetchSnapshot = async (
   return options.stateCache;
 };
 
-const fetchStateBlock = async (kamigazeClient: KamigazeServiceClient) => {
+export const fetchStateBlock = async (kamigazeClient: KamigazeServiceClient) => {
   let retryCount = 0;
   log.debug('[snapshot] fetchStateBlock started');
 
@@ -291,6 +326,13 @@ async function fetchEntities({
   });
 }
 
+// kamigaze serves state strictly AFTER fromBlock, but a block's entries can be
+// split across chunk boundaries (chunks are size-based). Resuming from the last
+// processed block would silently skip the rest of that block — permanently,
+// since set-once components (e.g. IsComplete) never re-emit. Rewinding one
+// block re-serves the whole boundary block; re-applying entries is idempotent.
+const resumeBlock = (pointer: number): number => Math.max(0, pointer - 1);
+
 async function fetchStateRemovals({
   stateCache,
   kamigazeClient,
@@ -304,7 +346,7 @@ async function fetchStateRemovals({
     name: 'fetchStateRemovals',
     createStream: () =>
       kamigazeClient.getState({
-        fromBlock: stateCache.lastStateRemovalsBlock || stateCache.lastKamigazeBlock,
+        fromBlock: resumeBlock(stateCache.lastStateRemovalsBlock || stateCache.lastKamigazeBlock),
         removals: true,
       }),
     processChunk: async (chunk) => {
@@ -342,7 +384,7 @@ async function fetchStateValues({
     name: 'fetchStateValues',
     createStream: () =>
       kamigazeClient.getState({
-        fromBlock: stateCache.lastStateValuesBlock || stateCache.lastKamigazeBlock,
+        fromBlock: resumeBlock(stateCache.lastStateValuesBlock || stateCache.lastKamigazeBlock),
         removals: false,
       }),
     processChunk: async (chunk) => {
