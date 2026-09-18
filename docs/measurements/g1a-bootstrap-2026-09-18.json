@@ -1,15 +1,16 @@
 {
   "gate": "g1a-bootstrap",
-  "measuredAt": "2026-09-18T04:51:11.606Z",
-  "timeToLiveColdMs": 26243,
+  "measuredAt": "2026-09-18T17:06:24.574Z",
+  "timeToLiveColdMs": 29476,
   "checkpoint": {
-    "blockNumber": 33440132,
+    "blockNumber": 33460606,
     "kamigazeNonce": 96,
-    "stateEntries": 3026892,
+    "stateEntries": 3029835,
     "numComponents": 99,
-    "numEntities": 1299199,
-    "at": "2026-09-18T04:51:11.604Z",
-    "durationMs": 0
+    "numEntities": 1299996,
+    "at": "2026-09-18T17:06:24.572Z",
+    "durationMs": 0,
+    "inFlight": false
   },
   "tripwires": {
     "unknownComponentIds": 0,
