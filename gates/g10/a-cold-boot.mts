@@ -158,12 +158,15 @@ const record = {
   loadProfile: profile,
   lastFullLoad: atLive.lastFullLoad,
   progress: {
+    // the TRUE maximum, whatever its size — `longestSilentMs` only reports
+    // intervals over the 10 s threshold and reads 0 when none was
+    maxSilenceMs: watch.maxSilenceMs,
     longestSilentMs: watch.longestSilentMs,
     longestSilentOn: watch.longestSilentOn,
     preLiveStallBoundMs: PRELIVE_STALL_MS,
-    headroomMs: PRELIVE_STALL_MS - watch.longestSilentMs,
+    headroomMs: PRELIVE_STALL_MS - watch.maxSilenceMs,
     concernThresholdMs: SILENCE_CONCERN_MS,
-    overConcernThreshold: watch.longestSilentMs > SILENCE_CONCERN_MS,
+    overConcernThreshold: watch.maxSilenceMs > SILENCE_CONCERN_MS,
     silences: watch.silences,
     samples: watch.progressSamples,
   },
@@ -203,14 +206,15 @@ if (bridgeLines.length === 0) {
 pass('G10.a', {
   timeToLiveMs: watch.timeToLiveMs,
   prefix: record.prefix,
+  maxSilenceMs: watch.maxSilenceMs,
   longestSilentMs: watch.longestSilentMs,
   peakRssKb: watch.peakRssKb,
   bridgePath,
   deltaSpan,
 });
-if (watch.longestSilentMs > SILENCE_CONCERN_MS) {
+if (watch.maxSilenceMs > SILENCE_CONCERN_MS) {
   console.warn(
-    `[g10.a] NOTE: longest progress silence ${watch.longestSilentMs}ms exceeds ` +
+    `[g10.a] NOTE: longest progress silence ${watch.maxSilenceMs}ms exceeds ` +
       `${SILENCE_CONCERN_MS}ms on this machine. The VM has 2 vCPU and roughly half ` +
       `the decode throughput, so it is the one PRELIVE_STALL_MS (${PRELIVE_STALL_MS}ms) ` +
       `would trip on. Reported, not fixed here.`
@@ -242,6 +246,22 @@ console.log(`[g10.b] socket ${socketPath(G10_DATA_DIR)}`);
 // kept talking to the production daemon would "pass" this gate while proving
 // nothing about the CDN-loaded state, which is the one outcome that must be
 // impossible here.
+//
+// ITS TIME BUDGETS ARE ALSO RAISED, IN THE COPY ONLY, and the first run is why.
+// The probe drives the lens through `node dist/cli.js`, one fresh process per
+// call, ~51 calls. Measured on this box while a gate process held a 4.25 GB
+// heap: 1.1-3.2 s per cold call, dominated by Node start plus loading the
+// 1.5 MB bundle. Against the template's LENS_TIMEOUT of 10 s the FIRST call
+// (`status`) timed out, and even without that, 51 calls at ~1.5 s cannot fit
+// the template's 45 s SELF_TIMEOUT_S. Those numbers are right for the
+// production watchdog — a quiet box, and a self-bound that must not wedge it —
+// and wrong for a gate that runs the probe beside a multi-GB cold boot. So the
+// copy gets room and the gate's own execFileSync timeout does the bounding
+// instead. The TEMPLATE IN kami-lab IS NOT TOUCHED. Recorded as a finding: the
+// knob the probe wants is not just --data-dir but configurable budgets.
+//
+// A warm-up `status` round trip goes first, from the gate itself over the
+// socket, so the probe's first call is not also paying for a cold page cache.
 let drift: Record<string, unknown> = { skipped: 'probe not found', path: DRIFT_PROBE };
 try {
   const template = await fs.readFile(DRIFT_PROBE, 'utf8');
@@ -265,11 +285,36 @@ try {
   if (probe.includes('__NODE__') || probe.includes('__LENS_DIR__')) {
     throw new Error('a drift-probe placeholder was left unsubstituted');
   }
+  // budgets, in the copy only — asserted like every other substitution
+  const budgets: [string, string][] = [
+    ['LENS_TIMEOUT = 10', 'LENS_TIMEOUT = 40'],
+    ['SELF_TIMEOUT_S = 45', 'SELF_TIMEOUT_S = 420'],
+  ];
+  for (const [before, after] of budgets) {
+    if (!probe.includes(before)) {
+      throw new Error(
+        `the drift probe's budget line moved — expected ${JSON.stringify(before)}. ` +
+          `Re-read provisioning/local-lens/drift_probe.py before trusting this leg.`
+      );
+    }
+    probe = probe.split(before).join(after);
+  }
   const probePath = path.join(G10_DATA_DIR, 'drift_probe.g10.py');
   await fs.writeFile(probePath, probe, { mode: 0o755 });
-  // the probe self-bounds at 45 s (macOS has no timeout(1)); give it room and
-  // read its exit code rather than its output alone — 2 is a SKIP, not a pass
-  const out = execFileSync('python3', [probePath], { encoding: 'utf8', timeout: 180_000 });
+  // warm the CLI bundle and the daemon's head-sample provider, so the probe's
+  // first call is not the one paying for a cold start (see the note above)
+  try {
+    execFileSync(process.execPath, [path.join(REPO_ROOT, 'dist', 'cli.js'), 'status', '--data-dir', G10_DATA_DIR], {
+      encoding: 'utf8',
+      timeout: 60_000,
+      stdio: ['ignore', 'ignore', 'ignore'],
+    });
+  } catch {
+    /* the probe reports an unreachable lens itself, and more usefully */
+  }
+  // read the exit code, not the output alone — 2 is a SKIP, not a pass. The
+  // gate's bound is deliberately above the copy's raised SELF_TIMEOUT_S.
+  const out = execFileSync('python3', [probePath], { encoding: 'utf8', timeout: 600_000 });
   drift = JSON.parse(out.trim().split('\n').filter(Boolean).pop() ?? '{}') as Record<string, unknown>;
   drift.exitCode = 0;
 } catch (e) {
@@ -326,9 +371,15 @@ bChecks.occupancyVerified = occupancy.exitCode === 0;
 // 4. counts vs the local PRODUCTION daemon's newest checkpoint line
 let prod: Record<string, unknown> = { skipped: 'no production log', path: PROD_LOG };
 try {
-  const log = await fs.readFile(PROD_LOG, 'utf8');
-  // runDaemon prints one JSON line per status transition, each carrying the
-  // checkpoint block. The newest line that has one is the comparison point.
+  // TAIL ONLY. runDaemon prints one JSON line per status transition and the
+  // production log is already 20 MB and growing, so reading it whole to find
+  // the newest checkpoint would get slower every week for no gain. The last
+  // few thousand lines cover hours of a daemon checkpointing every ten
+  // minutes; if none of them carries a checkpoint that IS the finding, and it
+  // is reported rather than papered over by reading further back.
+  const PROD_LOG_TAIL_LINES = 4000;
+  const whole = await fs.readFile(PROD_LOG, 'utf8');
+  const log = whole.split('\n').slice(-PROD_LOG_TAIL_LINES).join('\n');
   const newest = log
     .split('\n')
     .reverse()

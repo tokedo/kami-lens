@@ -1,0 +1,76 @@
+{
+  "gate": "g10b-cdn-parity",
+  "measuredAt": "2026-09-18T05:19:50.135Z",
+  "checks": {
+    "noUnhealedRanges": true,
+    "reconcileBaselineSeeded": true,
+    "reconciledThroughAtOrPastLoad": true,
+    "driftProbeRan": false,
+    "driftZeroDivergences": false,
+    "driftSampledEnough": false,
+    "occupancyVerified": true,
+    "componentsMatchProduction": true,
+    "entitiesAndValuesOrdered": true
+  },
+  "sync": {
+    "reconnects": 0,
+    "gapsHealed": 0,
+    "gapsDeferred": 0,
+    "reconcilePasses": 0,
+    "reconciledThrough": 33441288,
+    "lastReconcileAt": null,
+    "unhealedRanges": [],
+    "lastHealMs": null,
+    "reconcileIntervalMs": 120000
+  },
+  "lastFullLoad": {
+    "source": "cdn",
+    "prefix": "96/33440132/2026-09-18T04Z",
+    "block": 33440132,
+    "nonce": 96,
+    "seconds": 8.08,
+    "at": "2026-09-18T05:18:59.718Z"
+  },
+  "drift": {
+    "exitCode": 1,
+    "error": "TimeoutExpired: Command '['/Users/anatolyzaytsev/.local/share/mise/installs/node/22.22.1/bin/node', '/Users/anatolyzaytsev/kami-lens/dist/cli.js', 'status', '--data-dir', '/private/tmp/claude-501/-Users-anatolyzaytsev-kami-lab/f5629c93-fd6c-4980-ab1b-3245ca1ba2db/scratchpad/lens-062/g10-data']' timed out after 10 seconds"
+  },
+  "driftSampled": null,
+  "driftSampleTarget": 50,
+  "occupancy": {
+    "exitCode": 0,
+    "tail": [
+      "[g3.b] delta re-pin 33441288 → 33441288",
+      "[g3.b] node 61 (Musty Forest Path): 37 ACTIVE harvests",
+      "PASS G3.b {\"node\":61,\"activeHarvests\":37,\"verified\":37,\"negativeSamples\":10}"
+    ]
+  },
+  "production": {
+    "checkpoint": {
+      "blockNumber": 33441176,
+      "kamigazeNonce": 96,
+      "stateEntries": 3026931,
+      "numComponents": 99,
+      "numEntities": 1299206,
+      "at": "2026-09-18T05:13:39.117Z",
+      "durationMs": 4213
+    },
+    "blockDelta": 111,
+    "cdn": {
+      "block": 33441287,
+      "components": 99,
+      "entities": 1299206,
+      "values": 3026931
+    },
+    "production": {
+      "block": 33441176,
+      "components": 99,
+      "entities": 1299206,
+      "values": 3026931
+    },
+    "componentsEqual": true,
+    "entitiesOrdered": true,
+    "valuesOrdered": true
+  },
+  "match": false
+}

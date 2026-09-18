@@ -133,7 +133,15 @@ export const linesMatching = (lines: string[], needle: string): string[] =>
 export type BootWatch = {
   /** wall ms from start() to LIVE */
   timeToLiveMs: number;
-  /** the longest interval with NO change to the watchdog's fingerprint */
+  /** The TRUE longest interval with no fingerprint change, whatever its size.
+   * Tracked separately from the reported list below because the first G10.a
+   * run recorded `longestSilentMs: 0` — correct, but only because no interval
+   * reached the 10 s reporting threshold, which answers "is it under 10 s?"
+   * and not "what is it?". The VM has 2 vCPU and roughly half the decode
+   * throughput, so on the run where the 90 s bound actually has a margin
+   * worth knowing, the exact number is the point. */
+  maxSilenceMs: number;
+  /** the longest interval OVER the reporting threshold; 0 when none was */
   longestSilentMs: number;
   /** which fingerprint the longest silence sat on — the phase to blame */
   longestSilentOn: string;
@@ -176,9 +184,15 @@ export async function bootAndWatch(
   let lastKey = '';
   let lastAt = Date.now();
   let progressSamples = 0;
+  let maxSilenceMs = 0;
+  let maxSilenceOn = '';
   const silences: { ms: number; on: string }[] = [];
   const note = (now: number) => {
     const ms = now - lastAt;
+    if (ms > maxSilenceMs) {
+      maxSilenceMs = ms;
+      maxSilenceOn = lastKey;
+    }
     if (ms >= silencesOverMs) silences.push({ ms, on: lastKey });
   };
 
@@ -232,8 +246,9 @@ export async function bootAndWatch(
   );
   return {
     timeToLiveMs: Date.now() - t0,
+    maxSilenceMs,
     longestSilentMs: longest.ms,
-    longestSilentOn: longest.on,
+    longestSilentOn: longest.ms > 0 ? longest.on : maxSilenceOn,
     silencesOverMs,
     silences,
     progressSamples,
