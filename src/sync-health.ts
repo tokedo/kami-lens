@@ -128,6 +128,17 @@ export function clearUnhealed(from: number, to: number): void {
  * do not identify one on their own). */
 export type FullLoadRecord = {
   source: 'cdn' | 'grpc';
+  /** §3.1 (0.6.3): whether that load was a WHOLE image or a delta onto a
+   * cache this process already had. Added because the field without it
+   * misreads: a warm boot records `{source: 'grpc', seconds: 1.4}` — the
+   * snapshot service's incremental fetch, which is the same function a full
+   * gRPC load uses and logs through the same "[state] full load served by"
+   * line — and 1.4 seconds for a full image is a number a reader will
+   * either disbelieve or, worse, believe. Observed on the Mac redeploy,
+   * 2026-09-18 (AUDIT_062 residual). 'full' = the cache was empty or its
+   * nonce was superseded, so the whole image was fetched; 'delta' = rows
+   * since the stored cursors were applied onto the existing cache. */
+  kind: 'full' | 'delta';
   prefix?: string;
   block: number;
   nonce: number;

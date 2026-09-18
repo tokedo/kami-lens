@@ -414,9 +414,10 @@
         "null"
       ],
       "additionalProperties": false,
-      "description": "\u00a73.1 (0.6.2): which source served this PROCESS's full state load, and how long it took. NULL on a warm boot, which resumed a cached image and ran no full load \u2014 that is the normal restart and not a fault; a load that FAILED never reaches LIVE at all, so null never means \"it went wrong\". The same fact is logged as `[state] full load served by CDN|gRPC`; this field exists so a reader does not have to hold the log.",
+      "description": "\u00a73.1 (0.6.2): which source served this PROCESS's full state load, and how long it took. NULL on a warm boot, which resumed a cached image and ran no full load \u2014 that is the normal restart and not a fault; a load that FAILED never reaches LIVE at all, so null never means \"it went wrong\". The same fact is logged as `[state] full load served by CDN|gRPC` \u2014 which fires on a warm boot's DELTA too, hence `kind` (0.6.3). This field exists so a reader does not have to hold the log.",
       "required": [
         "source",
+        "kind",
         "block",
         "nonce",
         "seconds",
@@ -426,6 +427,10 @@
         "source": {
           "type": "string",
           "description": "'cdn' = the S3/CloudFront state export; 'grpc' = the Kamigaze snapshot service. A configured CDN that DECLINED (unreadable manifest, nonce disagreement, warm-enough cache) or that failed mid-load reads 'grpc' here \u2014 the fallback is the contract, and `config.stateCdnUrl` says whether it was configured at all."
+        },
+        "kind": {
+          "type": "string",
+          "description": "'full' = the whole image was loaded (an empty cache, or a nonce the cached one no longer matches); 'delta' = rows since the stored cursors were applied onto the cache this process already had. Additive in 0.6.3 (ADDITIVE_LEAVES_063). It exists because `source` alone misreads: a WARM boot records {source: 'grpc', seconds: 1.4} \u2014 the snapshot service's incremental fetch, which is the same function a full gRPC load uses and logs through the same line \u2014 and 1.4 seconds for a full image is a number a reader will either disbelieve or believe (observed 2026-09-18). A CDN load is always 'full'."
         },
         "prefix": {
           "type": "string",

@@ -118,6 +118,13 @@
  *          15. CONCURRENT CDN CHUNK FETCHES CAPPED BY AVAILABLE PARALLELISM
  *              (0.6.3): 2 in flight at <= 2 cores, upstream's 6 otherwise.
  *              `CHUNK_TIMEOUT_MS` stays upstream's 30 s.
+ *              And `recordFullLoad` now carries `kind: 'full' | 'delta'`
+ *              (0.6.3): this line fires on a WARM boot too, where
+ *              fetchSnapshot ran a delta and the field read
+ *              `{source: grpc, seconds: 1.4}` — which for a full image is a
+ *              number a reader will either disbelieve or believe. Derived
+ *              from the cursors read before divergence 8 can release the
+ *              cache; no new return value out of the ported body.
  *          16. THE PERIODIC CHECKPOINT RUNS OFF THE MAIN THREAD (0.6.3),
  *              which is daemon.ts's business rather than this file's and is
  *              numbered here only to keep one numbering space. See
@@ -414,6 +421,12 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
       this.setLoadingState({ msg: 'Querying for Components', percentage: 0 });
 
       try {
+        // §3.1 (0.6.3): read BEFORE divergence 8 can release the cache, so
+        // `lastFullLoad.kind` is decided against what this process actually
+        // started from rather than against what was left of it.
+        const cachedBlockBeforeLoad = initialState.lastKamigazeBlock;
+        const cachedNonceBeforeLoad = initialState.kamigazeNonce;
+
         const manifest = config.stateCdnUrl
           ? await planCdnLoad(config.stateCdnUrl, kamigazeClient, initialState)
           : undefined;
@@ -465,6 +478,7 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
         const loadSeconds = +((performance.now() - loadStartedAt) / 1000).toFixed(2);
         log.info(`[state] full load served by ${loadedFromCdn ? 'CDN' : 'gRPC'}`, {
           source: loadedFromCdn ? config.stateCdnUrl : snapshotUrl,
+          cachedBlockBeforeLoad,
           cdnConfigured: !!config.stateCdnUrl,
           prefix: loadedFromCdn ? manifest?.prefix : undefined,
           block: initialState.lastKamigazeBlock,
@@ -476,8 +490,24 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
         });
         // ...and RECORDED, not only logged: `status.lastFullLoad` is the field
         // a reader asks instead of grepping a log it may not have (§3.1).
+        // §3.1 (0.6.3): FULL or DELTA, derived rather than guessed. The CDN
+        // path is always a whole image. The gRPC path is fetchSnapshot,
+        // which is the same function for both and decides internally: it
+        // full-reloads when the cache carries no Kamigaze block, or when
+        // the live nonce disagrees with the cached one (in which case it
+        // REPLACES the cache object, so the nonce it comes back with is the
+        // live one). Both conditions are readable from the outside, which
+        // is why this does not need a new return value out of a
+        // forward-ported body.
+        const loadKind =
+          loadedFromCdn ||
+          cachedBlockBeforeLoad === 0 ||
+          initialState.kamigazeNonce !== cachedNonceBeforeLoad
+            ? 'full'
+            : 'delta';
         recordFullLoad({
           source: loadedFromCdn ? 'cdn' : 'grpc',
+          kind: loadKind,
           ...(loadedFromCdn && manifest ? { prefix: manifest.prefix } : {}),
           block: initialState.lastKamigazeBlock,
           nonce: initialState.kamigazeNonce,
