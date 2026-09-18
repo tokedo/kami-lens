@@ -1254,28 +1254,42 @@ swap points (re-verified exhaustive, with amendments):
    localStorage local-cache helpers** (→ strip both)
 7. Vite path aliases (→ tsconfig/tsup)
 
-**The bridge from a CDN image to the live stream (0.6.2).** A CDN load
-lands at the exporter's block, which is up to an export interval behind
-the stream's start, and that window is closed differently from the
-snapshot path's: the streamer is asked FIRST over the whole window with
-the RPC fallback OFF, because the window can be two hours wide and the
-log scan walks it fifty blocks at a time. An EMPTY answer is read as "the
-streamer's cache no longer reaches back that far" — which the snapshot
-delta fixes, after which the streamer is asked again from the new head,
-since the snapshot itself always trails the chain by its sync period. If
-the delta fails, the whole window is log-scanned with RPC on. The
-reconcile baseline (§3.17) seeds after the bridge exactly as it does
-after `fillGap`: the bridge closes the same window, and a baseline left
-unseeded would make every reconcile tick a counted no-op.
+**The bridge from a CDN image to the live stream (0.6.2, delta-first —
+divergence 12).** A CDN load lands at the exporter's block, which is up to
+an export interval behind the stream's start, and that window has to be
+closed before the daemon can go LIVE over it. **The snapshot delta runs
+ALWAYS**, first — the same partial `fetchSnapshot` the ten-minute
+checkpoint already trusts, on a cache whose cursors `fetchFromCdn` set,
+removals included — and then the ORDINARY `fillGap` from the delta's head
+**with the RPC fallback ON**. A delta that throws gap-fills the whole
+window instead: ~144 `getLogs` calls at worst, slow and
+chain-authoritative, which is the property that matters when the snapshot
+service is what just failed. `skipRpcFallback` is never passed on this
+path. The reconcile baseline (§3.17) seeds after the bridge exactly as it
+does after `fillGap`: the bridge closes the same window, and a baseline
+left unseeded would make every reconcile tick a counted no-op.
 
-Reading empty as out-of-range holds only while the streamer REFUSES an
-ask below its eviction watermark rather than answering short — upstream
-says so, and in kami-lens there is a second precondition upstream does
-not have: the port skips an undecodable row rather than aborting the load
-(the hygiene divergence below), so a window whose only rows were
-undecodable answers short rather than empty, and the delta would not run.
-Counted as `decodeFailures` either way. Recorded here rather than assumed
-away; the case needs a chain-side answer, not a gapfill-side guess.
+*This is a divergence, and the reason is what upstream cannot see.*
+Upstream asks the STREAMER first over the whole window with the RPC
+fallback OFF — reasonably, since the window can be two hours wide and a
+log scan walks it fifty blocks at a time — and reads an EMPTY answer as
+"the streamer's cache no longer reaches back that far", running the delta
+only then. In kami-lens "empty" conflates four different facts: the
+streamer refused below its eviction watermark; the gRPC call threw and was
+swallowed because the fallback was off; the window was genuinely empty;
+or — kami-lens only — the answer was SHORT, because the port skips an
+undecodable row where upstream aborts the load (the hygiene divergence
+below), so a window whose rows were undecodable answers short rather than
+empty. Guessing wrong is not a retry but a permanent hole: the whole
+bridge window lies BELOW the reconcile baseline seeded immediately after
+it, where every tick is a counted no-op by design, so the daemon would
+reach LIVE reporting `degraded: []` over blocks nothing ever re-reads —
+the 2026-09-06 L-1 class, one layer up. So the guess is not made. The
+cost is one small delta per cold boot (measured: a 1,330-block delta and a
+4-block gap on the recorded G10.a boot), and the partial loads are still
+served by the snapshot service either way.
+
+Counted as `decodeFailures` when a row is skipped, on either path.
 
 **The apply yields to the event loop (0.6.3, L-11).** The CDN loader's
 values and entities applies, and the gRPC path's values apply, run in

@@ -147,6 +147,19 @@ been removed since 0.5.2 whenever there were any. Both were listed in
 `meta.suppressed`, so the answers were honest about withholding them —
 they were simply withheld for no reason. Both are back.
 
+**If you supervise this daemon, one timing note.** Because the world-file
+refresh now happens in a separate process, a stop can wait for one that
+is already under way: up to 55 seconds (45 to let it finish, plus 10 more
+if it had already started writing). That wait exists only to avoid
+throwing away work — **it is not needed for safety.** The file is written
+to a temporary name, flushed to disk, the old copy renamed aside and the
+new one moved into place, in that order, so at every instant there is
+either a good current file or a good previous one, and never neither. A
+supervisor that kills the daemon sooner is therefore safe: launchd gives
+20 seconds by default, systemd 90, and either way the worst case is one
+skipped refresh, never a damaged file. If you would rather not wait, kill
+sooner; nothing needs configuring.
+
 **No query answer changes otherwise.** No field was renamed, retyped,
 removed or given a new meaning, and the deprecated clock-field aliases
 from 0.6.1 are still here — they go in 0.7.0 as promised.
