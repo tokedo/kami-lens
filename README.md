@@ -87,6 +87,29 @@ request field can ask for a different one. Booleans are strict — `true` or
 `false`; anything else (including `1`) fails loudly at startup rather than
 being guessed at.
 
+### Memory
+
+A first start loads the whole world into memory — about 4.5 GB at its peak.
+Node does not give itself that much by default, so **the daemon raises its
+own limit at startup and tells you it did.** You do not have to configure
+anything, on a machine with roughly 8 GB or more.
+
+Three things worth knowing:
+
+- **If you set the limit yourself, that is what it uses.** `NODE_OPTIONS=--max-old-space-size=…`
+  is always respected, even when it is too small — you get a warning saying
+  a first start will probably run out, and nothing is overridden.
+- **On a machine too small to finish the load, it refuses to start** rather
+  than dying a few minutes in, and says what it needs. Roughly: under 7 GB
+  available to the process and it will not start a first load unaided.
+- **Raising its own limit needs Node 22.15 or newer.** On older Node it
+  refuses with the one line that fixes it:
+  `NODE_OPTIONS=--max-old-space-size=6144 kami-lens daemon`. A restart that
+  resumes from a saved copy of the world needs far less and is unaffected.
+
+`status` reports the limit it ended up with and who chose it — you, Node, or
+the daemon itself.
+
 ## Status
 
 **0.6.2, pre-release.** Daemon, CLI, and library are implemented and
@@ -146,6 +169,23 @@ every status answer since 0.6.2**, and entries in `feedsDegraded` have
 been removed since 0.5.2 whenever there were any. Both were listed in
 `meta.suppressed`, so the answers were honest about withholding them —
 they were simply withheld for no reason. Both are back.
+
+**A first start no longer needs to be told how much memory to use.** Until
+now, starting the daemon with no configuration on a fresh machine did not
+work: it loaded the world until it ran out of memory — about twenty seconds
+in, two thirds of the way through — and died. Every daemon that has ever
+worked was started with a memory limit set by hand, and nothing shipped
+one. It now sets its own at startup, and says so in one line. On a machine
+too small to finish the load it refuses to start at all, in under two
+seconds, naming what it needs — rather than dying a few minutes in. If you
+set the limit yourself, that is what it uses, whatever it is. There is a
+new `heap` block in `status` saying which of the three happened. The one
+requirement: raising its own limit needs Node 22.15 or newer; on older Node
+it refuses with the single line that fixes it. See Configuration → Memory.
+
+**`status` also serves `checkpointCount`** — how many times this process has
+refreshed its saved copy of the world. It had been counting since the first
+release and never telling anyone.
 
 **If you supervise this daemon, one timing note.** Because the world-file
 refresh now happens in a separate process, a stop can wait for one that

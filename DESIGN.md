@@ -1500,10 +1500,60 @@ Never silent gaps.
 
 - **npm package first**: one package containing daemon, CLI, and
   library exports (`npx kami-lens …`, `npm i -g`, or
-  `import 'kami-lens'`). Node ≥ 20.
+  `import 'kami-lens'`). Node ≥ 20 — and ≥ 22.15 for a ZERO-CONFIG cold
+  boot, because that is where `process.execve` arrives and the daemon's
+  heap self-sizing needs it (below). On older Node the daemon refuses with
+  the remedy rather than dying mid-load; a warm restart from a saved cache
+  needs ~2.3 GB and is unaffected.
 - **Docker image second** (GHCR, built from the same package, volume
   for the data dir, sample compose file) for supervised always-on
   daemons.
+- **The daemon sizes its own JS heap, or refuses to start (0.6.3)**.
+  Zero-config has to mean the boot WORKS, and it did not: `kami-lens
+  daemon` in a clean container died 20 s in with `FATAL ERROR: Ineffective
+  mark-compacts near heap limit`, at 2,042 MB, 71.9 % through the values
+  apply (gate G5.a, 2026-09-18). A cold boot builds the whole ECS image in
+  memory — peak RSS 4.19-4.39 GB on the Mac, 3.58-3.83 GB on the VM — and
+  Node picks its old-space default from the machine it finds: 2,096 MiB in
+  that container, and 4,144 MiB even on a 64 GB Mac. Every daemon that had
+  ever worked was started with an explicit `--max-old-space-size` by hand,
+  and nothing shipped it.
+  So at daemon start — before a byte of network, cache or CDN work, and
+  never for a CLI query, which is a socket client that needs a few MB —
+  the daemon reads its own heap cap and decides
+  (`src/heap.ts`, one pure function over five facts):
+  **enough** (≥ 5,120 MB, the measured peak plus ~15 %) → proceed;
+  **short but the operator set it** → warn and proceed, because an explicit
+  choice is never overridden — someone who writes 2048 may be testing
+  exactly that;
+  **short and free to choose** → take
+  `min(6144, 75 % of the memory actually available)` and **re-exec in
+  place** with `process.execve`, same pid; the rest is left for the
+  checkpoint child's own heap (§3.5) and for whatever else is on the box;
+  **short, and the best share is still under the floor, or the machine has
+  under ~5.5 GB, or `process.execve` does not exist (Node < 22.15)** →
+  `ERR_INSUFFICIENT_MEMORY`, non-zero exit in under two seconds, naming the
+  numbers and the remedy. Re-exec and not a spawned wrapper: launchd and
+  systemd track what they started, so a second process plus a signal relay
+  is a worse failure surface than one image swapped in place. An env marker
+  makes the re-exec unrepeatable — set and still short means refuse, never
+  restart twice. The memory it sizes against is the CGROUP's when there is
+  one, because `os.totalmem()` reports the host's inside a container, and a
+  6 GB container on a 64 GB host would otherwise size itself for 64 and be
+  killed by the cgroup instead of by V8 — a less legible death. What it
+  settled on is served at `status.heap`, `{limitMb, source}` with source
+  `default | explicit | self-configured`, so nobody has to hold the boot
+  log. Enforcement: G5.a, both legs — node:22-slim must reach LIVE
+  self-configured, node:20-slim must REFUSE inside five seconds with the
+  remedy text.
+- **The container healthcheck runs every 60 s, not every 30 (0.6.3)**. Each
+  probe is a fresh Node process loading the 1.5 MB bundle, and on a
+  one-core box that costs the daemon up to ~3 s of responsiveness while it
+  runs — measured in G10.e, where the worst post-LIVE `status` wait was
+  3,001 ms in a sample with the probe present and no checkpoint in flight,
+  against 363 ms during an actual checkpoint. The socket path a watchdog
+  polls is unaffected; only the image's own probe is, and halving its
+  frequency halves the cost.
 - **Zero-config by default**: baked defaults are the production
   Yominet values from the upstream README — chain id
   `428962654539583`, world `0x2729174c265dbBd8416C6449E0E813E88f43D0E7`,

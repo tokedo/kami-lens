@@ -1,17 +1,37 @@
-// Gate G5.a [live] — clean-room install. `npm pack` → install the tarball
-// in a fresh node:20 container → `kami-lens daemon` with ZERO config
-// reaches LIVE → a sample query returns schema-valid JSON. Every step
-// exit-code-checked. The container has only the tarball — whatever the
-// package forgot to ship fails here.
+// Gate G5.a [live] — clean-room install, in TWO legs.
 //
-// 0.6.3: it now also asserts that dist/checkpoint-child.js IS in the
-// installed package. The periodic checkpoint forks that file (divergence
-// 16), and a package that forgot it would install, reach LIVE and answer
-// every query here exactly as it does now — then fail its first checkpoint
-// ten minutes later, in production, with nothing in this gate having
-// noticed. THE FORK ITSELF is proven in G5.b, which has a volume and can
-// therefore let a checkpoint actually run; this leg keeps its zero-config
-// contract and only asserts the file shipped.
+// `npm pack` → install the tarball in a container that has nothing else →
+// `kami-lens daemon` with ZERO CONFIG → what happens must be right. The
+// container has only the tarball, so whatever the package forgot to ship
+// fails here.
+//
+//   PRIMARY, node:22-slim — zero config must reach LIVE and answer a
+//   schema-valid query. Since 0.6.3 that requires the daemon to SELF-SIZE
+//   its heap: Node's own old-space default in a container is 2,096 MiB
+//   (measured) against a cold-boot peak of 4.2-4.4 GB, so the daemon
+//   re-execs itself in place with --max-old-space-size (§3.1, src/heap.ts)
+//   and `status.heap.source` must read 'self-configured'. This is the boot
+//   DESIGN §5 promises and the launch-prompt test performs.
+//
+//   LEGACY, node:20-slim — the REFUSAL is the contract. process.execve
+//   arrived in Node 22.15, so on older Node the daemon cannot raise its own
+//   cap; it must refuse LOUDLY and FAST (under 5 s) with the exact remedy
+//   line, and exit non-zero. What it used to do here was die of OOM 20 s
+//   in, at 71.9 % of the values apply — the defect this release fixes.
+//
+// It also asserts dist/checkpoint-child.js is IN the installed package. The
+// periodic checkpoint forks that file (divergence 16), and a package that
+// forgot it would install, reach LIVE and answer every query exactly as it
+// does now, then fail its first checkpoint ten minutes later in production.
+// THE FORK ITSELF is proven in G5.b, which has a volume and can let a
+// checkpoint actually run.
+//
+// EVIDENCE OUTLIVES THE CONTAINER. Every failure of this leg has been
+// diagnosed from a log the teardown had already deleted, which is how a
+// 20-second OOM became a 500-second mystery twice. The daemon log is copied
+// to gates/.artifacts/ before teardown, and every health poll — the state
+// it PRINTED and the exit code it left, not one inferred from the other —
+// rides in the measurement.
 
 import { execFileSync } from 'node:child_process';
 import { promises as fs } from 'node:fs';
@@ -21,9 +41,16 @@ import Ajv from 'ajv/dist/2020';
 
 import { loadSchema } from '../../src/queries/registry';
 import { ARTIFACTS_DIR, fail, pass, REPO_ROOT, sleep, writeMeasurement } from '../g1/lib.mts';
+import { COLD_BOOT_HEAP_FLOOR_MB, DAEMON_HEAP_TARGET_MB } from '../../src/heap';
 
-const CONTAINER = 'kami-lens-g5a';
+const PRIMARY_IMAGE = 'node:22-slim';
+const LEGACY_IMAGE = 'node:20-slim';
 const DAEMON_LOG = '/daemon.log';
+/** the refusal must be immediate — it is the whole difference between
+ * "this box cannot run me" and a crash three minutes into a load */
+const REFUSAL_BUDGET_MS = 5_000;
+const LIVE_BUDGET_MS = 500_000;
+
 const run = (cmd: string, args: string[], timeoutMs = 120_000): string =>
   execFileSync(cmd, args, { encoding: 'utf8', timeout: timeoutMs, cwd: REPO_ROOT });
 const runQuiet = (cmd: string, args: string[], timeoutMs = 120_000): string => {
@@ -34,44 +61,6 @@ const runQuiet = (cmd: string, args: string[], timeoutMs = 120_000): string => {
   }
 };
 
-/** node:20-slim has neither `ps` nor `pgrep`, so liveness is read from
- * /proc: any process whose comm is `node`. */
-const containerHasNode = (): boolean =>
-  runQuiet('docker', [
-    'exec', CONTAINER, 'sh', '-c',
-    'for p in /proc/[0-9]*; do [ "$(cat $p/comm 2>/dev/null)" = node ] && echo yes && break; done',
-  ]).includes('yes');
-
-const daemonLog = (): string => runQuiet('docker', ['exec', CONTAINER, 'cat', DAEMON_LOG], 60_000);
-
-/** One health poll, with BOTH facts: the state it printed and the exit
- * code it left. `kami-lens health` prints the state on stdout and exits 0
- * only when it is LIVE (src/cli.ts). */
-const healthProbe = (): { state: string; rc: number } => {
-  try {
-    const out = run('docker', ['exec', CONTAINER, 'kami-lens', 'health'], 20_000);
-    return { state: lastWord(out), rc: 0 };
-  } catch (e) {
-    const err = e as { status?: number; stdout?: string; message?: string };
-    return { state: lastWord(err.stdout ?? ''), rc: err.status ?? -1 };
-  }
-};
-
-/** the state is the last non-empty line — the logger writes a banner first */
-const lastWord = (out: string): string =>
-  out.split('\n').map((l) => l.trim()).filter(Boolean).pop() ?? '';
-
-/** What old-space cap Node picked for ITSELF in this container — the
- * number the OOM diagnosis turns on. */
-const nodeHeapLimitMiB = (): number =>
-  Number(
-    runQuiet('docker', [
-      'exec', CONTAINER, 'node', '-p',
-      'Math.round(require("v8").getHeapStatistics().heap_size_limit/1048576)',
-    ]).trim()
-  ) || -1;
-
-// docker present?
 try {
   run('docker', ['info'], 30_000);
 } catch {
@@ -83,107 +72,139 @@ const packOut = run('npm', ['pack', '--json'], 300_000);
 const tarball = (JSON.parse(packOut) as { filename: string }[])[0].filename;
 console.log(`packed ${tarball}`);
 
-const steps: Record<string, boolean> = {};
-try {
-  run('docker', ['rm', '-f', CONTAINER]);
-} catch {
-  /* no leftover container */
+/** the state is the last non-empty line — the logger writes a banner first */
+const lastLine = (out: string): string =>
+  out.split('\n').map((l) => l.trim()).filter(Boolean).pop() ?? '';
+
+type Leg = {
+  image: string;
+  container: string;
+  /** every node process except none — node:*-slim has neither ps nor
+   * pgrep, so liveness comes from /proc */
+  hasNode: () => boolean;
+  log: () => string;
+  heapLimitMb: () => number;
+};
+
+function leg(image: string, container: string): Leg {
+  return {
+    image,
+    container,
+    hasNode: () =>
+      runQuiet('docker', [
+        'exec', container, 'sh', '-c',
+        'for p in /proc/[0-9]*; do [ "$(cat $p/comm 2>/dev/null)" = node ] && echo yes && break; done',
+      ]).includes('yes'),
+    log: () => runQuiet('docker', ['exec', container, 'cat', DAEMON_LOG], 60_000),
+    heapLimitMb: () =>
+      Number(
+        runQuiet('docker', [
+          'exec', container, 'node', '-p',
+          'Math.round(require("v8").getHeapStatistics().heap_size_limit/1048576)',
+        ]).trim()
+      ) || -1,
+  };
 }
 
+/** install the tarball into a fresh container of `image` */
+async function install(l: Leg): Promise<{ version: string; childShipped: boolean }> {
+  runQuiet('docker', ['rm', '-f', l.container]);
+  run('docker', ['run', '-d', '--name', l.container, l.image, 'sleep', 'infinity']);
+  run('docker', ['cp', path.join(REPO_ROOT, tarball), `${l.container}:/pkg.tgz`]);
+  run('docker', ['exec', l.container, 'npm', 'install', '-g', '/pkg.tgz'], 300_000);
+  const version = run('docker', ['exec', l.container, 'kami-lens', '--version']).trim();
+  const childShipped = !!runQuiet('docker', [
+    'exec', l.container, 'sh', '-c',
+    'test -s /usr/local/lib/node_modules/kami-lens/dist/checkpoint-child.js && echo yes',
+  ]).includes('yes');
+  return { version, childShipped };
+}
+
+const steps: Record<string, boolean> = {};
+const detail: Record<string, unknown> = { tarball, primaryImage: PRIMARY_IMAGE, legacyImage: LEGACY_IMAGE };
+
+// ========================================================= PRIMARY leg
+const primary = leg(PRIMARY_IMAGE, 'kami-lens-g5a');
+const polls: { atSeconds: number; state: string; rc: number }[] = [];
 let coldSeconds = -1;
 let savedLog = '';
 let diagnosis: string | undefined;
-let secondsToExit: number | undefined;
-const polls: { atSeconds: number; state: string; rc: number }[] = [];
-let queryError: string | undefined;
-let daemonAliveAtQuery: boolean | undefined;
-let heapLimitMiB = -1;
+
 try {
-  // container with ONLY node:20 + the tarball (docker cp, not a bind
-  // mount — colima's shared-folder mounts go stale across re-packs)
-  run('docker', ['run', '-d', '--name', CONTAINER, 'node:20-slim', 'sleep', 'infinity']);
-  steps.containerUp = true;
-  run('docker', ['cp', path.join(REPO_ROOT, tarball), `${CONTAINER}:/pkg.tgz`]);
-
-  run('docker', ['exec', CONTAINER, 'npm', 'install', '-g', '/pkg.tgz'], 300_000);
+  const { version, childShipped } = await install(primary);
   steps.install = true;
-
-  // recorded on every run, pass or fail: it is the number this leg's one
-  // real failure turned on, and it is worthless discovered afterwards
-  heapLimitMiB = nodeHeapLimitMiB();
-  console.log(`node picked a ${heapLimitMiB} MiB old-space cap in this container`);
-
-  const version = run('docker', ['exec', CONTAINER, 'kami-lens', '--version']);
   steps.version = version.includes('kami-lens') && /[0-9a-f]{40}/.test(version);
-  console.log(version.trim());
+  steps.checkpointChildShipped = childShipped;
+  detail.primaryNode = runQuiet('docker', ['exec', primary.container, 'node', '-v']).trim();
+  detail.primaryVersionLine = version;
+  // THE NUMBER THIS LEG TURNS ON: what Node gives itself here, before the
+  // daemon does anything about it
+  detail.heapLimitBeforeMb = primary.heapLimitMb();
+  console.log(
+    `[g5.a] ${PRIMARY_IMAGE} (${detail.primaryNode}): node's default heap cap ` +
+      `${detail.heapLimitBeforeMb} MB, cold-boot floor ${COLD_BOOT_HEAP_FLOOR_MB} MB`
+  );
 
-  // zero-config daemon (baked Yominet defaults), detached. Its output goes
-  // to a file so a failure can be READ rather than inferred — see the
-  // diagnosis in the wait loop below.
-  run('docker', ['exec', '-d', CONTAINER, 'sh', '-c', `kami-lens daemon > ${DAEMON_LOG} 2>&1`]);
+  run('docker', ['exec', '-d', primary.container, 'sh', '-c', `kami-lens daemon > ${DAEMON_LOG} 2>&1`]);
   steps.daemonStarted = true;
 
   const t0 = Date.now();
   let live = false;
-  for (let i = 0; i < 100; i++) {
+  for (let i = 0; i < 100 && Date.now() - t0 < LIVE_BUDGET_MS; i++) {
     await sleep(5000);
-    // READ THE STATE, DO NOT INFER IT FROM AN EXIT CODE. `kami-lens
-    // health` PRINTS the state and exits 0 only on LIVE, and this loop
-    // used to check the exit code alone — then recorded `live: true` for a
-    // run whose daemon never left BACKFILL and died at 61 %, which is a
-    // gate asserting the opposite of what happened. Both are read now, the
-    // state must actually say LIVE, and every poll is recorded so the next
-    // surprise is a line in the measurement rather than an argument.
-    const probe = healthProbe();
+    // READ THE STATE, DO NOT INFER IT FROM AN EXIT CODE. `kami-lens health`
+    // PRINTS the state and exits 0 only on LIVE (src/cli.ts); checking the
+    // exit code alone once recorded `live: true` for a daemon that never
+    // left BACKFILL and died at 61 %.
+    let probe: { state: string; rc: number };
+    try {
+      probe = { state: lastLine(run('docker', ['exec', primary.container, 'kami-lens', 'health'], 20_000)), rc: 0 };
+    } catch (e) {
+      const err = e as { status?: number; stdout?: string };
+      probe = { state: lastLine(err.stdout ?? ''), rc: err.status ?? -1 };
+    }
     polls.push({ atSeconds: Math.round((Date.now() - t0) / 1000), ...probe });
     if (probe.state === 'LIVE' && probe.rc === 0) {
       live = true;
       break;
     }
-    // DIAGNOSE, DO NOT JUST TIME OUT (0.6.3). This leg spent 500 s
-    // reporting "did not reach LIVE" for a daemon that had been dead for
-    // 480 of them, with the reason sitting in its own log. A dead process
-    // is a verdict, not a reason to keep waiting.
-    if (!containerHasNode()) {
-      // BREAK, DO NOT fail() HERE. A fail() at this point exits before the
-      // measurement is written, so the run left the PREVIOUS run's file
-      // sitting on disk under today's date — and a stale record read as
-      // this run's is worse than no record at all (it cost an hour of
-      // reading `live: true` from a run that had never gone live). Every
-      // exit from this leg now goes through the one writer below.
+    if (!primary.hasNode()) {
       diagnosis = 'the daemon process exited before reaching LIVE';
-      secondsToExit = Math.round((Date.now() - t0) / 1000);
       break;
     }
   }
   coldSeconds = Math.round((Date.now() - t0) / 1000);
   steps.live = live;
-  if (!live) {
-    diagnosis ??= 'daemon did not reach LIVE in the container within 500 s';
+  if (!live) diagnosis ??= `daemon did not reach LIVE within ${LIVE_BUDGET_MS / 1000} s`;
+
+  if (live) {
+    // §3.1: the heap is the daemon's own doing, and it says so
+    detail.heapLimitAfterMb = primary.heapLimitMb();
+    const statusOut = run('docker', ['exec', primary.container, 'kami-lens', 'status'], 60_000);
+    const status = JSON.parse(statusOut) as {
+      ok: boolean;
+      data: { heap?: { limitMb?: number; source?: string }; checkpointCount?: number; bootstrapMode?: string };
+    };
+    detail.heap = status.data.heap;
+    detail.checkpointCount = status.data.checkpointCount;
+    detail.bootstrapMode = status.data.bootstrapMode;
+    // the daemon raised its OWN cap: Node's default was below the floor and
+    // what it now runs under is not
+    steps.heapSelfConfigured = status.data.heap?.source === 'self-configured';
+    steps.heapAtOrAboveFloor = (status.data.heap?.limitMb ?? 0) >= COLD_BOOT_HEAP_FLOOR_MB;
+    steps.heapReported = typeof status.data.heap?.limitMb === 'number';
+    // ruling C: the counter the daemon had kept since 0.2.0 without serving
+    steps.checkpointCountServed = typeof status.data.checkpointCount === 'number';
+    // and the re-exec said so in the log, both halves
+    const log = primary.log();
+    steps.reexecLogged =
+      /restarting in place with --max-old-space-size=/.test(log) &&
+      /heap limit is now \d+ MB \(self-configured/.test(log);
   }
 
-  // divergence 16: the child entry must have SHIPPED. `ls` and not a
-  // checkpoint: this daemon runs with zero config, so its checkpoint
-  // interval is the ten-minute default and waiting for one here would buy
-  // in ten minutes what G5.b buys in one.
-  const childPath = '/usr/local/lib/node_modules/kami-lens/dist/checkpoint-child.js';
-  try {
-    run('docker', ['exec', CONTAINER, 'test', '-s', childPath]);
-    steps.checkpointChildShipped = true;
-  } catch {
-    steps.checkpointChildShipped = false;
-  }
-
-  // sample query → schema-valid envelope with data.
-  //
-  // GUARDED, because an unguarded `run` here threw a raw execFileSync
-  // stack trace out of the gate: the daemon had gone healthy and then
-  // died, `items` answered NO_DAEMON with exit 4, and the gate reported a
-  // node internal error instead of "the daemon died after LIVE" — and
-  // then removed the container holding the reason.
   try {
     if (!live) throw new Error('skipped: the daemon never reached LIVE');
-    const itemsOut = run('docker', ['exec', CONTAINER, 'kami-lens', 'items'], 60_000);
+    const itemsOut = run('docker', ['exec', primary.container, 'kami-lens', 'items'], 60_000);
     const response = JSON.parse(itemsOut) as { ok: boolean; data: { items: unknown[] } };
     steps.queryOk = response.ok === true;
     const ajv = new Ajv({ strict: true, allErrors: true });
@@ -191,60 +212,99 @@ try {
     steps.queryNonEmpty = response.data.items.length > 100;
   } catch (e) {
     steps.queryOk = false;
-    queryError = e instanceof Error ? e.message : String(e);
-    daemonAliveAtQuery = containerHasNode();
+    detail.queryError = e instanceof Error ? e.message : String(e);
   }
 } finally {
-  // THE EVIDENCE OUTLIVES THE CONTAINER. Every failure of this leg so far
-  // has been diagnosed from a log that the teardown had already deleted,
-  // which is how a 20-second OOM became a 500-second mystery twice.
-  savedLog = daemonLog();
+  savedLog = primary.log();
   try {
     await fs.mkdir(ARTIFACTS_DIR, { recursive: true });
     await fs.writeFile(path.join(ARTIFACTS_DIR, 'g5a-daemon.log'), savedLog);
   } catch {
-    /* the tail still reaches the measurement below */
+    /* the tail still reaches the measurement */
   }
+  runQuiet('docker', ['rm', '-f', primary.container]);
+}
+
+// ========================================================== LEGACY leg
+// The refusal, and it must be fast. Nothing here waits for a daemon: the
+// point is that there is no daemon to wait for.
+const legacy = leg(LEGACY_IMAGE, 'kami-lens-g5a-legacy');
+try {
+  const { version } = await install(legacy);
+  detail.legacyNode = runQuiet('docker', ['exec', legacy.container, 'node', '-v']).trim();
+  detail.legacyVersionLine = version;
+  detail.legacyHeapLimitMb = legacy.heapLimitMb();
+
+  const started = Date.now();
+  let rc = 0;
+  let output = '';
   try {
-    run('docker', ['rm', '-f', CONTAINER]);
-  } catch {
-    /* already gone */
+    output = run('docker', ['exec', legacy.container, 'kami-lens', 'daemon'], 60_000);
+  } catch (e) {
+    const err = e as { status?: number; stdout?: string; stderr?: string };
+    rc = err.status ?? -1;
+    output = `${err.stdout ?? ''}${err.stderr ?? ''}`;
   }
+  const refusedInMs = Date.now() - started;
+  detail.legacyRefusalMs = refusedInMs;
+  detail.legacyExitCode = rc;
+  detail.legacyOutput = output.split('\n').filter(Boolean).slice(-6);
+
+  steps.legacyRefused = rc !== 0;
+  steps.legacyRefusedFast = refusedInMs < REFUSAL_BUDGET_MS;
+  steps.legacyNamedTheCode = output.includes('ERR_INSUFFICIENT_MEMORY');
+  // THE REMEDY IS THE CONTRACT: a refusal without the fix is a wall
+  steps.legacyGaveTheRemedy =
+    output.includes(`NODE_OPTIONS=--max-old-space-size=${DAEMON_HEAP_TARGET_MB}`) &&
+    output.includes('kami-lens daemon');
+  steps.legacyNamedExecve = /22\.15/.test(output);
+  // and it must NOT have started loading anything
+  steps.legacyLoadedNothing = !/Querying for State|cold boot/.test(output);
+} finally {
+  runQuiet('docker', ['rm', '-f', legacy.container]);
 }
 
 const oom = /Ineffective mark-compacts near heap limit|heap out of memory/.test(savedLog);
-if (oom && diagnosis) diagnosis = 'the zero-config daemon ran out of JS heap during the cold load';
+const match = Object.values(steps).every(Boolean);
 await writeMeasurement('g5a-cleanroom', {
-  tarball,
-  ...(diagnosis ? { diagnosis, secondsToExit } : {}),
-  steps,
+  ...detail,
+  ...(diagnosis ? { diagnosis } : {}),
   timeToLiveSeconds: coldSeconds,
-  nodeHeapLimitMiB: heapLimitMiB,
-  oomInDaemonLog: oom,
   healthPolls: polls,
-  ...(queryError ? { queryError, daemonAliveAtQuery } : {}),
+  oomInDaemonLog: oom,
   daemonLogTail: savedLog.split('\n').slice(-30),
   daemonLogSaved: path.join(ARTIFACTS_DIR, 'g5a-daemon.log'),
-  match: Object.values(steps).every(Boolean),
+  floors: { coldBootHeapFloorMb: COLD_BOOT_HEAP_FLOOR_MB, daemonHeapTargetMb: DAEMON_HEAP_TARGET_MB },
+  steps,
+  match,
 });
-if (!Object.values(steps).every(Boolean)) {
+if (!match) {
   fail('G5.a', {
-    ...(diagnosis ? { reason: diagnosis, secondsToExit } : {}),
+    ...(diagnosis ? { reason: diagnosis } : {}),
     steps,
-    nodeHeapLimitMiB: heapLimitMiB,
+    heapLimitBeforeMb: detail.heapLimitBeforeMb,
+    heap: detail.heap,
     oomInDaemonLog: oom,
     ...(oom
       ? {
           note:
-            'a cold boot builds the whole ECS image in memory (peak RSS 4.19-4.39 GB measured, ' +
-            'g10a/g10c 0.6.2) and Node picked a smaller old-space default for itself. Remedy: ' +
-            'NODE_OPTIONS=--max-old-space-size=6144 (the Dockerfile sets it; the bare tarball ' +
-            'cannot).',
+            'the daemon still ran out of JS heap during the cold load — the self-sizing in ' +
+            'src/heap.ts either did not fire or did not raise it far enough.',
         }
       : {}),
-    ...(queryError ? { queryError, daemonAliveAtQuery } : {}),
+    legacy: {
+      refusalMs: detail.legacyRefusalMs,
+      exitCode: detail.legacyExitCode,
+      output: detail.legacyOutput,
+    },
     daemonLogTail: savedLog.split('\n').slice(-30),
   });
 }
-pass('G5.a', { tarball, timeToLiveSeconds: coldSeconds, ...steps });
+pass('G5.a', {
+  timeToLiveSeconds: coldSeconds,
+  heapLimitBeforeMb: detail.heapLimitBeforeMb,
+  heap: detail.heap,
+  legacyRefusalMs: detail.legacyRefusalMs,
+  legacyExitCode: detail.legacyExitCode,
+});
 process.exit(0);

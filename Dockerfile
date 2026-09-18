@@ -73,11 +73,25 @@ VOLUME /data
 # 4.39 GB at 8192 on the Mac). The checkpoint child carries its OWN cap
 # (workers/checkpoint/host.ts) and does not draw on this one, so a
 # container needs headroom above this for both.
+# KEPT after 0.6.3's self-sizing, and not redundant: an EXPLICIT cap is
+# always respected (src/heap.ts), so this is the image stating its choice
+# rather than leaving the daemon to derive one — which also means a
+# container started with less memory than this asks for fails against a
+# number someone wrote down, not against an inference.
 ENV NODE_OPTIONS=--max-old-space-size=6144
 
 # healthy = the daemon answers its own status query with LIVE; the start
-# period covers a cold bootstrap (G1.a measured ~44 s; warm ~15 s)
-HEALTHCHECK --interval=30s --timeout=15s --start-period=180s --retries=3 \
+# period covers a cold bootstrap (G1.a measured ~44 s; warm ~15 s).
+#
+# INTERVAL 60s, NOT 30s (0.6.3). Each probe is a fresh Node process loading
+# the 1.5 MB bundle, and on a ONE-CORE box that costs the daemon up to ~3 s
+# of responsiveness while it runs — measured in G10.e, where the worst
+# post-LIVE status wait was 3,001 ms in a sample with the probe's process
+# present and no checkpoint in flight, against 363 ms during an actual
+# checkpoint. Halving the frequency halves the cost of the cheapest possible
+# check done the most expensive possible way; the socket path a watchdog
+# uses is unaffected either way.
+HEALTHCHECK --interval=60s --timeout=15s --start-period=180s --retries=3 \
   CMD kami-lens health || exit 1
 
 ENTRYPOINT ["kami-lens"]

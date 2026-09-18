@@ -202,7 +202,16 @@ const ADDITIVE_LEAVES_062 = ['lastFullLoad', 'stateCdnUrl'];
 // 0.6.3: `checkpoint.inFlight` (the checkpoint moved off the main thread,
 // so "is one being written" became answerable) and `lastFullLoad.kind`
 // (a warm boot's delta read as a full load).
-const ADDITIVE_LEAVES_063 = ['inFlight', 'kind'];
+const ADDITIVE_LEAVES_063 = [
+  'inFlight',
+  'kind',
+  // the heap block (§3.1 self-sizing) and the checkpoint counter the
+  // daemon had kept since 0.2.0 without serving it
+  'heap',
+  'limitMb',
+  'source',
+  'checkpointCount',
+];
 
 /** Does a leaf path belong to a 0.5.2 additive field? Matches the last
  * dot-segment (array indices stripped), so `kamis[3].cooldownUntil` and

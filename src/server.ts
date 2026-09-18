@@ -137,6 +137,11 @@ export function buildStatusData(
     // silence every ten minutes on the VM), which is what the watchdog read
     // as a dead unit.
     checkpoint: s.checkpoint as unknown as Record<string, unknown> | null,
+    // §3.5: how many Kamigaze-consistent checkpoints this process has
+    // adopted or written. The daemon has counted these since 0.2.0 and
+    // never said so — found in G5.b, where a gate asked for it and got
+    // undefined (0.6.3).
+    checkpointCount: s.checkpointCount,
     tripwires: s.tripwires as unknown as Record<string, number>,
     degraded: s.degraded,
     // §1.2 (0.5.2): the Kamiden counterpart of `degraded`. See
@@ -162,6 +167,12 @@ export function buildStatusData(
     // long did it take" without grepping a log the reader may not have. null
     // on a warm boot — no full load ran.
     lastFullLoad: s.lastFullLoad as unknown as Record<string, unknown> | null,
+    // §3.1 (0.6.3): the heap cap this process runs under and who chose it.
+    // `default` means Node picked it and it cleared the cold-boot floor;
+    // `self-configured` means the daemon re-exec'd itself to reach the
+    // floor; `explicit` means an operator set --max-old-space-size and it
+    // was respected whatever its value.
+    heap: s.heap as unknown as Record<string, unknown>,
     clockOffsetMs: clock.offset(),
     clockLastSyncWallMs: clock.lastObservedAtWallMs(),
     config: {

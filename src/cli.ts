@@ -43,6 +43,13 @@ import { buildEnvelope, QueryError } from './queries';
 import { loadSchema, QUERY_NAMES, routeCliArgs } from './queries/registry';
 import { KamiLensConfig, parseConfigFlags, resolveConfigDetailed } from './config';
 import { ERR_NO_SNAPSHOT_SOURCE, KamiLensDaemon } from './daemon';
+import {
+  COLD_BOOT_HEAP_FLOOR_MB,
+  decideHeap,
+  ERR_INSUFFICIENT_MEMORY,
+  HEAP_REEXEC_ENV,
+  readHeapInputs,
+} from './heap';
 import { socketPath, startQuerySocket } from './server';
 import { statelessKami } from './stateless';
 import { getVersionInfo } from './version';
@@ -51,6 +58,98 @@ const EXIT_QUERY_ERROR = 1;
 const EXIT_USAGE = 2;
 const EXIT_NO_DAEMON = 4;
 const EXIT_REQUIRES_DAEMON = 5;
+/** §3.1 (0.6.3): not enough heap to finish a cold load. Its own code, like
+ * ERR_NO_SNAPSHOT_SOURCE's 3, so a supervisor can tell "this box cannot run
+ * me" from "this query failed". */
+const EXIT_INSUFFICIENT_MEMORY = 6;
+
+/**
+ * Heap self-sizing for the DAEMON, and only the daemon (§3.1, §5;
+ * src/heap.ts has the measurement and the truth table).
+ *
+ * NEVER FOR A QUERY. A CLI query is a socket client that exits in a second
+ * and needs a few MB; re-exec'ing one would double its startup for nothing,
+ * and refusing one on a small box would break the stateless path that
+ * exists precisely for small boxes.
+ *
+ * Placed at the top of the daemon branch, which is after this module's
+ * imports (ESM hoists them) but before a single byte of network, cache or
+ * CDN work. A re-exec therefore costs one module graph — measured ~0.3 s —
+ * and never a partial load.
+ */
+function ensureDaemonHeap(): void {
+  const inputs = readHeapInputs();
+  const decision = decideHeap(inputs);
+
+  if (decision.action === 'refuse') {
+    console.error(`[kami-lens] ${ERR_INSUFFICIENT_MEMORY}: ${decision.reason}`);
+    process.exit(EXIT_INSUFFICIENT_MEMORY);
+  }
+
+  if (decision.action === 'warn-proceed') {
+    console.error(`[kami-lens] WARNING: ${decision.detail}`);
+    return;
+  }
+
+  if (decision.action === 'proceed') {
+    // the other half of the re-exec's story, logged by the process that
+    // came back: an operator reading the log sees "was X, restarting with
+    // Y" and then "now Y", rather than a restart with no confirmation
+    if (inputs.marker) {
+      console.error(
+        `[kami-lens] heap limit is now ${inputs.limitMb} MB (self-configured, floor ` +
+          `${COLD_BOOT_HEAP_FLOOR_MB} MB) — same pid, restarted image`
+      );
+    }
+    return;
+  }
+
+  // REPLACE THIS PROCESS, same pid. A supervisor's child must not become a
+  // grandchild: launchd and systemd both track what they started, so
+  // spawning a second node and forwarding signals would turn one legible
+  // process into two and a signal-relay bug waiting to happen. execve
+  // swaps the image in place — same pid, same fds, same supervisor
+  // relationship, new heap cap.
+  //
+  // The ExperimentalWarning execve prints is SUPPRESSED, deliberately and
+  // narrowly: it is stderr noise on every single daemon start, the API is
+  // load-bearing here, and the one line logged below says what happened in
+  // terms an operator can act on. Nothing else is filtered.
+  const { targetMb } = decision;
+  const argv = [
+    process.execPath,
+    `--max-old-space-size=${targetMb}`,
+    ...process.execArgv,
+    ...process.argv.slice(1),
+  ];
+  console.error(
+    `[kami-lens] heap limit ${inputs.limitMb} MB is below the ${COLD_BOOT_HEAP_FLOOR_MB} MB ` +
+      `cold-boot floor; restarting in place with --max-old-space-size=${targetMb} ` +
+      `(${inputs.effectiveMemMb} MB available to this process). A cold boot builds the whole ECS ` +
+      `image in memory: measured peak RSS 4.2-4.4 GB.`
+  );
+  const execve = (process as unknown as {
+    execve: (path: string, args: string[], env: NodeJS.ProcessEnv) => never;
+  }).execve;
+  try {
+    execve(process.execPath, argv, {
+      ...process.env,
+      [HEAP_REEXEC_ENV]: '1',
+      // keep the warning off the operator's stderr on every start; the
+      // line above already said what is happening and why
+      NODE_NO_WARNINGS: '1',
+    });
+  } catch (e) {
+    // execve exists but refused (a platform that cannot, a sealed process).
+    // Refuse rather than carry on into a load that cannot finish.
+    console.error(
+      `[kami-lens] ${ERR_INSUFFICIENT_MEMORY}: could not raise the heap limit in place ` +
+        `(${e instanceof Error ? e.message : String(e)}). Start it with the cap instead:\n\n` +
+        `    NODE_OPTIONS=--max-old-space-size=${targetMb} kami-lens daemon\n`
+    );
+    process.exit(EXIT_INSUFFICIENT_MEMORY);
+  }
+}
 
 function usage(): never {
   console.error(
@@ -227,6 +326,9 @@ async function main(): Promise<void> {
 
   if (command === 'daemon') {
     if (remaining.length > 0) usage();
+    // BEFORE any network, cache or CDN work — and after this call the
+    // process may be a different image with the same pid (§3.1).
+    ensureDaemonHeap();
     return runDaemon(configFlags);
   }
 

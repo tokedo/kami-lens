@@ -355,6 +355,9 @@
       "prefix": "system",
       "at": "system",
       "kind": "system"
+    },
+    "Heap": {
+      "source": "system"
     }
   }
 }

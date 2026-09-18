@@ -21,7 +21,8 @@
         "configSources",
         "rpcReads",
         "sync",
-        "lastFullLoad"
+        "lastFullLoad",
+        "heap"
       ],
       "properties": {
         "version": {
@@ -68,6 +69,10 @@
               "description": "a checkpoint refresh is running in the checkpoint child right now. Additive in 0.6.3 (ADDITIVE_LEAVES_063)."
             }
           }
+        },
+        "checkpointCount": {
+          "type": "number",
+          "description": "\u00a73.5: Kamigaze-consistent checkpoints this PROCESS has adopted or written \u2014 1 from the moment it goes LIVE (it adopts the post-backfill save), then +1 per periodic refresh. Additive in 0.6.3 (ADDITIVE_LEAVES_063): the daemon had counted it since 0.2.0 and never served it."
         },
         "tripwires": {
           "type": "object",
@@ -206,6 +211,9 @@
         },
         "lastFullLoad": {
           "$ref": "#/$defs/LastFullLoad"
+        },
+        "heap": {
+          "$ref": "#/$defs/Heap"
         }
       }
     },
@@ -451,6 +459,25 @@
         "at": {
           "type": "string",
           "description": "when the load finished (ISO)."
+        }
+      }
+    },
+    "Heap": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "\u00a73.1 (0.6.3): the JS heap cap this process is running under, and who chose it. A cold boot builds the whole ECS image in memory (measured peak RSS 4.2-4.4 GB) and Node's own old-space default is well below that on most machines \u2014 2,096 MiB in a container, 4,144 MiB on a 64 GB Mac \u2014 so the daemon self-sizes to reach a floor or refuses to start at all (ERR_INSUFFICIENT_MEMORY). Served so a reader can tell which happened without holding the boot log.",
+      "required": [
+        "limitMb",
+        "source"
+      ],
+      "properties": {
+        "limitMb": {
+          "type": "number",
+          "description": "v8.getHeapStatistics().heap_size_limit in MiB, as enforced right now. A self-configured process reports slightly above the value it asked for \u2014 V8 rounds up."
+        },
+        "source": {
+          "type": "string",
+          "description": "'default' = Node chose it and it cleared the cold-boot floor. 'explicit' = an operator set --max-old-space-size (NODE_OPTIONS or a command line) and it was respected WHATEVER its value, including below the floor, with a warning. 'self-configured' = the daemon re-exec'd itself in place (same pid) to reach the floor."
         }
       }
     }

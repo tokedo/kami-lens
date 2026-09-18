@@ -60,6 +60,7 @@ import {
   unhealedForMs,
 } from './sync-health';
 import { Tripwires, absorbTripwires, tripwireReport } from './tripwires';
+import { heapLimitMb, heapSource, type HeapSource } from './heap';
 
 /** Documented error marker for refusing a cold start without a snapshot
  * source (DESIGN §3.1; asserted by gate G1.e). */
@@ -142,6 +143,12 @@ export type DaemonStatus = {
    * how long it took. null on a WARM boot, which ran no full load at all —
    * that is not a fault, and is why the field is null rather than absent. */
   lastFullLoad: FullLoadRecord | null;
+  /** §3.1 (0.6.3): the JS heap cap this process is actually running under,
+   * and who chose it. A cold boot needs ~4.2-4.4 GB and Node's own default
+   * is well below that on most machines (2,096 MiB in a container, 4,144 on
+   * a 64 GB Mac), so the daemon self-sizes or refuses — and this is where a
+   * reader sees which happened without reading the boot log. */
+  heap: { limitMb: number; source: HeapSource };
   bootstrapAttempts: number;
   startedAt: string;
   liveAt: string | null;
@@ -780,6 +787,11 @@ export class KamiLensDaemon {
       },
       sync: { ...sync, reconcileIntervalMs },
       lastFullLoad: fullLoadReport(),
+      // read at answer time rather than cached at construction: the
+      // re-exec (§3.1) happens before the daemon exists, so the value here
+      // is always this image's, and `source` is derived from the same two
+      // facts the decision used so the two cannot drift
+      heap: { limitMb: heapLimitMb(), source: heapSource() },
       bootstrapAttempts: this.bootstrapAttempts,
       startedAt: this.startedAt,
       liveAt: this.liveAt,
