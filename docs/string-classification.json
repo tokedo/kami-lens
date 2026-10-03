@@ -362,6 +362,10 @@
     },
     "IncompleteRows": {
       "lastAt": "system"
+    },
+    "Equipment": {
+      "slot": "system",
+      "name": "registry"
     }
   }
 }

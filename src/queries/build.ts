@@ -27,6 +27,7 @@ import {
   getKamiHandAffinity,
 } from 'app/cache/kami';
 import { KamiCache } from 'app/cache/kami/base';
+import { getEquipmentCapacity, getEquipped } from 'app/cache/equipment/equipment';
 // liquidation previews import from the calcs module directly — the barrel
 // exports only threshold/canLiquidate; upstream's LiquidateButton imports
 // spoils/recoil the same way
@@ -42,6 +43,7 @@ import {
 } from 'app/cache/kami/calcs';
 import { calcListingBuyPrice, calcListingSellPrice } from 'app/cache/npc';
 import {
+  EntityID,
   EntityIndex,
   HasValue,
   World,
@@ -682,7 +684,30 @@ export type KamiVitals = {
   stats?: KamiStatsOut;
   /** §3.16 (0.5.1): `--stats` only — [body, hand]. Absent without the flag. */
   affinities?: string[];
+  /** 1.0.0 (B3): `kami --equipment` only. LAST on the object. */
+  equipment?: EquipmentOut;
 };
+
+export type EquipmentOut = {
+  /** max(1, 1 + EQUIP_CAPACITY_SHIFT bonus) — the client's getter */
+  capacity: number;
+  /** every slot the client knows, in its order; slot names verbatim */
+  slots: { slot: string; item: { index: number; name: string } | null }[];
+};
+
+/** 1.0.0 (B3): the ported equipment getters were unused. Slot names stay
+ * verbatim (`Passport_slot` included) — they are the game's own keys. */
+export function equipmentOf(mirror: Mirror, kamiId: EntityID): EquipmentOut {
+  const { world, components } = mirror;
+  const equipped = getEquipped(world, components, kamiId);
+  return {
+    capacity: getEquipmentCapacity(world, components, kamiId),
+    slots: Object.entries(equipped).map(([slot, inv]) => ({
+      slot,
+      item: inv?.item ? { index: inv.item.index, name: inv.item.name } : null,
+    })),
+  };
+}
 
 export function buildKamiVitals(
   mirror: Mirror,
@@ -759,11 +784,15 @@ function vitalsOf(
 
 export function kamiQuery(
   mirror: Mirror,
-  args: { index: number; stats?: boolean }
+  args: { index: number; stats?: boolean; equipment?: boolean }
 ): KamiVitals {
   const entity = queryKamiByIndex(mirror.world, mirror.components, args.index);
   if (entity === undefined) throw new QueryError('NOT_FOUND', `kami ${args.index} not in mirror`);
-  return buildKamiVitals(mirror, entity, args.stats === true);
+  const vitals = buildKamiVitals(mirror, entity, args.stats === true);
+  if (args.equipment) {
+    vitals.equipment = equipmentOf(mirror, mirror.world.entities[entity] as EntityID);
+  }
+  return vitals;
 }
 
 // ------------------------------------------------------------- account

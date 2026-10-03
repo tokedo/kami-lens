@@ -174,15 +174,21 @@ export function takeValued(
 export const REGISTRY: Record<QueryName, QueryDef> = {
   kami: {
     name: 'kami',
-    summary: 'single-kami vitals by on-chain index (--stats adds the kami sheet\'s stat block + affinities)',
-    args: ['--stats'],
+    summary:
+      'single-kami vitals by on-chain index (--stats adds the kami sheet\'s stat block + affinities; --equipment adds the equipped items slot by slot and the capacity — not in stateless mode)',
+    args: ['--stats', '--equipment'],
     parseArgs: (positional) => {
-      const [index] = positional.filter((p) => p !== '--stats');
-      return { index: int(index, 'kami index'), stats: positional.includes('--stats') };
+      const [index] = positional.filter((p) => !p.startsWith('--'));
+      return {
+        index: int(index, 'kami index'),
+        stats: positional.includes('--stats'),
+        equipment: positional.includes('--equipment'),
+      };
     },
     stateless: true,
     kamiden: false,
-    build: (ctx, a) => kamiQuery(ctx.mirror, a as { index: number; stats?: boolean }),
+    build: (ctx, a) =>
+      kamiQuery(ctx.mirror, a as { index: number; stats?: boolean; equipment?: boolean }),
   },
   account: {
     name: 'account',

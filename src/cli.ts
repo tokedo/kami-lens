@@ -277,6 +277,22 @@ async function runStateless(
     );
     process.exit(EXIT_REQUIRES_DAEMON);
   }
+  // 1.0.0 (B3): the stateless answer is the chain-readable SUBSET of `kami`
+  // (stateless.ts); a query argument it cannot honour is refused, never
+  // dropped (§3.13). Through 0.6.3 `--stats` here was silently ignored.
+  const unsupported = positional.filter((p) => p.startsWith('--'));
+  if (unsupported.length > 0) {
+    console.error(
+      JSON.stringify({
+        ok: false,
+        error: {
+          code: 'REQUIRES_DAEMON',
+          message: `${unsupported.join(', ')} needs the mirror — the stateless kami answer serves vitals only; run the daemon`,
+        },
+      })
+    );
+    process.exit(EXIT_REQUIRES_DAEMON);
+  }
   const index = Number(positional[0]);
   if (!Number.isInteger(index) || index < 0) usage();
   try {

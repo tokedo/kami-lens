@@ -121,6 +121,52 @@
             "type": "string"
           },
           "description": "§3.16 (0.5.1): [body, hand] affinities, `--stats` only. The reference client's own pair and its own defaulting ('NORMAL' where the trait carries none). The liquidation calcs turn on exactly this pair, so a reader previewing a liquidation could not check the preview's inputs without it."
+        },
+        "equipment": {
+          "$ref": "#/$defs/Equipment"
+        }
+      }
+    },
+    "Equipment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["capacity", "slots"],
+      "description": "1.0.0 (B3): `--equipment` only, absent without it; refused in stateless mode. What the kami has equipped, slot by slot, from the reference client's own getter (app/cache/equipment).",
+      "properties": {
+        "capacity": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "How many items this kami can have equipped: max(1, 1 + its EQUIP_CAPACITY_SHIFT bonus) — the reference client's getEquipmentCapacity."
+        },
+        "slots": {
+          "type": "array",
+          "description": "Every slot the reference client knows, in its order, occupied or not.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["slot", "item"],
+            "properties": {
+              "slot": {
+                "type": "string",
+                "description": "The slot name VERBATIM as the game keys it (Head_Slot, Body_Slot, Hands_Slot, Passport_slot, Kami_Pet_Slot — note the lower-case 'slot' in Passport_slot)."
+              },
+              "item": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["index", "name"],
+                    "properties": {
+                      "index": { "type": "integer" },
+                      "name": { "type": "string" }
+                    }
+                  },
+                  { "type": "null" }
+                ],
+                "description": "The equipped item, or null for an empty slot."
+              }
+            }
+          }
         }
       }
     },
