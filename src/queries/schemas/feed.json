@@ -6,11 +6,25 @@
     "Feed": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["stream", "buffer", "events"],
+      "required": ["stream", "buffer", "eventsMatched", "eventsServed", "events"],
       "properties": {
         "stream": { "$ref": "#/$defs/StreamHealth" },
         "buffer": { "$ref": "#/$defs/BufferState" },
-        "events": { "type": "array", "items": { "$ref": "#/$defs/FeedEntry" } }
+        "eventsMatched": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Buffered events the filters ([type], --account) and, when given, the sinceSeq cursor select, BEFORE the --limit cap. Additive in 1.0.0."
+        },
+        "eventsServed": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Events in this answer: min(eventsMatched, --limit). eventsServed < eventsMatched means there are more — without sinceSeq the OLDER matches were cut (the newest are served); with it the NEWER ones were (page on with the last seq served). Additive in 1.0.0."
+        },
+        "events": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/FeedEntry" },
+          "description": "Ascending seq. 1.0.0 CHANGED DEFAULT: without sinceSeq this is the NEWEST --limit (default 50) matching events — through 0.6.3 it was the OLDEST 500 in the buffer."
+        }
       }
     },
     "StreamHealth": {

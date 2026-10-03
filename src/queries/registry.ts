@@ -38,6 +38,8 @@ import {
   auctionsQuery,
   battlesQuery,
   chatQuery,
+  FEED_LIMIT_DEFAULT,
+  FEED_LIMIT_MAX,
   feedQuery,
   killersQuery,
   marketQuery,
@@ -99,6 +101,11 @@ export type QueryDef = {
    * with no error at all. The CLI now routes exactly what a query declares
    * and refuses anything else. */
   args?: string[];
+  /** 1.0.0: the subset of `args` that take a VALUE (`--limit 50` or
+   * `--limit=50`). Only these accept the inline `=` form — a boolean flag
+   * written `--full=1` stays an unknown option rather than being silently
+   * read as absent. */
+  valued?: string[];
   build: (
     ctx: QueryCtx,
     args: Record<string, unknown>,
@@ -114,6 +121,40 @@ const int = (s: string | undefined, what: string): number => {
 
 const optInt = (s: string | undefined, what: string): number | undefined =>
   s === undefined ? undefined : int(s, what);
+
+/** 1.0.0: take one declared VALUED option out of the tokens — `--flag <v>`
+ * or `--flag=<v>`. Given twice, or with no value after it, is BAD_ARGS (a
+ * second value silently winning would be the §3.13 silent-argument defect). */
+export function takeValued(
+  tokens: readonly string[],
+  flag: string
+): { value: string | undefined; rest: string[] } {
+  const rest: string[] = [];
+  let value: string | undefined;
+  let seen = false;
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i]!;
+    let raw: string | undefined;
+    if (t === flag) {
+      raw = tokens[i + 1];
+      if (raw === undefined || raw.startsWith('--')) {
+        throw new QueryError('BAD_ARGS', `${flag} needs a value`);
+      }
+      i++;
+    } else if (t.startsWith(flag + '=')) {
+      raw = t.slice(flag.length + 1);
+      if (raw === '') throw new QueryError('BAD_ARGS', `${flag} needs a value`);
+    } else {
+      rest.push(t);
+      continue;
+    }
+    if (seen) throw new QueryError('BAD_ARGS', `${flag} given twice`);
+    seen = true;
+    value = raw;
+  }
+  return { value, rest };
+}
+
 
 export const REGISTRY: Record<QueryName, QueryDef> = {
   kami: {
@@ -484,18 +525,48 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
   },
   feed: {
     name: 'feed',
-    summary: 'buffered stream feed events ([sinceSeq] [type] filter)',
+    summary:
+      'buffered stream feed events: without [sinceSeq] the NEWEST --limit (default 50, max 500) in ascending seq; with it, the events after it, oldest first, capped at --limit ([type] filters; --account <accountIndex> keeps events naming that account or a kami it owns now)',
+    args: ['--limit', '--account'],
+    valued: ['--limit', '--account'],
     parseArgs: (positional) => {
-      const args: { sinceSeq?: number; type?: string } = {};
-      for (const p of positional) {
-        if (/^\d+$/.test(p)) args.sinceSeq = int(p, 'sinceSeq');
-        else args.type = p;
+      const { value: limitRaw, rest: r1 } = takeValued(positional, '--limit');
+      const { value: accountRaw, rest } = takeValued(r1, '--account');
+      const args: { sinceSeq?: number; type?: string; limit: number; accountIndex?: number } = {
+        limit: FEED_LIMIT_DEFAULT,
+      };
+      for (const p of rest) {
+        if (/^\d+$/.test(p)) {
+          // 1.0.0 (B1): a second numeric used to overwrite the first —
+          // `feed 120 50` meant "since 50", silently
+          if (args.sinceSeq !== undefined) {
+            throw new QueryError(
+              'BAD_ARGS',
+              `feed takes one numeric (sinceSeq), got '${args.sinceSeq}' and '${p}' — the row cap is --limit <n>`
+            );
+          }
+          args.sinceSeq = int(p, 'sinceSeq');
+        } else {
+          if (args.type !== undefined) {
+            throw new QueryError('BAD_ARGS', `feed takes one type filter, got '${args.type}' and '${p}'`);
+          }
+          args.type = p;
+        }
       }
+      if (limitRaw !== undefined) {
+        const n = /^\d+$/.test(limitRaw) ? Number(limitRaw) : NaN;
+        if (!Number.isInteger(n) || n < 1 || n > FEED_LIMIT_MAX) {
+          throw new QueryError('BAD_ARGS', `--limit must be an integer from 1 to ${FEED_LIMIT_MAX}, got '${limitRaw}'`);
+        }
+        args.limit = n;
+      }
+      if (accountRaw !== undefined) args.accountIndex = int(accountRaw, '--account');
       return args;
     },
     stateless: false,
     kamiden: true,
-    build: (ctx, a) => feedQuery(ctx, a as { sinceSeq?: number; type?: string }),
+    build: (ctx, a) =>
+      feedQuery(ctx, a as { sinceSeq?: number; type?: string; limit?: number; accountIndex?: number }),
   },
   chat: {
     name: 'chat',
@@ -626,8 +697,16 @@ export function assertSocketArgs(query: string, args: readonly string[]): void {
   for (const arg of args) {
     if (!arg.startsWith('--')) continue;
     if (accepts.includes(arg)) continue;
+    if (isInlineValued(query, arg)) continue;
     throw unknownOption(query, arg, accepts);
   }
+}
+
+/** `--flag=value` for a declared VALUED option (1.0.0) */
+function isInlineValued(query: string, arg: string): boolean {
+  const eq = arg.indexOf('=');
+  if (eq < 0) return false;
+  return (REGISTRY[query as QueryName]?.valued ?? []).includes(arg.slice(0, eq));
 }
 
 /** CLI routing (0.5.0; moved here at 0.5.2 so one module owns the rule).
@@ -651,7 +730,7 @@ export function routeCliArgs(
   }
   for (const arg of rest) {
     if (!arg.startsWith('--')) positional.push(arg);
-    else if (declared.includes(arg)) positional.push(arg);
+    else if (declared.includes(arg) || isInlineValued(command, arg)) positional.push(arg);
     else if (CLIENT_FLAGS.includes(arg)) flags.add(arg);
     else if (!known) flags.add(arg);
     else throw unknownOption(command, arg, [...declared, ...CLIENT_FLAGS]);

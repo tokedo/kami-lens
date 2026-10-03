@@ -228,7 +228,7 @@ try {
   while (Date.now() < deadline) {
     await sleep(POLL_S * 1000);
     polls++;
-    const resp = await socketQuery('feed', [String(lastSeq)]);
+    const resp = await socketQuery('feed', [String(lastSeq), '--limit', '500']);
     if (!resp.ok) fail('G4.b', { reason: 'feed query failed', error: resp.error });
     const pollBlock = resp.meta?.blockNumber ?? 0;
     const data = resp.data as { events: FeedEntry[]; stream: { state: string } };

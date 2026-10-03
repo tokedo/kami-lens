@@ -317,6 +317,37 @@ export class KamidenFeeds {
     }
   }
 
+  /** 1.0.0 (B1): the `feed` query's selection. Without `sinceSeq`, the
+   * NEWEST `limit` matching events; with it, the matching events with
+   * seq > sinceSeq, oldest first, capped at `limit`. Either way the events
+   * come back in ascending seq, and `matched` counts every buffered event
+   * the filters (and the cursor, when given) select BEFORE the cap — so a
+   * reader can tell "that is all of them" from "there are more". */
+  select(options: {
+    sinceSeq?: number;
+    type?: FeedEventType;
+    limit: number;
+    match?: (entry: BufferedFeedEvent) => boolean;
+  }): { events: BufferedFeedEvent[]; matched: number } {
+    const { sinceSeq, type, limit, match } = options;
+    const selected: BufferedFeedEvent[] = [];
+    let matched = 0;
+    for (const entry of this.buffer) {
+      if (sinceSeq !== undefined && entry.seq <= sinceSeq) continue;
+      if (type && entry.type !== type) continue;
+      if (match && !match(entry)) continue;
+      matched++;
+      // with a cursor the oldest `limit` are the answer and the scan only
+      // keeps counting; without one every match is kept and the newest
+      // `limit` sliced off the end (the buffer is at most a few thousand)
+      if (sinceSeq === undefined || selected.length < limit) selected.push(entry);
+    }
+    return {
+      events: sinceSeq === undefined ? selected.slice(-limit) : selected,
+      matched,
+    };
+  }
+
   /** Pull from the ring buffer: events with seq > sinceSeq, optionally one
    * type, oldest first, capped at limit. */
   read(options: { sinceSeq?: number; type?: FeedEventType; limit?: number } = {}): BufferedFeedEvent[] {

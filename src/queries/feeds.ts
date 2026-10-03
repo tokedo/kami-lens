@@ -1364,6 +1364,11 @@ export type FeedOut = {
     messagesDropped: number;
   };
   buffer: { size: number; capacity: number; evicted: number; newestSeq: number };
+  /** 1.0.0 (B1): buffered events the filters (and the cursor, when given)
+   * select, before the --limit cap */
+  eventsMatched: number;
+  /** 1.0.0 (B1): events in this answer (min(eventsMatched, limit)) */
+  eventsServed: number;
   events: FeedEntryOut[];
 };
 
@@ -1570,18 +1575,106 @@ function toFeedEntryOut(mirror: Mirror, entry: BufferedFeedEvent): FeedEntryOut 
  * over stream Feed events, served as a pull query. Buffer state and
  * stream health ride along so a degraded stream is visible in the answer
  * itself, not just in status (§3.2). */
+/** 1.0.0 (B1): `feed --limit` default and bounds */
+export const FEED_LIMIT_DEFAULT = 50;
+export const FEED_LIMIT_MAX = 500;
+
+/** Parse a feed participant id (the stream sends decimal strings; the mirror
+ * keys hex) to one comparable value; null when it is not an id. */
+const feedId = (raw: string | undefined): bigint | null => {
+  if (!raw || raw === '0') return null;
+  try {
+    return BigInt(raw);
+  } catch {
+    return null;
+  }
+};
+
+/** 1.0.0 (B1): `--account <accountIndex>` — an event matches when any of its
+ * ACCOUNT fields is that account (movement and kamiCast actor, trade maker
+ * or taker, market buyer / seller / lister / offerer / canceller, reveal
+ * holder, kill `account`) OR any of its KAMI fields names a kami the account
+ * owns NOW (harvest end, kill killer or victim, cast target, sacrifice kami,
+ * market kami index, a reveal whose holder is the kami). "Owns now" is the
+ * mirror's present ownership, not ownership at the event's time — the
+ * stream carries no owner, and the doc line says so. */
+export function feedAccountMatcher(
+  mirror: Mirror,
+  accountIndex: number
+): (entry: BufferedFeedEvent) => boolean {
+  const { world, components } = mirror;
+  const account = getAccountByIndex(world, components, accountIndex, { kamis: true });
+  if (!account.index) {
+    throw new QueryError('NOT_FOUND', `account ${accountIndex} not in mirror`);
+  }
+  const accountId = feedId(account.id);
+  const kamiIds = new Set<bigint>();
+  const kamiIndices = new Set<number>();
+  for (const k of account.kamis ?? []) {
+    const id = feedId(k.id);
+    if (id !== null) kamiIds.add(id);
+    kamiIndices.add(k.index);
+  }
+  const isAccount = (raw: string | undefined) => {
+    const id = feedId(raw);
+    return id !== null && id === accountId;
+  };
+  const isKami = (raw: string | undefined) => {
+    const id = feedId(raw);
+    return id !== null && kamiIds.has(id);
+  };
+  return (entry) => {
+    const e = entry.event as unknown as Record<string, unknown>;
+    const str = (k: string) => e[k] as string | undefined;
+    switch (entry.type) {
+      case 'movement':
+        return isAccount(str('AccountId'));
+      case 'harvestEnd':
+        return isKami(str('KamiId'));
+      case 'kill':
+        return isAccount(str('AccountID')) || isKami(str('KillerId')) || isKami(str('VictimId'));
+      case 'trade':
+        return isAccount(str('MakerId')) || isAccount(str('TakerId'));
+      case 'kamiCast':
+        return isAccount(str('AccountID')) || isKami(str('TargetID'));
+      case 'droptableReveal':
+        return isAccount(str('HolderID')) || isKami(str('HolderID'));
+      case 'sacrificeReveal':
+        return isAccount(str('HolderID')) || isKami(str('HolderID')) || isKami(str('KamiID'));
+      case 'kamiMarketList':
+      case 'kamiMarketOffer':
+        return isAccount(str('AccountID')) || kamiIndices.has(e.KamiIndex as number);
+      case 'kamiMarketBuy':
+      case 'kamiMarketAccept':
+        return (
+          isAccount(str('BuyerAccountID')) ||
+          isAccount(str('SellerAccountID')) ||
+          kamiIndices.has(e.KamiIndex as number)
+        );
+      case 'kamiMarketCancel':
+        return isAccount(str('AccountID'));
+      default:
+        return false;
+    }
+  };
+}
+
 export function feedQuery(
   ctx: QueryCtx,
-  args: { sinceSeq?: number; type?: string }
+  args: { sinceSeq?: number; type?: string; limit?: number; accountIndex?: number }
 ): FeedOut {
   const kamiden = requireKamiden(ctx, 'feed');
   if (args.type !== undefined && !FEED_TYPES.includes(args.type as FeedEventType)) {
     throw new QueryError('BAD_ARGS', `unknown feed type '${args.type}' (have: ${FEED_TYPES.join(', ')})`);
   }
+  const match =
+    args.accountIndex !== undefined ? feedAccountMatcher(ctx.mirror, args.accountIndex) : undefined;
   const status = kamiden.getStatus();
-  const events = kamiden.read({
+  const { events, matched } = kamiden.select({
     sinceSeq: args.sinceSeq,
     type: args.type as FeedEventType | undefined,
+    limit: args.limit ?? FEED_LIMIT_DEFAULT,
+    match,
   });
   return {
     stream: {
@@ -1595,6 +1688,8 @@ export function feedQuery(
       messagesDropped: status.stream.messagesDropped,
     },
     buffer: status.buffer,
+    eventsMatched: matched,
+    eventsServed: events.length,
     events: events.map((entry) => toFeedEntryOut(ctx.mirror, entry)),
   };
 }
