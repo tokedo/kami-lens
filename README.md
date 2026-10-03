@@ -110,9 +110,23 @@ Three things worth knowing:
 `status` reports the limit it ended up with and who chose it — you, Node, or
 the daemon itself.
 
+### Minimum machine
+
+Measured, not estimated (1.0.0, October 2026):
+
+| | Needs | Measured |
+|---|---|---|
+| **Memory** | **8 GB of RAM** for a first start with no saved state, unaided. Below about 7 GB available to the process the daemon will not start a first load on its own (it refuses, with the remedy); below 5.5 GB it refuses outright. | Peak while loading the world: **4.09 GB** resident on a 2-hour run on a Mac, 3.2 GB in a one-processor 6 GB container, 3.6 GB on a 2-processor VM. Steady once running: **2.17–2.25 GB**. Every ten minutes a separate process rewrites the saved world for about ten seconds and needs about 1.5–1.6 GB more while it does. |
+| **Processors** | **1** is enough; **2** is comfortable. | One processor: running and answering 41 s after a first start from the state CDN, on the first attempt, with `status` answering throughout the ten-minute rewrite. |
+| **Node** | **22.15 or newer** for a start with no configuration — that is the version that lets the daemon raise its own memory limit. On Node 20 set `NODE_OPTIONS=--max-old-space-size=6144` yourself. | |
+| **Disk** | About **0.5 GB**: the saved world (~235 MB) and its previous copy. | |
+
+A restart from saved state needs much less than a first start (about 2.3 GB),
+so a machine that can do the first start can always restart.
+
 ## Status
 
-**0.6.2, pre-release.** Daemon, CLI, and library are implemented and
+**1.0.0.** Daemon, CLI, and library are implemented and
 gate-verified against the pinned upstream commit and the live game,
 with dated per-run evidence in `docs/measurements/`. The verification
 suite is G0–G10 (G8, G9 and G10 are manual and live); every run writes
@@ -120,6 +134,101 @@ its own dated record, and the record — not this paragraph — is what a
 given release rests on. The contract registry is [SPEC.md](SPEC.md);
 per-surface coverage — what is served, what is deferred, what is out
 of scope — is [docs/coverage.md](docs/coverage.md).
+
+### What changed in 1.0.0, for the things that read this daemon
+
+1.0.0 is a correctness release first: an answer never looks complete when
+it is not, and you can now ask the daemon to wait until it has seen your
+own transaction. It also adds the reads for the Ether Shard loop — pending
+withdrawals and an exact pool quote — and moves to the current game client.
+
+**If you read this daemon today with 0.6.3, change these, in this order.**
+
+1. **`feed` with no cursor now gives you the NEWEST 50 events, oldest of
+   those first.** It used to give you the OLDEST 500 in its buffer — on a
+   full buffer, events from long ago. If you page through the feed, pass
+   the cursor every time: `feed <lastSeq>` still means "everything after
+   this, oldest first", now capped at 50 unless you say `--limit <n>` (up
+   to 500). To get the old behaviour exactly, ask `feed 0 --limit 500`.
+   Two numbers in one request (`feed 120 50`) used to mean "since 50"
+   without telling you; it is now an error — the cap is `--limit`. The
+   answer says how many events matched (`eventsMatched`) and how many it
+   gave you (`eventsServed`); if the second is smaller, there are more.
+   `--account <index>` keeps the events that involve that account or a
+   kami it owns now.
+2. **`meta.asOf.observedBlock`, `observedBlockTime` and `observedAgoMs` are
+   gone.** They were renamed in 0.6.1 and kept for one release. Read
+   `clockSampleBlock`, `clockSampleBlockTime` and `clockSampleAgoMs`.
+3. **The three chain-head fields on `status` can be missing, more often
+   than before.** `headBlockNumber`, `headSampledAt` and `blockLag` now come
+   from a reading taken every 10 seconds in the background, not from a
+   fresh read per request. All three are left out together whenever there
+   is no reading yet (the first seconds after start) or the newest one is
+   more than 60 seconds old (the RPC has been failing for a minute). So:
+   - if you compute lag from `headBlockNumber`, handle the field being
+     ABSENT — it is not `0` and not `null`, the key is missing;
+   - absence now means "no reading in the last minute", not "this request's
+     read failed";
+   - `blockLag` can be up to one reading old, and because it never goes
+     below 0 it can read `0` while the mirror is a few blocks behind the
+     true head — look at `headSampledAt` if that matters;
+   - `status` no longer waits on the chain at all, so it answers instantly
+     even when the RPC is slow; that is the point of the change.
+4. **"Is my transaction in this answer yet?" moved.** Compare your
+   receipt's block against **`meta.appliedThrough`**, which every answer now
+   carries — or better, send the read with **`--at-least <yourBlock>`** and
+   the daemon waits (up to 5 seconds, `--max-wait` up to 30) until it has
+   applied that block, then answers; if it cannot in time it answers
+   `NOT_APPLIED` and tells you how far it got. `meta.reconciledThrough` is
+   still served but now means only "re-read from the chain and proven"; it
+   starts lower than it used to and is not the right number for this.
+5. **A kami that cannot be read completely is no longer shown as healthy.**
+   Asking for one such kami (`kami`, `skills <kami>`, or the attacker of
+   `node … --with-vitals`) answers `INCOMPLETE`. In a list (`node`,
+   `party`, `roster`) the kami keeps its row with `incomplete: true` and no
+   numbers. `meta.incompleteRows` counts them when there are any.
+6. **ERC20 items carry their token.** Rows for Ether Shard (103) and Onyx
+   Shard (100) in `item` and `items` gain `token: {address, scale}`. If you
+   validate with a closed schema, allow it.
+7. **`kami <index> --stateless` refuses flags it cannot honour.** `--stats`
+   used to be ignored there without a word; it now answers
+   `REQUIRES_DAEMON` (exit 5), as does `--equipment`.
+8. **Two arguments that used to be ignored are now errors:** a third bare
+   number on `node`, and a repeated value option.
+9. **`status` has more in it** — `incompleteRows`, and in `sync`:
+   `appliedThrough`, `shortReads`, `olderWritesSkipped`,
+   `lastReconcileAdvanceAt`. `degraded` can now say
+   `reconcile-stalled:<seconds>`.
+10. **`version` reads `1.0.0` and `upstreamPin` reads `ffda3963…`.**
+
+Everything else is new and only appears when you ask for it:
+
+- **`receipts <account>`** — the account's withdrawals that are still
+  waiting to be claimed: how much, the tax already taken, when it can be
+  claimed, whether it is claimable now, and where the claim would pay (the
+  owner, or for a withdrawal sent to the operator, the account's operator
+  as of now — the game decides at claim time). **Only waiting ones:** the
+  game deletes a withdrawal when it is claimed or cancelled, so an empty
+  list means nothing is waiting, not that nothing was ever withdrawn. The
+  history is still `portal`.
+- **`quote <fromItem> <toItem> <amount> [--exact-out]`** — what a pool swap
+  pays, to the unit, fee included: sell exactly `amount`, or with
+  `--exact-out` buy at least `amount` for the smallest input that does it.
+  It answers `NOT_QUOTABLE` where the game would refuse the swap. Checked
+  against the chain's own reserves in both directions and both modes.
+- **`pool-history <itemA> <itemB> [fromTs]`** — a pool's price history, as
+  the game's history service reports it.
+- **`node <index> --targets <k1,k2,…>` / `--account <index>`** — read only
+  the kamis you care about on a crowded node; the daemon skips the rest
+  before doing any work on them. `targetsAbsent` lists the ones not there.
+- **`roster --stats --full`** — every row, not the first 50.
+- **`kami <index> --equipment`** — what it has equipped, slot by slot.
+- **A client that hangs up stops its wait.** If you disconnect while an
+  `--at-least` read is waiting, the daemon drops the wait at once. Many
+  short connections cost the daemon nothing much; starting a new CLI
+  process for every call is what costs (a Node start each time) — keep one
+  connection open if you can.
+- **Config changes in the game reach the daemon without a restart.**
 
 ### What changed in 0.6.3, for the things that read this daemon
 

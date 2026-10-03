@@ -1711,7 +1711,14 @@ Never silent gaps.
   gate exist to guarantee. Quoting arrives with a pin whose client ships
   the pool module, at which point the differential gate covers it for
   free. A reader holding both reserves and the fee has everything the
-  formula consumes in the meantime.
+  formula consumes in the meantime. **Closed in 1.0.0:** the pin advanced
+  to `ffda3963`, whose client ships `network/shapes/Pool`; it is ported
+  verbatim and `quote` serves it. The evidence is stronger than a
+  differential against the client alone: gate G2.e checks every served
+  quote against the CHAIN — the pool's reserves and fee read by `eth_call`
+  at the mirror's own block, through an independent uint256 transcription
+  of `LibPool.calcAmountOut` — in both directions and both modes. LP
+  positions (a holder's shares) stay deferred (docs/coverage.md).
 - **Single-binary packaging.**
 - **`replayOnto` loud refusal** (0.2.0 audit residual). The gates
   library replay primitive (`gates/g1/lib.mts`) silently no-ops when

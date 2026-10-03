@@ -57,7 +57,7 @@ than left as an implied `planned`.
 | kami sheet: level / experience / skill points | `shapes/Kami/progress`, `shapes/Kami/skills`, `shapes/Skill` | chain | served (0.5.0) — `kami`/`party`/node occupant rows carry level, `xp`, `xpRequired`, `levelUpReady` (+ `levelUpBlockedBy`) and unspent `skillPoints`; the `skills` query carries the registry and a kami's taken skills with ranks | G3.a, G3.f, G6.a, G7.a |
 | kami sheet: STATS + affinities | `shapes/Kami/stats`, `shapes/Stats`, `app/cache/kami/functions` (affinity pair) | chain | served (0.5.1) — the `--stats` flag on `kami`, `roster`, `party` and `node --with-vitals` serves `base`/`shift`/`boost`/`sync`/`total` for health, power, harmony and violence, plus `[body, hand]` affinities. Opt-in: without the flag every 0.5.0 answer is byte-identical. `slots` and `stamina` are NOT served here — they are in the mirror but not in the chain getter's tuple, so no gate could hold them to chain. | G2.d, G3.a, G3.f, G3.g, G7.a |
 | kami sheet: traits | `shapes/Kami/traits`, `shapes/Trait` | chain | **not served** — **deferred with a reason at 0.5.1, docketed.** The mirror holds them and refreshes them on every kami read, so this is a projection decision, not an absence. The chain-checkable form is trait INDICES, measured at +66 B/kami: on a 150-kami `roster --stats` that is 94 % of the 64 KiB reader budget spent on identifiers nothing on the surface can resolve, because there is no trait-registry query to join them against. Serve the registry first, then the indices. | — |
-| kami sheet: equipment | `app/cache/equipment` | chain | **not served** — unchanged from 0.5.0 and still docketed. (This row and the two above were ONE row until 0.5.1, carrying a single status for three different surfaces; 0.5.0 had already corrected that row for borrowing G2.a/G2.b, gates that verify the ported calcs' *computation* parity and reach no query output. Splitting it is the same rule applied one level down: a row states the status of one thing.) | — |
+| kami sheet: equipment | `app/cache/equipment` (`getEquipped`, `getEquipmentCapacity`) | chain | **served (1.0.0)** — `kami <index> --equipment`: capacity and every slot the client knows, in its order, slot names verbatim, `null` when empty. (Not served 0.5.0–0.6.3; split from the stat-block row at 0.5.1 because a row states the status of one thing.) | G3.a (30 kamis × two forms), G3.f (presence of `equipment.capacity`, `equipment.slots[].slot`), `test/kami-equipment.test.ts` |
 | kami sheet: battles tab | kamiden `GetBattles` + `GetBattleStats` | kamiden | served (G4.a) | G4.a |
 | node (occupants, ally/enemy threat, scavenge) | `shapes/Node/harvests` mirror query, liquidation calcs, `shapes/Scavenge` | chain | served (G3.b) — 0.5.2 adds `--eligible-only` (rows the given attacker can liquidate, filtered before the cap, with `harvestsEligible` beside the whole-node `harvestsTotal`) and a `margin` on every preview, since `eligible` is a boolean over a projection whose error is not bounded | G3.b, G7.c |
 | map | `shapes/Room` (identity, description, location, exits, gates), `shapes/Portal` | chain | served **in part** (G3.a, G6.b) — the `room` query serves room identity, occupancy and, from 0.5.0, the EXIT graph with the conditions stored on each exit. The portal half is still unserved, and the room's map COORDINATE is docketed, not built. *(The 0.2.0 row named "room constants" as a source; `constants/rooms` was never ported — room data comes from the mirror's own components. Corrected at 0.5.0.)* | G3.a; the `room` query (0.2.0) adds G6.b; exits fold into G6.b at 0.5.0 |
@@ -89,7 +89,11 @@ than left as an implied `planned`.
 |---|---|---|---|---|
 | battle/kill feed | kamiden stream `Feed`, daemon ring buffer served as pull query | kamiden | served (G4.b) | G4.b |
 | room presence (other accounts) | `RoomIndex == here` mirror query | chain | served (G3.a, G6.b) | dedicated `room` query (0.2.0): G3.a + G6.b |
-| item pools (constant-product item swap venues) | pool entities (`EntityType == POOL`, `Keys`, `Rate`, `Value`, `TimeStart`, optional `IsDisabled`) plus the pool's own inventory rows as reserves | chain | served (G7.a, G7.b) since 0.3.0 — **facts only** (reserves, fee, share supply, creation time, reserve-ratio valuation); no swap quote, see the 0.3.0 section | G7.b (chain cross-check per row). **G2.b display parity is structurally unavailable for this row** — pools postdate the pinned client, which has no pool pane to compare against, so G7.b is this row's whole evidence |
+| item pools (constant-product item swap venues) | pool entities (`EntityType == POOL`, `Keys`, `Rate`, `Value`, `TimeStart`, optional `IsDisabled`) plus the pool's own inventory rows as reserves | chain | served (G7.a, G7.b) since 0.3.0 as facts (reserves, fee, share supply, creation time, reserve-ratio valuation). **1.0.0: the pinned client now ships the pool module** (`network/shapes/Pool`, `modals/pool`), so the swap quote is served — see the next three rows | G7.b (chain cross-check per row) |
+| pool modal: swap quote (`modals/pool/Pool.tsx`) | `network/shapes/Pool` pricing (`calcAmountOut`, `calcAmountIn`, `quote`) over the pool's reserves and fee | chain | **served (1.0.0)** — `quote <fromItem> <toItem> <amount> [--exact-out]`, both directions, both modes, `NOT_QUOTABLE` where the chain would refuse | **G2.e** (chain-exact against on-chain reserves at the mirror's block), G3.a, G3.f |
+| pool modal: price chart (`modals/pool/Chart.tsx`) | kamiden `GetPoolPriceHistory` | kamiden | **served (1.0.0)** — `pool-history <itemA> <itemB> [fromTs]`, verbatim | schema only at release (live call not verified — the service was rate-limiting this host; SPEC §4.3) |
+| pool modal: LP positions (`modals/pool/Positions.tsx`) | `getShares` (`amm.pool.share` entity per holder), `calcRemoveAmounts` | chain | **deferred (1.0.0)** — a holder's shares and what removing them returns are not served; the pool row's `lpSupply` is. Read-only and computable from the ported module; deferred for scope, not for feasibility | — |
+| token portal: pending withdrawals, operator lane (`modals/tokenPortal`, `modals/bridge`) | `TOKEN_RECEIPT` entities (`network/shapes/Portal`), the `PORTAL_TO_OPERATOR` flag, the item's ERC20 registration | chain | **served (1.0.0)** — `receipts <account>`: PENDING receipts only (the portal deletes a settled one), with claimability, lane and payout route; ERC20 item rows carry `token {address, scale}`. The per-item lane-enabled bit and the portal-wide switch are contract storage, not mirrored | G3.a, G3.f; live: `docs/measurements/b6-eth-loop-live-2026-10-03.json` |
 
 ## Standing caveats
 
@@ -773,6 +777,24 @@ fallback for every decline and every failure) and adds one diagnostic,
 `status.lastFullLoad`, saying which route was taken — so the only row this
 file would otherwise touch is the sync/loading-state one, and it is
 updated in place rather than restated here.
+
+## 1.0.0 — correctness, the ETH loop, pin `ffda3963` (2026-10-03)
+
+**The pin advances** from `ef898fc9` to `ffda3963` (29 upstream commits;
+the classified diff, with the formula-affecting hand review, is
+`docs/measurements/pin-advance-ffda3963-2026-10-03.json`). The diff's
+coverage-affecting bucket adds one modal, `pool` (swap, chart, positions),
+and changes the token-portal and bridge modals for the operator lane; the
+rows above carry each, served or deferred. Every other modal and fixture
+edit in the range is presentation or flow and adds no chain-derived fact a
+player sees that this file does not already list.
+
+**Newly served:** the equipment row, the pool quote and chart, pending
+portal withdrawals, the ERC20 token on item rows. **Newly deferred:** LP
+positions. **Changed default:** `feed` without a cursor serves the newest
+50 events (was the oldest 500) — the battle/kill feed row is otherwise
+unchanged. Leg A's correctness work changes no row's status: it changes
+what an answer may claim about its own completeness (SPEC §1.2, §3).
 
 ## Maintenance
 
