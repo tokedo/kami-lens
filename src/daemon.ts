@@ -993,9 +993,13 @@ export class KamiLensDaemon {
    * the stream for ONE proven catch-up read (the stream coalesces). */
   static readonly CATCH_UP_AFTER_MS = 1_000;
 
-  waitApplied(block: number, maxWaitMs: number): Promise<void> {
+  /** `--at-least` waits released because their client disconnected */
+  waitsCancelled = 0;
+
+  waitApplied(block: number, maxWaitMs: number, signal?: AbortSignal): Promise<void> {
     const reached = () => syncHealth.appliedThrough !== null && syncHealth.appliedThrough >= block;
     if (reached()) return Promise.resolve();
+    if (signal?.aborted) return Promise.reject(new Error('client disconnected'));
     return new Promise<void>((resolve, reject) => {
       let done = false;
       const finish = (err?: Error) => {
@@ -1004,9 +1008,18 @@ export class KamiLensDaemon {
         off();
         clearTimeout(timer);
         clearInterval(nudge);
+        signal?.removeEventListener('abort', onAbort);
         if (err) reject(err);
         else resolve();
       };
+      // 1.0.0: a waiter whose client has gone away is released at once —
+      // its listener, its two timers and its catch-up nudges stop with it,
+      // instead of running out the max-wait for nobody
+      const onAbort = () => {
+        this.waitsCancelled++;
+        finish(new Error('client disconnected'));
+      };
+      signal?.addEventListener('abort', onAbort, { once: true });
       const off = onAppliedAdvance(() => {
         if (reached()) finish();
       });

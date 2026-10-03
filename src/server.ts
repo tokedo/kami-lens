@@ -199,7 +199,11 @@ type Request = {
   oversize?: boolean;
 };
 
-async function handle(daemon: KamiLensDaemon, req: Request): Promise<Record<string, unknown>> {
+async function handle(
+  daemon: KamiLensDaemon,
+  req: Request,
+  closed?: AbortSignal
+): Promise<Record<string, unknown>> {
   const id = req.id ?? null;
   try {
     if (!req.query) throw new QueryError('BAD_ARGS', 'request needs a query name');
@@ -258,7 +262,7 @@ async function handle(daemon: KamiLensDaemon, req: Request): Promise<Record<stri
     // appliedThrough. The mirror is captured AFTER the wait, so the answer is
     // built from state that includes the block.
     if (freshness.atLeast !== undefined) {
-      await daemon.waitApplied(freshness.atLeast, freshness.maxWaitMs);
+      await daemon.waitApplied(freshness.atLeast, freshness.maxWaitMs, closed);
     }
     const mirror = daemon.getMirror();
     if (!mirror) throw new QueryError('NOT_READY', 'daemon not LIVE: mirror not initialized yet');
@@ -328,6 +332,15 @@ export function startQuerySocket(daemon: KamiLensDaemon, dataDir: string): Serve
     // async handlers (M4 kamiden passthroughs) — chain per connection so
     // responses keep request order on the line protocol
     let pending: Promise<void> = Promise.resolve();
+    // 1.0.0: when the client goes away, a pending `--at-least` wait is
+    // released at once and nothing still queued on this connection runs —
+    // there is nobody to answer
+    const closed = new AbortController();
+    conn.on('close', () => closed.abort());
+    const send = (response: unknown) => {
+      if (closed.signal.aborted || conn.destroyed || !conn.writable) return;
+      conn.write(JSON.stringify(response) + '\n');
+    };
     conn.on('data', (chunk) => {
       buffer += chunk.toString('utf8');
       let nl: number;
@@ -340,14 +353,14 @@ export function startQuerySocket(daemon: KamiLensDaemon, dataDir: string): Serve
           req = JSON.parse(line) as Request;
         } catch {
           pending = pending.then(() => {
-            conn.write(JSON.stringify({ id: null, ok: false, error: { code: 'BAD_ARGS', message: 'invalid JSON' } }) + '\n');
+            send({ id: null, ok: false, error: { code: 'BAD_ARGS', message: 'invalid JSON' } });
           });
           continue;
         }
         pending = pending
-          .then(() => handle(daemon, req))
+          .then(() => (closed.signal.aborted ? undefined : handle(daemon, req, closed.signal)))
           .then((response) => {
-            conn.write(JSON.stringify(response) + '\n');
+            if (response) send(response);
           });
       }
     });

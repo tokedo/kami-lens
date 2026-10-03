@@ -116,3 +116,57 @@ describe('A5: --at-least on the socket', () => {
     expect(b.reply.error).toMatchObject({ code: 'BAD_ARGS' });
   });
 });
+
+describe('1.0.0: a client that disconnects releases its --at-least wait', () => {
+  it('the wait ends at the disconnect, not at --max-wait, and nothing is written back', async () => {
+    const d = liveDaemon();
+    syncHealth.appliedThrough = 1_000;
+    server = startQuerySocket(d, dir);
+    await new Promise((r) => setTimeout(r, 50));
+    const conn = connect(socketPath(dir));
+    await new Promise<void>((r) => conn.on('connect', () => r()));
+    conn.write(
+      JSON.stringify({ id: 9, query: 'kami', args: ['42', '--at-least', '5000', '--max-wait', '30000'] }) + '\n'
+    );
+    await new Promise((r) => setTimeout(r, 100));
+    expect(d.waitsCancelled).toBe(0);
+    const t0 = Date.now();
+    conn.destroy();
+    // released promptly — not 30 s later
+    for (let i = 0; i < 50 && d.waitsCancelled === 0; i++) await new Promise((r) => setTimeout(r, 20));
+    expect(d.waitsCancelled).toBe(1);
+    expect(Date.now() - t0).toBeLessThan(1_000);
+  });
+
+  it('a request queued behind the wait on the same connection is never run', async () => {
+    const d = liveDaemon();
+    syncHealth.appliedThrough = 1_000;
+    let served = 0;
+    const realMirror = d.getMirror;
+    d.getMirror = () => {
+      served++;
+      return realMirror();
+    };
+    server = startQuerySocket(d, dir);
+    await new Promise((r) => setTimeout(r, 50));
+    const conn = connect(socketPath(dir));
+    await new Promise<void>((r) => conn.on('connect', () => r()));
+    conn.write(JSON.stringify({ id: 1, query: 'kami', args: ['42', '--at-least', '5000'] }) + '\n');
+    conn.write(JSON.stringify({ id: 2, query: 'kami', args: ['42'] }) + '\n');
+    await new Promise((r) => setTimeout(r, 100));
+    conn.destroy();
+    await new Promise((r) => setTimeout(r, 200));
+    expect(d.waitsCancelled).toBe(1);
+    expect(served).toBe(0);
+  });
+
+  it('a waiter whose client stays answers normally (the signal is per connection)', async () => {
+    const d = liveDaemon();
+    syncHealth.appliedThrough = 1_000;
+    server = startQuerySocket(d, dir);
+    await new Promise((r) => setTimeout(r, 50));
+    const { reply } = await ask(socketPath(dir), { query: 'kami', args: ['42', '--at-least', '900'] });
+    expect(reply.ok).toBe(true);
+    expect(d.waitsCancelled).toBe(0);
+  });
+});
