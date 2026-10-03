@@ -87,6 +87,13 @@ request field can ask for a different one. Booleans are strict — `true` or
 `false`; anything else (including `1`) fails loudly at startup rather than
 being guessed at.
 
+**Keep the data directory's path short.** The query socket lives at
+`<data-dir>/kami-lens.sock`, and operating systems cap a socket path at about
+100 bytes (103 on macOS, 107 on Linux). If yours would be longer, the daemon —
+and the CLI — refuse to start with a message naming the path, its length and
+the limit, rather than bind a shortened path no client could find; pass a
+shorter `--data-dir`.
+
 ### Memory
 
 A first start loads the whole world into memory — about 4.5 GB at its peak.

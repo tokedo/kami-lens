@@ -36,6 +36,8 @@
 //   3 ERR_NO_SNAPSHOT_SOURCE from daemon mode (gate G1.e's loud-fail
 //   marker — unchanged from M1) · 4 daemon unreachable ·
 //   5 REQUIRES_DAEMON (stateless mode cannot serve this query — gate G3.d).
+//   (1.0.0: a data dir whose socket path the OS would truncate is refused
+//   with exit 2 and error code SOCKET_PATH_TOO_LONG, daemon and client alike.)
 
 import { connect } from 'node:net';
 
@@ -50,7 +52,7 @@ import {
   HEAP_REEXEC_ENV,
   readHeapInputs,
 } from './heap';
-import { socketPath, startQuerySocket } from './server';
+import { checkSocketPath, socketPath, startQuerySocket } from './server';
 import { statelessKami } from './stateless';
 import { getVersionInfo } from './version';
 
@@ -173,7 +175,28 @@ function usage(): never {
   process.exit(EXIT_USAGE);
 }
 
+/** 1.0.0: refuse a socket path the OS would truncate, on BOTH sides — the
+ * daemon before it binds, the client before it connects — with the same
+ * message and exit code 2 (a usage problem with a stated remedy). */
+function socketPathOrExit(dataDir: string): string {
+  const sock = socketPath(dataDir);
+  try {
+    checkSocketPath(sock);
+  } catch (e) {
+    console.error(
+      JSON.stringify({
+        ok: false,
+        error: { code: 'SOCKET_PATH_TOO_LONG', message: e instanceof Error ? e.message : String(e) },
+      })
+    );
+    process.exit(EXIT_USAGE);
+  }
+  return sock;
+}
+
 async function runDaemon(configFlags: Partial<KamiLensConfig> & { configFile?: string }): Promise<void> {
+  // before the daemon object exists, so a refused start does no work at all
+  socketPathOrExit(resolveConfigDetailed({}, configFlags).config.dataDir);
   const daemon = new KamiLensDaemon({}, configFlags);
 
   daemon.status$.subscribe((status) => {
@@ -228,7 +251,7 @@ async function runClient(
     prose: flags.has('--prose'),
     noAuthored: flags.has('--no-authored'),
   };
-  const sock = socketPath(dataDir);
+  const sock = socketPathOrExit(dataDir);
   await new Promise<void>((resolve) => {
     const conn = connect(sock);
     let buffer = '';
@@ -351,7 +374,7 @@ async function main(): Promise<void> {
   if (command === 'health') {
     // healthcheck backend (G5.b): one status round-trip; LIVE → 0, else 1
     const dataDir = resolveConfigDetailed({}, configFlags).config.dataDir;
-    const sock = socketPath(dataDir);
+    const sock = socketPathOrExit(dataDir);
     const state = await new Promise<string>((resolve) => {
       const conn = connect(sock);
       let buffer = '';

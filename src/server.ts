@@ -36,6 +36,37 @@ export function socketPath(dataDir: string): string {
   return path.join(dataDir, SOCKET_NAME);
 }
 
+/** 1.0.0: the longest query-socket path this platform binds WITHOUT
+ * truncation, in bytes, with room for the terminating NUL every client
+ * library expects. Measured on macOS (Node 22): a path of up to 104 bytes
+ * binds as given and a longer one is SILENTLY cut to 104 at bind, while
+ * Python's socket module refuses at 104 — so 103 there and on the BSDs
+ * (same sockaddr_un), 107 on Linux (108-byte sun_path). */
+export const SOCKET_PATH_MAX_BYTES = process.platform === 'linux' ? 107 : 103;
+
+export class SocketPathTooLongError extends Error {
+  readonly code = 'SOCKET_PATH_TOO_LONG';
+}
+
+/** Refuse a socket path the OS would truncate. A truncated bind is the worst
+ * outcome available: the daemon reports itself healthy at a path that does
+ * not exist, the Node CLI happens to find the truncated one (it truncates
+ * identically), and every other client cannot connect at all. Called by the
+ * daemon before it binds and by the CLI before it connects, so both refuse
+ * the same way. */
+export function checkSocketPath(sock: string): void {
+  if (process.platform === 'win32') return;
+  const bytes = Buffer.byteLength(sock);
+  if (bytes <= SOCKET_PATH_MAX_BYTES) return;
+  throw new SocketPathTooLongError(
+    `SOCKET_PATH_TOO_LONG: the query socket path is ${bytes} bytes and this platform's limit is ` +
+      `${SOCKET_PATH_MAX_BYTES} — the operating system would bind a truncated path that no client ` +
+      `could find. Path: ${sock}. Remedy: use a shorter --data-dir (the socket is ` +
+      `<data-dir>/${SOCKET_NAME}, so the data dir may be at most ` +
+      `${SOCKET_PATH_MAX_BYTES - SOCKET_NAME.length - 1} bytes).`
+  );
+}
+
 /** A chain-head observation, sampled beside a status answer.
  *
  * PASSED IN RATHER THAN READ HERE, and that is the load-bearing part. This
@@ -318,10 +349,13 @@ async function handle(
 
 /** Start the query socket. Returns the server; close() to stop. */
 export function startQuerySocket(daemon: KamiLensDaemon, dataDir: string): Server {
+  const sock = socketPath(dataDir);
+  // 1.0.0: before anything touches the file system — never bind, and never
+  // log, a path the OS would truncate
+  checkSocketPath(sock);
   // zero-config first boot: the data dir may not exist yet — the socket
   // must not silently fail to listen (G5.a caught exactly this)
   mkdirSync(dataDir, { recursive: true });
-  const sock = socketPath(dataDir);
   try {
     unlinkSync(sock);
   } catch {
