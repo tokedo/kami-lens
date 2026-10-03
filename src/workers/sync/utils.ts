@@ -15,7 +15,7 @@
  *           (tripwires.decodeFailures, incremented inside createDecode) and
  *           logged with component/entity/bytes instead of aborting the sync
  *           attempt — upstream crashes the whole load on one bad row.
- *           Divergence (DESIGN §4.1, 2026-09-06, "L-1"):
+ *           Divergence (DESIGN §4.1, field report 2026-09-06):
  *           fetchEventsInBlockRangeChunked fetches a NON-NEGATIVE range
  *           always. Upstream derives its step count from the EXCLUSIVE delta
  *           (`ceil((to - from) / interval)`), so `from === to` yields zero

@@ -36,7 +36,7 @@
  *              state forever with its bounded-retry schedule never engaged.
  *              The message is sanitized of the substring 'retrying in',
  *              which onFailed reads as "the worker is handling this itself".
- *           6. rpcHead (0.6.0, DESIGN §3.17, "L-1"): the sync worker builds
+ *           6. rpcHead (0.6.0, DESIGN §3.17, field report 2026-09-06): the sync worker builds
  *              the chain-head source the stream's heal precondition reads —
  *              the newest blockNumber$ value as a free first check, the HTTP
  *              provider's getBlockNumber() as the authority. Upstream has no
@@ -57,7 +57,7 @@
  *              nonce test — so initialState becomes a fresh cache before
  *              fetchFromCdn runs. A browser tab can afford two 2-3 GB caches
  *              alive at once for a few seconds; the VM (2 vCPU, 4 GB heap
- *              cap, RSS 4.9 GB observed 2026-09-17, L-10) cannot. Same nonce
+ *              cap, RSS 4.9 GB observed 2026-09-17) cannot. Same nonce
  *              but further behind than CDN_FULL_THRESHOLD_BLOCKS keeps the
  *              old cache, as upstream: the gRPC fallback resumes its delta
  *              from it.
@@ -92,7 +92,7 @@
  *              BELOW the reconcile baseline seeded right after it — where
  *              every reconcile tick is a counted no-op by design — so a
  *              short answer would land LIVE, `degraded: []`, over a
- *              permanent hole. That is the L-1 class. So the delta runs
+ *              permanent hole. That is the 2026-09-06 phantom-harvest class. So the delta runs
  *              ALWAYS (the same partial fetchSnapshot the 10-minute
  *              checkpoint already trusts, on a cache whose cursors
  *              fetchFromCdn set), then the ORDINARY fillGap from the delta
@@ -100,7 +100,7 @@
  *              the full window instead. `skipRpcFallback` is never passed on
  *              this path, and bridge.ts's `gap` callback no longer takes it.
  *              Reasoning in full in bridge.ts's own banner.
- *          13. THE STATE APPLY YIELDS TO THE EVENT LOOP (0.6.3, L-11), on a
+ *          13. THE STATE APPLY YIELDS TO THE EVENT LOOP (0.6.3, field report 2026-09-18), on a
  *              50 ms time budget, in the CDN loader's values and entities
  *              applies and in the gRPC path's values apply. Upstream holds
  *              the one JS thread for a whole chunk (a synchronous decode
@@ -251,7 +251,7 @@ const debug = parentDebug.extend('SyncWorker');
  * cache is then already useless (upstream's own fetchSnapshot would
  * full-reload it on the same nonce test), and keeping a reference to it while
  * fetchFromCdn builds a second multi-GB cache beside it is what puts a 2 vCPU
- * / 4 GB VM over its heap cap (RSS 4.9 GB observed 2026-09-17, L-10).
+ * / 4 GB VM over its heap cap (RSS 4.9 GB observed 2026-09-17).
  *
  * NO when the nonce agrees, however far behind the cache is: that cache is
  * still a valid delta base, and the gRPC fallback resumes from it. NO when

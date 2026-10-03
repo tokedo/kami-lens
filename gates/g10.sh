@@ -20,8 +20,8 @@
 #
 #   G10.b [live]  parity of what that boot loaded, against the SAME daemon
 #                 while it is still LIVE: `sync.unhealedRanges` empty and the
-#                 reconcile baseline seeded; the lab drift probe over 50
-#                 settled facts vs the oracle -> zero divergences; and G3.b's
+#                 reconcile baseline seeded; an independent drift probe over 50
+#                 settled facts vs an independent chain index -> zero divergences; and G3.b's
 #                 node-occupancy cross-check re-run against a checkpoint of
 #                 THIS daemon. Then the state counts against the local
 #                 production daemon's newest checkpoint line — components
@@ -32,7 +32,7 @@
 #   G10.c [live]  a CDN URL that cannot serve a manifest must fall back to the
 #                 gRPC cold start. The contract is "it takes the old path",
 #                 NOT "the old path works": a gRPC cold boot that fails the
-#                 way L-6 failed on the VM on 2026-09-12 is RECORDED, with
+#                 way it failed on a VM on 2026-09-12 is RECORDED, with
 #                 the evidence that the fallback was entered, and the gate
 #                 still reports the decision proven.
 #
@@ -41,7 +41,7 @@
 #                 one periodic checkpoint. This Mac cannot see what the VM
 #                 sees: G10.a's longest progress silence was 2.4 s against
 #                 the 90 s bound, while the same boot on 2 vCPUs was torn
-#                 down by that bound mid-load (L-11), and the same daemon
+#                 down by that bound mid-load (field report 2026-09-18), and the same daemon
 #                 stops answering `status` for 20-32 s every ten minutes
 #                 while it writes a checkpoint. PASS needs all four: LIVE on
 #                 bootstrap attempt ONE, zero TimeoutError chunk retries,
@@ -73,9 +73,11 @@
 # ~/Library/Application Support/kami-lens, which no G10 leg writes to; G10.b
 # reads the production daemon's LOG, read-only, and signals nothing.
 #
-# NO SECRETS ON A COMMAND LINE. The drift probe reads the oracle token from
-# ~/.blocklife-keys/.env at call time and never prints it; nothing here passes
-# it, echoes it, or writes it to a measurement (kami-lab hard rule 4).
+# THE DRIFT PROBE (G10.b) IS EXTERNAL AND OPTIONAL. Set G10_DRIFT_PROBE to the
+# path of an independent drift-probe script; without it the probe check is
+# skipped, says so, and is recorded as skipped. NO SECRETS ON A COMMAND LINE:
+# any credential the probe needs it reads itself at call time; nothing here
+# passes one, echoes one, or writes one to a measurement.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

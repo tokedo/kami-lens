@@ -11,7 +11,7 @@
  *           is the storage-backend injection the browser never needed
  *           (IndexedDB is ambient; the file-snapshot store is not —
  *           swap point 3). 0.6.0 adds reconcileIntervalMs (DESIGN §3.17,
- *           "L-1"): the period of the stream's periodic chain reconcile,
+ *           field report 2026-09-06): the period of the stream's periodic chain reconcile,
  *           configured by the daemon. Upstream has no such pass — a page
  *           reload is its reconcile. 0.6.2 takes stateCdnUrl from the
  *           forward-port noted below. Everything else verbatim.

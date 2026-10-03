@@ -2,7 +2,7 @@
 // that plainly exist.
 //
 // Two independent causes, both pinned here. The observed symptom was one
-// arm getting "account main not in mirror" on 31 of 49 calls and another
+// consumer getting "account main not in mirror" on 31 of 49 calls and another
 // hitting the same wall by NAME and by OWNER ADDRESS minutes after
 // registering — and the intermittency is itself explained below.
 //

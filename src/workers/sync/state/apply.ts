@@ -1,4 +1,4 @@
-// kami-lens native module (not a port): the sliced apply (0.6.3, L-11).
+// kami-lens native module (not a port): the sliced apply (0.6.3, field report 2026-09-18).
 // Divergence 13 in the shared sync-path numbering (Worker.ts banner,
 // SPEC §4.2).
 //
@@ -11,7 +11,7 @@
 // the loop never yields to the macrotask queue, and the macrotask queue is
 // where socket reads and timers live. On a 2-vCPU box one values chunk takes ~11 s to
 // apply, and for those 11 s the thread reads no socket data and fires no
-// timer on time. Measured on kami-factory 2026-09-18 (L-11): the other
+// timer on time. Measured on a 2-vCPU VM on 2026-09-18: the other
 // in-flight chunks' body reads starved until their
 // `AbortSignal.timeout(CHUNK_TIMEOUT_MS = 30 s)` — WALL clock — expired, a
 // self-inflicted TimeoutError plus a full ~11 MB re-fetch; and the only

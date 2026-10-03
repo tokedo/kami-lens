@@ -126,7 +126,7 @@
       "kamidenUrl": "https://api.prod.kamigotchi.io",
       "chatEnabled": true,
       "enrich": false,
-      "dataDir": "/private/tmp/claude-501/-Users-anatolyzaytsev-kami-lab/f5629c93-fd6c-4980-ab1b-3245ca1ba2db/scratchpad/lens-062/g10-data-grpc",
+      "dataDir": "<scratch>/lens-062/g10-data-grpc",
       "checkpointIntervalMs": 3600000,
       "reconcileIntervalMs": 120000
     }
@@ -136,6 +136,6 @@
     "noCdnLoadAttempted": true,
     "fellBackToGrpc": true
   },
-  "note": "The contract is \"a dead CDN takes the gRPC path\", not \"the gRPC path works\". A gRPC cold boot that fails the way L-6 failed on the VM is recorded here as evidence about Kamigaze, not as a fallback defect.",
+  "note": "The contract is \"a dead CDN takes the gRPC path\", not \"the gRPC path works\". A gRPC cold boot that fails the way it failed on a VM on 2026-09-12 is recorded here as evidence about Kamigaze, not as a fallback defect.",
   "match": true
 }

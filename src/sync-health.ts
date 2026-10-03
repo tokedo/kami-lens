@@ -1,6 +1,6 @@
 // kami-lens native module (not a port): sync-recovery counters, DESIGN §3.17.
 //
-// The 2026-09-06 phantom-harvest loss (L-1) was undiagnosable because the
+// The 2026-09-06 phantom-harvest loss (field report 2026-09-06) was undiagnosable because the
 // recovery path reported nothing: gap-fills announced themselves at DEBUG,
 // a cursor that advanced over unapplied blocks announced itself not at all,
 // and `status` had no field that would have shown a mirror known to be
@@ -159,7 +159,7 @@ export type FullLoadRecord = {
    * gRPC load uses and logs through the same "[state] full load served by"
    * line — and 1.4 seconds for a full image is a number a reader will
    * either disbelieve or, worse, believe. Observed on the Mac redeploy,
-   * 2026-09-18 (AUDIT_062 residual). 'full' = the cache was empty or its
+   * 2026-09-18 (0.6.2 audit residual). 'full' = the cache was empty or its
    * nonce was superseded, so the whole image was fetched; 'delta' = rows
    * since the stored cursors were applied onto the existing cache. */
   kind: 'full' | 'delta';

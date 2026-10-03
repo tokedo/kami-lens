@@ -11,7 +11,7 @@
  *           EMPTY answer as "the streamer's cache no longer reaches back that
  *           far", running the snapshot delta only then. That inference does
  *           not hold in the lens and the consequence of its failing is the
- *           L-1 class, so it is not kept. Three reasons, in order of weight:
+ *           2026-09-06 phantom-harvest class, so it is not kept. Three reasons, in order of weight:
  *             (a) "empty" conflates four different facts. The streamer
  *                 REFUSED the ask (upstream's intended meaning); the gRPC
  *                 call THREW and fetchGapEvents swallowed it to [] because
@@ -28,11 +28,11 @@
  *                 that baseline every reconcile tick is a counted no-op by
  *                 design — so nothing ever re-reads those blocks. The daemon
  *                 would reach LIVE, report `degraded: []`, and serve a hole.
- *                 That is exactly the 2026-09-06 failure (L-1).
+ *                 That is exactly the 2026-09-06 failure (field report 2026-09-06).
  *             (c) The delta is not the expensive path it is being avoided
  *                 as. It is the same partial `fetchSnapshot` the daemon's
  *                 10-minute checkpoint already runs and already trusts, now
- *                 with the #2455 rewind; Carrot confirmed partial loads stay
+ *                 with the #2455 rewind; upstream confirmed partial loads stay
  *                 on the snapshot service. A CDN-loaded cache carries
  *                 exactly the cursors a partial load needs
  *                 (lastKamigazeBlock/Nonce/Entity/Component all set by

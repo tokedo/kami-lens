@@ -1,7 +1,7 @@
 {
   "gate": "g3b-node-occupancy",
   "measuredAt": "2026-09-18T17:04:12.696Z",
-  "snapshot": "/private/tmp/claude-501/-Users-anatolyzaytsev-kami-lab/f5629c93-fd6c-4980-ab1b-3245ca1ba2db/scratchpad/lens-063/g10-data/g10-cdn.v8snap",
+  "snapshot": "<scratch>/lens-063/g10-data/g10-cdn.v8snap",
   "pinnedBlock": 33461468,
   "verifyElapsedMs": 9446,
   "rpcStateDepthNote": "eth_call state served only ~50-120 blocks deep (measured 2026-07-21: ok@50, reverted@120)",

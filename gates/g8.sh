@@ -3,7 +3,7 @@
 # ~40 minutes of wall clock, most of it deliberately doing nothing while the
 # network is severed. Not part of any other gate script for that reason.
 #
-#   G8.b [live]  0.6.0 (DESIGN §3.17, L-1). THREE severs of ~20 s on a live
+#   G8.b [live]  0.6.0 (DESIGN §3.17, field report 2026-09-06). THREE severs of ~20 s on a live
 #                daemon — the FREQUENT gap the production server itself opens
 #                every ~35 s, which is where the 2026-09-06 phantom-harvest
 #                loss happened — recording per sever the reconnect time, the
@@ -20,8 +20,8 @@
 #                (Kamigaze GetEventsSince vs RPC), the RPC call count and
 #                chunk size observed, time until `degraded` clears, and a
 #                byte-equality check of a fixed query set against a fresh cold
-#                daemon. Then the same gap with a RESTART instead — the lab's
-#                restart-on-wake policy — so the two numbers sit side by side.
+#                daemon. Then the same gap with a RESTART instead — a deployment's
+#                restart policy — so the two numbers sit side by side.
 #
 # THE SEVER METHOD IS `docker network disconnect` ON A DEDICATED CONTAINER.
 # No sudo, no host routing change, and structurally unable to reach the

@@ -9,6 +9,7 @@
 
 import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 import { unpackTuple } from '@mud-classic/utils';
@@ -347,8 +348,27 @@ export async function writeMeasurement(gate: string, data: Record<string, unknow
   // leg's record with the second's)
   const tag = process.env.MEASUREMENT_TAG ? `-${process.env.MEASUREMENT_TAG}` : '';
   const file = path.join(MEASUREMENTS_DIR, `${gate}-${date}${tag}.json`);
-  await fs.writeFile(file, JSON.stringify({ gate, measuredAt: new Date().toISOString(), ...data }, null, 2) + '\n');
+  await fs.writeFile(
+    file,
+    redactLocalPaths(JSON.stringify({ gate, measuredAt: new Date().toISOString(), ...data }, null, 2)) + '\n'
+  );
   return file;
+}
+
+/** 1.0.0: a record is published with the repository, so the machine it was
+ * taken on does not leak into it — this checkout's path, the home directory
+ * and the OS temp directory are written as <repo>, <home> and <tmp>. */
+export function redactLocalPaths(text: string): string {
+  const pairs: [string, string][] = [
+    [REPO_ROOT, '<repo>'],
+    ['/private' + os.tmpdir(), '<tmp>'],
+    [os.tmpdir(), '<tmp>'],
+    ['/private/tmp', '<tmp>'],
+    [os.homedir(), '<home>'],
+  ];
+  let out = text;
+  for (const [from, to] of pairs) if (from && from.length > 1) out = out.split(from).join(to);
+  return out;
 }
 
 export async function writeArtifact(name: string, data: Record<string, unknown>): Promise<string> {

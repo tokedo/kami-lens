@@ -5,9 +5,9 @@
 // MIRROR; this gate asserts each against `GetterSystem.getKamiByIndex` — the
 // chain's own view — at the mirror's own pinned block.
 //
-// WHY THAT GETTER AND NOT THE ORACLE. The hybrid-play workaround (2026-08-26)
-// established that this call is the truth for a kami sheet; the oracle's
-// `kami_static` is NOT, because its coverage collapses on recent indices —
+// WHY THAT GETTER AND NOT AN INDEXER. A field workaround (2026-08-26)
+// established that this call is the truth for a kami sheet; an independent
+// indexer's `kami_static` is NOT, because its coverage collapses on recent indices —
 // which is exactly the band a stats surface most needs to be right about. So
 // the vector is the getter, sampled across three index bands (<15000,
 // 19000-19999, 20000+), and the sampling is recorded rather than assumed.
@@ -75,7 +75,7 @@ import { buildMirror } from '../g2/lib.mts';
 
 /** Minimum sampled kamis, and the minimum in each band. The brief's floor is
  * 20 overall; the per-band floor stops a pass that only ever looked at old
- * indices, which is the failure mode the oracle's coverage collapse is. */
+ * indices, which is the failure mode an indexer's coverage collapse is. */
 const MIN_SAMPLES = 20;
 const MIN_PER_BAND = 4;
 

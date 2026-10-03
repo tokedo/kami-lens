@@ -21,7 +21,7 @@
 //   3. AN RSS WATCH via `ps`, on a timer. In-process
 //      process.memoryUsage().rss would do for the heap, but the number that
 //      matters is the one the OS reports, because it is the one the VM's
-//      4 GB cap is compared against (RSS 4.9 GB observed 2026-09-17, L-10).
+//      4 GB cap is compared against (RSS 4.9 GB observed 2026-09-17).
 //      Both are recorded; `ps` is the headline.
 //
 // DATA DIR. Every daemon a G10 leg starts runs on G10_DATA_DIR, default

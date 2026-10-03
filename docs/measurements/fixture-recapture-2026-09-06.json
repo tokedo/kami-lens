@@ -74,7 +74,7 @@
       "a FRESH snapshot cannot serve them either: it would postdate every observation block, which the manifest's own refuse-and-report guard forbids, and replayOnto no-ops backward"
     ],
     "whatIsNeeded": "a fresh capture event — new original official-client screenshots, transcription, and a new replayBase pin — which the manifest states is an operator decision",
-    "notDone": "no base was substituted and no observation was fabricated. Escalated to the lab."
+    "notDone": "no base was substituted and no observation was fabricated. Escalated to the maintainer."
   },
 
   "match": true

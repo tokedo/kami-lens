@@ -4,7 +4,7 @@ import { Components } from 'engine/recs';
 import { NetworkComponentUpdate, NetworkEvents } from 'workers/types';
 import { fetchEventsInBlockRangeChunked } from 'workers/sync/utils';
 
-// 0.6.0 (DESIGN §3.17, L-1) — chain-authoritative gap recovery. The whole
+// 0.6.0 (DESIGN §3.17, field report 2026-09-06) — chain-authoritative gap recovery. The whole
 // recovery path was hermetically untested before this file: no test imported
 // createStream, fetchGapEvents or fetchEventsInBlockRangeChunked, and G8.a
 // could only grep container logs for which branch ran. Everything here is
@@ -465,7 +465,7 @@ describe('stream gap handling reads the chain (§3.17)', () => {
 
   it('a heal SLOWER than the no-data timeout does not tear down while frames flow', async () => {
     resetSyncHealth();
-    // this is the L-1 defect in one assertion. At 0.5.3 the 10.5 s no-data
+    // this is the 2026-09-06 defect in one assertion. At 0.5.3 the 10.5 s no-data
     // timeout sat DOWNSTREAM of the awaited gap-fill, so a slow heal tripped
     // it, retry resubscribed, and the old pipeline's continuation still
     // advanced the shared cursor. Here the timeout is on the raw frames, so

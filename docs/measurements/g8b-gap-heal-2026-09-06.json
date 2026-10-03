@@ -135,7 +135,7 @@
   "crosscheck": {
     "activeHarvestsServed": 6613,
     "crossCheckedRows": 1718,
-    "sampling": "every ACTIVE harvest on the busiest node (node 86, 1718 rows) plus every 4896th of the remaining 4895, capped at 400. Node-complete is the shape that matters: the L-1 phantom set was six kamis that stopped in one transaction on one node. Checking all 6613 would be 2x that many pinned eth_calls, which both exceeds any other gate's RPC traffic here and outlasts the RPC's own eth_call state window.",
+    "sampling": "every ACTIVE harvest on the busiest node (node 86, 1718 rows) plus every 4896th of the remaining 4895, capped at 400. Node-complete is the shape that matters: the 2026-09-06 phantom set was six kamis that stopped in one transaction on one node. Checking all 6613 would be 2x that many pinned eth_calls, which both exceeds any other gate's RPC traffic here and outlasts the RPC's own eth_call state window.",
     "coverageFraction": 0.2598,
     "busiestNode": 86,
     "unaddressableRows": 0,
@@ -151,7 +151,7 @@
     "skewCorrectedByMirror": 0,
     "phantomRows": [],
     "skewRows": [],
-    "arbitration": "the container is live, so a harvest can legitimately stop between the mirror answer and the pinned chain read. Every apparent divergence is re-read from the container afterwards: mirror since corrected = skew; mirror still ACTIVE while the chain says otherwise = a phantom, the L-1 shape, which persisted for 3.5 hours when it happened."
+    "arbitration": "the container is live, so a harvest can legitimately stop between the mirror answer and the pinned chain read. Every apparent divergence is re-read from the container afterwards: mirror since corrected = skew; mirror still ACTIVE while the chain says otherwise = a phantom, the 2026-09-06 shape, which persisted for 3.5 hours when it happened."
   },
   "syncFinal": {
     "reconnects": 15,

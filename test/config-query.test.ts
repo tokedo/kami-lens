@@ -4,7 +4,7 @@
 // The underlying reader answers 0 (and eight zeros for the array form) for a
 // missing config entity, so a probe for a name nobody ever deployed came back
 // looking like a settled fact. A reader that guesses a plausible key gets the
-// guess CONFIRMED — which is what happened: an arm queried a fabricated
+// guess CONFIRMED — which is what happened: a consumer queried a fabricated
 // POOL_*ENABLED family that exists nowhere upstream and carried the false
 // model for about twenty sessions.
 //

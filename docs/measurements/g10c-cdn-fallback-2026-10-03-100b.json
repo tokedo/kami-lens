@@ -155,6 +155,6 @@
     "noCdnLoadAttempted": true,
     "fellBackToGrpc": true
   },
-  "note": "The contract is \"a dead CDN takes the gRPC path\", not \"the gRPC path works\". A gRPC cold boot that fails the way L-6 failed on the VM is recorded here as evidence about Kamigaze, not as a fallback defect.",
+  "note": "The contract is \"a dead CDN takes the gRPC path\", not \"the gRPC path works\". A gRPC cold boot that fails the way it failed on a VM on 2026-09-12 is recorded here as evidence about Kamigaze, not as a fallback defect.",
   "match": true
 }

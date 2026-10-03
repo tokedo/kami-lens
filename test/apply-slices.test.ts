@@ -1,4 +1,4 @@
-// Divergence 13 (0.6.3, L-11): the sliced apply. The properties worth
+// Divergence 13 (0.6.3, field report 2026-09-18): the sliced apply. The properties worth
 // asserting are the ones the CDN loader relies on and the ones a careless
 // rewrite would quietly lose:
 //

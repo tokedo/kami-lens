@@ -67,8 +67,8 @@ export type EnvelopeOptions = {
  * `status.blockLag`; verified applied state is `meta.reconciledThrough`.
  *
  * This comment said as much from 0.5.2 and a consumer still misread the
- * fields as lag twice (hybrid-play ledger L-2, and again at the 0.6.0 sync),
- * gating play decisions on a number that was doing its job. A doc comment
+ * fields as lag twice (a field report of 2026-08-29, and again at the 0.6.0 sync),
+ * gating game decisions on a number that was doing its job. A doc comment
  * loses to a field name every time, so 0.6.1 renames them: the fields are
  * `clockSampleBlock`, `clockSampleBlockTime` and `clockSampleAgoMs`.
  *
@@ -326,7 +326,7 @@ function deletePath(data: unknown, pathExpr: string): void {
 /** §3.14: the serialization boundary. JSON.stringify renders NaN and
  * Infinity as `null`, which a consumer reads as a real answer — an HP of
  * `null` is indistinguishable from a field the world does not hold, and one
- * arm spent six days acting on exactly that. A pre-stringified rate is worse
+ * consumer spent six days acting on exactly that. A pre-stringified rate is worse
  * still: it arrives as the literal string "NaN". Neither is repaired here,
  * because there is no honest value to repair it to; the answer is refused.
  *

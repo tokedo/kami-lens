@@ -11,7 +11,7 @@
 // and the whole bridge window sits BELOW the reconcile baseline seeded right
 // after it, where every reconcile tick is a counted no-op by design. A short
 // answer would therefore land the daemon LIVE with `degraded: []` over a
-// permanent hole: the 2026-09-06 L-1 class. The full argument is in
+// permanent hole: the 2026-09-06 phantom-harvest class. The full argument is in
 // src/workers/sync/bridge.ts's banner.
 //
 // So these tests assert the opposite ordering, and one property that is not

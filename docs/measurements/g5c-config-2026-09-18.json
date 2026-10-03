@@ -187,7 +187,7 @@
     "checkpointIntervalMs": 333000,
     "source": "flag",
     "defaultOperator": 2160,
-    "configFile": "/Users/anatolyzaytsev/kami-lens/gates/.artifacts/g5c-scratch/config-111000.toml",
+    "configFile": "<repo>/gates/.artifacts/g5c-scratch/config-111000.toml",
     "enrich": true,
     "enrichSource": "flag"
   },

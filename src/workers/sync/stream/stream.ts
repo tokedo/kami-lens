@@ -6,7 +6,7 @@
  *           handler feed each chunk's blockTimestamp to the offset-corrected
  *           clock (see src/clock.ts).
  *
- *           Divergences (DESIGN §4.1 / §3.17, 2026-09-06, "L-1"). Upstream is
+ *           Divergences (DESIGN §4.1 / §3.17, field report 2026-09-06). Upstream is
  *           a browser tab whose worst case is a player reloading it; these
  *           four are what a daemon that must stay correct unattended for
  *           weeks needs instead. Each one is a defect observed live on
@@ -34,7 +34,7 @@
  *              lifecycle src/kamiden.ts already uses.
  *           3. CURSOR DISCIPLINE. After any await, a `closed` flag is checked
  *              and the handler returns WITHOUT touching trackingState. This
- *              is the actual L-1 defect: the 10.5 s no-data timeout tripped
+ *              is the actual 2026-09-06 defect: the 10.5 s no-data timeout tripped
  *              during a slow gap-fill, retry resubscribed, and the old
  *              pipeline's continuation still advanced the shared cursor past
  *              blocks whose events had gone to a dead subscriber. A deferred

@@ -10,7 +10,7 @@
  *           synced nonce increments tripwires.kamigazeNonceBumps at the
  *           existing full-reload branch (a first sync from an empty cache,
  *           nonce 0, does not count).
- *           Divergence 13 (0.6.3, L-11): fetchStateValues applies its chunk
+ *           Divergence 13 (0.6.3, field report 2026-09-18): fetchStateValues applies its chunk
  *           through applyInSlices, so the thread yields to the MACROTASK
  *           queue every ~50 ms instead of holding it for the whole chunk.
  *           The reason is the same one the CDN loader has (state/apply.ts)

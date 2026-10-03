@@ -167,7 +167,7 @@ Two changes, and the second is the one that generalizes:
   legitimately goes quiet, saving the state cache, was measured at 3.7 s for
   2.96 M entries. The stall is surfaced in `degraded` as
   `pre-live-stall:<N>s` — chain health, so it belongs there beside
-  `stream-stalled` — and the lab's external watchdog restarting a non-LIVE
+  `stream-stalled` — and an external watchdog restarting a non-LIVE
   daemon after three minutes is the outer bound to this inner one.
 
 The general form: **the retry schedule bounds failures; something else has
@@ -280,7 +280,7 @@ query that must always answer — and it is worse than a broken promise,
 because the VM watchdog reads "no status answer from a running unit" as a
 dead unit and restarts it, landing the SIGTERM in the middle of the
 write. The health check manufactured the outage it was watching for
-(L-8/L-10 class).
+(the killed-mid-checkpoint class).
 
 The refresh is movable for one reason, stated here because everything
 below depends on it: **it never touches the live mirror.** It reads the
@@ -442,8 +442,8 @@ whatever about applied state. Mirror lag is `status.blockLag`
 
 These fields were called `observedBlock` / `observedBlockTime` /
 `observedAgoMs` from 0.5.2 to 0.6.0, and a consumer read them as mirror lag
-**twice** — hybrid-play ledger row L-2 on 2026-08-29, then again at the 0.6.0
-sync on 2026-09-06 — gating live play decisions on a number that was doing
+**twice** — a field report on 2026-08-29, then again at the 0.6.0
+sync on 2026-09-06 — gating live decisions on a number that was doing
 exactly its job, and filing a lens defect against it. The paragraph above
 said so, in this document and in `src/queries/envelope.ts`, the whole time.
 That is the lesson worth keeping: **a doc comment loses to a field name.**
@@ -623,7 +623,7 @@ Four constraints make it safe to do:
   `Description` components, effects from the item's own Allo registry,
   requirements from its Conditional registry, rewards from the quest's
   reward Allos. Nothing is read from a document, a catalog, or a
-  lab-authored file: the lens ships what the world holds, and knowledge
+  externally authored file: the lens ships what the world holds, and knowledge
   that lives in prose stays the consumer's own business (the scaffold's, for
   an agent).
 - **Results only, behind a daemon flag.** No new query, no new request
@@ -673,7 +673,7 @@ answer nobody can afford is not on the surface at all.**
 
 §3.11 fixed the floor of what must be *readable*; §3.12 moved the tooltip
 facts to where they are *read*. Neither asked what an answer COSTS. Measured
-over four agent arms of one run, against a 65,536-byte reader: the
+over four consumer sessions of one evaluation run, against a 65,536-byte reader: the
 account-form `quests` answer ran to 195–221 KB and was cut off every single
 call — 9.1 MB over 143 calls, 41 % of every tool-output byte in the run — so
 quests past roughly the fiftieth were invisible for the whole run, to an
@@ -914,7 +914,7 @@ legitimate reading:
 
 - **`null` that means "the computation broke".** A config read that landed
   before its component hydrated structured to NaN, JSON rendered NaN as
-  `null`, and every harvesting kami's HP came back `null` — for one arm, for
+  `null`, and every harvesting kami's HP came back `null` — for one consumer, for
   six days, 856 rows to 2. The poison was permanent because the cache stored
   the sentinel and never re-fetched it, and the guard meant to force a
   re-read compared against zero, which NaN is not. The shape that self-healed
@@ -1078,7 +1078,7 @@ calls `getKamiStats(..., true)` — bonus folded in) and then dropped at the
 projection. Four queries — `kami`, `roster`, `party`, `node --with-vitals`
 — all walked that path. The cost of serving it is zero additional mirror
 reads. This is the same shape of finding as the 0.5.0 leveling loop, and
-it surfaced the same way: a play session could not answer "how strong is
+it surfaced the same way: a consumer could not answer "how strong is
 this kami" from a lens that had the answer in memory.
 
 Four decisions, and three of them are about not lying:
@@ -1138,7 +1138,7 @@ than tolerating a divergence it cannot explain.
 
 ### 3.17 Recovery reads the chain (0.6.0)
 
-Settled 2026-09-06 after the L-1 investigation. **The fast path may be
+Settled 2026-09-06 after the 2026-09-06 investigation. **The fast path may be
 wrong; the authority may not.**
 
 The occasion. On 2026-09-06 the lens served six kamis as HARVESTING for three
@@ -1151,7 +1151,7 @@ that is: the checkpoint path refetches a now-complete range, and live events
 are never folded into it (§3.5).
 
 **What was measured** (against `api.prod.kamigotchi.io`, 04:10–04:30 UTC;
-scripts and raw outputs in the L-1 evidence bundle):
+scripts and raw outputs in the 2026-09-06 investigation's evidence):
 
 1. `GetEventsSince(sinceBlock)` is INCLUSIVE of `sinceBlock`, has no upper
    bound, and answers a **deduplicated latest-value diff** — 43,529 events
@@ -1381,14 +1381,14 @@ empty. Guessing wrong is not a retry but a permanent hole: the whole
 bridge window lies BELOW the reconcile baseline seeded immediately after
 it, where every tick is a counted no-op by design, so the daemon would
 reach LIVE reporting `degraded: []` over blocks nothing ever re-reads —
-the 2026-09-06 L-1 class, one layer up. So the guess is not made. The
+the 2026-09-06 phantom-harvest class, one layer up. So the guess is not made. The
 cost is one small delta per cold boot (measured: a 1,330-block delta and a
 4-block gap on the recorded G10.a boot), and the partial loads are still
 served by the snapshot service either way.
 
 Counted as `decodeFailures` when a row is skipped, on either path.
 
-**The apply yields to the event loop (0.6.3, L-11).** The CDN loader's
+**The apply yields to the event loop (0.6.3, field report 2026-09-18).** The CDN loader's
 values and entities applies, and the gRPC path's values apply, run in
 ~50 ms time-budgeted slices that park on `setImmediate` between them
 (`workers/sync/state/apply.ts`). Upstream does not, and could not know it
@@ -1398,7 +1398,7 @@ already-resolved promise yields to MICROTASKS only — never to the
 macrotask queue, which is where socket reads and timers are serviced. On
 2 vCPUs a values chunk takes ~11 s to apply, so for 11 s at a time the
 process reads no socket data and fires no timer on time. Two things
-followed, both measured on kami-factory on 2026-09-18:
+followed, both measured on a 2-vCPU VM on 2026-09-18:
 
 - the other in-flight chunks' body reads starved until their
   `AbortSignal.timeout(CHUNK_TIMEOUT_MS = 30 s)` — a WALL clock — expired:
@@ -1454,7 +1454,7 @@ Port hygiene — upstream artifacts **not** to lift as-is:
 - The snapshot health check uses browser-only fetch `mode: 'cors'`.
 - Upstream persists the state cache exactly once per session; the
   daemon adds periodic checkpointing (§3.5).
-- **A chunked range fetch that fetches nothing** (0.6.0, L-1):
+- **A chunked range fetch that fetches nothing** (0.6.0, field report 2026-09-06):
   `fetchEventsInBlockRangeChunked` derives its step count from the
   EXCLUSIVE delta, so `from === to` yields zero steps and it returns
   `[]` having read nothing — while its own doc comment and every
@@ -1464,20 +1464,20 @@ Port hygiene — upstream artifacts **not** to lift as-is:
   from the inclusive span. Its progress fraction divided by the same
   delta and so was `0/0` = `NaN` on a one-block range, which
   `Worker.ts` pipes straight into the LoadingState component (§3.14).
-- **A teardown that does not tear anything down** (0.6.0, L-1): the
+- **A teardown that does not tear anything down** (0.6.0, field report 2026-09-06): the
   inner stream Observable returns `() => {}`, so the gRPC call
   outlives its subscriber and two pipelines can run against one
   cursor. The port gives each subscription an `AbortController` passed
   to `subscribeToStream` and aborted in the teardown — the lifecycle
   `src/kamiden.ts` already uses.
-- **A cursor written after the subscriber is gone** (0.6.0, L-1): the
+- **A cursor written after the subscriber is gone** (0.6.0, field report 2026-09-06): the
   chunk handler advances the shared `trackingState` at the end of an
   `async` body that has already awaited a gap-fill, with no check that
   the subscription still exists. Unsubscribing does not cancel a
   promise, so on a timeout-driven retry the dying pipeline advanced the
   cursor over blocks whose events had gone nowhere. The port checks a
   `closed` flag after every await and returns without touching the
-  cursor. This is the L-1 defect proper; the two above are what made it
+  cursor. This is the 2026-09-06 defect proper; the two above are what made it
   unrecoverable.
 - **Undecodable state rows** (decision, 2026-07-20 implementation
   session): upstream aborts the whole sync attempt when any

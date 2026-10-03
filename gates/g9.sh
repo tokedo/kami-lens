@@ -14,7 +14,7 @@
 # THE SEVER METHOD IS AN ISOLATED DOCKER NETWORK NAMESPACE: `--network none`
 # at start, `docker network connect bridge` to restore. NO host DNS, hosts
 # file or firewall change — those would also cut the LIVE launchd kami-lens
-# daemon on this Mac and the play session that depends on it. `dist` is
+# daemon on this Mac and whatever depends on it. `dist` is
 # dockerignored, so the host's built CLI is never written; the gate
 # fingerprints it before and after and fails if it moved.
 set -euo pipefail

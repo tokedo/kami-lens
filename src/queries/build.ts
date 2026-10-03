@@ -815,12 +815,12 @@ export type AccountOut = {
    *
    * §4.2, and read the direction carefully. The chain's *view* getter
    * `LibAccount.getCurrentStamina` returns `sync + recovered` unclamped, and
-   * that is the number its error text quotes — which is why one arm saw
+   * that is the number its error text quotes — which is why one consumer saw
    * "209–212" beside a served `100/100` and stopped trusting the maximum. But
    * the chain CLAMPS on the write path: `LibStat.calcSync` caps at the total,
    * and a spend is synced before it is charged. So `current` is the honest
    * budget and `raw` is NOT spendable. It is served to explain the
-   * discrepancy — an unexplained mismatch is what made the arm distrust a
+   * discrepancy — an unexplained mismatch is what made the consumer distrust a
    * correct answer — and never as a spending allowance. */
   stamina: { current: number; total: number; raw: number };
   reputation?: { agency: number; mina: number; nursery: number };
@@ -1209,7 +1209,7 @@ export type NodeOut = {
  * block and so is never served by the filter.
  *
  * 0.5.3 MAKES THE FILTER ATTACKER-BLIND, and the reason is a defect this
- * surface caused in play. Until 0.5.3 the filter read `liquidation.eligible`
+ * surface caused in use. Until 0.5.3 the filter read `liquidation.eligible`
  * = `canLiquidate`, which folds in `isStarving(attacker)` and
  * `onCooldown(attacker)`. In a zero-cooldown kill loop the attacker sits at
  * HP 0 for 4–6 s after every kill, so a read inside that window answered
@@ -1912,7 +1912,7 @@ export type ConfigOut = {
  * zeros for the array form) for a field that does not exist, which made a
  * probe for a name nobody ever deployed indistinguishable from a real stored
  * 0. A reader that guesses a plausible-sounding key gets its guess CONFIRMED
- * — which is what happened: an arm queried a fabricated `POOL_*ENABLED`
+ * — which is what happened: a consumer queried a fabricated `POOL_*ENABLED`
  * family that exists nowhere upstream, read the zeros as settled fact, and
  * carried the false model for about twenty sessions. A name the world does
  * not hold now answers NOT_FOUND, which is already this surface's documented

@@ -215,6 +215,6 @@
   "match": true,
   "forced": {
     "env": "G10E_FORCE=1",
-    "reason": "the 1.0.0 release run: the ledger's three pulls were all the 0.6.3 leg (2026-09-18); this is the one pull for 1.0.0 (run 4 in gates/.artifacts/g10e-runs.json)"
+    "reason": "the 1.0.0 release run: the G10.e run ledger's three pulls were all the 0.6.3 release's (2026-09-18); this is the one pull for 1.0.0 (run 4 in gates/.artifacts/g10e-runs.json)"
   }
 }

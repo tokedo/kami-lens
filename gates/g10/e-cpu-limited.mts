@@ -5,7 +5,7 @@
 // WHY THIS GATE EXISTS. G10.a passes comfortably on this Mac and could not
 // see either of the defects 0.6.3 fixes. On the VM (2 vCPU) the same boot
 // took 271 s instead of 118 s because the daemon's own 90-s pre-LIVE stall
-// watchdog tore down a HEALTHY load (L-11), and the same daemon stops
+// watchdog tore down a HEALTHY load (field report 2026-09-18), and the same daemon stops
 // answering `status` for 20-32 s every ten minutes while it writes a
 // checkpoint. The Mac's longest progress silence was 2.4 s and its
 // checkpoint silence 4-5 s. A gate that only ever runs on the fast machine
@@ -18,7 +18,7 @@
 // not narrow. Under `--cpus 1` alone the loader would still see the host's
 // core count and keep 6 bodies in flight, so the leg would measure a
 // configuration no small VM actually has. `--cpuset-cpus` pins the
-// affinity, which is what kami-factory's 2 vCPUs really are. Both are
+// affinity, which is what the measured VM's 2 vCPUs really are. Both are
 // passed: the quota bounds the throughput, the affinity bounds the
 // parallelism.
 //
@@ -69,7 +69,7 @@ const POLL_OUT = '/tmp/g10e-poll.jsonl';
  * it pins the AFFINITY, which is what `os.availableParallelism()` reads and
  * therefore what divergence 15's cap turns on; `--cpus` bounds the quota
  * alongside it so throughput and parallelism agree. ONE core is harsher
- * than the 2-vCPU VM on purpose (lab ruling, 2026-09-18). */
+ * than the 2-vCPU VM on purpose (a ruling of 2026-09-18). */
 const CPUS = process.env.G10E_CPUS ?? '1';
 const CPUSET = process.env.G10E_CPUSET ?? '0';
 const MEMORY = process.env.G10E_MEMORY ?? '6g';

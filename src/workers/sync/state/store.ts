@@ -180,7 +180,7 @@ export type CommitStage = 'tmp-written' | 'rotated' | 'committed';
  *
  * So there is never an instant with neither a valid primary nor a valid
  * `.prev`, which is what readSnapshotFile's two-candidate walk relies on
- * (the L-8/L-10 class: a daemon killed mid-checkpoint). The guarantee comes
+ * (the killed-mid-checkpoint class: a daemon killed mid-checkpoint). The guarantee comes
  * from the ORDER, not from anybody waiting politely — a waiter only avoids
  * losing the work, never the file.
  *

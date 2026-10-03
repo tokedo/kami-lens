@@ -111,7 +111,7 @@
   "twoHourLeg": {
     "status": "deferred",
     "scheduled": "2026-09-02",
-    "reason": "the 10-minute leg is what 0.5.1 needs to decide restart-on-wake for an overnight-sleeping laptop, and it fits one session. The 2 h leg tests a different thing — whether the gap exceeds Kamigaze GetEventsSince retention and forces the RPC path — and needs its own uninterrupted window. Dated rather than dropped."
+    "reason": "the 10-minute leg is what 0.5.1 needs to decide whether to restart on wake for an overnight-sleeping laptop, and it fits one session. The 2 h leg tests a different thing — whether the gap exceeds Kamigaze GetEventsSince retention and forces the RPC path — and needs its own uninterrupted window. Dated rather than dropped."
   },
   "timeline": [
     {

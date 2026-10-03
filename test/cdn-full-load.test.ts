@@ -433,7 +433,7 @@ describe('load progress', () => {
 // ---------------------------------------------------------------------------
 // kami-lens divergence 8 (Worker.ts banner): release a dead cache BEFORE the
 // CDN load, so two multi-GB caches never coexist on a 2 vCPU / 4 GB VM
-// (RSS 4.9 GB observed 2026-09-17, L-10). The decision is the whole
+// (RSS 4.9 GB observed 2026-09-17). The decision is the whole
 // divergence; the release itself is one assignment in initOnce.
 describe('divergence 8 — nonce-mismatch cache release', () => {
   const withEntries = (nonce: number, entries: number): StateCache => {

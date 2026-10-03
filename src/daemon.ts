@@ -25,7 +25,7 @@
 // answer `status` for 20-32 s every ten minutes on the VM, which is both a
 // broken promise (DESIGN/server.ts: `status` is the one query that must
 // always answer) and the trigger for a watchdog restart that lands mid-write
-// — the L-8/L-10 class, manufactured by the health check itself.
+// — the killed-mid-checkpoint class, manufactured by the health check itself.
 
 import { keccak256 } from '@mud-classic/utils';
 import { Interface, JsonRpcProvider } from 'ethers';
@@ -1075,7 +1075,7 @@ export class KamiLensDaemon {
     // writers end up in one file. The drain is bounded and ends in a kill
     // by PID; the file is safe at every instant either way, because
     // commitSnapshotFile's order leaves a valid primary or a valid `.prev`
-    // and never neither (the L-8/L-10 class).
+    // and never neither (the killed-mid-checkpoint class).
     if (this.checkpointInFlight) {
       try {
         const outcome = await this.checkpointHost.drain();

@@ -14,8 +14,8 @@
 // THE SEVER METHOD IS AN ISOLATED DOCKER NETWORK NAMESPACE — `--network
 // none` at start, `docker network connect bridge` to restore. NO host DNS
 // and NO firewall change: a /etc/hosts blackhole or a packet filter rule
-// would also cut the LIVE launchd kami-lens daemon on this Mac and the play
-// session depending on it. The container cannot reach that service or its
+// would also cut the LIVE launchd kami-lens daemon on this Mac and whatever
+// depends on it. The container cannot reach that service or its
 // data directory, and `dist` is dockerignored so the host's built CLI is
 // never written — fingerprinted before and after, and the gate fails if it
 // moved (the G8 precedent).
@@ -281,7 +281,7 @@ const record = {
   method:
     'isolated Docker network namespace: container started with `--network none`, ' +
     '`docker network connect bridge` after 60 s. No host DNS, hosts-file or firewall ' +
-    'change — the LIVE launchd kami-lens daemon on this Mac and its play session are ' +
+    'change — the LIVE launchd kami-lens daemon on this Mac and what depends on it are ' +
     'structurally out of reach. dist/cli.js fingerprinted before and after.',
   outageS: OUTAGE_MS / 1000,
   pollS: POLL_MS / 1000,

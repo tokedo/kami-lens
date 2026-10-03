@@ -124,7 +124,7 @@
   "crosscheck": {
     "activeHarvestsServed": 6636,
     "crossCheckedRows": 2005,
-    "sampling": "every ACTIVE harvest on the busiest node (node 86, 1715 rows) plus every 17th of the remaining 4921 across the other 33 nodes (290 rows, fleet budget 300). Node-complete is the shape that matters: the L-1 phantom set was six kamis that stopped in one transaction on one node. Checking all 6636 would be 2x that many pinned eth_calls, which both exceeds any other gate's RPC traffic here and outlasts the RPC's own eth_call state window.",
+    "sampling": "every ACTIVE harvest on the busiest node (node 86, 1715 rows) plus every 17th of the remaining 4921 across the other 33 nodes (290 rows, fleet budget 300). Node-complete is the shape that matters: the 2026-09-06 phantom set was six kamis that stopped in one transaction on one node. Checking all 6636 would be 2x that many pinned eth_calls, which both exceeds any other gate's RPC traffic here and outlasts the RPC's own eth_call state window.",
     "coverageFraction": 0.3021,
     "nodeCompleteRows": 1715,
     "fleetStrideRows": 290,
@@ -158,7 +158,7 @@
         "resolution": "harvest restarted on chain"
       }
     ],
-    "arbitration": "the container is live, so a harvest can legitimately stop — or stop and RESTART, reusing the same harvest entity id — between the mirror answer and the pinned chain read. Every apparent divergence is therefore re-read on BOTH sides: the mirror from the container, and the chain at a fresh pin. A phantom is a row where the mirror still says ACTIVE and the fresh chain read still disagrees — the L-1 shape, which persisted for 3.5 hours when it happened. Mirror corrected, or chain now ACTIVE again, is skew. Re-reading only the mirror against the STALE pinned fact reported a false phantom on 2026-09-06 (kami 7799: INACTIVE at head-90, ACTIVE at head-30 and head-4, same harvest id) and that is why both sides are read."
+    "arbitration": "the container is live, so a harvest can legitimately stop — or stop and RESTART, reusing the same harvest entity id — between the mirror answer and the pinned chain read. Every apparent divergence is therefore re-read on BOTH sides: the mirror from the container, and the chain at a fresh pin. A phantom is a row where the mirror still says ACTIVE and the fresh chain read still disagrees — the 2026-09-06 shape, which persisted for 3.5 hours when it happened. Mirror corrected, or chain now ACTIVE again, is skew. Re-reading only the mirror against the STALE pinned fact reported a false phantom on 2026-09-06 (kami 7799: INACTIVE at head-90, ACTIVE at head-30 and head-4, same harvest id) and that is why both sides are read."
   },
   "syncFinal": {
     "reconnects": 13,

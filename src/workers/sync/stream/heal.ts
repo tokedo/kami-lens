@@ -1,5 +1,5 @@
 // kami-lens native module (not a port): the one recovery primitive,
-// DESIGN §3.17 (2026-09-06, "L-1").
+// DESIGN §3.17 (field report 2026-09-06).
 //
 // PRINCIPLE. Kamigaze's stream and its GetEventsSince diff are fast paths.
 // The chain is the only authority, and every recovery path reads it through

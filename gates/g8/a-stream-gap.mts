@@ -1,6 +1,6 @@
 // Gate G8.a [live, manual] — the daemon across a real stream gap (0.5.1,
 // DESIGN §4.1). What happens when the network goes away and comes back, and
-// whether the lab's restart-on-wake policy is doing anything the daemon would
+// whether a deployment's restart policy is doing anything the daemon would
 // not have done by itself.
 //
 // WHY THIS GATE EXISTS. A lens daemon now runs as a launchd service on a Mac
@@ -55,7 +55,7 @@ const TWO_HOUR_LEG = {
   status: 'deferred',
   scheduled: '2026-09-02',
   reason:
-    'the 10-minute leg is what 0.5.1 needs to decide restart-on-wake for an overnight-sleeping laptop, and it fits one session. The 2 h leg tests a different thing — whether the gap exceeds Kamigaze GetEventsSince retention and forces the RPC path — and needs its own uninterrupted window. Dated rather than dropped.',
+    'the 10-minute leg is what 0.5.1 needs to decide whether to restart on wake for an overnight-sleeping laptop, and it fits one session. The 2 h leg tests a different thing — whether the gap exceeds Kamigaze GetEventsSince retention and forces the RPC path — and needs its own uninterrupted window. Dated rather than dropped.',
 };
 
 const sh = (cmd: string, args: string[], timeoutMs = 900_000): string =>
@@ -336,7 +336,7 @@ try {
   while (Date.now() - sever2 < GAP_MS) await sleep(15_000);
   sh('docker', ['network', 'connect', 'bridge', CONTAINER]);
   const restartT0 = Date.now();
-  // the lab's restart-on-wake policy: kick the process, let it warm-start
+  // a deployment's restart policy: kick the process, let it warm-start
   sh('docker', ['restart', CONTAINER]);
   const restartLiveMs = await waitForLive(CONTAINER, 900_000);
   const afterRestart = statusOf(CONTAINER);

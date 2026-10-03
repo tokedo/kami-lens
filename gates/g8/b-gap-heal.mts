@@ -1,10 +1,10 @@
 // Gate G8.b [live, manual] — chain-authoritative gap recovery across REPEATED
 // short severs, and the mirror cross-checked against the chain afterwards
-// (0.6.0, DESIGN §3.17, ledger row L-1).
+// (0.6.0, DESIGN §3.17, field report 2026-09-06).
 //
 // WHY THIS GATE EXISTS, AND WHY IT IS NOT G8.a. G8.a measures ONE ten-minute
 // outage: does the daemon come back, and does the healed mirror agree with a
-// cold one. That is not the failure L-1 was. L-1 was the FREQUENT SHORT gap —
+// cold one. That is not the 2026-09-06 failure. That one was the FREQUENT SHORT gap —
 // the production server closes the subscription every ~30-40 s by design, and
 // the 2026-08-26..09-06 daemon log holds 17,369 gap-fills, one per ~55 s. The
 // loss happened in one of those, silently, and the only way anyone found it
@@ -40,7 +40,7 @@
 // finish, so the tail of the run would fail for a reason that has nothing to
 // do with the mirror. The sample is therefore: EVERY ACTIVE harvest on the
 // busiest node, plus a deterministic stride of FLEET_SAMPLE_ROWS across all
-// the others. Node-complete is the shape that matters — the L-1 phantom set
+// the others. Node-complete is the shape that matters — the 2026-09-06 phantom set
 // was six kamis that stopped in one transaction — and the stride keeps the
 // rest of the world represented. Counts and coverage are recorded, so what
 // was checked is never larger than what is claimed.
@@ -55,7 +55,7 @@
 // Every apparent divergence is therefore RE-READ from the container
 // afterwards: if the mirror has since corrected itself it was skew, and if it
 // still says ACTIVE while the chain says otherwise it is a phantom — which is
-// exactly the L-1 shape, and which persisted for three and a half hours.
+// exactly the 2026-09-06 shape, and which persisted for three and a half hours.
 //
 // Run it directly; it takes ~10-15 minutes:
 //   npx tsx --tsconfig tsconfig.json gates/g8/b-gap-heal.mts
@@ -516,7 +516,7 @@ try {
   //
   // So an apparent divergence is now arbitrated against a FRESH chain read as
   // well, and only a row where the mirror still says ACTIVE *and the chain
-  // still disagrees* is a phantom — the L-1 shape, which persisted for 3.5
+  // still disagrees* is a phantom — the 2026-09-06 shape, which persisted for 3.5
   // hours when it really happened.
   const phantoms: Record<string, unknown>[] = [];
   const skew: Record<string, unknown>[] = [];
@@ -565,7 +565,7 @@ try {
     crosscheck: {
       activeHarvestsServed: rows.length,
       crossCheckedRows: sample.length,
-      sampling: `every ACTIVE harvest on the busiest node (node ${busiestNode}, ${nodeComplete.length} rows) plus every ${stride}th of the remaining ${others.length} across the other ${byNode.size - 1} nodes (${strided.length} rows, fleet budget ${FLEET_SAMPLE_ROWS}). Node-complete is the shape that matters: the L-1 phantom set was six kamis that stopped in one transaction on one node. Checking all ${rows.length} would be 2x that many pinned eth_calls, which both exceeds any other gate's RPC traffic here and outlasts the RPC's own eth_call state window.`,
+      sampling: `every ACTIVE harvest on the busiest node (node ${busiestNode}, ${nodeComplete.length} rows) plus every ${stride}th of the remaining ${others.length} across the other ${byNode.size - 1} nodes (${strided.length} rows, fleet budget ${FLEET_SAMPLE_ROWS}). Node-complete is the shape that matters: the 2026-09-06 phantom set was six kamis that stopped in one transaction on one node. Checking all ${rows.length} would be 2x that many pinned eth_calls, which both exceeds any other gate's RPC traffic here and outlasts the RPC's own eth_call state window.`,
       coverageFraction: Number((sample.length / Math.max(1, rows.length)).toFixed(4)),
       nodeCompleteRows: nodeComplete.length,
       fleetStrideRows: strided.length,
@@ -587,7 +587,7 @@ try {
       phantomRows: phantoms,
       skewRows: skew.slice(0, 10),
       arbitration:
-        'the container is live, so a harvest can legitimately stop — or stop and RESTART, reusing the same harvest entity id — between the mirror answer and the pinned chain read. Every apparent divergence is therefore re-read on BOTH sides: the mirror from the container, and the chain at a fresh pin. A phantom is a row where the mirror still says ACTIVE and the fresh chain read still disagrees — the L-1 shape, which persisted for 3.5 hours when it happened. Mirror corrected, or chain now ACTIVE again, is skew. Re-reading only the mirror against the STALE pinned fact reported a false phantom on 2026-09-06 (kami 7799: INACTIVE at head-90, ACTIVE at head-30 and head-4, same harvest id) and that is why both sides are read.',
+        'the container is live, so a harvest can legitimately stop — or stop and RESTART, reusing the same harvest entity id — between the mirror answer and the pinned chain read. Every apparent divergence is therefore re-read on BOTH sides: the mirror from the container, and the chain at a fresh pin. A phantom is a row where the mirror still says ACTIVE and the fresh chain read still disagrees — the 2026-09-06 shape, which persisted for 3.5 hours when it happened. Mirror corrected, or chain now ACTIVE again, is skew. Re-reading only the mirror against the STALE pinned fact reported a false phantom on 2026-09-06 (kami 7799: INACTIVE at head-90, ACTIVE at head-30 and head-4, same harvest id) and that is why both sides are read.',
     },
     syncFinal: final.sync,
     timeline,

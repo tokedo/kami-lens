@@ -5,10 +5,10 @@
  * history:  forward-ported in 0.6.2 from @ 21f419e63e0a7f6b642c255efeb89dd1c288de1c
  *           while that commit was ahead of the pin; the pin now includes it;
  *           the file arrived whole with Asphodel-OS/kamigotchi#2475.
- * changes:  THREE divergences as of 0.6.3 (L-11), and until then none — the
+ * changes:  THREE divergences as of 0.6.3 (field report 2026-09-18), and until then none — the
  *           0.6.2 banner said "every byte of the body is upstream's" and
  *           that is no longer true, so it is restated rather than amended.
- *           All three are the same measured defect (kami-factory,
+ *           All three are the same measured defect (a 2-vCPU VM,
  *           2026-09-18: a HEALTHY CDN load killed by the daemon's own 90-s
  *           pre-LIVE stall watchdog, cold->LIVE 271 s instead of 118 s):
  *
@@ -216,7 +216,7 @@ const fetchChunk = async (
  * 2-vCPU box, where the ONE JS thread spends ~11 s applying a values chunk
  * and cannot read the other five bodies while it does — and each of those
  * bodies is racing `AbortSignal.timeout(CHUNK_TIMEOUT_MS)`, a WALL clock.
- * Measured (kami-factory, 2026-09-18): three `TimeoutError` chunk retries
+ * Measured (a 2-vCPU VM, 2026-09-18): three `TimeoutError` chunk retries
  * across two bootstrap attempts, each a full ~11 MB re-fetch, on a link that
  * was never the problem — `fetchSecondsInflatedByBlocking` 165 s against
  * 80 s of wall.
@@ -225,7 +225,7 @@ const fetchChunk = async (
  * the cgroup CPU quota — so `docker --cpus 1` alone does NOT narrow this and
  * gate G10.e pins with `--cpuset-cpus` as well. That is a property of the
  * gate, not a reason to pick a different signal: affinity is what a real
- * small VM actually has (kami-factory: 2).
+ * small VM actually has (2 on the measured VM).
  */
 export const cdnFetchConcurrency = (): number => {
   const cores = os.availableParallelism?.() ?? 6;

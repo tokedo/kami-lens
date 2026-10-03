@@ -44,7 +44,7 @@
     "excused": 0,
     "excused_race": 0,
     "excused_races": [],
-    "oracle_cursor_lag": 11.423929,
+    "index_cursor_lag": 11.423929,
     "lens_block": 34012730,
     "ms": 13956,
     "unreadable": 0,

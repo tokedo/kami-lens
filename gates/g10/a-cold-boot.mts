@@ -18,9 +18,9 @@
 //      `sync.reconciledThrough` at or past the stream's start block. The
 //      bridge closes the same window fillGap does (divergence 9), so a
 //      baseline that never got seeded is a bridge that never ran.
-//   2. the lab drift probe over 50 SETTLED facts against the oracle's
-//      independent read of the chain → zero divergences. This is the check
-//      that would have caught L-1 (2026-09-06: seven kamis served
+//   2. an independent drift probe over 50 SETTLED facts against an
+//      independent chain index's read of the chain → zero divergences. This
+//      is the check that would have caught the 2026-09-06 failure (seven kamis served
 //      HARVESTING for 3.5 h after the chain stopped them, with the daemon
 //      LIVE and `degraded: []` throughout).
 //   3. G3.b's node-occupancy cross-check, re-run against the state THIS
@@ -33,14 +33,17 @@
 // grow between two live daemons), entities and values only within the block
 // delta's growth.
 //
-// The drift probe is the lab's (kami-lab provisioning/local-lens) and is now
+// THE DRIFT PROBE IS EXTERNAL and optional: an independent script that reads
+// the lens through its CLI and compares settled facts with its own chain
+// index. Its path comes from G10_DRIFT_PROBE; without it this check is
+// SKIPPED with a message saying so, and the rest of G10.b still runs. It is
 // CALLED DIRECTLY (0.6.3). The 0.6.2 run had to make a substituted copy of
 // it in the data dir — rewriting __NODE__, __LENS_DIR__, the single CLI call
 // site to inject `--data-dir`, and two budget constants — because the repo
 // copy was an install.sh template with no knobs, so an un-substituted run
 // would have talked to the PRODUCTION daemon and "passed" this gate while
 // proving nothing about the CDN-loaded state. That finding was acted on: the
-// probe is watchdog v4 and takes --node, --cli, --data-dir, --lens-timeout,
+// probe takes --node, --cli, --data-dir, --lens-timeout,
 // --self-timeout, --catchup-max, --env-file and --log. The copy machinery
 // and its substitution assertions are GONE with it: there is nothing left to
 // assert landed, because nothing is being rewritten.
@@ -48,15 +51,15 @@
 // The budgets are still raised on the call, and the reason is unchanged: the
 // probe drives the lens through `node dist/cli.js`, one fresh process per
 // call, ~51 calls, measured at 1.1-3.2 s each while a gate process holds a
-// 4.25 GB heap. The template's 10 s per call and 45 s overall are right for
-// the production watchdog — a quiet box, and a self-bound that must not
-// wedge it — and wrong beside a multi-GB cold boot. The gate's own
+// 4.25 GB heap. The probe's own defaults (10 s per call, 45 s overall) are
+// right for a quiet box — a self-bound that must not wedge its caller — and
+// wrong beside a multi-GB cold boot. The gate's own
 // subprocess timeout stays above the probe's raised self-bound, so whichever
 // fires first, a number was read rather than inferred.
 //
-// The oracle token is read by the probe itself from ~/.blocklife-keys/.env at
-// call time. It is never passed on a command line, never written to a
-// measurement, and never printed (kami-lab hard rule 4).
+// Any credential the probe needs is its own business: it reads it at call
+// time, and this gate never passes one on a command line, writes one to a
+// measurement, or prints one.
 //
 // NEVER TOUCHES THE LIVE DAEMONS. This leg starts one daemon of its own on
 // G10_DATA_DIR (see gates/g10/lib.mts), reads the production daemon's log
@@ -112,13 +115,9 @@ const SILENCE_CONCERN_MS = 60_000;
  */
 const execFileAsync = promisify(execFile);
 
-const DRIFT_PROBE = path.join(
-  process.env.HOME ?? '',
-  'kami-lab',
-  'provisioning',
-  'local-lens',
-  'drift_probe.py'
-);
+/** The external drift probe (G10.b check 2): a path from G10_DRIFT_PROBE, or
+ * null — and then the check is skipped, loudly, not failed. */
+const DRIFT_PROBE = process.env.G10_DRIFT_PROBE ? path.resolve(process.env.G10_DRIFT_PROBE) : null;
 
 await fs.rm(G10_DATA_DIR, { recursive: true, force: true });
 await fs.mkdir(G10_DATA_DIR, { recursive: true });
@@ -278,7 +277,7 @@ bDetail.lastFullLoad = atLive.lastFullLoad;
 const server = startQuerySocket(daemon, G10_DATA_DIR);
 console.log(`[g10.b] socket ${socketPath(G10_DATA_DIR)}`);
 
-// 2. the lab drift probe, against THIS socket
+// 2. an independent drift probe, against THIS socket
 //
 // Called directly, with the v4 flags (see the header note). The probe is
 // pointed at THIS daemon's data dir, which is the one thing that must be
@@ -288,10 +287,17 @@ console.log(`[g10.b] socket ${socketPath(G10_DATA_DIR)}`);
 // A warm-up `status` round trip goes first, from the gate itself over the
 // socket, so the probe's first call is not also paying for a cold page cache.
 const DRIFT_LOG = path.join(G10_DATA_DIR, 'drift_probe.log');
-let drift: Record<string, unknown> = { skipped: 'probe not found', path: DRIFT_PROBE };
+let drift: Record<string, unknown> = DRIFT_PROBE
+  ? { skipped: 'probe not found', path: DRIFT_PROBE }
+  : { skipped: 'G10_DRIFT_PROBE not set — the independent drift-probe check did not run' };
 let warmup = 'not attempted';
 let driftArgv: string[] = [];
-try {
+if (!DRIFT_PROBE) {
+  console.log(
+    '[g10.b] G10_DRIFT_PROBE is not set: SKIPPING the drift-probe check (set it to the path of an ' +
+      'independent drift probe to run it); the rest of G10.b runs and the record says it was skipped'
+  );
+} else try {
   await fs.access(DRIFT_PROBE);
   driftArgv = [
     DRIFT_PROBE,
@@ -301,7 +307,7 @@ try {
     path.join(REPO_ROOT, 'dist', 'cli.js'),
     '--data-dir',
     G10_DATA_DIR,
-    // raised for this gate only; the lab's own watchdog keeps its defaults
+    // raised for this gate only; the probe keeps its own defaults everywhere else
     '--lens-timeout',
     '40',
     '--self-timeout',
@@ -350,12 +356,16 @@ bDetail.socketWarmup = warmup;
 bDetail.driftArgv = driftArgv;
 // 0 divergences on a probe that actually RAN. A skip (exit 2) is not a pass:
 // the whole point of this leg is that the comparison happened.
-bChecks.driftProbeRan = drift.exitCode === 0 && !drift.skipped;
-bChecks.driftZeroDivergences = drift.divergent === 0;
-// 50 is the target (25 harvesting + 25 not). The probe conservatively DROPS a
-// kami whose settle clock refreshed, so a run can come back a little short and
-// still be a real comparison; a run that came back with a handful is not.
-bChecks.driftSampledEnough = typeof drift.sampled === 'number' && drift.sampled >= 40;
+// (With no probe configured the three checks are not made at all, and
+// `drift.skipped` says why — a skipped check is never reported as passed.)
+if (DRIFT_PROBE) {
+  bChecks.driftProbeRan = drift.exitCode === 0 && !drift.skipped;
+  bChecks.driftZeroDivergences = drift.divergent === 0;
+  // 50 is the target (25 harvesting + 25 not). The probe conservatively DROPS a
+  // kami whose settle clock refreshed, so a run can come back a little short and
+  // still be a real comparison; a run that came back with a handful is not.
+  bChecks.driftSampledEnough = typeof drift.sampled === 'number' && drift.sampled >= 40;
+}
 bDetail.driftSampled = drift.sampled ?? null;
 bDetail.driftSampleTarget = 50;
 

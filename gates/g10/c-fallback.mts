@@ -2,8 +2,8 @@
 // must degrade to the gRPC cold start, not fail the boot.
 //
 // THE CONTRACT THIS ASSERTS IS "IT TAKES THE OLD PATH", NOT "THE OLD PATH
-// WORKS". The gRPC cold boot is exactly the load Carrot's infra choked on
-// five times running on 2026-09-12 (L-6: "UNKNOWN: Response closed without
+// WORKS". The gRPC cold boot is exactly the load the game's infrastructure choked on
+// five times running on 2026-09-12 (field report 2026-09-12: "UNKNOWN: Response closed without
 // headers" at "Querying for State"), which is the whole reason 0.6.2 exists.
 // If it fails here the way it failed on the VM, that is RECORDED — with the
 // evidence that the fallback was correctly ENTERED — and the gate still
@@ -92,7 +92,7 @@ const record = {
   checks,
   note:
     'The contract is "a dead CDN takes the gRPC path", not "the gRPC path works". ' +
-    'A gRPC cold boot that fails the way L-6 failed on the VM is recorded here as ' +
+    'A gRPC cold boot that fails the way it failed on a VM on 2026-09-12 is recorded here as ' +
     'evidence about Kamigaze, not as a fallback defect.',
   match: Object.values(checks).every(Boolean),
 };

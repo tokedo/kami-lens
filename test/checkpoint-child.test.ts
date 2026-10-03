@@ -133,7 +133,7 @@ describe('the checkpoint job (divergence 16, item 4a)', () => {
   });
 });
 
-describe('a kill mid-commit leaves a readable snapshot (item 4c, L-8/L-10)', () => {
+describe('a kill mid-commit leaves a readable snapshot (item 4c)', () => {
   // Every instant of the commit sequence, driven against the real code.
   const stages: CommitStage[] = ['tmp-written', 'rotated', 'committed'];
   for (const stage of stages) {

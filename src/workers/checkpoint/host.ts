@@ -5,12 +5,12 @@
 // `v8.serialize` of the whole ~230 MB {header, stores} on the one thread
 // that also owns the query socket and every timer, and the periodic
 // checkpoint `v8.deserialize`s the stored cache synchronously before it.
-// Measured on kami-factory (2026-09-18): the daemon does not answer
+// Measured on a 2-vCPU VM (2026-09-18): the daemon does not answer
 // `status` for 20-32 s every ten minutes (4-5 s on the Mac). DESIGN and
 // server.ts both say `status` is "the one query that must always answer" —
 // and worse, that silence is what the VM watchdog reads as "no status
 // answer from a running unit", so it restarts the daemon, and a restart
-// there is the SIGTERM-mid-checkpoint of L-8/L-10. A health surface that
+// there is the SIGTERM-mid-checkpoint seen in the field. A health surface that
 // goes blind for 30 s every ten minutes manufactures the outage it is
 // watching for.
 //

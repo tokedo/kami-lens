@@ -170,7 +170,7 @@ every gate that says "state hash".
   `GetterSystem.getKamiByIndex` at the mirror's own pinned block, for
   ≥ 20 OWNED kamis with ≥ 4 in each index band (`<15000`,
   `19000–19999`, `20000+`) — the bands matter because that getter is
-  the truth where the oracle's `kami_static` coverage collapses.
+  the truth where an independent chain indexer's `kami_static` coverage collapses.
   `total` is asserted as the client's own
   `(1 + boost/1e3) × (base + shift)` computed on the CHAIN's parts, so
   the effective value is proved to be the ported calc rather than a
@@ -371,7 +371,7 @@ has one home.
 - **G8.b gap heal** *(\[live\], MANUAL, 0.6.0)*: the FREQUENT gap, which
   is a different subject from G8.a's outage. The production stream
   server closes its subscription every ~30-40 s by design, and the
-  2026-09-06 phantom-harvest loss (L-1) happened inside one of those
+  2026-09-06 phantom-harvest loss (field report 2026-09-06) happened inside one of those
   reconnects — 17,369 of them in eleven days. G8.b severs three times
   for ~20 s each on a live daemon at DEBUG, recording per sever the
   reconnect time, the heal path, every healed range with its log count
@@ -391,7 +391,7 @@ has one home.
   chunk size OBSERVED rather than read off the source, time until
   `degraded` clears, and a byte-equality check of a fixed query set
   against a fresh cold daemon — then the same gap healed by a
-  kickstart-restart instead, so the lab's restart-on-wake policy can
+  kickstart-restart instead, so a deployment's restart policy can
   be judged against the do-nothing baseline side by side.
   **The sever method is `docker network disconnect` on a dedicated
   container and volume**: no sudo, no host routing change, and
@@ -417,8 +417,8 @@ has one home.
   **The sever method is an isolated Docker network namespace**
   (`--network none` at start, `docker network connect bridge` to
   restore) and NOT a hosts-file or firewall blackhole: on this machine
-  those would also cut the LIVE launchd kami-lens daemon and the play
-  session depending on it. Same `dist/cli.js` fingerprint guard as G8,
+  those would also cut the LIVE launchd kami-lens daemon and anything
+  depending on it. Same `dist/cli.js` fingerprint guard as G8,
   for the same reason.
 - **G7.c payload flags** *(hermetic, 0.5.2)*: the two payload flags,
   checked by EQUALITY rather than by size — a filter that dropped the

@@ -62,7 +62,7 @@ const COMPONENTS_KEY = '0x4350dba81aa91e31664a09d24a668f006169a11b3d962b7557aed3
 // DATA DIR. Default gates/.artifacts/g1-data (gitignored), overridable with
 // G1_DATA_DIR so the one daemon this leg runs can be pointed at a scratch
 // path outside the repo — which is what every other live gate already
-// allows and this one, until 0.6.3, did not (AUDIT_062 residual: it was the
+// allows and this one, until 0.6.3, did not (0.6.2 audit residual: it was the
 // single daemon of the 0.6.2 gate run writing inside the repo). It is
 // DELETED to force a cold boot, so it must never name a data dir a live
 // daemon owns.
@@ -79,7 +79,7 @@ console.log(`[g1] data dir ${dataDir}`);
  * that G3.a, G3.f, G3.g, G2.a, G2.b, G4.c, G6.a/b/d, G7.a/b/c and G8.b all
  * read. So running G1 rewrote the base every hermetic gate compares
  * against, which made gate ORDER load-bearing with nothing saying so
- * (AUDIT_062, "gate ordering hazard"), and a G1 run mid-release silently
+ * (the 0.6.2 audit, "gate ordering hazard"), and a G1 run mid-release silently
  * re-baselined the release's own conformance evidence.
  *
  * Default now: write dated artifacts and leave the fixtures alone.

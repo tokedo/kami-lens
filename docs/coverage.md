@@ -661,7 +661,7 @@ are already computed on the path that answers today.
   measured pairing, 730 of 732 ineligible rows resolve to `THRESHOLD_ZERO` —
   a fact the bare flag could not distinguish from a cooldown.
 
-Everything else the parity audit found is docketed lab-side and NOT built.
+Everything else the parity audit found is docketed outside this repository and NOT built.
 
 ### Gate evidence
 
@@ -685,8 +685,8 @@ frozen 0.25. Fixed overhead added: 9,362 bytes.
 
 | defect | what it served | what it serves now |
 |---|---|---|
-| config-cache poisoning | `hp: null`, `hpRatePerHr: "NaN"` for every HARVESTING kami, permanently — one arm 856 null rows to 2 real, six days | sentinel reads are never cached, the re-read guard sees NaN, and a non-finite value refuses at the boundary (`NOT_FINITE`) instead of becoming `null` |
-| `account` by name / by address | `NOT_FOUND` for accounts that plainly exist (31 of 49 calls on one arm) | the caches use `> 0` as their siblings always did; the owner address is normalised first; `account` also accepts a 0x-address directly |
+| config-cache poisoning | `hp: null`, `hpRatePerHr: "NaN"` for every HARVESTING kami, permanently — one consumer 856 null rows to 2 real, six days | sentinel reads are never cached, the re-read guard sees NaN, and a non-finite value refuses at the boundary (`NOT_FINITE`) instead of becoming `null` |
+| `account` by name / by address | `NOT_FOUND` for accounts that plainly exist (31 of 49 calls from one consumer) | the caches use `> 0` as their siblings always did; the owner address is normalised first; `account` also accepts a 0x-address directly |
 | `config <name>` | `0` for a name the world has never defined — a fabricated key family read as settled fact for ~20 sessions | `NOT_FOUND`; and a packed uint256 that cannot be a JSON number is ABSENT from `value` rather than served as `1.35e+68`, with `valueRaw` verbatim beside it |
 | condition values | `2.65e+76` for an entity-id-sized value | verbatim strings (§1.2) |
 
@@ -698,7 +698,7 @@ observed incident, not a structural guard.
 
 ### Stamina: which number spends
 
-Investigated at 0.5.0 after an arm reported "209–212" in an error text beside
+Investigated at 0.5.0 after a consumer reported "209–212" in an error text beside
 a served `100/100` and stopped trusting the served maximum. The finding is a
 divergence, not a lens misread — **and the direction is the opposite of the
 obvious one.** The chain's *view* getter returns the recovery accrual
@@ -706,7 +706,7 @@ unclamped and that is what its error strings quote; its *write* path clamps
 at the total before charging. So the clamped `current` the client and this
 surface show is the honest budget, and the unclamped figure is not spendable.
 Both are served (`current`, `total`, `raw`) with `raw` documented as the
-explanation for the error text and explicitly not an allowance. The arm's
+explanation for the error text and explicitly not an allowance. The consumer's
 distrust was reasonable and its conclusion was wrong; an unexplained mismatch
 is what produced both.
 
@@ -727,11 +727,11 @@ the close of the next run. A claim that cannot fail is not a claim.
 | # | Prediction | Falsified by |
 |---|---|---|
 | **P5** | No served answer in the next run contains `hp: null`, `percent: null`, or `hpRatePerHr: "NaN"`. The `nonFiniteValues` and `configUnavailable` tripwires stay at zero for the whole run. | any null vital in the telemetry, or either tripwire above zero at close |
-| **P6** | `account` answers for every registered account an arm queries, by index, by name and by address, from registration age minutes — zero `NOT_FOUND` on an account that exists on-chain at the queried block. | one NOT_FOUND for an account the oracle shows registered at that block |
-| **P7** | Every VM built for the next run installs the version its manifest pins. Four builds of one image produce one version. | any version mismatch between manifest pin and `kami-lens --version` on a run VM |
-| **P8** | No arm records a config key that does not exist as a confirmed value; a probe for a fabricated key produces an error in the transcript, not a zero. | a transcript in which a NOT_FOUND-class key is treated as returning data |
+| **P6** | `account` answers for every registered account a consumer queries, by index, by name and by address, from registration age minutes — zero `NOT_FOUND` on an account that exists on-chain at the queried block. | one NOT_FOUND for an account an independent chain index shows registered at that block |
+| **P7** | Every machine built for the next evaluation run installs the version it pins. Four builds of one image produce one version. | any version mismatch between the pinned version and `kami-lens --version` on an evaluation machine |
+| **P8** | No consumer records a config key that does not exist as a confirmed value; a probe for a fabricated key produces an error in the transcript, not a zero. | a transcript in which a NOT_FOUND-class key is treated as returning data |
 | **P9** | `lens_quests` drops below 5% of total tool-output bytes (from 41%), and no `quests`, `room`, `node`, `leaderboard`, `trades` or `party` answer is truncated by the 65,536-byte reader cap. | either threshold missed, or any capped answer among those six |
-| **P10** | An arm reads its own XP, next-level requirement and unspent skill points without a workaround, and at least one arm levels a kami — the failure mode being 6,584 banked XP at level 1. | no level-up act across the run despite a kami showing `levelUpReady: true` |
+| **P10** | A consumer reads its own XP, next-level requirement and unspent skill points without a workaround, and at least one consumer levels a kami — the failure mode being 6,584 banked XP at level 1. | no level-up act across the run despite a kami showing `levelUpReady: true` |
 | **P11** (roster-growth watch) | The compact `roster` answer stays inside the 65,536-byte reader cap for every account queried in the next run. The measured bound is **~1,174 kamis** on the largest-roster trajectory (52 B fixed + 46.86 B/kami rows + 8.92 B/kami leveling sets at ~97% skill-point density); the largest roster in the world was 1,050 at 0.5.0. | any roster answer at or above 65,536 bytes — which also means the crossing arrived and the sets need capping |
 
 P11 is a watch rather than a target: it is the one 0.5.0 addition whose cost
