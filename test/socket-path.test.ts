@@ -15,12 +15,17 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { createServer } from 'node:net';
-import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { KamiLensDaemon } from '../src/daemon';
-import { SOCKET_NAME, SOCKET_PATH_MAX_BYTES, checkSocketPath, socketPath, startQuerySocket } from '../src/server';
+import {
+  SOCKET_NAME,
+  SOCKET_PATH_MAX_BYTES,
+  checkSocketPath,
+  socketPath,
+  startQuerySocket,
+} from '../src/server';
 
 const REPO = path.resolve(import.meta.dirname, '..');
 let root = '';
@@ -81,12 +86,16 @@ describe('socket path length (1.0.0)', () => {
 
   it('the CLI refuses identically instead of connecting to a truncated name', () => {
     const dir = dataDirFor(131);
-    const r = spawnSync(process.execPath, ['--import', 'tsx', path.join(REPO, 'src', 'cli.ts'), 'status', '--data-dir', dir], {
-      cwd: REPO,
-      encoding: 'utf8',
-      timeout: 60_000,
-      env: { ...process.env, NODE_NO_WARNINGS: '1' },
-    });
+    const r = spawnSync(
+      process.execPath,
+      ['--import', 'tsx', path.join(REPO, 'src', 'cli.ts'), 'status', '--data-dir', dir],
+      {
+        cwd: REPO,
+        encoding: 'utf8',
+        timeout: 60_000,
+        env: { ...process.env, NODE_NO_WARNINGS: '1' },
+      }
+    );
     expect(r.status).toBe(2);
     expect(r.stderr).toContain('SOCKET_PATH_TOO_LONG');
     expect(r.stderr).toContain(socketPath(dir));
