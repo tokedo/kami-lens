@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
+ * upstream: Asphodel-OS/kamigotchi @ ffda396330af1bc33238b6c37188772152b45439
  * path:     packages/client/src/network/shapes/Room/queries.ts
  * changes:  none
  */
@@ -22,7 +22,8 @@ export const query = (components: Components, options?: QueryOptions): EntityInd
   const { Location, EntityType, RoomIndex } = components;
 
   const toQuery: QueryFragment[] = [];
-  if (options?.index) toQuery.push(HasValue(RoomIndex, { value: options.index }));
+  if (options?.index !== undefined)
+    toQuery.push(HasValue(RoomIndex, { value: options.index }));
   if (options?.location) {
     toQuery.push(
       HasValue(Location, {

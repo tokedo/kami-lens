@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
+ * upstream: Asphodel-OS/kamigotchi @ ffda396330af1bc33238b6c37188772152b45439
  * path:     packages/client/src/constants/items.ts
  * changes:  none
  */
@@ -16,3 +16,4 @@ export const OBOL_INDEX = 1015;
 export const HOLY_DUST_INDEX = 11011;
 export const RESPEC_POTION_INDEX = 11403;
 export const WONDER_EGG_INDEX = 21003;
+export const SEXTANT_INDEX = 100004;

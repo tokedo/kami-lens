@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
+ * upstream: Asphodel-OS/kamigotchi @ ffda396330af1bc33238b6c37188772152b45439
  * path:     packages/client/src/app/cache/npc/calcs.ts
  * changes:  Date.now() → clock.now() at 1 call site plus the
  *           clock import (§3.8: offset-corrected stream clock, not naive
@@ -9,6 +9,11 @@
 
 import * as clock from 'clock';
 import { Listing } from 'network/shapes/Listing';
+
+// mirrors LibListing.MAX_DEFICIT_PERIODS: GDA deficit is clamped on-chain, giving
+// a price floor of value × decay^3. The mirror MUST match or the shop displays a
+// lower price than the contract charges.
+const MAX_DEFICIT_PERIODS = 3;
 
 // calculate the buy price of a listing based on amt purchased
 // TODO: determine rounding rules for erc20 denominations
@@ -45,7 +50,9 @@ export const calcBuyPriceGDA = (listing: Listing, amt: number) => {
 
   const tDelta = (now - listing.startTime) / period; // # periods
 
-  let price = value * decay ** (tDelta - prevSold / rate);
+  // deficit clamp mirrors the on-chain floor (value × decay^MAX_DEFICIT_PERIODS)
+  const deficit = Math.min(tDelta - prevSold / rate, MAX_DEFICIT_PERIODS);
+  let price = value * decay ** deficit;
   if (amt > 1) {
     const scale = decay ** (-1 / rate);
     const num = scale ** amt - 1.0;
@@ -53,7 +60,8 @@ export const calcBuyPriceGDA = (listing: Listing, amt: number) => {
     price = (price * num) / den;
   }
 
-  return Math.ceil(price);
+  // contract charges at least 1 currency per unit
+  return Math.max(amt, Math.ceil(price));
 };
 
 // calculate the sell price of a listing based on amt sold

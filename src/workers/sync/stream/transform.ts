@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
+ * upstream: Asphodel-OS/kamigotchi @ ffda396330af1bc33238b6c37188772152b45439
  * path:     packages/client/src/workers/sync/stream/transform.ts
  * changes:  1.0.0 (A2(c)): a one-event frame's event carries the frame's
  *           logIndex — the chain log's own index (see the call site).
@@ -36,7 +36,7 @@ export type TransformWorldEvents = ReturnType<typeof createTransformWorldEvents>
  * @returns Function to transform World contract events from a stream service.
  */
 export const createTransformWorldEvents = (decode: Decode) => {
-  return async (message: StreamResponse): Promise<NetworkComponentUpdate[]> => {
+  return (message: StreamResponse): NetworkComponentUpdate[] => {
     const { blockNumber, ecsEvents } = message;
 
     const convertedEcsEvents: NetworkComponentUpdate[] = [];
@@ -55,7 +55,7 @@ export const createTransformWorldEvents = (decode: Decode) => {
       try {
         value =
           ecsEvent.eventType === 'ComponentValueSet'
-            ? await decode(component, ecsEvent.value!)
+            ? decode(component, ecsEvent.value!)
             : undefined;
       } catch (e) {
         // hygiene divergence: skip undecodable row (counted in createDecode)

@@ -1,10 +1,10 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
+ * upstream: Asphodel-OS/kamigotchi @ ffda396330af1bc33238b6c37188772152b45439
  * path:     packages/client/src/workers/sync/snapshot/fetchFromCdn.ts
- * forward-port: @ 21f419e63e0a7f6b642c255efeb89dd1c288de1c (sync-affecting
- *           bucket, ahead of the pin — SPEC §4.2). The file does not exist
- *           at the pin; it arrives whole with Asphodel-OS/kamigotchi#2475.
+ * history:  forward-ported in 0.6.2 from @ 21f419e63e0a7f6b642c255efeb89dd1c288de1c
+ *           while that commit was ahead of the pin; the pin now includes it;
+ *           the file arrived whole with Asphodel-OS/kamigotchi#2475.
  * changes:  THREE divergences as of 0.6.3 (L-11), and until then none — the
  *           0.6.2 banner said "every byte of the body is upstream's" and
  *           that is no longer true, so it is restated rather than amended.
@@ -16,9 +16,10 @@
  *              apply runs through `applyInSlices` (state/apply.ts) on a
  *              50 ms time budget, parking on `setImmediate` between slices.
  *              Upstream applies a whole chunk in one synchronous-to-the-
- *              macrotask-queue stretch — `await decode()` per row yields to
- *              MICROTASKS only — which on 2 vCPUs is ~11 s per chunk with no
- *              socket read and no timer serviced. Rationale, the measurement
+ *              macrotask-queue stretch (a synchronous decode per row since
+ *              #2478; before it, an async decode that yielded to MICROTASKS
+ *              only) — which on 2 vCPUs is ~11 s per chunk with no socket
+ *              read and no timer serviced. Rationale, the measurement
  *              and the interleaving-safety argument: state/apply.ts and the
  *              note above `applyValues` below.
  *          14. PROGRESS IS REPORTED ON ROWS, NOT ON WHOLE CHUNKS, and a
@@ -379,13 +380,13 @@ export const fetchFromCdn = async (
     //
     // DIVERGENCE 13 (the sliced apply) AND WHY INTERLEAVING IS SAFE.
     // `applyInSlices` parks between slices, so two values chunks can now
-    // interleave their applies at slice granularity. That is not a new
-    // property: `storeValues` does `await decode(...)` PER ROW, and `decode`
-    // is an async function that never awaits, so concurrent applies already
-    // interleave at ROW granularity today — and the chunks themselves are
-    // consumed in whatever order the network serves them, so the apply order
-    // ACROSS chunks is already arbitrary. What that arbitrary order is
-    // allowed to be is bounded by the image itself: a values chunk set is a
+    // interleave their applies at slice granularity. (Under the asynchronous
+    // decode upstream had before #2478 they already interleaved at ROW
+    // granularity; the synchronous decode took that away, and nothing below
+    // relied on it.) The chunks themselves are consumed in whatever order the
+    // network serves them, so the apply order ACROSS chunks is already
+    // arbitrary. What that arbitrary order is allowed to be is bounded by the
+    // image itself: a values chunk set is a
     // partition of ONE state image at ONE block, where a (component, entity)
     // key has exactly one current value, so `valueCache.set(packedIdx, …)`
     // never sees the same key from two chunks and last-write-per-key cannot

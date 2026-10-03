@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
+ * upstream: Asphodel-OS/kamigotchi @ ffda396330af1bc33238b6c37188772152b45439
  * path:     packages/client/src/workers/types.ts
  * changes:  SyncWorkerConfig gains initialBlockNumber?: number and
  *           dataDir?: string. Upstream
@@ -14,9 +14,10 @@
  *           "L-1"): the period of the stream's periodic chain reconcile,
  *           configured by the daemon. Upstream has no such pass — a page
  *           reload is its reconcile. 0.6.2 takes stateCdnUrl from the
- *           forward-port below. Everything else verbatim.
- * forward-port: @ 21f419e63e0a7f6b642c255efeb89dd1c288de1c (sync-affecting
- *           bucket, ahead of the pin — SPEC §4.2): stateCdnUrl?: string.
+ *           forward-port noted below. Everything else verbatim.
+ * history:  forward-ported in 0.6.2 from @ 21f419e63e0a7f6b642c255efeb89dd1c288de1c
+ *           while that commit was ahead of the pin; the pin now includes it:
+ *           stateCdnUrl?: string.
  */
 
 import { Components, ComponentValue, EntityID, SchemaOf } from 'engine/recs';

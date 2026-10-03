@@ -3,11 +3,13 @@
 // SPEC §4.2).
 //
 // THE DEFECT THIS EXISTS FOR. `storeValues` (state/cache.ts) applies a
-// values chunk with `value = await decode(...)` per row. `decode` is an
-// `async function` that never awaits anything (engine/encoders/decode.ts),
-// so every one of those awaits resolves on the MICROTASK queue — it never
-// yields to the macrotask queue, and the macrotask queue is where socket
-// reads and timers live. On a 2-vCPU box one values chunk takes ~11 s to
+// values chunk in one loop. When this module was written that loop did
+// `value = await decode(...)` per row, and `decode` was an `async function`
+// that never awaited anything, so every one of those awaits resolved on the
+// MICROTASK queue; since upstream ffda3963 (Asphodel-OS/kamigotchi#2478)
+// `decode` is synchronous and the loop holds the thread outright. Either way
+// the loop never yields to the macrotask queue, and the macrotask queue is
+// where socket reads and timers live. On a 2-vCPU box one values chunk takes ~11 s to
 // apply, and for those 11 s the thread reads no socket data and fires no
 // timer on time. Measured on kami-factory 2026-09-18 (L-11): the other
 // in-flight chunks' body reads starved until their
@@ -41,10 +43,13 @@
 // ORDERING. Slices are applied in array order, one at a time, awaited — so
 // a sliced apply is indistinguishable in order from the whole-array apply it
 // replaces. What DOES change is interleaving across concurrent applies, and
-// that is safe because it already happens: `await decode(...)` per row means
-// two concurrent values-chunk applies already interleave at ROW granularity
-// today, and the chunks themselves land in whatever order the network serves
-// them. See the fetchFromCdn banner for the argument in full.
+// that is safe because a values-chunk set is a partition of ONE image at ONE
+// block — no (component, entity) key arrives in two chunks — and the chunks
+// themselves land in whatever order the network serves them. (Under the old
+// asynchronous decode, concurrent applies already interleaved at ROW
+// granularity; the synchronous decode removed that, the partition argument
+// never depended on it.) See the fetchFromCdn banner for the argument in
+// full.
 
 /** Target wall time for one slice of applied rows. Chosen against the two
  * bounds this is here to respect: `CHUNK_TIMEOUT_MS` (30 s) needs the socket

@@ -1,19 +1,19 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
+ * upstream: Asphodel-OS/kamigotchi @ ffda396330af1bc33238b6c37188772152b45439
  * path:     packages/client/src/network/shapes/Account/queries.ts
  * changes:  two fixes to the entity-resolution caches (SPEC §4.2, "account
- *           lookup by name and by owner"). (1) queryByName and queryByOwner
- *           cached only when MORE THAN ONE entity matched (`length > 1`), so
- *           the ordinary case of exactly one match was never cached and the
- *           function returned the cache miss — `undefined` — every time; both
- *           now use `length > 0`, which is what queryByIndex and
- *           queryByOperator alongside them already do. (2) queryByOwner
- *           matched the raw address string against a component the mirror
- *           stores in MUD's normalised form, so it matched nothing at all; it
- *           now formats the address first, exactly as queryByOperator does
- *           (upstream's own TODO on this function asks for it). Bodies
- *           otherwise verbatim.
+ *           lookup by name and by owner"). (1) queryByOwner cached only when
+ *           MORE THAN ONE entity matched (`length > 1`), so the ordinary
+ *           case of exactly one match was never cached and the function
+ *           returned the cache miss — `undefined` — every time; it now uses
+ *           `length > 0`, which is what queryByIndex, queryByOperator and
+ *           (since this pin, upstream's own fix) queryByName alongside it
+ *           already do. (2) queryByOwner matched the raw address string
+ *           against a component the mirror stores in MUD's normalised form,
+ *           so it matched nothing at all; it now formats the address first,
+ *           exactly as queryByOperator does (upstream's own TODO on this
+ *           function asks for it). Bodies otherwise verbatim.
  */
 
 import { EntityIndex, HasValue, QueryFragment, runQuery, World } from 'engine/recs';
@@ -41,11 +41,12 @@ const query = (comps: Components, options?: QueryOptions): EntityIndex[] => {
   const { AccountIndex, EntityType, Name, OwnerAddress, OperatorAddress, RoomIndex } = comps;
 
   const toQuery: QueryFragment[] = [];
-  if (options?.index) toQuery.push(HasValue(AccountIndex, { value: options.index }));
+  if (options?.index !== undefined)
+    toQuery.push(HasValue(AccountIndex, { value: options.index }));
   if (options?.owner) toQuery.push(HasValue(OwnerAddress, { value: options.owner }));
   if (options?.operator) toQuery.push(HasValue(OperatorAddress, { value: options.operator }));
   if (options?.name) toQuery.push(HasValue(Name, { value: options.name }));
-  if (options?.room) toQuery.push(HasValue(RoomIndex, { value: options.room }));
+  if (options?.room !== undefined) toQuery.push(HasValue(RoomIndex, { value: options.room }));
   toQuery.push(HasValue(EntityType, { value: 'ACCOUNT' })); // last bc fat
 
   const results = runQuery(toQuery);
@@ -68,15 +69,13 @@ export const queryByIndex = (comps: Components, index: number) => {
   return IndexCache.get(index);
 };
 
-// query for an account entity by its name
+// query for an account entity by its name. misses are normal (availability
+// checks probe names that don't exist) — only ambiguity is warn-worthy
 export const queryByName = (comps: Components, name: string) => {
   if (!NameCache.has(name)) {
     const results = query(comps, { name });
     const length = results.length;
-    if (length != 1) console.warn(`found ${length} entities for account name: ${name}`);
-    // `> 0`, not upstream's `> 1`: one match is the NORMAL case, and refusing
-    // to cache it made this function return undefined for every uniquely
-    // named account — i.e. every real one (§4.2)
+    if (length > 1) console.warn(`found ${length} entities for account name: ${name}`);
     if (length > 0) NameCache.set(name, results[0]);
   }
   return NameCache.get(name);
@@ -116,7 +115,8 @@ export const queryByOwner = (comps: Components, owner: string) => {
     const results = query(comps, { owner: formatted });
     const length = results.length;
     if (length != 1) console.warn(`found ${length} entities for account owner: ${owner}`);
-    // `> 0`, not upstream's `> 1` — see queryByName
+    // `> 0`, not upstream's `> 1`: one match is the NORMAL case (upstream
+    // made the same fix to queryByName at this pin, not yet to this one)
     if (length > 0) OwnerCache.set(owner, results[0]);
   }
   return OwnerCache.get(owner);

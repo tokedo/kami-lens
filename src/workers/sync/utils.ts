@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
+ * upstream: Asphodel-OS/kamigotchi @ ffda396330af1bc33238b6c37188772152b45439
  * path:     packages/client/src/workers/sync/utils.ts
  * changes:  type-hole fixes only (upstream is vite-transpiled and never
  *           typechecked; no behavior change):
@@ -110,7 +110,7 @@ export async function fetchSnapshotChunked(
 
     let i = 0;
     for await (const responseChunk of response) {
-      await reduceFetchedState(responseChunk, stateCache, decode);
+      reduceFetchedState(responseChunk, stateCache, decode);
       setPercentage && setPercentage((i++ / numChunks) * 100);
     }
   } catch (e) {
@@ -126,13 +126,12 @@ export async function fetchSnapshotChunked(
  * @param response ECSStateReplyV2
  * @param stateCache {@link StateCache} to store snapshot state into.
  * @param decode Function to decode raw component values ({@link createDecode}).
- * @returns Promise resolving once state is reduced into {@link StateCache}.
  */
-export async function reduceFetchedState(
+export function reduceFetchedState(
   response: ECSStateReplyV2,
   stateCache: StateCache,
   decode: ReturnType<typeof createDecode>
-): Promise<void> {
+): void {
   const { state, blockNumber, stateComponents, stateEntities } = response;
   const stateEntitiesHex = stateEntities.map((e) => uint8ArrayToHexString(e) as EntityID);
   const stateComponentsHex = stateComponents.map((e) => to256BitString(e));
@@ -141,7 +140,7 @@ export async function reduceFetchedState(
     const component = stateComponentsHex[componentIdIdx]!;
     const entity = stateEntitiesHex[entityIdIdx]!;
     if (entity == undefined) debug('invalid entity index', stateEntities.length, entityIdIdx);
-    const value = await decode(component, rawValue);
+    const value = decode(component, rawValue);
     storeStateEvent(stateCache, {
       type: NetworkEvents.NetworkComponentUpdate,
       component,
@@ -378,7 +377,7 @@ export function createFetchWorldEventsInBlockRange<C extends Components>(
       if (parsed.name === 'ComponentValueRemoved') ecsEvents.push(ecsEvent);
       if (parsed.name === 'ComponentValueSet') {
         try {
-          const value = await decode(component, data);
+          const value = decode(component, data);
           ecsEvents.push({ ...ecsEvent, value });
         } catch (e) {
           // hygiene divergence: skip undecodable row (counted in createDecode)

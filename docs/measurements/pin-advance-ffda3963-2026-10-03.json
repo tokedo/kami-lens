@@ -1,0 +1,96 @@
+{
+  "record": "upstream pin advance — classified diff (DESIGN §7, PORT_PLAN 'Order and pin advances')",
+  "date": "2026-10-03",
+  "from": "ef898fc9350a6085fb080419b12af96c2254e8f3",
+  "to": "ffda396330af1bc33238b6c37188772152b45439",
+  "toCommitDate": "2026-10-02",
+  "commits": 29,
+  "commitList": [
+    "ffda3963 client: move the sync worker to the fetch gRPC-web transport (stage 2) (#2484)",
+    "3c087122 world data: ether shard (103) status to in game (#2485)",
+    "ca9b77aa fix: burn trade tax instead of stranding it in trade escrow (#2483)",
+    "3baa5379 ether shards: musu <> eth loop, phase 1 + operator lane (#2470)",
+    "c128b610 Move kamiden to the fetch gRPC-web transport (stage 1) (#2476)",
+    "77e8d054 client: resolve react-doctor security findings (#2477)",
+    "17ba04f7 perf(client): make component decode synchronous (#2478)",
+    "21f419e6 feat(client): load full state from the S3/CloudFront CDN (#2475)",
+    "87fe6bf6 modify scroll and width (#2474)",
+    "0c5ebd56 Modified Item dropdown (#2472)",
+    "5ee529ee gacha: serve claims from the pool once 721 supply is exhausted (#2471)",
+    "53c9d71c client: item pools ux pass: buy/sell framing, my positions, portal-style polish (#2460)",
+    "59fb070d fix(client): treat snapshot RESOURCE_EXHAUSTED as backpressure (#2469)",
+    "269fd278 onboarding: master — P0 money arithmetic, P1 flow mechanics, P2.11 quest markers, agency + bridge fixes (#2455)",
+    "7549eb85 configs: mirror newbie vendor min price to 0.004 ether (#2465)",
+    "b0d895f2 feat(contracts): embed block.timestamp in all four pool events (#2464)",
+    "491281f5 feat(zevana): floor-derived vendor pricing — 110% of cheapest listing, min-clamped (#2451)",
+    "8fa827fe feat(contracts): emit POOL_SYNC with pool reserves and LP supply (#2459)",
+    "a7783790 postpatch: status flips + token portal approve fix (#2456)",
+    "f22d80c7 client: dialogue qol + map switching (#2447)",
+    "b5192f0a Flash Talisman: ANY_KAMI shape for self-use (#2353)",
+    "8302734d balance: gda shop price floor + rate retune (#2446)",
+    "d82ad4c7 postpatch: reconcile deployed data statuses + fountain opens pool modal (#2445)",
+    "b6850939 feat: item pools — constant-product AMM over fungible items (#2425)",
+    "f17cac43 fix: reject duplicate ids in commit-reveal entrypoints (#2443)",
+    "f3377e72 feat(deployment): notion-to-csv diff tool (read-only review gate) (#2444)",
+    "4b6df9c1 client: maintenance gate behind VITE_MAINTENANCE (#2442)",
+    "767015e0 ops: KamiMarketVault authorized-caller audit tool (#2441)",
+    "5eba080a fix dead sudoswap link in party modal → adoption agency / kamiswap (#2438)"
+  ],
+  "portedFilesChangedUpstream": 29,
+  "buckets": {
+    "formula-affecting": {
+      "client": {
+        "app/cache/npc/calcs.ts": "TAKEN (8302734d). GDA buy price: the deficit exponent is clamped to MAX_DEFICIT_PERIODS = 3 and the price is at least 1 currency per unit (Math.max(amt, ceil(price))). Hand-checked against LibListing.calcBuyPrice at the new pin: same clamp (gdaCapSeconds = prevSold*period/rate + 3*period), same floor (price < amt ? amt : price). Served by `merchant` listing buyPrice."
+      },
+      "contracts/libraries": {
+        "LibListing.sol": "GDA clamp + 1-per-unit floor (mirrored by the client calc above) and settleGDA on buy (state-side; the mirror sees the settled TimeStart). MAX_BATCH_PERIODS = 100 is a revert bound on batch size; the lens quotes amount 1. No other served formula.",
+        "LibPool.sol (new)": "Constant-product swap: calcAmountOut = floor(amountIn*(10000-fee)*reserveOut / (reserveIn*10000 + amountIn*(10000-fee))); swap reverts on amountOut == 0. Mirrored by the client's network/shapes/Pool/pricing.ts (ported verbatim, BigInt). Served by the new `quote` query; verified chain-exact by gate G2.e.",
+        "LibPoolRegistry.sol (new)": "Pool id = keccak256(abi.encodePacked('amm.pool', lo, hi)); fee in Rate; items in Keys. Matches the client's genPoolEntity.",
+        "LibTokenPortal.sol": "Claim pays an explicit `to` (owner, or the account's CURRENT operator for an operator-lane receipt, resolved at claim time); receipt is cleared before the transfer. Token/item unit conversion unchanged. Served by the new `receipts` query.",
+        "LibTrade.sol": "Trade tax is now burned from escrow (ca9b77aa). The lens serves no trade-tax arithmetic; no served value changes.",
+        "LibInventory.sol": "Adds transferForNoLog (pool moves skip acquisition logging). No served formula.",
+        "LibItem.sol": "Adds verifyForShapeOr (Flash Talisman ANY_KAMI). No served formula.",
+        "LibGacha.sol": "Pending-commit accounting (GACHA_COMMITS_PENDING) and getNumFree. The lens serves no gacha pool count; no served value changes.",
+        "LibKamiCreate.sol": "Mint clamps to remaining 721 supply. No served formula.",
+        "LibKamiMarket.sol / LibKamiMarketIndex.sol (new)": "Active-listing index (Values on a fixed entity) for the vendor floor price. The lens serves no kami-market price derived from it.",
+        "LibDroptable.sol": "Formatting only.",
+        "LibCommit.sol": "Unused import removed.",
+        "utils/LibArray.sol": "Adds sortAndVerifyNoRepeats (duplicate-id rejection, f17cac43). No served formula."
+      }
+    },
+    "classification-affecting": {
+      "player-string write systems": "AccountRegisterSystem: +2 lines rejecting an operator that is itself an account owner — no string handling changed. ChatSystem, AccountSetNameSystem, AccountSetBioSystem, KamiNameSystem, KamiOnyxRenameSystem: unchanged.",
+      "clients/kamiden/proto.ts": "New messages PoolPriceRequest/PoolPricePoint/PoolPriceHistory (numbers only) and SetLogLevelRequest/Response (admin; string fields `level`, `apiKey` — never called, never served). No served string field added or changed by the proto; docs/string-classification.json is re-reviewed for the 1.0.0 surface separately."
+    },
+    "state-affecting": {
+      "componentIDs.json": "KamiListingIndex (component.index.kami.listing) added to the JSON; the client registry and ComponentsSchema already carried it at the old pin.",
+      "deploy.json": "PoolSystem and _PoolRegistrySystem added; TokenPortalSystem gains TimeStart write; others unchanged in shape.",
+      "systems": "PoolSystem/_PoolRegistrySystem (new: pools are EntityType 'POOL' entities, reserves are the pool's own inventory), TokenPortalSystem (withdrawToOperator sets flag PORTAL_TO_OPERATOR on the receipt; claim/cancel accept owner or operator for lane receipts), NewbieVendorBuySystem (price = max(110% of cheapest active listing, min price) — the lens serves the vendor's display window, not its price), gacha/droptable/cast/use systems (duplicate-id rejection, ANY_KAMI talisman, pool-served claims). No new component; no component removed."
+    },
+    "sync-affecting": {
+      "engine/encoders/decode.ts + workers/sync/{state/cache,stream/gapfill,stream/transform,stream/stream,utils,snapshot/fetch,snapshot/fetchFromCdn}.ts": "TAKEN (17ba04f7, #2478): decode is synchronous; storeValues, parseGetEventsSinceResponse, createTransformWorldEvents' transform and reduceFetchedState lose their awaits. Hand-merged: the lens's skip-undecodable try/catch and its sliced apply (applyInSlices) are kept; comments that relied on the old per-row await were rewritten.",
+      "workers/sync/grpcTransport.ts": "TAKEN (ffda3963): upstream now uses FetchReadableStreamTransport for every browser — the transport the lens already used. The swap-point banner shrinks accordingly.",
+      "clients/kamigaze/client.ts, clients/kamiden/client.ts": "Comment and import-order changes (c128b610); the lens keeps its configured-URL construction (swap point 1).",
+      "clients/kamigaze/index.ts, workers/types.ts, workers/sync/{Worker,bridge,snapshot/index}.ts": "Unchanged since 21f419e6, which 0.6.2 had forward-ported; their banners now name the pin and record the forward-port as history.",
+      "engine/queue/utils.ts, constants/chains.ts, network/setup/configs/*": "Not ported (transaction sending and chain/wallet configuration; the lens never writes)."
+    },
+    "coverage-affecting": {
+      "new modal: modals/pool (Pool.tsx, Chart.tsx, Positions.tsx)": "Swap quote — SERVED by `quote`; price chart — SERVED by `pool-history`; LP positions (a holder's shares) — DEFERRED, documented row in docs/coverage.md.",
+      "modals/tokenPortal, modals/bridge": "Operator-lane withdrawals and claim routing — SERVED by `receipts` (pending receipts only; history stays on `portal`).",
+      "app/stores/visibility.ts": "Adds the `pool` modal flag (the row above).",
+      "other modal/fixture edits (gacha, map, dialogue, inventory UseAmountOption, onboarding, maintenance screen, menu icons)": "Presentation or flow changes; no new chain-derived fact a player sees that the lens does not already serve or list as a coverage row."
+    }
+  },
+  "newlyPorted": [
+    "network/shapes/Pool/{index,types,getters,queries,pricing}.ts (verbatim, banners at the new pin)"
+  ],
+  "assetIndexes": "assets/images/icons/menu/index.ts and assets/images/items/index.ts regenerated from the new pin by the existing transform (png import -> same-named path const); adds ether_shard and five menu icons.",
+  "upstreamFixesTaken": [
+    "network/shapes/Account/queries.ts: queryByName now caches on `length > 0` upstream — the lens's own divergence on that line is retired; queryByOwner keeps its two lens fixes.",
+    "network/shapes/utils/addresses.ts: the accidental lodash `result` import is gone upstream (`results.length`), so the dead-address fallback is reachable again; the port takes it.",
+    "network/shapes/{Account,Auction,Inventory,Listing,Npc,Quest,Room}/queries.ts: `!== undefined` option checks (index 0 is a valid filter).",
+    "constants/items.ts: SEXTANT_INDEX."
+  ],
+  "gatesToRerun": ["G2.a", "G2.b (where runnable)", "G1.b", "G3.f"],
+  "gateResults": "recorded in their own dated records"
+}

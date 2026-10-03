@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
+ * upstream: Asphodel-OS/kamigotchi @ ffda396330af1bc33238b6c37188772152b45439
  * path:     packages/client/src/clients/kamigaze/client.ts
  * changes:  swap point 1 (DESIGN §4.1) — the getClient() singleton read
  *           import.meta.env.VITE_KAMIGAZE_URL; kami-lens configuration flows
@@ -14,12 +14,12 @@ import { createChannel, createClient } from 'nice-grpc-web';
 import { getGrpcTransport } from '../../workers/sync/grpcTransport';
 import { KamigazeServiceClient, KamigazeServiceDefinition } from './proto';
 
-// Reuse clients by URL to avoid recreating channels on each call
+// Connection reuse is the browser's (HTTP/2), not this map's: it only shares one client
+// object per endpoint.
 const clientsByUrl = new Map<string, KamigazeServiceClient>();
 
 /**
  * Get or create a KamigazeServiceClient for a given URL.
- * Clients are reused by URL to preserve gRPC channels across reconnections.
  */
 export function createKamigazeClient(url: string): KamigazeServiceClient {
   const existing = clientsByUrl.get(url);

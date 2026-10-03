@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
+ * upstream: Asphodel-OS/kamigotchi @ ffda396330af1bc33238b6c37188772152b45439
  * path:     packages/client/src/workers/sync/stream/stream.ts
  * changes:  §3.8 clock tap — one import and one line in the stream chunk
  *           handler feed each chunk's blockTimestamp to the offset-corrected
@@ -750,9 +750,9 @@ function createRawStream(options: RawStreamOptions): Observable<NetworkEvent> {
       .pipe(
         concatMap(async (responseChunk) => {
           clock.observeBlockTimestamp(responseChunk.blockTimestamp);
-          let events: NetworkComponentUpdate<Components>[] = (await transformWorldEvents(
+          let events: NetworkComponentUpdate<Components>[] = transformWorldEvents(
             responseChunk
-          )) as NetworkComponentUpdate<Components>[];
+          ) as NetworkComponentUpdate<Components>[];
 
           // divergence 3: after every await, before every write
           if (closed) return [];
@@ -947,12 +947,12 @@ async function healGap(options: HealGapOptions): Promise<HealedGap | null> {
     // stamped with the range START, exactly as gapfill.ts stamps it: this
     // branch's events are a deduplicated diff, not a block's worth of logs,
     // and claiming the head for them is what the top-up below is for.
-    diffEvents = (await parseGetEventsSinceResponse(
+    diffEvents = parseGetEventsSinceResponse(
       gapResponse,
       decode,
       fromBlock,
       '[stream]'
-    )) as NetworkComponentUpdate<Components>[];
+    ) as NetworkComponentUpdate<Components>[];
     latestBlock = gapResponse.latestBlock;
     // divergence 7: these events carry no position; they may reflect writes
     // up to the diff's head, which is where the frontier rule must reach

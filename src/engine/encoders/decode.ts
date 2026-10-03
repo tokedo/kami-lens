@@ -1,9 +1,9 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
+ * upstream: Asphodel-OS/kamigotchi @ ffda396330af1bc33238b6c37188772152b45439
  * path:     packages/client/src/engine/encoders/decode.ts
- * forward-port: @ 21f419e63e0a7f6b642c255efeb89dd1c288de1c (sync-affecting
- *           bucket, ahead of the pin — SPEC §4.2)
+ * history:  forward-ported in 0.6.2 from @ 21f419e63e0a7f6b642c255efeb89dd1c288de1c
+ *           while that commit was ahead of the pin; the pin now includes it.
  * changes:  tripwire counters (DESIGN §7) at the two existing failure
  *           sites: the missing-schema fallback increments
  *           tripwires.unknownComponentSchemas, and a throwing decoder
@@ -41,7 +41,7 @@ export const createDecode = () => {
   decoders[SYSTEMS_KEY] = createDecoder(['value'], [13]); // world.component.systems
 
   // generate the decode function components
-  async function decode(componentID: string, data: BytesLike): Promise<ComponentValue> {
+  function decode(componentID: string, data: BytesLike): ComponentValue {
     if (!decoders[componentID]) {
       const compID = componentID as keyof typeof ComponentsSchema;
       let schema = ComponentsSchema[compID];

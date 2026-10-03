@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
+ * upstream: Asphodel-OS/kamigotchi @ ffda396330af1bc33238b6c37188772152b45439
  * path:     packages/client/src/workers/sync/stream/gapfill.ts
  * changes:  port hygiene (DESIGN §4.1) — upstream's no-stream mode hands
  *           fetchGapEvents an undefined Kamigaze URL and only works through
@@ -66,7 +66,7 @@ export async function fetchGapEvents(
     const gapResponse = await client.getEventsSince({
       sinceBlock: fromBlock,
     });
-    const events = await parseGetEventsSinceResponse(gapResponse, decode, fromBlock, '[Worker]');
+    const events = parseGetEventsSinceResponse(gapResponse, decode, fromBlock, '[Worker]');
     log.debug(
       `[gapfill] ${new Date().toISOString()} Got ${events.length} events from Kamigaze - latestBlock ${gapResponse.latestBlock}`
     );
@@ -114,12 +114,12 @@ export async function fetchGapEvents(
  * @param blockNumber Block number to assign to events (defaults to 0)
  * @returns Array of NetworkComponentUpdate events
  */
-export async function parseGetEventsSinceResponse(
+export function parseGetEventsSinceResponse(
   response: GetEventsSinceResponse,
   decode: Decode,
   blockNumber: number = 0,
   source: string
-): Promise<NetworkComponentUpdate[]> {
+): NetworkComponentUpdate[] {
   const { events } = response;
   const updates: NetworkComponentUpdate[] = [];
 
@@ -133,7 +133,7 @@ export async function parseGetEventsSinceResponse(
     try {
       value =
         ecsEvent.eventType === 'ComponentValueSet'
-          ? await decode(component, ecsEvent.value!)
+          ? decode(component, ecsEvent.value!)
           : undefined;
     } catch (e) {
       // hygiene divergence: skip undecodable row (counted in createDecode)

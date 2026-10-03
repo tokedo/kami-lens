@@ -1,11 +1,12 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
+ * upstream: Asphodel-OS/kamigotchi @ ffda396330af1bc33238b6c37188772152b45439
  * path:     packages/client/src/workers/sync/Worker.ts
- * forward-port: @ 21f419e63e0a7f6b642c255efeb89dd1c288de1c (sync-affecting
- *           bucket, ahead of the pin — SPEC §4.2): the CDN cold-boot
- *           integration (planCdnLoad -> fetchFromCdn with a gRPC fallback ->
- *           bridgeBoot) and the one "[state] full load served by" log line.
+ * history:  forward-ported in 0.6.2 from @ 21f419e63e0a7f6b642c255efeb89dd1c288de1c
+ *           while that commit was ahead of the pin; the pin now includes it:
+ *           the CDN cold-boot integration (planCdnLoad -> fetchFromCdn
+ *           with a gRPC fallback -> bridgeBoot) and the one "[state] full
+ *           load served by" log line.
  * changes:  port hygiene (DESIGN §4.1), each a one-line divergence:
  *           1. replay floor — upstream never reads initialBlockNumber, so a
  *              fresh cache gap-fills from block 0; the port seeds the gap
@@ -102,9 +103,10 @@
  *          13. THE STATE APPLY YIELDS TO THE EVENT LOOP (0.6.3, L-11), on a
  *              50 ms time budget, in the CDN loader's values and entities
  *              applies and in the gRPC path's values apply. Upstream holds
- *              the one JS thread for a whole chunk — `await decode()` per
- *              row yields to MICROTASKS only — which on 2 vCPUs is ~11 s
- *              with no socket read and no timer serviced. Bodies in this
+ *              the one JS thread for a whole chunk (a synchronous decode
+ *              per row since #2478; before it, an async decode that yielded
+ *              to MICROTASKS only) — which on 2 vCPUs is ~11 s with no
+ *              socket read and no timer serviced. Bodies in this
  *              file are untouched; the divergence lives in
  *              state/apply.ts (rationale, measurement, interleaving-safety
  *              argument), snapshot/fetchFromCdn.ts and snapshot/fetch.ts.

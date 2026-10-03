@@ -1,7 +1,8 @@
 # Coverage — per-release conformance checklist
 
 Perception parity is defined against the pinned upstream commit
-(`UPSTREAM` file; currently `ef898fc9`). This table is the release
+(`UPSTREAM` file; currently `ffda3963`, advanced from `ef898fc9` in
+1.0.0). This table is the release
 artifact behind README principle 1: each release states, per
 player-visible surface, whether kami-lens serves it — and a gap is
 only ever a documented row, never an omission. Seeded from the

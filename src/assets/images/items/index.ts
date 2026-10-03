@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
+ * upstream: Asphodel-OS/kamigotchi @ ffda396330af1bc33238b6c37188772152b45439
  * path:     packages/client/src/assets/images/items/index.ts
  * changes:  image imports replaced by same-named consts holding the upstream
  *           asset path as a stable string token (headless port: no bundler
@@ -59,6 +59,7 @@ const energy_drink = 'assets/images/items/energy_drink.png';
 const essence_of_daffodil = 'assets/images/items/essence_of_daffodil.png';
 const essence_of_hearing = 'assets/images/items/essence_of_hearing.png';
 const essence_of_sight = 'assets/images/items/essence_of_sight.png';
+const ether_shard = 'assets/images/items/ether_shard.png';
 const essence_of_smell = 'assets/images/items/essence_of_smell.png';
 const essence_of_taste = 'assets/images/items/essence_of_taste.png';
 const essence_of_thought = 'assets/images/items/essence_of_thought.png';
@@ -241,6 +242,7 @@ export const ItemImages = {
   essence_of_daffodil: essence_of_daffodil,
   essence_of_hearing: essence_of_hearing,
   essence_of_sight: essence_of_sight,
+  ether_shard: ether_shard,
   essence_of_smell: essence_of_smell,
   essence_of_taste: essence_of_taste,
   essence_of_thought: essence_of_thought,

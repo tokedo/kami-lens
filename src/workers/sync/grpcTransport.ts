@@ -1,16 +1,15 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
+ * upstream: Asphodel-OS/kamigotchi @ ffda396330af1bc33238b6c37188772152b45439
  * path:     packages/client/src/workers/sync/grpcTransport.ts
  * changes:  swap point 4 (DESIGN §4.1) — gRPC-web browser transport → Node.
- *           Upstream picks WebsocketTransport on Chromium and
- *           FetchReadableStreamTransport on Safari/iOS (WebKit worker
- *           WebSocket bugs). Node has no browser WebSocket for the ws
- *           transport, but it does have global fetch with readable streams,
- *           so this port always returns the fetch transport — the exact
- *           transport upstream's Safari path uses against the production
- *           server. isSafariOrIOS keeps its upstream contract and returns
- *           false off-browser (its navigator checks are inlined unchanged).
+ *           Since this pin upstream returns FetchReadableStreamTransport
+ *           for every browser (it previously picked WebsocketTransport on
+ *           Chromium), so the transport choice is now upstream's own; Node
+ *           has the global fetch with readable streams it needs.
+ *           isSafariOrIOS keeps its upstream contract and returns false
+ *           off-browser (its navigator checks are inlined unchanged, with
+ *           casts for Node's navigator type).
  *           The @improbable-eng/grpc-web import uses default-import CJS
  *           interop — Node's ESM loader cannot see the package's named
  *           export (vite handled this for the browser build) — and `self`
@@ -29,16 +28,18 @@ if (typeof (globalThis as { self?: unknown }).self === 'undefined') {
 }
 
 /**
- * Returns the appropriate gRPC transport for Node
- * - FetchReadableStreamTransport (upstream's Safari/iOS path)
+ * gRPC-web transport for all browsers.
+ * Fetch multiplexes every RPC onto the browser's existing HTTP/2 connection;
+ * the WebSocket transport opened a fresh TCP+TLS handshake per call.
  */
 export function getGrpcTransport(): grpc.TransportFactory {
   return grpcWeb.FetchReadableStreamTransport({ credentials: 'omit' });
 }
 
 /**
- * Detects if the current environment is Safari or an iOS WebKit wrapper.
- * Always false under Node (no browser navigator/userAgent match).
+ * Detects if the current browser is Safari or an iOS WebKit wrapper.
+ * Needed because WebKit's WebSocket implementation inside workers is unreliable.
+ * (Under Node there is no browser navigator: false.)
  */
 export function isSafariOrIOS(): boolean {
   if (typeof navigator === 'undefined') return false;
