@@ -504,7 +504,12 @@ export class KamiLensDaemon {
             this.lastStreamEventAtWallMs > 0 &&
             Date.now() - this.lastStreamEventAtWallMs > KamiLensDaemon.STREAM_STALL_MS;
           this.lastStreamEventAtWallMs = Date.now();
-          if (wasStalled) void this.syncClock().catch((e) => log.warn('[daemon] clock sync failed', e));
+          const firstLive =
+            this.clockAwaitingLiveSample && update.blockNumber > this.lastClockSampleBlock;
+          if (firstLive) this.clockAwaitingLiveSample = false;
+          if (wasStalled || firstLive) {
+            void this.syncClock().catch((e) => log.warn('[daemon] clock sync failed', e));
+          }
         }
       })
     );
@@ -666,7 +671,14 @@ export class KamiLensDaemon {
 
   private startClockSync(): void {
     if (this.clockSyncTimer) clearInterval(this.clockSyncTimer);
-    void this.syncClock().catch((e) => log.warn('[daemon] clock sync failed', e));
+    // 1.0.0 (A1): at LIVE the newest block the mirror holds is the BOOT
+    // block (the cache's or the bootstrap fill's) — minutes old on a cold
+    // boot (2,175 blocks behind the head on the CDN boot of 2026-10-03), so
+    // anchoring on it ran the projection clock that far in the past for the
+    // first 300 s. It counts as already sampled; the first stream event on a
+    // newer block anchors the clock (the status tap), then the timer runs.
+    this.lastClockSampleBlock = Math.max(this.lastClockSampleBlock, this.liveBlockNumber);
+    this.clockAwaitingLiveSample = true;
     this.clockSyncTimer = setInterval(() => {
       void this.syncClock().catch((e) => log.warn('[daemon] clock sync failed', e));
     }, KamiLensDaemon.CLOCK_SYNC_INTERVAL_MS);
@@ -675,6 +687,8 @@ export class KamiLensDaemon {
 
   /** the block the last clock sample was taken on (1.0.0, A1) */
   private lastClockSampleBlock = 0;
+  /** true from LIVE until the first stream event on a newer block (A1) */
+  private clockAwaitingLiveSample = false;
 
   /** 1.0.0 (A1), THE POST-STALL RULE: a clock sample is taken only on a block
    * NEWER than the previous sample's. Across a stream stall liveBlockNumber
@@ -980,17 +994,20 @@ export class KamiLensDaemon {
         done = true;
         off();
         clearTimeout(timer);
-        clearTimeout(nudge);
+        clearInterval(nudge);
         if (err) reject(err);
         else resolve();
       };
       const off = onAppliedAdvance(() => {
         if (reached()) finish();
       });
-      const nudge = setTimeout(() => {
+      // after CATCH_UP_AFTER_MS, and every CATCH_UP_AFTER_MS after that while
+      // still short, ask for a catch-up once the sampled head is past the
+      // block (the proof covers h1 - 1); the stream runs one at a time
+      const nudge = setInterval(() => {
         const head = this.headSample?.blockNumber;
         if (!reached() && head !== undefined && head >= block + 1) syncHooks.requestCatchUp?.(block);
-      }, Math.min(KamiLensDaemon.CATCH_UP_AFTER_MS, maxWaitMs));
+      }, KamiLensDaemon.CATCH_UP_AFTER_MS);
       const timer = setTimeout(() => {
         const err = new QueryError(
           'NOT_APPLIED',

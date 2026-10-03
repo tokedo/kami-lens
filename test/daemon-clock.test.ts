@@ -54,3 +54,26 @@ describe('A1: the clock is never re-anchored on a frozen block', () => {
     expect(clock.lastObservation()?.blockNumber).toBe(1_005);
   });
 });
+
+describe('A1: the clock is not anchored on the boot block at LIVE', () => {
+  it('the boot block counts as sampled; the first newer block is the first sample', async () => {
+    const d = new KamiLensDaemon({ dataDir: path.join(os.tmpdir(), 'kami-lens-clock-void') });
+    const internals = d as unknown as Internals & { startClockSync: () => void; clockSyncTimer: NodeJS.Timeout | null };
+    const asked: number[] = [];
+    internals.clockProvider = {
+      getBlock: async (n) => {
+        asked.push(n);
+        return { timestamp: Math.floor(Date.now() / 1000) };
+      },
+    };
+    // at LIVE the newest block is the cache's / the fill's — minutes old
+    internals.liveBlockNumber = 34_006_517;
+    internals.startClockSync();
+    await internals.syncClock();
+    expect(asked).toEqual([]); // the boot block is never sampled
+    internals.liveBlockNumber = 34_006_700; // the stream delivers a fresh block
+    await internals.syncClock();
+    expect(asked).toEqual([34_006_700]);
+    if (internals.clockSyncTimer) clearInterval(internals.clockSyncTimer);
+  });
+});

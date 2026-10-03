@@ -160,7 +160,7 @@ import {
   type RpcHeadSource,
 } from './heal';
 import { createTransformWorldEvents, parseSystemCalls, TransformWorldEvents } from './transform';
-import { HEAL_CHUNK_BLOCKS } from './heal';
+import { collapseLatest, HEAL_CHUNK_BLOCKS } from './heal';
 
 export type FetchWorldEvents = ReturnType<typeof createFetchWorldEventsInBlockRange>;
 
@@ -254,6 +254,8 @@ export interface StreamOptions {
   /** reconcile pacing overrides (1.0.0); tests use short ones */
   reconcilePaceMs?: number;
   reconcileCatchUpGapMs?: number;
+  /** pass size override (1.0.0); tests use small ones */
+  reconcilePassMaxBlocks?: number;
 }
 
 interface StreamTrackingState {
@@ -386,6 +388,7 @@ export function createStream(options: StreamOptions): Observable<NetworkEvent> {
     headPollMs,
     reconcilePaceMs = RECONCILE_PACE_MS,
     reconcileCatchUpGapMs = RECONCILE_CATCHUP_GAP_MS,
+    reconcilePassMaxBlocks = RECONCILE_PASS_MAX_BLOCKS,
   } = options;
   const transformWorldEvents = createTransformWorldEvents(decode);
 
@@ -427,6 +430,13 @@ export function createStream(options: StreamOptions): Observable<NetworkEvent> {
   const frontierAllows = (from: number, c: number) =>
     from > trackingState.frontier || c >= trackingState.frontier;
 
+  /** A boot-window read in progress (divergence 7): proven chunks are HELD
+   * here, pass after paced pass, until they reach the frontier — and only
+   * then applied, as one collapsed range. A pass that stops short (a lagging
+   * backend) keeps what it proved; the next one continues from there. */
+  let held: { from: number; through: number; events: NetworkComponentUpdate<Components>[] } | null =
+    null;
+
   const runReconcile = async (): Promise<void> => {
     if (reconcileRunning || reconcileAbort.signal.aborted) return;
     reconcileRunning = true;
@@ -437,10 +447,11 @@ export function createStream(options: StreamOptions): Observable<NetworkEvent> {
       const cursor = trackingState.expectedPrevLogBlock;
       // not yet seeded, or nothing new since the last pass: a real no-op
       if (through === null || cursor < 0 || cursor <= through) return;
-      const from_ = through + 1;
-      const to = Math.min(cursor, through + RECONCILE_PASS_MAX_BLOCKS);
+      const start = held ? held.through + 1 : through + 1;
+      if (start > cursor) return;
+      const to = Math.min(cursor, start + reconcilePassMaxBlocks - 1);
       const r = await healRange({
-        from: from_,
+        from: start,
         to,
         reason: 'reconcile',
         fetchWorldEvents,
@@ -453,20 +464,32 @@ export function createStream(options: StreamOptions): Observable<NetworkEvent> {
       });
       if (!r.ok || reconcileAbort.signal.aborted) return;
       const c = r.provenThrough;
-      if (c < from_) return; // nothing proven this pass; the stall marker watches
-      if (!frontierAllows(from_, c)) {
-        log.info(
-          `[heal] reconcile ${from_}..${c} proven, but the boot frontier is ${trackingState.frontier}: ` +
-            'nothing applied until a pass is proven through it'
-        );
-        return;
+      if (c >= start) {
+        if (held) {
+          held.events.push(...r.events);
+          held.through = c;
+        } else {
+          held = { from: through + 1, through: c, events: [...r.events] };
+        }
       }
-      settleHeal(from_, c, r.ms);
-      reconcileCursor = c;
-      for (const e of r.events) reconcileOut$.next(e);
-      reconcileOut$.next(markerEvent({ anchor: from_ - 1, through: c, reconciled: true }));
+      if (held && frontierAllows(held.from, held.through)) {
+        const range = held;
+        held = null;
+        settleHeal(range.from, range.through, r.ms);
+        reconcileCursor = range.through;
+        for (const e of collapseLatest(range.events)) reconcileOut$.next(e);
+        reconcileOut$.next(
+          markerEvent({ anchor: range.from - 1, through: range.through, reconciled: true })
+        );
+      } else if (held) {
+        log.info(
+          `[heal] reconcile holding ${held.from}..${held.through} (${held.events.length} writes): ` +
+            `the boot frontier is ${trackingState.frontier}, nothing is applied until a read is proven through it`
+        );
+      }
       // a window longer than one pass (the boot window): keep going, paced
-      if (c < cursor - HEAL_CHUNK_BLOCKS && !reconcileAbort.signal.aborted) {
+      const reached = held ? held.through : (reconcileCursor ?? through);
+      if (c >= start && reached < cursor - HEAL_CHUNK_BLOCKS && !reconcileAbort.signal.aborted) {
         followUp = setTimeout(() => void runReconcile(), reconcileCatchUpGapMs);
         followUp.unref?.();
       }
@@ -529,6 +552,13 @@ export function createStream(options: StreamOptions): Observable<NetworkEvent> {
       syncHealth.lastReconcileAdvanceAt = new Date().toISOString();
     }
     trackingState.frontier = Math.max(trackingState.frontier, frontier ?? baseline);
+    // 1.0.0 (A3): the boot window is read as soon as the daemon is up, not
+    // at the first interval tick two minutes later. The seed fires just
+    // before the (synchronous) INITIALIZE and LIVE, so this runs after LIVE.
+    if (reconcileIntervalMs > 0) {
+      followUp = setTimeout(() => void runReconcile(), reconcileCatchUpGapMs);
+      followUp.unref?.();
+    }
   });
 
   /** divergence 6 (1.0.0): what the retry policy remembers; a frame resets it */

@@ -157,7 +157,7 @@ function streamClient(frames: StreamResponse[]): StreamClient {
 
 /** Boot: delta the 900 cache, build a mirror from it, start the stream with
  * its boot-window reconcile over a backend whose head `head()` decides. */
-async function boot(valuesAt: number, removalsAt: number, head: () => number) {
+async function boot(valuesAt: number, removalsAt: number, head: () => number, passMax?: number) {
   resetSyncHealth();
   const loaded = await fetchSnapshot(
     cacheAt900(),
@@ -202,6 +202,7 @@ async function boot(valuesAt: number, removalsAt: number, head: () => number) {
     reconcileIntervalMs: 30,
     reconcilePaceMs: 0,
     reconcileCatchUpGapMs: 5,
+    ...(passMax ? { reconcilePassMaxBlocks: passMax } : {}),
   });
   const sub = stream$.subscribe((e) => ecsEvents$.next([e as NetworkEvent]));
   // the Worker's seed: baseline = the pre-delta block, frontier = the highest
@@ -260,5 +261,21 @@ describe('A2(c) + A3: a proof that stops inside the boot window regresses nothin
     stop();
     expect(read()).toEqual(truth);
     expect(syncHealth.reconciledThrough).toBeGreaterThanOrEqual(1004);
+  });
+});
+
+describe('A3: a boot window longer than one reconcile pass', () => {
+  it('is read in passes and HELD until proven through the frontier, then applied once', async () => {
+    // 20-block passes over a 107-block window: six passes, every one but the
+    // last proven below the frontier. Applying each as it came would replay
+    // (900, 920] over the delta's newer values; dropping each would re-read
+    // the first 20 blocks forever (both were live failure modes).
+    const { read, stop, provider } = await boot(1004, 960, () => 5_000, 20);
+    await settle(400);
+    stop();
+    expect(read()).toEqual(truth);
+    expect(syncHealth.reconciledThrough).toBeGreaterThanOrEqual(1004);
+    // ~6 chunk reads, not a loop re-reading the same 20 blocks
+    expect(provider.served.batches).toBeLessThan(12);
   });
 });
