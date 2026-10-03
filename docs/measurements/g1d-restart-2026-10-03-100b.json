@@ -1,0 +1,22 @@
+{
+  "gate": "g1d-restart",
+  "measuredAt": "2026-10-03T20:35:52.825Z",
+  "warmCheckpointBlock": 34013461,
+  "coldCheckpointBlock": 34013479,
+  "divergence": null,
+  "timeToLiveWarmMs": 19892,
+  "timeToLiveColdMs_reference": 31289,
+  "timeToLiveColdMs_parallel": 32783,
+  "commonBlock": 34013502,
+  "warmHash": {
+    "hash": "26f5c4fe9accdf229f3b2314e29d6cbf92294949cccd02101a700c93259949ad",
+    "entries": 3089747,
+    "blockNumber": 34013502
+  },
+  "coldHash": {
+    "hash": "26f5c4fe9accdf229f3b2314e29d6cbf92294949cccd02101a700c93259949ad",
+    "entries": 3089747,
+    "blockNumber": 34013502
+  },
+  "match": true
+}

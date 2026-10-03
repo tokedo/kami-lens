@@ -1,0 +1,22 @@
+{
+  "gate": "g1b-parity",
+  "measuredAt": "2026-10-03T19:58:11.505Z",
+  "pinnedBlock": 34012655,
+  "kamigazeBlock": 34012655,
+  "healedBlocks": 0,
+  "positiveSamples": 541,
+  "negativeSamples": 50,
+  "componentsCovered": 92,
+  "componentsInMirror": 92,
+  "hardFailures": 0,
+  "excusedKamigazeInherited": [],
+  "failureDetail": [],
+  "tripwires": {
+    "unknownComponentIds": 0,
+    "unknownComponentSchemas": 0,
+    "decodeFailures": 0,
+    "kamigazeNonceBumps": 0,
+    "nonFiniteValues": 0,
+    "configUnavailable": 0
+  }
+}
