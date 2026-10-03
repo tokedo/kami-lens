@@ -95,3 +95,22 @@ describe('A4: a primary that failed to load is never rotated over `.prev`', () =
     expect(prevBlock).toBe(100);
   });
 });
+
+describe('A4: temp files of writers that died are cleaned up at load', () => {
+  it('removes a dead writer s temp file and a legacy `.tmp`, keeps a live writer s', async () => {
+    await fs.writeFile(file(), snap(100));
+    const dead = `${file()}.2147483646.deadbeef.tmp`; // no such pid
+    const legacy = `${file()}.tmp`;
+    const live = `${file()}.${process.pid}.0badcafe.tmp`;
+    for (const p of [dead, legacy, live]) await fs.writeFile(p, 'x');
+
+    const store = new FileStateStore(file(), header);
+    await store.load();
+
+    const left = (await fs.readdir(dir)).sort();
+    expect(left).toContain(path.basename(live));
+    expect(left).not.toContain(path.basename(dead));
+    expect(left).not.toContain(path.basename(legacy));
+    expect(await store.get('BlockNumber', 'current')).toBe(100);
+  });
+});

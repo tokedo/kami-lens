@@ -28,8 +28,21 @@
  *           a child process (workers/checkpoint/), reaches exactly this
  *           code, so the on-disk contract is the same code and not a second
  *           implementation of it.
+ *           1.0.0 (A4): (1) every writer commits through its OWN temp file,
+ *           `<file>.<pid>.<random>.tmp`. All writers used `<file>.tmp`; two
+ *           of them (a second sync worker, a worker beside the checkpoint
+ *           child) interleaved on it, the later rename consumed the earlier
+ *           writer's file, and the earlier one failed `ENOENT rename
+ *           …v8snap.tmp` (Mac log 2026-10-01T21:16:12Z). A temp file left by
+ *           a writer that died is removed at the next load, once its pid is
+ *           gone. (2) A store whose load found the primary UNREADABLE and
+ *           recovered `.prev` does not rotate that primary over `.prev` on
+ *           its next commit — that rotation replaced the only good copy
+ *           with the broken one, and a kill between it and the final rename
+ *           left neither. It overwrites the broken primary in place instead.
  */
 
+import { randomBytes } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import v8 from 'node:v8';
@@ -65,6 +78,10 @@ export class FileStateStore {
   private stores: StoreMaps = new Map();
   private flushPromise: Promise<void> | null = null;
   private flushQueued = false;
+  /** 1.0.0 (A4): false when load() found the primary unreadable and
+   * recovered `.prev` — the next commit must not rotate the broken primary
+   * over the only good generation. Cleared by the first successful commit. */
+  private rotatePrimary = true;
 
   constructor(
     readonly filePath: string,
@@ -72,8 +89,10 @@ export class FileStateStore {
   ) {}
 
   async load(): Promise<void> {
+    await removeOrphanedTempFiles(this.filePath);
     const raw = await readSnapshotFile(this.filePath);
     if (!raw) return;
+    this.rotatePrimary = raw.source === 'primary';
     const { header, stores } = raw;
     if (
       header.chainId !== this.header.chainId ||
@@ -135,7 +154,8 @@ export class FileStateStore {
       blockNumber: (this.stores.get('BlockNumber')?.get('current') as number) ?? 0,
     };
     const buffer = v8.serialize({ header, stores: this.stores });
-    await commitSnapshotFile(this.filePath, buffer);
+    await commitSnapshotFile(this.filePath, buffer, undefined, { rotate: this.rotatePrimary });
+    this.rotatePrimary = true;
     log.debug('[StateStore] snapshot flushed', {
       file: this.filePath,
       bytes: buffer.byteLength,
@@ -171,10 +191,13 @@ export type CommitStage = 'tmp-written' | 'rotated' | 'committed';
 export async function commitSnapshotFile(
   filePath: string,
   buffer: Buffer | Uint8Array,
-  onStage?: (stage: CommitStage) => void | Promise<void>
+  onStage?: (stage: CommitStage) => void | Promise<void>,
+  opts: { rotate?: boolean } = {}
 ): Promise<void> {
   await fs.mkdir(path.dirname(filePath), { recursive: true });
-  const tmpPath = `${filePath}.tmp`;
+  // 1.0.0 (A4): this writer's own temp file — never a name another writer
+  // can rename out from under it
+  const tmpPath = tempPathFor(filePath);
   const handle = await fs.open(tmpPath, 'w');
   try {
     await handle.writeFile(buffer);
@@ -183,15 +206,61 @@ export async function commitSnapshotFile(
     await handle.close();
   }
   await onStage?.('tmp-written');
-  // keep one previous generation
-  try {
-    await fs.rename(filePath, `${filePath}.prev`);
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
+  // keep one previous generation — unless the primary is the broken file a
+  // load just had to recover past (1.0.0, A4): rotating it would replace the
+  // only good generation with it
+  if (opts.rotate !== false) {
+    try {
+      await fs.rename(filePath, `${filePath}.prev`);
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
+    }
   }
   await onStage?.('rotated');
   await fs.rename(tmpPath, filePath);
   await onStage?.('committed');
+}
+
+/** `<file>.<pid>.<random>.tmp` — unique per writer, and carrying the pid so a
+ * later load can tell an orphan from a write in progress (1.0.0, A4). */
+export function tempPathFor(filePath: string): string {
+  return `${filePath}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`;
+}
+
+/** Remove temp files whose writer is gone (1.0.0, A4). A temp file whose pid
+ * is alive belongs to a write in progress — the checkpoint child, typically —
+ * and is left alone; so is one of this process's own. A pre-1.0.0
+ * `<file>.tmp` carries no pid and has no live owner after an upgrade
+ * restart, so it goes too. */
+export async function removeOrphanedTempFiles(filePath: string): Promise<string[]> {
+  const dir = path.dirname(filePath);
+  const base = path.basename(filePath);
+  let names: string[];
+  try {
+    names = await fs.readdir(dir);
+  } catch {
+    return [];
+  }
+  const removed: string[] = [];
+  for (const name of names) {
+    if (!name.startsWith(`${base}.`) || !name.endsWith('.tmp')) continue;
+    const middle = name.slice(base.length + 1, -'.tmp'.length); // '' | '<pid>.<hex>'
+    const pid = /^\d+\.[0-9a-f]+$/.test(middle) ? Number(middle.split('.')[0]) : null;
+    if (pid !== null && (pid === process.pid || isAlive(pid))) continue;
+    await fs.rm(path.join(dir, name), { force: true }).catch(() => {});
+    removed.push(name);
+    log.warn(`[StateStore] removed an orphaned temp file ${name}`);
+  }
+  return removed;
+}
+
+function isAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code === 'EPERM';
+  }
 }
 
 /** Read a snapshot file the way a boot does — primary first, then `.prev`.
@@ -200,7 +269,9 @@ export const readSnapshot = readSnapshotFile;
 
 async function readSnapshotFile(
   filePath: string
-): Promise<{ header: SnapshotHeader; stores: StoreMaps } | undefined> {
+): Promise<
+  { header: SnapshotHeader; stores: StoreMaps; source: 'primary' | 'prev' } | undefined
+> {
   for (const candidate of [filePath, `${filePath}.prev`]) {
     try {
       const buffer = await fs.readFile(candidate);
@@ -209,7 +280,7 @@ async function readSnapshotFile(
       if (candidate !== filePath) {
         log.warn('[StateStore] primary snapshot unreadable — recovered previous generation');
       }
-      return parsed;
+      return { ...parsed, source: candidate === filePath ? 'primary' : 'prev' };
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code === 'ENOENT') continue;
       log.warn(`[StateStore] failed to read snapshot ${candidate}`, e);

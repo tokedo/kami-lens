@@ -129,6 +129,17 @@
  *              which is daemon.ts's business rather than this file's and is
  *              numbered here only to keep one numbering space. See
  *              workers/checkpoint/host.ts.
+ *          17. A DISPOSED WORKER STOPS (1.0.0, A4). dispose() used to run the
+ *              disposers registered SO FAR and nothing else: an initOnce()
+ *              suspended in an await — the delta, the save, the stream start
+ *              — resumed afterwards and went on to open a stream, gap-fill and
+ *              write the store, registering disposers nobody would ever run.
+ *              That is the second worker of the 2026-10-01 incident: a pre-LIVE
+ *              stall restart, two "full load served by gRPC" lines, and the
+ *              two writers colliding on one temp file. Now dispose() sets a
+ *              flag, initOnce() checks it after every await (`stopped()`), a
+ *              disposer registered after disposal runs at once (`own()`), and
+ *              no retry is scheduled by a disposed worker.
  *           Type-hole fix: the snapshot catch block reads e.code on an
  *           unknown catch variable — cast to {code?: unknown} (upstream is
  *           vite-transpiled and never typechecked; no behavior change).
@@ -259,10 +270,34 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
   private syncState: SyncStatus = { state: SyncState.CONNECTING, msg: '', percentage: 0 };
   private config?: SyncWorkerConfig;
 
+  /** 1.0.0 (A4, divergence 17): set by dispose(); every await in initOnce
+   * is followed by a check of it */
+  private disposed = false;
+
   private retryCount = 0;
   private retryDelays = [5000, 15000, 30000, 30000, 30000]; // ms
   private maxRetries = 5;
   private disposers: (() => void)[] = [];
+
+  /** divergence 17: a disposer registered after dispose() runs at once */
+  private own(disposer: () => void): void {
+    if (this.disposed) {
+      try {
+        disposer();
+      } catch {
+        /* best effort, as in dispose() */
+      }
+      return;
+    }
+    this.disposers.push(disposer);
+  }
+
+  /** divergence 17: true once disposed; logged once per bail-out site */
+  private stopped(where: string): boolean {
+    if (!this.disposed) return false;
+    log.warn(`[SyncWorker] disposed during ${where} — this worker stops here`);
+    return true;
+  }
 
   /**
    * Returns the delay (in ms) for the current retry attempt.
@@ -322,6 +357,7 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
     try {
       await this.initOnce();
     } catch (e) {
+      if (this.disposed) return; // divergence 17: nobody is listening
       // divergence 5: a throw on the bootstrap path must become a FAILED
       // sync state, because that component update is the only channel the
       // daemon supervises. Never an unhandled rejection.
@@ -347,6 +383,7 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
         )
       );
       config = computedConfig.get();
+      if (this.stopped('config')) return;
       this.config = config; // cache for future retries
     } else {
       config = this.config;
@@ -370,9 +407,11 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
     });
     const reconnectingProvider = await createReconnectingProvider(computed(() => config.provider));
     const { providers } = reconnectingProvider;
-    this.disposers.push(reconnectingProvider.dispose);
+    this.own(reconnectingProvider.dispose);
+    if (this.stopped('provider setup')) return;
     const provider = providers.get().json;
     const indexedDB = await getStateStore(chainId, worldContract.address, IDB_VERSION, config.dataDir);
+    if (this.stopped('store open')) return;
     const decode = createDecode();
     const fetchWorldEvents = createFetchWorldEventsInBlockRange(
       provider,
@@ -382,7 +421,7 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
     );
 
     const { blockNumber$, dispose: disposeBlockNumberStream } = createBlockNumberStream(providers);
-    this.disposers.push(disposeBlockNumberStream);
+    this.own(disposeBlockNumberStream);
 
     // divergence 6 (§3.17, ruling (g)3): the chain head the heal precondition
     // reads. blockNumber$ is FREE and is therefore asked first — but it rides
@@ -394,7 +433,7 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
     const headSub = blockNumber$.subscribe((n) => {
       if (newestBlockNumber === undefined || n > newestBlockNumber) newestBlockNumber = n;
     });
-    this.disposers.push(() => headSub.unsubscribe());
+    this.own(() => headSub.unsubscribe());
     const rpcHead: RpcHeadSource = {
       cached: () => newestBlockNumber,
       fetch: () => provider.getBlockNumber(),
@@ -410,6 +449,7 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
 
     this.setLoadingState({ msg: 'Loading State Cache', percentage: 0 });
     let initialState = await loadStateCacheFromStore(indexedDB);
+    if (this.stopped('cache load')) return;
     console.log('INITIAL STATE (PRE-SYNC)', getStateReport(initialState));
 
     const kamigazeClient = snapshotUrl ? createSnapshotClient(snapshotUrl) : undefined;
@@ -515,6 +555,7 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
           at: new Date().toISOString(),
         });
       } catch (e) {
+        if (this.stopped('snapshot load')) return;
         console.log(snapshotUrl);
         var errorMessage: string;
 
@@ -534,6 +575,7 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
         });
         return;
       }
+      if (this.stopped('snapshot load')) return;
       this.setLoadingState({ percentage: 100 });
       console.log('INITIAL STATE (POST-SYNC)', getStateReport(initialState));
     }
@@ -544,9 +586,11 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
      * - This ensures we can resume from lastKamigazeBlock on failure
      */
     this.setLoadingState({ msg: 'Saving State Cache', percentage: 0 });
+    if (this.stopped('state cache save')) return;
     try {
       await saveStateCacheToStore(indexedDB, initialState);
     } catch (e) {
+      if (this.stopped('state cache save')) return;
       console.error('Failed to save snapshot to IndexedDB', e);
       this.setLoadingState({
         state: SyncState.FAILED,
@@ -598,9 +642,11 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
       }
       this.output$.next(event as NetworkEvent<C>);
     });
-    this.disposers.push(() => eventStreamSub.unsubscribe());
+    this.own(() => eventStreamSub.unsubscribe());
 
+    if (this.stopped('state cache save')) return;
     const streamStartBlockNumber = await awaitStreamValue(blockNumber$);
+    if (this.stopped('stream start')) return;
 
     /*
      * FILL THE GAP
@@ -657,6 +703,7 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
           });
 
     // Merge gap events and live events buffered during gap fill
+    if (this.stopped('gap fill')) return;
     storeStateEvents(stateCache.current, [...gapStateEvents, ...initialLiveEvents]);
 
     // divergence 7 (§3.17) + divergence 9 (0.6.2): the reconcile baseline.
@@ -704,7 +751,9 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
         state: SyncState.FAILED,
         msg: `Error initializing state, retrying in ${(delay / 1000).toFixed(1)}s... (attempt ${this.retryCount}/${this.maxRetries})`,
       });
-      setTimeout(() => this.init(), delay);
+      setTimeout(() => {
+        if (!this.disposed) void this.init();
+      }, delay);
       return;
     }
 
@@ -774,6 +823,7 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
 
   /** In-process replacement for browser worker.terminate() (swap point 2). */
   public dispose(): void {
+    this.disposed = true;
     for (const disposer of this.disposers.splice(0)) {
       try {
         disposer();
