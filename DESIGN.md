@@ -985,10 +985,10 @@ block that produced no world events.
 Two consequences a reader has to know:
 
 - **A write is not visible until the mirror has ingested the block carrying
-  it.** There is no read-your-writes guarantee here and no mechanism that
-  waits for one; a consumer that has just submitted a transaction and wants
-  to see its effect must compare `meta.blockNumber` against the block its
-  receipt names.
+  it.** Until 1.0.0 there was no read-your-writes guarantee and no mechanism
+  that waited for one. **From 1.0.0 there is (§3.18): `meta.appliedThrough`
+  says through which block every write is applied, and `--at-least <receipt
+  block>` waits for it.**
 - **A Kamiden-sourced answer's `blockNumber` describes the MIRROR, not the
   feed.** `market`, `trades` history, `battles`, `portal` and `transfers`
   carry rows from a service with its own independent lag, joined against
@@ -1055,6 +1055,8 @@ answer*, taken at a *different instant*, so pairing it with a world read is
 the same lie of convenience §3.8 refuses for the clock. **A reader comparing a
 receipt block should use `meta.reconciledThrough` when it is present, and
 `meta.blockNumber` only as the weaker fallback.**
+**Superseded at 1.0.0: compare a receipt block against `meta.appliedThrough`,
+or pass it to `--at-least` (§3.18).**
 
 It is `number | null`, never optional and never `0`. `null` means this process
 has verified nothing — before the bootstrap seeds the baseline, and on any
@@ -1233,6 +1235,101 @@ arithmetic, the head guard, both deferral paths, the abort, the timeout
 placement, the reconcile and the retry policy — none of which had any test at
 all before this release. G8.b measures the live half: three severs on a real
 daemon, then a chain cross-check of every ACTIVE harvest.
+
+**Superseded in part at 1.0.0 (§3.18).** "A recovery range ends at the
+current cursor" was the ordering invariant here because nothing else could
+order a re-read against what was applied. 1.0.0 gives every event its chain
+position and the apply path a per-key guard, proves every chain read on the
+answer itself, and moves the reconcile out of the subscription.
+
+### 3.18 Correctness in 1.0.0: complete answers, proven reads, exact freshness
+
+Settled 2026-10-03, from a read-only audit and a reproduction of every item
+before any fix (each lands with a hermetic test that fails on 0.6.3 for its
+stated mechanism).
+
+**A1 — an answer never looks complete when it is not.** The partial-row family
+was one bug. The eight `app/cache` modules that age a sub-object's freshness
+stamped it on the PROJECTION clock, which steps backwards whenever a re-anchor
+lands on an older block than the last one implied (a stream stall; and, it
+turned out, every LIVE, whose newest block is the boot block). The builders
+clear `KamiCache` to force a refresh but not the stamp maps, so after a step a
+rebuilt kami skipped every sub-object whose stamp lay "in the future": hp 0/0,
+no level, no node, and an attacker that read as STARVING. Config alone
+survived — not by code (it is stamped when healthy) but because the live world
+does not define `KAMI_REST_RECOVERY`, so the ported healthy-config check is
+always false — and so the config guard passed and the answer looked healthy.
+The fix is at the source and at the boundary: freshness is aged on a monotonic
+clock (`clock.monotonicMs`), never the projection clock; one choke point,
+`projectKami`, names any missing join (stats, progress, times, an active
+harvest on a resolvable node while HARVESTING); a single-entity read refuses
+`INCOMPLETE`, a list read keeps the row flagged `incomplete: true` with no
+vitals and no liquidation block and counts it in `meta.incompleteRows`. One
+incomplete shape is legitimate — a HARVESTING kami whose harvest is written by
+a later log of the same transaction — which is why the counter
+(`status.incompleteRows`) is not a tripwire. The config guard now requires the
+19 fields the live world defines, by presence (KAMI_LIQ_SALVAGE is all-zero
+and healthy). And the clock is sampled only on a block newer than its last
+sample, so neither a stall nor a boot pins `now()` in the past.
+
+**A2 — a chain re-read can never regress state, and never over-claims.** The
+0.6 reconcile proved the head on one request and read the logs on another,
+against a pool whose backends clamp `toBlock` to their own head and answer
+short with no error. A short answer RESTORED a range's older writes over the
+stream's newer ones. Measured before deciding (2026-10-03, read-only, 900
+samples): the separate-request pattern was short 23 times, every time against a
+proven head at or past the range end; a JSON-RPC batch is one request served by
+one backend, and the batch's own head was below the range end in exactly the
+19 short batched answers. So the batch IS the proof: one `[eth_blockNumber,
+eth_getLogs, eth_blockNumber]` per chunk, accepted only if h1 ≤ h2 and no log
+lies above h1, proven through `min(end, h1 − 1)` (K = 1 is margin for a head
+that runs ahead of its log index, which 900 samples cannot exclude). A gap heal
+needs the whole range proven; the reconcile takes the proven prefix and
+advances `reconciledThrough` only that far. Independently of the proof, every
+event keeps its real `(block, logIndex)` — a stream frame's is the chain log's
+own, measured 265 of 265 — and the apply path never lets an older write for a
+key overwrite a newer one. With that guard a range need no longer end at the
+cursor, the reconcile no longer needs to be serialized with frames, and so it
+runs in the stream's outer closure on its own abort signal: the 10.5 s
+no-frame timeout can no longer kill it. Data with no position (the cache, a
+delta, a Kamigaze diff) may reflect writes up to a FRONTIER block; a chain range
+that starts at or below it is applied only once proven through it, because an
+in-order replay that stopped short of the frontier could land an older chain
+write on a value whose own position is unknown.
+
+**A3 — the boot window is chain-verified too.** The snapshot delta's five calls
+have no stickiness either, and the cache was stamped with the block the FIRST
+named — then persisted by every checkpoint. It is now stamped with the LOWEST
+block any stream was served at, and the highest is kept as part of the
+frontier. The reconcile baseline is the block the loaded state may claim (the
+pre-delta cached block, the CDN image block, or the full load's stamp), so the
+first passes re-read the whole boot window after LIVE, paced, and HOLD what
+they prove until it reaches the frontier — then apply it once. Two numbers, two
+directions: the stamp is the lowest block served (what the cache may claim),
+the frontier the highest (what its position-less values may reflect). Beyond
+4,000 blocks (~2.2-3 h at the measured block time, on the order of the CDN's
+export interval) replaying costs more than a cold load, so a warm cache that
+far behind is released and a CDN image that old is declined for the gRPC full
+load.
+
+**A5 — exact freshness on every answer.** `meta.appliedThrough` is a mark the
+apply path moves only after the writes it vouches for are applied: the
+bootstrap's end block, every continuity-checked frame's block − 1, every proven
+chain read contiguous with it. It answers the receipt question, and
+`--at-least <block>` waits for it (default 5 s, capped at 30 s), asking for one
+proven catch-up read when the chain is already past the block; on timeout it
+refuses `NOT_APPLIED` with the current mark. A consumer verifying its own write
+passes its receipt's block, and on `NOT_APPLIED` either retries the same call
+(the mark moves every block) or, past a few seconds, reads `status` — a
+`degraded` entry or a stalled `appliedThrough` there means the mirror, not the
+write, is behind.
+
+**A4, A6, A7** are hygiene with a correctness edge: a disposed sync worker
+stops at its next await (the 2026-10-01 double worker); writers use their own
+temp files and a recovered `.prev` is never overwritten by the broken primary;
+retries back off exponentially with jitter, a rate limit doubles the backoff,
+and the bootstrap's failure streak survives a supervisor restart; `status`
+reads a background head sample instead of a request-path RPC.
 
 ## 4. Architecture
 
