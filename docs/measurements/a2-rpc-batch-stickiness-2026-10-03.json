@@ -1,0 +1,686 @@
+{
+ "measurement": "JSON-RPC batch stickiness and silent toBlock clamping on the public Yominet RPC",
+ "date": "2026-10-03",
+ "endpoint": "https://jsonrpc-yominet-1.anvil.asia-southeast.initia.xyz",
+ "served_by": "cloudflare -> envoy (x-envoy-upstream-service-time header)",
+ "world": "0x2729174c265dbBd8416C6449E0E813E88f43D0E7",
+ "clamp": {
+  "kind": "clamp",
+  "head": 34004886,
+  "toBlock": 34004986,
+  "error": null,
+  "n": 16,
+  "maxBlock": 34004885,
+  "futureFromError": null,
+  "futureFromN": 0
+ },
+ "headConsistency": {
+  "window": "2026-10-03T14:45Z..14:46Z",
+  "sequentialSingleEthBlockNumber": 300,
+  "regressions": 6,
+  "regressionDepthBlocks": {
+   "2": 4,
+   "4": 2
+  },
+  "batchesOf4EthBlockNumber": 300,
+  "batchesWithInternalDisagreement": 0
+ },
+ "batchProbe": {
+  "method": "per sample: H = eth_blockNumber (own request); A = eth_getLogs(World,[H-4,H]) (own request, the 0.6.x reconcile pattern); B = ONE batch [eth_blockNumber, eth_getLogs(World,[H-4,H]), eth_blockNumber]; reference = the same range re-read >= 30 s later from a backend whose head >= H+10, two agreeing reads (or, where the chain paused and no such reference formed in time, three agreeing post-hoc reads)",
+  "window": [
+   "2026-10-03T14:46:41.187Z",
+   "2026-10-03T15:16:42.650Z"
+  ],
+  "samples": 900,
+  "separateRequests": {
+   "short": 23,
+   "shortWithProvenHeadAtOrAboveTo": 23
+  },
+  "batch": {
+   "short": 19,
+   "shortWithOwnHeadAtOrAboveTo": 0,
+   "ownHeadBelowTo": 19,
+   "completeWithOwnHeadBelowTo": 0,
+   "missingLogAtOrBelowOwnHead": 0,
+   "partialBlockTruncations": 0,
+   "headsDisagreeWithinBatch": 1,
+   "lagBlocksWhenShort": {
+    "1": 1,
+    "2": 13,
+    "3": 1,
+    "4": 3,
+    "6": 1
+   }
+  },
+  "rule": "chunk proven through min(to, batchHead1 - K); violations over all samples: K=0 -> 0, K=1 -> 0"
+ },
+ "streamPositions": {
+  "measured": "2026-10-03 ~14:58Z",
+  "framesWithEvents": 265,
+  "eventsPerFrame": 1,
+  "framesWhoseBlockAndLogIndexMatchTheChainLog": 265,
+  "note": "txHash, componentId and entityId equal the eth_getLogs log at the same (blockNumber, logIndex)"
+ },
+ "samplesOfInterest": [
+  {
+   "i": 63,
+   "at": "2026-10-03T14:48:49.467Z",
+   "from": 34004920,
+   "to": 34004924,
+   "proofHead": 34004924,
+   "batchHead": [
+    34004924,
+    34004924
+   ],
+   "separate": "short",
+   "batch": "complete",
+   "refLogs": 143,
+   "reference": "post-hoc"
+  },
+  {
+   "i": 217,
+   "at": "2026-10-03T14:54:00.890Z",
+   "from": 34005024,
+   "to": 34005028,
+   "proofHead": 34005028,
+   "batchHead": [
+    34005028,
+    34005028
+   ],
+   "separate": "short",
+   "batch": "complete",
+   "separateMissingBlocks": [
+    34005024,
+    34005025,
+    34005027
+   ],
+   "refLogs": 302,
+   "reference": "settled"
+  },
+  {
+   "i": 218,
+   "at": "2026-10-03T14:54:02.438Z",
+   "from": 34005026,
+   "to": 34005030,
+   "proofHead": 34005030,
+   "batchHead": [
+    34005024,
+    34005024
+   ],
+   "separate": "short",
+   "batch": "short",
+   "separateMissingBlocks": [
+    34005027,
+    34005029
+   ],
+   "batchMissingBlocks": [
+    34005027,
+    34005029
+   ],
+   "refLogs": 46,
+   "reference": "settled"
+  },
+  {
+   "i": 219,
+   "at": "2026-10-03T14:54:04.714Z",
+   "from": 34005026,
+   "to": 34005030,
+   "proofHead": 34005030,
+   "batchHead": [
+    34005028,
+    34005028
+   ],
+   "separate": "complete",
+   "batch": "short",
+   "batchMissingBlocks": [
+    34005029
+   ],
+   "refLogs": 46,
+   "reference": "settled"
+  },
+  {
+   "i": 220,
+   "at": "2026-10-03T14:54:06.647Z",
+   "from": 34005027,
+   "to": 34005031,
+   "proofHead": 34005031,
+   "batchHead": [
+    34005030,
+    34005030
+   ],
+   "separate": "short",
+   "batch": "short",
+   "separateMissingBlocks": [
+    34005031
+   ],
+   "batchMissingBlocks": [
+    34005031
+   ],
+   "refLogs": 196,
+   "reference": "settled"
+  },
+  {
+   "i": 221,
+   "at": "2026-10-03T14:54:09.355Z",
+   "from": 34005028,
+   "to": 34005032,
+   "proofHead": 34005032,
+   "batchHead": [
+    34005032,
+    34005032
+   ],
+   "separate": "short",
+   "batch": "complete",
+   "separateMissingBlocks": [
+    34005031
+   ],
+   "refLogs": 168,
+   "reference": "settled"
+  },
+  {
+   "i": 230,
+   "at": "2026-10-03T14:54:27.514Z",
+   "from": 34005039,
+   "to": 34005043,
+   "proofHead": 34005043,
+   "batchHead": [
+    34005041,
+    34005041
+   ],
+   "separate": "complete",
+   "batch": "short",
+   "batchMissingBlocks": [
+    34005042
+   ],
+   "refLogs": 46,
+   "reference": "settled"
+  },
+  {
+   "i": 229,
+   "at": "2026-10-03T14:54:25.328Z",
+   "from": 34005039,
+   "to": 34005043,
+   "proofHead": 34005043,
+   "batchHead": [
+    34005040,
+    34005040
+   ],
+   "separate": "complete",
+   "batch": "short",
+   "batchMissingBlocks": [
+    34005042
+   ],
+   "refLogs": 46,
+   "reference": "settled"
+  },
+  {
+   "i": 295,
+   "at": "2026-10-03T14:56:37.764Z",
+   "from": 34005081,
+   "to": 34005085,
+   "proofHead": 34005085,
+   "batchHead": [
+    34005083,
+    34005083
+   ],
+   "separate": "complete",
+   "batch": "short",
+   "batchMissingBlocks": [
+    34005084
+   ],
+   "refLogs": 162,
+   "reference": "settled"
+  },
+  {
+   "i": 359,
+   "at": "2026-10-03T14:58:47.146Z",
+   "from": 34005109,
+   "to": 34005113,
+   "proofHead": 34005113,
+   "batchHead": [
+    34005113,
+    34005113
+   ],
+   "separate": "short",
+   "batch": "complete",
+   "separateMissingBlocks": [
+    34005112
+   ],
+   "refLogs": 180,
+   "reference": "settled"
+  },
+  {
+   "i": 446,
+   "at": "2026-10-03T15:01:41.884Z",
+   "from": 34005183,
+   "to": 34005187,
+   "proofHead": 34005187,
+   "batchHead": [
+    34005185,
+    34005185
+   ],
+   "separate": "short",
+   "batch": "short",
+   "separateMissingBlocks": [
+    34005186
+   ],
+   "batchMissingBlocks": [
+    34005186
+   ],
+   "refLogs": 234,
+   "reference": "settled"
+  },
+  {
+   "i": 454,
+   "at": "2026-10-03T15:01:57.891Z",
+   "from": 34005195,
+   "to": 34005199,
+   "proofHead": 34005199,
+   "batchHead": [
+    34005200,
+    34005201
+   ],
+   "separate": "complete",
+   "batch": "complete",
+   "refLogs": 88,
+   "reference": "settled"
+  },
+  {
+   "i": 462,
+   "at": "2026-10-03T15:02:13.414Z",
+   "from": 34005199,
+   "to": 34005203,
+   "proofHead": 34005203,
+   "batchHead": [
+    34005203,
+    34005203
+   ],
+   "separate": "short",
+   "batch": "complete",
+   "separateMissingBlocks": [
+    34005202
+   ],
+   "refLogs": 265,
+   "reference": "settled"
+  },
+  {
+   "i": 469,
+   "at": "2026-10-03T15:02:28.462Z",
+   "from": 34005206,
+   "to": 34005210,
+   "proofHead": 34005210,
+   "batchHead": [
+    34005206,
+    34005206
+   ],
+   "separate": "complete",
+   "batch": "short",
+   "batchMissingBlocks": [
+    34005207,
+    34005209
+   ],
+   "refLogs": 328,
+   "reference": "settled"
+  },
+  {
+   "i": 494,
+   "at": "2026-10-03T15:03:17.818Z",
+   "from": 34005221,
+   "to": 34005225,
+   "proofHead": 34005225,
+   "batchHead": [
+    34005223,
+    34005223
+   ],
+   "separate": "short",
+   "batch": "short",
+   "separateMissingBlocks": [
+    34005224
+   ],
+   "batchMissingBlocks": [
+    34005224
+   ],
+   "refLogs": 237,
+   "reference": "settled"
+  },
+  {
+   "i": 495,
+   "at": "2026-10-03T15:03:19.868Z",
+   "from": 34005223,
+   "to": 34005227,
+   "proofHead": 34005227,
+   "batchHead": [
+    34005223,
+    34005223
+   ],
+   "separate": "short",
+   "batch": "short",
+   "separateMissingBlocks": [
+    34005224,
+    34005226
+   ],
+   "batchMissingBlocks": [
+    34005224,
+    34005226
+   ],
+   "refLogs": 253,
+   "reference": "settled"
+  },
+  {
+   "i": 538,
+   "at": "2026-10-03T15:04:46.765Z",
+   "from": 34005248,
+   "to": 34005252,
+   "proofHead": 34005252,
+   "batchHead": [
+    34005250,
+    34005250
+   ],
+   "separate": "complete",
+   "batch": "short",
+   "batchMissingBlocks": [
+    34005251
+   ],
+   "refLogs": 321,
+   "reference": "settled"
+  },
+  {
+   "i": 545,
+   "at": "2026-10-03T15:05:01.528Z",
+   "from": 34005250,
+   "to": 34005254,
+   "proofHead": 34005254,
+   "batchHead": [
+    34005252,
+    34005252
+   ],
+   "separate": "complete",
+   "batch": "short",
+   "batchMissingBlocks": [
+    34005253
+   ],
+   "refLogs": 425,
+   "reference": "settled"
+  },
+  {
+   "i": 551,
+   "at": "2026-10-03T15:05:13.580Z",
+   "from": 34005258,
+   "to": 34005262,
+   "proofHead": 34005262,
+   "batchHead": [
+    34005262,
+    34005262
+   ],
+   "separate": "short",
+   "batch": "complete",
+   "refLogs": 170,
+   "reference": "post-hoc"
+  },
+  {
+   "i": 568,
+   "at": "2026-10-03T15:05:47.653Z",
+   "from": 34005264,
+   "to": 34005268,
+   "proofHead": 34005268,
+   "batchHead": [
+    34005268,
+    34005268
+   ],
+   "separate": "short",
+   "batch": "complete",
+   "separateMissingBlocks": [
+    34005267
+   ],
+   "refLogs": 35,
+   "reference": "settled"
+  },
+  {
+   "i": 601,
+   "at": "2026-10-03T15:06:53.693Z",
+   "from": 34005276,
+   "to": 34005280,
+   "proofHead": 34005280,
+   "batchHead": [
+    34005278,
+    34005278
+   ],
+   "separate": "short",
+   "batch": "short",
+   "separateMissingBlocks": [
+    34005279
+   ],
+   "batchMissingBlocks": [
+    34005279
+   ],
+   "refLogs": 178,
+   "reference": "settled"
+  },
+  {
+   "i": 623,
+   "at": "2026-10-03T15:07:38.392Z",
+   "from": 34005289,
+   "to": 34005293,
+   "proofHead": 34005293,
+   "batchHead": [
+    34005291,
+    34005291
+   ],
+   "separate": "short",
+   "batch": "short",
+   "separateMissingBlocks": [
+    34005292
+   ],
+   "batchMissingBlocks": [
+    34005292
+   ],
+   "refLogs": 463,
+   "reference": "settled"
+  },
+  {
+   "i": 690,
+   "at": "2026-10-03T15:09:53.385Z",
+   "from": 34005323,
+   "to": 34005327,
+   "proofHead": 34005327,
+   "batchHead": [
+    34005325,
+    34005325
+   ],
+   "separate": "short",
+   "batch": "short",
+   "separateMissingBlocks": [
+    34005326
+   ],
+   "batchMissingBlocks": [
+    34005326
+   ],
+   "refLogs": 193,
+   "reference": "settled"
+  },
+  {
+   "i": 695,
+   "at": "2026-10-03T15:10:04.470Z",
+   "from": 34005325,
+   "to": 34005329,
+   "proofHead": 34005329,
+   "batchHead": [
+    34005331,
+    34005331
+   ],
+   "separate": "short",
+   "batch": "complete",
+   "separateMissingBlocks": [
+    34005328
+   ],
+   "refLogs": 325,
+   "reference": "settled"
+  },
+  {
+   "i": 717,
+   "at": "2026-10-03T15:10:47.630Z",
+   "from": 34005335,
+   "to": 34005339,
+   "proofHead": 34005339,
+   "batchHead": [
+    34005337,
+    34005337
+   ],
+   "separate": "complete",
+   "batch": "short",
+   "batchMissingBlocks": [
+    34005338
+   ],
+   "refLogs": 108,
+   "reference": "settled"
+  },
+  {
+   "i": 753,
+   "at": "2026-10-03T15:11:59.756Z",
+   "from": 34005359,
+   "to": 34005363,
+   "proofHead": 34005363,
+   "batchHead": [
+    34005361,
+    34005361
+   ],
+   "separate": "short",
+   "batch": "short",
+   "separateMissingBlocks": [
+    34005362
+   ],
+   "batchMissingBlocks": [
+    34005362
+   ],
+   "refLogs": 178,
+   "reference": "settled"
+  },
+  {
+   "i": 758,
+   "at": "2026-10-03T15:12:09.732Z",
+   "from": 34005363,
+   "to": 34005367,
+   "proofHead": 34005367,
+   "batchHead": [
+    34005365,
+    34005365
+   ],
+   "separate": "short",
+   "batch": "short",
+   "separateMissingBlocks": [
+    34005366
+   ],
+   "batchMissingBlocks": [
+    34005366
+   ],
+   "refLogs": 218,
+   "reference": "settled"
+  },
+  {
+   "i": 776,
+   "at": "2026-10-03T15:12:46.521Z",
+   "from": 34005385,
+   "to": 34005389,
+   "proofHead": 34005389,
+   "batchHead": [
+    34005385,
+    34005385
+   ],
+   "separate": "complete",
+   "batch": "short",
+   "batchMissingBlocks": [
+    34005386,
+    34005388
+   ],
+   "refLogs": 69,
+   "reference": "settled"
+  },
+  {
+   "i": 795,
+   "at": "2026-10-03T15:13:24.792Z",
+   "from": 34005411,
+   "to": 34005415,
+   "proofHead": 34005415,
+   "batchHead": [
+    34005415,
+    34005415
+   ],
+   "separate": "short",
+   "batch": "complete",
+   "separateMissingBlocks": [
+    34005414
+   ],
+   "refLogs": 143,
+   "reference": "settled"
+  },
+  {
+   "i": 800,
+   "at": "2026-10-03T15:13:34.775Z",
+   "from": 34005415,
+   "to": 34005419,
+   "proofHead": 34005419,
+   "batchHead": [
+    34005419,
+    34005419
+   ],
+   "separate": "short",
+   "batch": "complete",
+   "separateMissingBlocks": [
+    34005418
+   ],
+   "refLogs": 275,
+   "reference": "settled"
+  },
+  {
+   "i": 816,
+   "at": "2026-10-03T15:14:06.364Z",
+   "from": 34005424,
+   "to": 34005428,
+   "proofHead": 34005428,
+   "batchHead": [
+    34005428,
+    34005428
+   ],
+   "separate": "short",
+   "batch": "complete",
+   "separateMissingBlocks": [
+    34005427
+   ],
+   "refLogs": 190,
+   "reference": "settled"
+  },
+  {
+   "i": 835,
+   "at": "2026-10-03T15:14:44.359Z",
+   "from": 34005437,
+   "to": 34005441,
+   "proofHead": 34005441,
+   "batchHead": [
+    34005442,
+    34005442
+   ],
+   "separate": "short",
+   "batch": "complete",
+   "separateMissingBlocks": [
+    34005441
+   ],
+   "refLogs": 57,
+   "reference": "settled"
+  },
+  {
+   "i": 862,
+   "at": "2026-10-03T15:15:38.384Z",
+   "from": 34005447,
+   "to": 34005451,
+   "proofHead": 34005451,
+   "batchHead": [
+    34005451,
+    34005451
+   ],
+   "separate": "short",
+   "batch": "complete",
+   "refLogs": 74,
+   "reference": "post-hoc"
+  }
+ ]
+}
