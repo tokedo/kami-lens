@@ -36,8 +36,10 @@ import {
   ARTIFACTS_DIR,
   fail,
   loadCacheFromSnapshotFile,
+  makeFetchWorldEvents,
   makeProvider,
   pass,
+  replayOnto,
   sleep,
   snapshotFilePath,
   writeArtifact,
@@ -139,9 +141,33 @@ console.log(
 // Sample from the checkpointed cache: Kamigaze-indexed, pinned exactly at
 // its GetStateBlock boundary.
 const frozen = await loadCacheFromSnapshotFile(c1Path, config);
-const pinnedBlock = frozen.blockNumber;
+const kamigazeBlock = frozen.blockNumber;
 
 const provider = makeProvider(config);
+
+// 1.0.0: READ INSIDE THE RPC'S STATE WINDOW. The checkpoint is pinned at the
+// snapshot service's GetStateBlock boundary, which on 2026-10-03 trailed the
+// chain head by ~120-140 blocks — past the public RPC's eth_call state
+// window (<100 blocks, the 2026-07-22 lesson below). Every one of 591 reads
+// at that block failed 'missing revert data' and the gate failed on reads it
+// could never make. When the boundary is further back than
+// G1B_STATE_WINDOW_BLOCKS the sample is healed forward with the RPC replay
+// (two stages, G6.b's pattern) and pinned there. What is checked does not
+// change — the mirror against the chain at the mirror's own block — and the
+// healed span is recorded, because a key the replay rewrote was verified
+// against RPC-derived events rather than the snapshot's.
+const G1B_STATE_WINDOW_BLOCKS = 60;
+{
+  const head = await provider.getBlockNumber();
+  if (head - frozen.blockNumber > G1B_STATE_WINDOW_BLOCKS) {
+    const fetchWorldEvents = makeFetchWorldEvents(provider, config);
+    console.log(`[g1.b] snapshot block ${frozen.blockNumber} is ${head - frozen.blockNumber} behind head: healing into the state window`);
+    await replayOnto(frozen, fetchWorldEvents, (await provider.getBlockNumber()) - 6, { provider });
+    await replayOnto(frozen, fetchWorldEvents, (await provider.getBlockNumber()) - 6, { provider });
+  }
+}
+const pinnedBlock = frozen.blockNumber;
+const healedBlocks = pinnedBlock - kamigazeBlock;
 
 // Component registry: componentId (BigInt key) → contract address, from the
 // mirror's own world.component.components rows.
@@ -397,6 +423,8 @@ if (excusalCandidates.length > 0) {
 
 await writeMeasurement('g1b-parity', {
   pinnedBlock,
+  kamigazeBlock,
+  healedBlocks,
   positiveSamples: positives.length,
   negativeSamples: negativeChecked,
   componentsCovered: Object.keys(coverage).length,
