@@ -1,14 +1,14 @@
 {
   "gate": "g1a-bootstrap",
-  "measuredAt": "2026-10-03T19:38:32.406Z",
-  "timeToLiveColdMs": 30585,
+  "measuredAt": "2026-10-03T19:57:17.774Z",
+  "timeToLiveColdMs": 31289,
   "checkpoint": {
     "blockNumber": 34010386,
     "kamigazeNonce": 96,
     "stateEntries": 3089660,
     "numComponents": 99,
     "numEntities": 1318475,
-    "at": "2026-10-03T19:38:32.270Z",
+    "at": "2026-10-03T19:57:17.640Z",
     "durationMs": 0,
     "inFlight": false
   },
