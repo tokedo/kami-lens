@@ -88,6 +88,8 @@ function shardWorld() {
 
 // --- an independent uint256 LibPool, from the Solidity ---------------------
 const BPS = 10_000n;
+/** the fee the contract's pricing withholds, in whole input units */
+const solFee = (amountIn: bigint, fee: bigint) => amountIn - (amountIn * (BPS - fee)) / BPS;
 const solOut = (amountIn: bigint, rIn: bigint, rOut: bigint, fee: bigint) => {
   const withFee = amountIn * (BPS - fee);
   return (withFee * rOut) / (rIn * BPS + withFee);
@@ -137,6 +139,10 @@ describe('quote (B6)', () => {
     expect(solOut(amountIn, 9_293_213n, 15_328n, 30n)).toBeGreaterThanOrEqual(10n);
     expect(solOut(amountIn - 1n, 9_293_213n, 15_328n, 30n)).toBeLessThan(10n);
     expect(d.amountOut).toBe(Number(solOut(amountIn, 9_293_213n, 15_328n, 30n)));
+    // an INTEGER fee in exact-out mode (a field run saw 36.537 before 1.0.0
+    // closed): ceil(amountIn × 30 / 10000), what the pricing withholds
+    expect(d.feeAmountIn).toBe(Number(solFee(amountIn, 30n)));
+    expect(Number.isInteger(d.feeAmountIn)).toBe(true);
     expect(valid('quote', d)).toBe(true);
   });
 
@@ -171,6 +177,8 @@ describe('quote (B6)', () => {
         >;
         expect(d.amountOut).toBe(Number(out));
         expect(d.reservesAfter).toEqual([rA + amt, rB - Number(out)]);
+        expect(Number.isInteger(d.feeAmountIn)).toBe(true);
+        expect(d.feeAmountIn).toBe(Number(solFee(BigInt(amt), BigInt(fee))));
       }
       const ask = rnd(Math.max(1, rA - 1));
       if (ask < rA) {
@@ -181,6 +189,10 @@ describe('quote (B6)', () => {
           BigInt(ask)
         );
         expect(solOut(ain - 1n, BigInt(rB), BigInt(rA), BigInt(fee))).toBeLessThan(BigInt(ask));
+        // the integer fee in EXACT_OUT too, and the reserves reconcile with it
+        expect(Number.isInteger(d.feeAmountIn)).toBe(true);
+        expect(d.feeAmountIn).toBe(Number(solFee(ain, BigInt(fee))));
+        expect(d.reservesAfter).toEqual([rB + Number(ain), rA - d.amountOut]);
       }
     }
   });

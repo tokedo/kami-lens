@@ -75,9 +75,9 @@
           "description": "what the chain pays for amountIn (calcAmountOut, rounded down). EXACT_OUT: >= the amount asked for, usually equal. Use it as the swap's minAmountOut bound, less any slippage allowance."
         },
         "feeAmountIn": {
-          "type": "number",
+          "type": "integer",
           "minimum": 0,
-          "description": "the fee share of amountIn in input units, amountIn × feeBps / 10000; may be fractional (the pool keeps it as reserve)"
+          "description": "the part of amountIn that buys nothing, in whole input units: amountIn − floor(amountIn × (10000 − feeBps) / 10000) = ceil(amountIn × feeBps / 10000). The contract prices on amountIn × (10000 − feeBps) and rounds against the trader; the whole amountIn enters the reserve, so reservesAfter[0] = reserve + amountIn exactly."
         },
         "spotAmountOut": {
           "type": "integer",

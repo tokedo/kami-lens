@@ -223,6 +223,8 @@ for (const pair of [shardPool!.items, other!.items]) {
         pool: { reserves: number[]; feeBps: number; items: number[] };
         amountIn: number;
         amountOut: number;
+        feeAmountIn: number;
+        reservesAfter: number[];
       };
       const servedReserves = new Map(
         d.pool.items.map((it, i) => [it, BigInt(d.pool.reserves[i]!)])
@@ -250,6 +252,28 @@ for (const pair of [shardPool!.items, other!.items]) {
       }
       if (BigInt(d.amountOut) !== chainOut) {
         problems.push({ ...c, reason: 'amountOut is not the chain formula at the chain reserves' });
+      }
+      // 1.0.0: the fee is an INTEGER in both modes — what the contract's
+      // amountIn × (BPS − fee) pricing withholds — and the reserves after
+      // the swap reconcile exactly with amountIn and amountOut
+      const chainFee = amountIn - (amountIn * (BPS - chain.feeBps)) / BPS;
+      c.feeAmountIn = d.feeAmountIn;
+      if (!Number.isInteger(d.feeAmountIn) || BigInt(d.feeAmountIn) !== chainFee) {
+        problems.push({
+          ...c,
+          reason: 'feeAmountIn is not the integer fee the contract withholds',
+          chainFee: chainFee.toString(),
+        });
+      }
+      if (
+        BigInt(d.reservesAfter[0]!) !== rIn + amountIn ||
+        BigInt(d.reservesAfter[1]!) !== rOut - chainOut
+      ) {
+        problems.push({
+          ...c,
+          reason: 'reservesAfter does not reconcile with the chain reserves',
+          served: d.reservesAfter,
+        });
       }
       if (mode === 'EXACT_IN' && amountIn !== amount) {
         problems.push({ ...c, reason: 'EXACT_IN changed the input' });

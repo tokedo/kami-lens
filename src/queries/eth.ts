@@ -228,8 +228,12 @@ export type QuoteOut = {
   /** what the chain pays for `amountIn` (LibPool.calcAmountOut, floor). In
    * EXACT_OUT mode this is >= the amount asked for, usually equal. */
   amountOut: number;
-  /** the fee share of amountIn, in input units: amountIn × feeBps / 10000.
-   * May be fractional — the pool keeps it as reserve. */
+  /** the part of amountIn that buys nothing, in whole input units:
+   * amountIn − floor(amountIn × (10000 − feeBps) / 10000), i.e.
+   * ceil(amountIn × feeBps / 10000). The contract prices the swap on
+   * amountIn × (10000 − feeBps) and rounds against the trader; the whole
+   * amountIn enters the reserve, so amountIn = (amountIn − feeAmountIn) +
+   * feeAmountIn and reservesAfter[0] = reserve + amountIn, exactly. */
   feeAmountIn: number;
   /** amountIn at the pre-trade reserve ratio, no fee, no impact
    * (upstream quote(): floor(amountIn × reserveOut / reserveIn)) */
@@ -242,6 +246,16 @@ export type QuoteOut = {
    * amountIn (fee included) enters, amountOut leaves */
   reservesAfter: [number, number];
 };
+
+/** The integer fee on an input: what the contract's
+ * `amountIn × (BPS − feeBps)` pricing withholds from the part that buys,
+ * rounded against the trader the way its floor division rounds. BigInt so a
+ * large input cannot lose a unit. */
+export function feeOnInput(amountIn: number, feeBps: number): number {
+  const a = BigInt(amountIn);
+  const net = (a * (10_000n - BigInt(feeBps))) / 10_000n;
+  return Number(a - net);
+}
 
 export function parseQuoteAmount(raw: string | undefined): number {
   const n = raw !== undefined && /^\d+$/.test(raw) ? Number(raw) : NaN;
@@ -324,7 +338,7 @@ export function quoteQuery(
     mode,
     amountIn,
     amountOut,
-    feeAmountIn: (amountIn * feeBps) / 10_000,
+    feeAmountIn: feeOnInput(amountIn, feeBps),
     spotAmountOut: spotQuote(amountIn, reserveIn, reserveOut),
     priceImpactBps: Math.max(0, priceImpactBps),
     reservesAfter: [reserveIn + amountIn, reserveOut - amountOut],
