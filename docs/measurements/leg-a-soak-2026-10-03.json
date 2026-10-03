@@ -1,0 +1,259 @@
+{
+ "measurement": "leg A (1.0.0) live read-only soak of a branch-built daemon on its own data directory and socket",
+ "date": "2026-10-03",
+ "build": "lens-100 @ 64b6a5b (dist built from the branch; run from a scratch directory, data dir and socket of its own)",
+ "boots": {
+  "cdnColdFinalBuild": {
+   "at": "2026-10-03T16:42:36Z",
+   "toLiveSec": 33,
+   "imageBlock": 34007337,
+   "frontier": 34007632,
+   "windowBlocks": 295,
+   "replay": {
+    "passes": 1,
+    "batchedReads": 7,
+    "logs": 12353,
+    "ms": 10206,
+    "shortChunks": 0
+   }
+  },
+  "warmAfter3m44sDown": {
+   "build": "dc1661b (same boot-window code)",
+   "at": "2026-10-03T16:23:48Z",
+   "toLiveSec": 21,
+   "windowBlocks": 79,
+   "replay": {
+    "passes": 1,
+    "batchedReads": 2,
+    "logs": 2326,
+    "ms": 2773
+   }
+  },
+  "warmFromTwoHourOldImage": {
+   "build": "dc1661b",
+   "note": "cache at the previous CDN image block, i.e. the replay a CDN cold boot pays on an ~2 h-old export",
+   "windowBlocks": 2309,
+   "toLiveSec": 17,
+   "replay": {
+    "passes": 4,
+    "batchedReads": 49,
+    "logs": 60448,
+    "ms": 99497,
+    "heldUntilFrontier": true
+   }
+  },
+  "firstColdBootDefect": {
+   "build": "4f91b94 (before dc1661b)",
+   "windowBlocks": 2175,
+   "observed": "34004479..34005478 read twice (41.4 s, 17.6 s), refused by the frontier rule both times, never applied — fixed in dc1661b (passes held until the frontier)"
+  }
+ },
+ "soak": {
+  "window": [
+   "2026-10-03T16:43:10.989Z",
+   "2026-10-03T18:44:39.374Z"
+  ],
+  "hours": 2.02,
+  "statusSamples": 242,
+  "statusResponseMs": {
+   "p50": 1,
+   "p99": 3,
+   "max": 5
+  },
+  "counters": {
+   "reconnects": 0,
+   "gapsHealed": 60,
+   "gapsDeferred": 0,
+   "passes": 61,
+   "shortReads": 5,
+   "olderSkipped": 42988,
+   "incomplete": {
+    "total": 0,
+    "refused": 0,
+    "flagged": 0,
+    "lastBlock": null,
+    "lastAt": null
+   },
+   "tripwires": {
+    "unknownComponentIds": 0,
+    "unknownComponentSchemas": 0,
+    "decodeFailures": 0,
+    "kamigazeNonceBumps": 0,
+    "nonFiniteValues": 0,
+    "configUnavailable": 0
+   },
+   "kamidenRetries": 0
+  },
+  "headMinusAppliedThrough": {
+   "p50": 0,
+   "p90": 2,
+   "p99": 2,
+   "max": 8,
+   "min": -10
+  },
+  "headMinusReconciledThrough": {
+   "p50": 22,
+   "p90": 49,
+   "max": 346
+  },
+  "headMinusLiveBlockNumber": {
+   "p50": -1,
+   "max": 7
+  },
+  "appliedThroughBelowReconciledThrough": 0,
+  "degradedSamples": {},
+  "samplesWithUnhealedRanges": 0,
+  "reconcile": {
+   "ranges": 60,
+   "batchedReads": 94,
+   "logs": 88522,
+   "ms": 151855
+  },
+  "gapHeals": 0,
+  "deferred": 0,
+  "catchUps": 4,
+  "proofShortChunks": {
+   "total": 5,
+   "backendHeadBelowChunkEnd": 4,
+   "marginOnly": 1,
+   "examples": [
+    {
+     "reason": "reconcile",
+     "chunk": [
+      34008505,
+      34008545
+     ],
+     "proven": 34008537,
+     "backendHead": 34008538
+    },
+    {
+     "reason": "reconcile",
+     "chunk": [
+      34009561,
+      34009592
+     ],
+     "proven": 34009590,
+     "backendHead": 34009591
+    },
+    {
+     "reason": "reconcile",
+     "chunk": [
+      34009591,
+      34009629
+     ],
+     "proven": 34009627,
+     "backendHead": 34009628
+    },
+    {
+     "reason": "reconcile",
+     "chunk": [
+      34010434,
+      34010479
+     ],
+     "proven": 34010477,
+     "backendHead": 34010478
+    },
+    {
+     "reason": "reconcile",
+     "chunk": [
+      34010655,
+      34010696
+     ],
+     "proven": 34010695,
+     "backendHead": 34010696
+    }
+   ]
+  },
+  "splitBatches": 0,
+  "frontierDeferrals": 0,
+  "worldReads": {
+   "node9WithVitals": {
+    "reads": 61,
+    "ok": 61,
+    "flaggedRows": 0,
+    "msP50": 196,
+    "msMax": 258
+   },
+   "partyFull": {
+    "reads": 61,
+    "ok": 61,
+    "flaggedRows": 0
+   }
+  },
+  "atLeastAtSampledHead": {
+   "reads": 61,
+   "ok": 61,
+   "notApplied": 0,
+   "other": [],
+   "waitMs": {
+    "p50": 2,
+    "p90": 2128,
+    "max": 8881
+   }
+  },
+  "atLeastThreeBlocksAhead": {
+   "reads": 20,
+   "served": 18,
+   "notApplied": 2,
+   "servedWaitMs": {
+    "p50": 5450,
+    "max": 10535
+   },
+   "notAppliedCases": [
+    {
+     "at": "2026-10-03T17:58:00.963Z",
+     "head": 34009612,
+     "target": 34009615,
+     "ms": 20002,
+     "ok": false,
+     "code": "NOT_APPLIED",
+     "errApplied": 34009614
+    },
+    {
+     "at": "2026-10-03T18:18:36.858Z",
+     "head": 34010105,
+     "target": 34010108,
+     "ms": 20003,
+     "ok": false,
+     "code": "NOT_APPLIED",
+     "errApplied": 34010107
+    }
+   ]
+  },
+  "crossCheckAgainstProduction063": {
+   "samples": 36,
+   "nodes": [
+    "9",
+    "63",
+    "86"
+   ],
+   "sameBlock": 36,
+   "setMismatches": 0
+  },
+  "rssMb": {
+   "bootPeak": 4088,
+   "steadyMin": 2166,
+   "steadyMax": 2254
+  },
+  "checkpoints": {
+   "count": 13,
+   "msMin": 4397,
+   "msMax": 4771,
+   "stampBelowStateBlockBlocks": [
+    20,
+    14,
+    94,
+    59,
+    110,
+    51,
+    57,
+    200,
+    16,
+    40,
+    78,
+    98,
+    12
+   ]
+  }
+ }
+}
