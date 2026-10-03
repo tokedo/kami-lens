@@ -11,13 +11,14 @@
 // check, extended to the kamiden-backed queries that cannot run
 // hermetically).
 //
-// Method → query coverage (12/12):
+// Method → query coverage (13/13):
 //   GetBattles + GetBattleStats            battles <kamiIndex>
 //   GetTradeHistory + GetOpenOffers        trades <accountIndex>
 //   GetKamiMarketListings/Bids/History     market [<accountIndex>]
 //   GetTokenDeposits/Withdrawals/Open      portal <accountIndex>
 //   GetItemTransfers                       transfers <accountIndex>
 //   GetAuctionBuys                         auctions <itemIndex>
+//   GetPoolPriceHistory (1.0.0)            pool-history <itemA> <itemB>
 
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -39,7 +40,7 @@ const classification = JSON.parse(
 ) as { default: string; types: Record<string, Record<string, string>> };
 
 const ajv = new Ajv({ strict: true, allErrors: true });
-for (const name of ['battles', 'trades', 'auctions', 'quests', 'market', 'portal', 'transfers'] as const) {
+for (const name of ['battles', 'trades', 'auctions', 'quests', 'market', 'portal', 'transfers', 'pool-history'] as const) {
   ajv.addSchema(loadSchema(name), name);
 }
 
@@ -225,6 +226,28 @@ try {
     record('GetOpenWithdrawals', portalData.openWithdrawals.length, null);
 
     if (tradesSeen > 0 && transfersSeen > 0 && (receiptsSeen > 0 || openWithdrawalsSeen > 0)) break;
+  }
+
+  // --- pool-history (1.0.0): every live pool the mirror lists ---------------
+  {
+    const itemsResp = await socketQuery('items', []);
+    const pools = itemsResp.ok
+      ? ((itemsResp.data as { pools?: { items: number[]; reserves: number[] }[] }).pools ?? [])
+      : [];
+    let points = 0;
+    for (const pool of pools.filter((p) => p.reserves[0]! > 0 && p.reserves[1]! > 0)) {
+      const args = [String(pool.items[0]), String(pool.items[1])];
+      const d = checkAnswer('pool-history', args, await socketQuery('pool-history', args)) as {
+        baseIndex: number;
+        quoteIndex: number;
+        points: unknown[];
+      };
+      if (!pool.items.includes(d.baseIndex) || !pool.items.includes(d.quoteIndex)) {
+        fail('G4.a', { reason: 'pool-history answered for a different pair', args, base: d.baseIndex, quote: d.quoteIndex });
+      }
+      points += d.points.length;
+    }
+    record('GetPoolPriceHistory', points, null);
   }
 
   // --- battles: a busy node's kamis -----------------------------------------

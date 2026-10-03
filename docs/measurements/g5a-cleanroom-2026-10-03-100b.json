@@ -1,0 +1,125 @@
+{
+  "gate": "g5a-cleanroom",
+  "measuredAt": "2026-10-03T19:45:12.085Z",
+  "tarball": "kami-lens-1.0.0.tgz",
+  "primaryImage": "node:22-slim",
+  "legacyImage": "node:20-slim",
+  "primaryNode": "v22.23.2",
+  "primaryVersionLine": "kami-lens 1.0.0 (upstream Asphodel-OS/kamigotchi @ ffda396330af1bc33238b6c37188772152b45439)",
+  "heapLimitBeforeMb": 2096,
+  "freshProcessHeapLimitMb": 2096,
+  "heap": {
+    "limitMb": 6192,
+    "source": "self-configured"
+  },
+  "checkpointCount": 1,
+  "bootstrapMode": "cold",
+  "legacyNode": "v20.20.2",
+  "legacyVersionLine": "kami-lens 1.0.0 (upstream Asphodel-OS/kamigotchi @ ffda396330af1bc33238b6c37188772152b45439)",
+  "legacyHeapLimitMb": 2096,
+  "legacyRefusalMs": 335,
+  "legacyExitCode": 6,
+  "legacyOutput": [
+    "[logger:node] initialized with level: INFO",
+    "[kami-lens] ERR_INSUFFICIENT_MEMORY: heap limit 2096 MB is below the 5120 MB cold-boot floor and this Node (v20.20.2) cannot raise it in place — process.execve arrived in 22.15. Start it with the cap instead:",
+    "    NODE_OPTIONS=--max-old-space-size=6144 kami-lens daemon"
+  ],
+  "timeToLiveSeconds": 39,
+  "healthPolls": [
+    {
+      "atSeconds": 5,
+      "state": "BACKFILL",
+      "rc": 1
+    },
+    {
+      "atSeconds": 11,
+      "state": "BACKFILL",
+      "rc": 1
+    },
+    {
+      "atSeconds": 16,
+      "state": "BACKFILL",
+      "rc": 1
+    },
+    {
+      "atSeconds": 21,
+      "state": "BACKFILL",
+      "rc": 1
+    },
+    {
+      "atSeconds": 27,
+      "state": "INITIALIZE",
+      "rc": 1
+    },
+    {
+      "atSeconds": 32,
+      "state": "INITIALIZE",
+      "rc": 1
+    },
+    {
+      "atSeconds": 39,
+      "state": "LIVE",
+      "rc": 0
+    }
+  ],
+  "oomInDaemonLog": false,
+  "daemonLogTail": [
+    "{\"at\":\"2026-10-03T19:44:53.447Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,089,718 state entries\",\"percentage\":56,\"liveBlockNumber\":34012389,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-10-03T19:44:53.655Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,089,718 state entries\",\"percentage\":58,\"liveBlockNumber\":34012389,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-10-03T19:44:53.761Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,089,718 state entries\",\"percentage\":59,\"liveBlockNumber\":34012389,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-10-03T19:44:53.969Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,089,718 state entries\",\"percentage\":61,\"liveBlockNumber\":34012389,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-10-03T19:44:54.070Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,089,718 state entries\",\"percentage\":63,\"liveBlockNumber\":34012389,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-10-03T19:44:54.273Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,089,718 state entries\",\"percentage\":64,\"liveBlockNumber\":34012389,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-10-03T19:44:54.378Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,089,718 state entries\",\"percentage\":66,\"liveBlockNumber\":34012389,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-10-03T19:44:54.587Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,089,718 state entries\",\"percentage\":67,\"liveBlockNumber\":34012389,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-10-03T19:44:54.690Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,089,718 state entries\",\"percentage\":69,\"liveBlockNumber\":34012389,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-10-03T19:44:54.895Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,089,718 state entries\",\"percentage\":71,\"liveBlockNumber\":34012389,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-10-03T19:44:54.997Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,089,718 state entries\",\"percentage\":72,\"liveBlockNumber\":34012389,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-10-03T19:44:55.202Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,089,718 state entries\",\"percentage\":74,\"liveBlockNumber\":34012389,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-10-03T19:44:55.306Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,089,718 state entries\",\"percentage\":76,\"liveBlockNumber\":34012389,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-10-03T19:44:55.514Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,089,718 state entries\",\"percentage\":77,\"liveBlockNumber\":34012389,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-10-03T19:44:55.740Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,089,718 state entries\",\"percentage\":79,\"liveBlockNumber\":34012389,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-10-03T19:44:55.942Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,089,718 state entries\",\"percentage\":80,\"liveBlockNumber\":34012389,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-10-03T19:44:56.048Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,089,718 state entries\",\"percentage\":82,\"liveBlockNumber\":34012389,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-10-03T19:44:56.258Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,089,718 state entries\",\"percentage\":84,\"liveBlockNumber\":34012389,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-10-03T19:44:56.363Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,089,718 state entries\",\"percentage\":85,\"liveBlockNumber\":34012389,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-10-03T19:44:56.571Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,089,718 state entries\",\"percentage\":87,\"liveBlockNumber\":34012389,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-10-03T19:44:56.677Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,089,718 state entries\",\"percentage\":89,\"liveBlockNumber\":34012389,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-10-03T19:44:56.882Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,089,718 state entries\",\"percentage\":90,\"liveBlockNumber\":34012389,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-10-03T19:44:56.987Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,089,718 state entries\",\"percentage\":92,\"liveBlockNumber\":34012389,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-10-03T19:44:57.191Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,089,718 state entries\",\"percentage\":93,\"liveBlockNumber\":34012389,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-10-03T19:44:57.293Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,089,718 state entries\",\"percentage\":95,\"liveBlockNumber\":34012389,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-10-03T19:44:57.494Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,089,718 state entries\",\"percentage\":97,\"liveBlockNumber\":34012389,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-10-03T19:44:57.597Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,089,718 state entries\",\"percentage\":98,\"liveBlockNumber\":34012389,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-10-03T19:44:57.702Z\",\"state\":\"LIVE\",\"msg\":\"Streaming Live Events\",\"percentage\":100,\"liveBlockNumber\":34012389,\"checkpoint\":null,\"degraded\":[]}",
+    "[kami-lens] LIVE",
+    ""
+  ],
+  "daemonLogSaved": "/Users/anatolyzaytsev/kami-lens/gates/.artifacts/g5a-daemon.log",
+  "floors": {
+    "coldBootHeapFloorMb": 5120,
+    "daemonHeapTargetMb": 6144
+  },
+  "steps": {
+    "install": true,
+    "version": true,
+    "checkpointChildShipped": true,
+    "daemonStarted": true,
+    "live": true,
+    "heapSelfConfigured": true,
+    "heapAtOrAboveFloor": true,
+    "heapReported": true,
+    "checkpointCountServed": true,
+    "reexecLogged": true,
+    "queryOk": true,
+    "querySchemaValid": true,
+    "queryNonEmpty": true,
+    "legacyRefused": true,
+    "legacyRefusedFast": true,
+    "legacyNamedTheCode": true,
+    "legacyGaveTheRemedy": true,
+    "legacyNamedExecve": true,
+    "legacyLoadedNothing": true
+  },
+  "match": true
+}
