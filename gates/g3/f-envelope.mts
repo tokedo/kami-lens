@@ -364,15 +364,12 @@ const META_KEYS = [
 ];
 const META_OPTIONAL = ['suppressed', 'incompleteRows'];
 const ASOF_ALWAYS = ['block', 'projectedAtSec'];
-/** the four §3.8 clock fields plus the three 0.6.1-deprecated aliases: all
- * seven present together, or all seven absent together (§3.14) */
+/** the four §3.8 clock fields: all four present together, or all four
+ * absent together (§3.14). The 0.6.1 aliases (observedBlock,
+ * observedBlockTime, observedAgoMs) were removed in 1.0.0 and must never
+ * reappear. */
 const ASOF_CLOCK_NEW = ['clockSampleBlock', 'clockSampleBlockTime', 'clockSampleAgoMs'];
-const ASOF_CLOCK_OLD = ['observedBlock', 'observedBlockTime', 'observedAgoMs'];
-const ASOF_ALIAS_PAIRS: [string, string][] = [
-  ['observedBlock', 'clockSampleBlock'],
-  ['observedBlockTime', 'clockSampleBlockTime'],
-  ['observedAgoMs', 'clockSampleAgoMs'],
-];
+const ASOF_CLOCK_REMOVED = ['observedBlock', 'observedBlockTime', 'observedAgoMs'];
 
 const metaProblems: Record<string, unknown>[] = [];
 let metaChecked = 0;
@@ -422,7 +419,7 @@ function checkMeta(label: string, meta: Record<string, unknown>): void {
   for (const k of ASOF_ALWAYS) {
     if (typeof asOf[k] !== 'number') say(`asOf.${k} must be a number on every answer`);
   }
-  const clockKeys = [...ASOF_CLOCK_NEW, ...ASOF_CLOCK_OLD, 'clockOffsetMs'];
+  const clockKeys = [...ASOF_CLOCK_NEW, 'clockOffsetMs'];
   const presentClock = clockKeys.filter((k) => k in asOf);
   if (presentClock.length !== 0 && presentClock.length !== clockKeys.length) {
     say('the clock fields must be present together or absent together (§3.14)', {
@@ -430,19 +427,9 @@ function checkMeta(label: string, meta: Record<string, unknown>): void {
       expected: clockKeys,
     });
   }
-  // §1.4: a rename ships both names for one release, carrying identical values
-  if (presentClock.length === clockKeys.length) {
-    for (const [oldName, newName] of ASOF_ALIAS_PAIRS) {
-      if (asOf[oldName] !== asOf[newName]) {
-        say('a deprecated alias does not equal the field it mirrors', {
-          alias: oldName,
-          field: newName,
-          aliasValue: asOf[oldName],
-          fieldValue: asOf[newName],
-        });
-      }
-    }
-  }
+  // §1.4: the one-release alias window closed in 1.0.0
+  const removed = ASOF_CLOCK_REMOVED.filter((k) => k in asOf);
+  if (removed.length > 0) say('asOf serves a removed 0.6.x alias', { removed });
   const extraAsOf = Object.keys(asOf).filter(
     (k) => !ASOF_ALWAYS.includes(k) && !clockKeys.includes(k)
   );

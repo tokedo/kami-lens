@@ -72,10 +72,10 @@ export type EnvelopeOptions = {
  * loses to a field name every time, so 0.6.1 renames them: the fields are
  * `clockSampleBlock`, `clockSampleBlockTime` and `clockSampleAgoMs`.
  *
- * DEPRECATED ALIASES, ONE RELEASE ONLY (§1.4). `observedBlock`,
- * `observedBlockTime` and `observedAgoMs` remain, carrying identical values,
- * and are REMOVED in 0.7.0. All six travel with `clockOffsetMs`: seven
- * present together, or all seven absent together until the first clock
+ * The old names `observedBlock`, `observedBlockTime` and `observedAgoMs`
+ * shipped beside the new ones for exactly one release (0.6.1-0.6.3, §1.4)
+ * and are removed in 1.0.0. The three travel with `clockOffsetMs`: four
+ * present together, or all four absent together until the first clock
  * observation (§3.14, the §3.15 head-fields precedent) — before it there is
  * no measurement, the offset is 0 because nothing was measured rather than
  * because the clocks agree, and a served 0 would read as evidence. */
@@ -98,12 +98,6 @@ export type AsOf = {
    * mirror (the sync cadence) and is bounded by NOTHING when the observation
    * keeps failing or the stream is stalled (§3.8). NOT mirror lag. */
   clockSampleAgoMs?: number;
-  /** @deprecated 0.6.1, removed 0.7.0 — use `clockSampleBlock` */
-  observedBlock?: number;
-  /** @deprecated 0.6.1, removed 0.7.0 — use `clockSampleBlockTime` */
-  observedBlockTime?: number;
-  /** @deprecated 0.6.1, removed 0.7.0 — use `clockSampleAgoMs` */
-  observedAgoMs?: number;
 };
 
 export type Envelope<T> = {
@@ -174,11 +168,6 @@ export function buildAsOf(blockNumber: number): AsOf {
     clockSampleBlockTime,
     clockOffsetMs: clock.offset(),
     clockSampleAgoMs,
-    // deprecated 0.6.1, removed 0.7.0 (§1.4): a rename ships both names for
-    // exactly one release, same values.
-    observedBlock: clockSampleBlock,
-    observedBlockTime: clockSampleBlockTime,
-    observedAgoMs: clockSampleAgoMs,
   };
 }
 

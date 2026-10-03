@@ -711,7 +711,8 @@ export class KamiLensDaemon {
     );
     // the CLOCK sample (§3.8): this names the block whose header timestamp
     // calibrates the offset, not the mirror's position. Renamed from
-    // `observedBlock` in 0.6.1 with the envelope fields it feeds.
+    // `observedBlock` in 0.6.1 with the envelope fields it feeds (the old
+    // envelope names were removed in 1.0.0).
     const clockSampleBlock = this.liveBlockNumber;
     const block = await this.clockProvider.getBlock(clockSampleBlock);
     if (block && clockSampleBlock > this.lastClockSampleBlock) {
