@@ -182,6 +182,16 @@ every gate that says "state hash".
   compared against the chain-stored one and any divergence FAILS
   rather than being tolerated (the fix would be an explicit
   `shiftBonus` field).
+- **G2.e pool quote vs chain** *(\[live\], 1.0.0)*: `quote` for the
+  MUSU↔Ether-Shard pool [1,103] and the deepest other live pool, both
+  directions, EXACT_IN and EXACT_OUT, from the smallest input that buys
+  anything to a third of the input reserve, compared with an
+  independent uint256 transcription of `LibPool.calcAmountOut` over the
+  pool's reserves and fee read by `eth_call` at the mirror's own block
+  (the contract exposes no quote view). EXACT_OUT must also be minimal
+  (`out(amountIn) ≥ ask > out(amountIn − 1)`), and an ask at the reserve
+  and an input that buys nothing must answer `NOT_QUOTABLE`. Takes
+  `--snapshot`/`G2E_SNAPSHOT` for a fresh base.
 
 ## M3 — Query surface: daemon, CLI, library
 
