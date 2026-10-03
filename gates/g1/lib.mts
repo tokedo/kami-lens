@@ -82,6 +82,49 @@ export function canonicalStateHash(cache: StateCache): HashReport {
   return { hash: hash.digest('hex'), entries: lines.length, blockNumber: cache.blockNumber };
 }
 
+/** 1.0.0: WHICH keys two caches disagree on — the hash says that they do,
+ * this says where. Keys are (componentId, entityId) in canonical hex, so
+ * the two caches' own index spaces do not matter. */
+export function diffCanonicalState(
+  a: StateCache,
+  b: StateCache,
+  limit = 50
+): { onlyA: number; onlyB: number; valueDiffs: number; samples: Record<string, unknown>[] } {
+  const index = (cache: StateCache) => {
+    const m = new Map<string, unknown>();
+    for (const [key, value] of cache.state.entries()) {
+      const [componentIdx, entityIdx] = unpackTuple(key);
+      m.set(
+        `${BigInt(cache.components[componentIdx]!).toString(16)}|${BigInt(cache.entities[entityIdx]!).toString(16)}`,
+        value
+      );
+    }
+    return m;
+  };
+  const ma = index(a);
+  const mb = index(b);
+  const samples: Record<string, unknown>[] = [];
+  let onlyA = 0;
+  let onlyB = 0;
+  let valueDiffs = 0;
+  for (const [k, va] of ma) {
+    if (!mb.has(k)) {
+      onlyA++;
+      if (samples.length < limit) samples.push({ key: k, kind: 'onlyA', a: va });
+    } else if (stableJson(va) !== stableJson(mb.get(k))) {
+      valueDiffs++;
+      if (samples.length < limit) samples.push({ key: k, kind: 'value', a: va, b: mb.get(k) });
+    }
+  }
+  for (const [k, vb] of mb) {
+    if (!ma.has(k)) {
+      onlyB++;
+      if (samples.length < limit) samples.push({ key: k, kind: 'onlyB', b: vb });
+    }
+  }
+  return { onlyA, onlyB, valueDiffs, samples };
+}
+
 // ------------------------------------------------------------- snapshots
 
 /** Load a StateCache from a snapshot file at an explicit path. */
@@ -262,7 +305,32 @@ export async function replayOnto(
     });
   }
 
-  const events = await fetchEventsInBlockRangeChunked(fetchWorldEvents, fromBlock, toBlock, chunkSize);
+  // 1.0.0: EVERY CHUNK MUST BE PROVEN through its end. The reader reports
+  // `provenThrough` (A2: the batch's own head, less the margin); the stock
+  // chunked wrapper drops it, so a replay that ended near the head could be
+  // answered short by a lagging backend and still be stamped `toBlock` —
+  // exactly the over-claim A2 removed from the daemon. A short chunk is
+  // re-read (paced) until a backend proves it, or the replay refuses.
+  const events: Awaited<ReturnType<typeof fetchEventsInBlockRangeChunked>> = [];
+  for (let from = fromBlock; from <= toBlock; from += chunkSize) {
+    const to = Math.min(toBlock, from + chunkSize - 1);
+    let proven = -1;
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const chunk = (await fetchWorldEvents(from, to)) as Awaited<ReturnType<typeof fetchWorldEvents>> & {
+        provenThrough?: number;
+      };
+      proven = chunk.provenThrough ?? to;
+      if (proven >= to) {
+        events.push(...chunk);
+        break;
+      }
+      await sleep(1_500);
+    }
+    if (proven < to) {
+      throw new Error(`replayOnto: ${from}..${to} not proven after 10 reads (provenThrough ${proven})`);
+    }
+  }
+  void fetchEventsInBlockRangeChunked; // the unproven wrapper, kept importable for readers of this file
   storeStateEvents(cache, events);
   // storeEvents leaves blockNumber one behind the newest event's block;
   // the range is authoritative here.

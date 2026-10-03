@@ -13,6 +13,8 @@ import { KamiLensDaemon } from '../../src/daemon';
 import { resolveConfig } from '../../src/config';
 import {
   canonicalStateHash,
+  diffCanonicalState,
+  sleep,
   fail,
   loadCacheFromSnapshotFile,
   makeFetchWorldEvents,
@@ -61,18 +63,43 @@ const coldMs = cold.ms;
 const config = resolveConfig();
 const warmMirror = await loadCacheFromSnapshotFile(warm.snapshot, resolveConfig({ dataDir }));
 const coldMirror = await loadCacheFromSnapshotFile(cold.snapshot, resolveConfig({ dataDir: coldDir }));
-await fs.rm(coldDir, { recursive: true, force: true });
+const warmCheckpointBlock = warmMirror.blockNumber;
+const coldCheckpointBlock = coldMirror.blockNumber;
 
 const provider = makeProvider(config);
 const fetchWorldEvents = makeFetchWorldEvents(provider, config);
-const q = Math.max(warmMirror.blockNumber, coldMirror.blockNumber) + 2;
+// 1.0.0: CONVERGE PAST EVERY BLOCK EITHER CHECKPOINT WAS SERVED AT. A
+// checkpoint is stamped with the LOWEST block its snapshot streams were
+// served at (A3), and the values themselves can be as new as the snapshot
+// service's head at refresh time. Converging to max(stamp) + 2 — right for
+// 0.6.x stamps — left a newer checkpoint's values beyond the common block:
+// three runs on 2026-10-03 "diverged" by 162-189 values, every one a
+// value the cold checkpoint held from AFTER the common block (a kami's
+// LastTime 27 s past it, a state that changed after it), the warm one
+// matching the chain AT it. So the common block is now the chain head
+// measured after both checkpoints are on disk and a settle interval has
+// passed, and the replay to it is proven (replayOnto).
+await sleep(15_000);
+const q = (await provider.getBlockNumber()) - 2;
 console.log(`[g1.d] converging both mirrors to block ${q}`);
 await replayOnto(warmMirror, fetchWorldEvents, q, { provider });
 await replayOnto(coldMirror, fetchWorldEvents, q, { provider });
 const hWarm = canonicalStateHash(warmMirror);
 const hCold = canonicalStateHash(coldMirror);
+// 1.0.0: a divergence names its keys, and the cold checkpoint is kept (it
+// lived in a temp dir that was deleted before anyone could look at it)
+const divergence = hWarm.hash !== hCold.hash ? diffCanonicalState(warmMirror, coldMirror) : null;
+if (divergence) {
+  const kept = path.join(path.dirname(dataDir), 'g1d-cold-checkpoint.v8snap');
+  await fs.copyFile(cold.snapshot, kept);
+  console.log(`[g1.d] divergence: cold checkpoint kept at ${kept}`);
+}
+await fs.rm(coldDir, { recursive: true, force: true });
 
 await writeMeasurement('g1d-restart', {
+  warmCheckpointBlock,
+  coldCheckpointBlock,
+  divergence,
   timeToLiveWarmMs: warmMs,
   timeToLiveColdMs_reference: timeToLiveColdMs,
   timeToLiveColdMs_parallel: coldMs,
@@ -83,7 +110,15 @@ await writeMeasurement('g1d-restart', {
 });
 
 if (hWarm.hash !== hCold.hash) {
-  fail('G1.d', { reason: 'warm and cold mirrors diverge', warm: hWarm, cold: hCold });
+  fail('G1.d', {
+    reason: 'warm and cold mirrors diverge',
+    warm: hWarm,
+    cold: hCold,
+    onlyWarm: divergence!.onlyA,
+    onlyCold: divergence!.onlyB,
+    valueDiffs: divergence!.valueDiffs,
+    first: divergence!.samples.slice(0, 3),
+  });
 }
 if (!(warmMs < timeToLiveColdMs && warmMs < coldMs)) {
   fail('G1.d', {

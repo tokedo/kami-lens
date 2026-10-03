@@ -53,7 +53,10 @@ if (c1.blockNumber !== c1Block || c2.blockNumber !== c2Block) {
 const provider = makeProvider(config);
 const fetchWorldEvents = makeFetchWorldEvents(provider, config);
 
-const q = Math.max(c1.blockNumber, c2.blockNumber) + 2;
+// 1.0.0: past every block either checkpoint was SERVED at, not just its
+// (lowest-served) stamp — see the same note in d-restart.mts
+await new Promise((r) => setTimeout(r, 15_000));
+const q = Math.max(c1.blockNumber, c2.blockNumber, (await provider.getBlockNumber()) - 2);
 const span = q - c1.blockNumber;
 console.log(`[g1.c] replaying C1 ${c1.blockNumber} → ${q} (${span} blocks) via RPC`);
 const t0 = Date.now();
