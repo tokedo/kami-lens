@@ -213,6 +213,22 @@ const ADDITIVE_LEAVES_063 = [
   'checkpointCount',
 ];
 
+/** 1.0.0 leg A adds, on `status` only: `sync.appliedThrough`,
+ * `sync.shortReads`, `sync.olderWritesSkipped`, `sync.lastReconcileAdvanceAt`
+ * (leaf-matched, all names unique in the tree), and the `incompleteRows`
+ * block — matched by its PATH PREFIX, because its leaves are called `total`,
+ * `refused`, `flagged`, `lastBlock` and `lastAt`, and `total` in particular is
+ * a leaf name elsewhere (`hp.total`) that a leaf-name entry would mask. The
+ * optional row flag `incomplete` never appears on this fixture (every
+ * sampled kami projects completely) and is therefore not listed. */
+const ADDITIVE_LEAVES_100A = [
+  'appliedThrough',
+  'shortReads',
+  'olderWritesSkipped',
+  'lastReconcileAdvanceAt',
+];
+const ADDITIVE_PREFIXES_100A = ['incompleteRows.'];
+
 /** Does a leaf path belong to a 0.5.2 additive field? Matches the last
  * dot-segment (array indices stripped), so `kamis[3].cooldownUntil` and
  * `harvests[0].vitals.cooldownUntil` both resolve to `cooldownUntil`. */
@@ -223,7 +239,9 @@ function isAdditive052(path: string): boolean {
     ADDITIVE_LEAVES_053.includes(leaf) ||
     ADDITIVE_LEAVES_060.includes(leaf) ||
     ADDITIVE_LEAVES_062.includes(leaf) ||
-    ADDITIVE_LEAVES_063.includes(leaf)
+    ADDITIVE_LEAVES_063.includes(leaf) ||
+    ADDITIVE_LEAVES_100A.includes(leaf) ||
+    ADDITIVE_PREFIXES_100A.some((p) => path.startsWith(p))
   );
 }
 
@@ -248,6 +266,20 @@ const config = resolveConfig();
 const cache = await loadCacheFromSnapshotFile(path.join(ARTIFACTS_DIR, 'c2.v8snap'), config);
 const { world, components } = buildMirror(cache);
 const mirror = { world, components, blockNumber: cache.blockNumber };
+
+// 1.0.0: PIN THE CLOCK BEFORE THE SAMPLE SELECTION BELOW, not only before the
+// captured cases. The selection serves `kami` reads, and until 1.0.0 the
+// projection caches stamped their freshness on clock.now(): reads taken on
+// the real 2026 clock, followed by a pin to CLOCK_PIN_SEC (2025-08-12), were a
+// backward clock step of more than a year — every stamp lay "in the future",
+// and every kami the capture then projected came back hollow (hp 0/0, no
+// level, no node, no musu, no invested skills). That is the A1 defect, and the
+// 0.5.0 baselines were captured through it: this gate compared hollow kamis
+// against hollow kamis. A 1.0.0 verify run against them fails exactly on
+// those cases; the baselines are re-captured from the reference tree, with
+// this ordering, into their own set (--set) rather than overwriting the old
+// files.
+clock.observeBlockTimestamp(clockPinSec);
 
 // --- deterministic sample set (same selection rule as G3.f) -----------------
 const kamiIndexes = queryKamis(components)
@@ -384,7 +416,15 @@ async function capture(): Promise<Capture> {
   return { snapshotBlock: cache.blockNumber, clockPinSec, cases };
 }
 
-const filePath = (label: string) => path.join(ARTIFACTS_DIR, `kd-flagoff-${label}.json`);
+/** 1.0.0: `--set <name>` keeps a baseline set apart from the legacy files
+ * (kd-flagoff-base1.json …), so a re-capture never clobbers a shared
+ * fixture; files are kd-flagoff-<label>-<name>.json. */
+const baselineSet = (() => {
+  const i = process.argv.indexOf('--set');
+  return i >= 0 ? process.argv[i + 1] : null;
+})();
+const filePath = (label: string) =>
+  path.join(ARTIFACTS_DIR, `kd-flagoff-${label}${baselineSet ? `-${baselineSet}` : ''}.json`);
 
 const now = await capture();
 

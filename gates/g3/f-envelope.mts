@@ -350,7 +350,19 @@ const BASE_PRESENCE: { query: string; args: string[]; paths: string[] }[] = [
 // Derived here INDEPENDENTLY of src/queries/envelope.ts, in this gate's own
 // style: the expected key sets are written out literally below rather than
 // imported from the type they are meant to check.
-const META_KEYS = ['servedAt', 'blockNumber', 'reconciledThrough', 'stale', 'mode', 'asOf'];
+// 1.0.0 (A5): `appliedThrough` joins the always-present set; (A1)
+// `incompleteRows` is present only when an answer flags a row, like
+// `suppressed`, and must then be a positive count
+const META_KEYS = [
+  'servedAt',
+  'blockNumber',
+  'reconciledThrough',
+  'appliedThrough',
+  'stale',
+  'mode',
+  'asOf',
+];
+const META_OPTIONAL = ['suppressed', 'incompleteRows'];
 const ASOF_ALWAYS = ['block', 'projectedAtSec'];
 /** the four §3.8 clock fields plus the three 0.6.1-deprecated aliases: all
  * seven present together, or all seven absent together (§3.14) */
@@ -370,7 +382,7 @@ function checkMeta(label: string, meta: Record<string, unknown>): void {
   const say = (reason: string, detail: Record<string, unknown> = {}) =>
     metaProblems.push({ case: label, reason, ...detail });
 
-  const keys = Object.keys(meta).filter((k) => k !== 'suppressed');
+  const keys = Object.keys(meta).filter((k) => !META_OPTIONAL.includes(k));
   const missing = META_KEYS.filter((k) => !(k in meta));
   const extra = keys.filter((k) => !META_KEYS.includes(k));
   if (missing.length > 0) say('meta is missing contract keys', { missing });
@@ -382,6 +394,24 @@ function checkMeta(label: string, meta: Record<string, unknown>): void {
     say('reconciledThrough absent — it is on EVERY answer, not an optional');
   } else if (meta.reconciledThrough !== null && typeof meta.reconciledThrough !== 'number') {
     say('reconciledThrough is neither a number nor null', { got: meta.reconciledThrough });
+  }
+
+  // 1.0.0 (A5): the applied bound, the same never-0-for-unknown rule, and
+  // never below the verified one
+  if (meta.appliedThrough !== null && typeof meta.appliedThrough !== 'number') {
+    say('appliedThrough is neither a number nor null', { got: meta.appliedThrough });
+  } else if (
+    typeof meta.appliedThrough === 'number' &&
+    typeof meta.reconciledThrough === 'number' &&
+    meta.appliedThrough < meta.reconciledThrough
+  ) {
+    say('appliedThrough below reconciledThrough', {
+      appliedThrough: meta.appliedThrough,
+      reconciledThrough: meta.reconciledThrough,
+    });
+  }
+  if ('incompleteRows' in meta && !(typeof meta.incompleteRows === 'number' && meta.incompleteRows > 0)) {
+    say('incompleteRows present but not a positive count', { got: meta.incompleteRows });
   }
 
   const asOf = meta.asOf as Record<string, unknown> | undefined;

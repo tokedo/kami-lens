@@ -1,0 +1,14 @@
+{
+  "gate": "g3a-json-contract",
+  "measuredAt": "2026-10-03T16:17:00.941Z",
+  "snapshotBlock": 33004688,
+  "validated": 1108,
+  "enrichedValidated": 188,
+  "kamisSampled": 300,
+  "accountsSampled": 40,
+  "nodesSampled": 64,
+  "failures": 0,
+  "failureSamples": [],
+  "flagOffEnrichmentHits": {},
+  "match": true
+}
