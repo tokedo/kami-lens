@@ -95,7 +95,7 @@
     "[kami-lens] LIVE",
     ""
   ],
-  "daemonLogSaved": "/Users/anatolyzaytsev/kami-lens/gates/.artifacts/g5a-daemon.log",
+  "daemonLogSaved": "<repo>/gates/.artifacts/g5a-daemon.log",
   "floors": {
     "coldBootHeapFloorMb": 5120,
     "daemonHeapTargetMb": 6144

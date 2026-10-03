@@ -1,0 +1,119 @@
+{
+  "gate": "g7b-chain-crosscheck",
+  "measuredAt": "2026-10-03T19:54:12.565Z",
+  "base": "c1-2026-10-03.v8snap",
+  "baseBlock": 34012131,
+  "pinnedBlock": 34012596,
+  "servedAtBlock": 34012596,
+  "headAfterVerify": 34012612,
+  "blocksBehindAtEnd": 16,
+  "poolsServed": 7,
+  "pools": [
+    {
+      "id": "0x756d631b9b01b8047bd966a57c660900aa51f205d4400c3bd1c3f82c61273b3f",
+      "items": [
+        1,
+        2
+      ],
+      "reserves": [
+        3992468,
+        4189979
+      ],
+      "feeBps": 30
+    },
+    {
+      "id": "0x1bde161d8506c5e6aa7d4edb0e3ef415fc23289aad12a4fe8c594458b24c9296",
+      "items": [
+        1,
+        100
+      ],
+      "reserves": [
+        27751363,
+        44186
+      ],
+      "feeBps": 30
+    },
+    {
+      "id": "0x5586c017231d4b6276e9119f2d5b17cb30324edd78b5e5c07a4924320195e879",
+      "items": [
+        1,
+        103
+      ],
+      "reserves": [
+        9293213,
+        15328
+      ],
+      "feeBps": 30
+    },
+    {
+      "id": "0x10753fe7ffeb9c05aabdb985f8c12c1d84b7c88195ca8682a7e56d2532bd7b48",
+      "items": [
+        1,
+        1001
+      ],
+      "reserves": [
+        1367377,
+        733757
+      ],
+      "feeBps": 30
+    },
+    {
+      "id": "0xbe7995a3a678b770f4a4bc2adb8ad731c8a62c7feb63cbbc9e4dc1af6eedd03b",
+      "items": [
+        1,
+        1002
+      ],
+      "reserves": [
+        414635,
+        188878
+      ],
+      "feeBps": 30
+    },
+    {
+      "id": "0x657317a1349a30bd7d857a1c4f5b581a470d5f36f54e414c0de46760c6c9fd7c",
+      "items": [
+        1,
+        1004
+      ],
+      "reserves": [
+        3649834,
+        18534
+      ],
+      "feeBps": 30
+    },
+    {
+      "id": "0xfe69a21d39e77148c76186b297965adb666e55c6991e0ab190a19b6cf1f60eea",
+      "items": [
+        1,
+        1005
+      ],
+      "reserves": [
+        864039,
+        60961
+      ],
+      "feeBps": 30
+    }
+  ],
+  "entityTypeReverseLookup": "unavailable: Error: missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xb361be4600000000000000000000",
+  "newbieVendor": {
+    "displayedKamiIndices": [
+      4040,
+      4060,
+      4065
+    ],
+    "poolSize": 893,
+    "cycleStart": 1773163103,
+    "cycleSeconds": 172800,
+    "secondsToNextRotation": 77053,
+    "chainPoolSize": 893
+  },
+  "counts": {
+    "poolsVerified": 7,
+    "reservesVerified": 14,
+    "negativeSamples": 12,
+    "vendorVerified": 1
+  },
+  "violations": [],
+  "violationCount": 0,
+  "match": true
+}

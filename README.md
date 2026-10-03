@@ -116,8 +116,8 @@ Measured, not estimated (1.0.0, October 2026):
 
 | | Needs | Measured |
 |---|---|---|
-| **Memory** | **8 GB of RAM** for a first start with no saved state, unaided. Below about 7 GB available to the process the daemon will not start a first load on its own (it refuses, with the remedy); below 5.5 GB it refuses outright. | Peak while loading the world: **4.09 GB** resident on a 2-hour run on a Mac, 3.2 GB in a one-processor 6 GB container, 3.6 GB on a 2-processor VM. Steady once running: **2.17–2.25 GB**. Every ten minutes a separate process rewrites the saved world for about ten seconds and needs about 1.5–1.6 GB more while it does. |
-| **Processors** | **1** is enough; **2** is comfortable. | One processor: running and answering 41 s after a first start from the state CDN, on the first attempt, with `status` answering throughout the ten-minute rewrite. |
+| **Memory** | **8 GB of RAM** for a first start with no saved state, unaided. Below about 7 GB available to the process the daemon will not start a first load on its own (it refuses, with the remedy); below 5.5 GB it refuses outright. | Peak while loading the world: **4.1–4.6 GB** resident on a Mac (4.09 GB on a 2-hour run, 4.63 GB on the release's cold-boot gate), 3.3 GB in a one-processor 6 GB container, 3.6 GB on a 2-processor VM — the daemon's heap grows into what it is allowed. Steady once running: **2.17–2.25 GB**. Every ten minutes a separate process rewrites the saved world for about ten seconds and needs about 1.5–1.6 GB more while it does. |
+| **Processors** | **1** is enough; **2** is comfortable. | One processor: running and answering 43 s after a first start from the state CDN, on the first attempt, with `status` answering throughout the ten-minute rewrite (longest wait 3 ms). |
 | **Node** | **22.15 or newer** for a start with no configuration — that is the version that lets the daemon raise its own memory limit. On Node 20 set `NODE_OPTIONS=--max-old-space-size=6144` yourself. | |
 | **Disk** | About **0.5 GB**: the saved world (~235 MB) and its previous copy. | |
 

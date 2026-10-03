@@ -1,0 +1,76 @@
+{
+  "gate": "g6d-gas-balance",
+  "measuredAt": "2026-10-03T19:54:25.694Z",
+  "base": "c1-2026-10-03.v8snap",
+  "baseBlock": 34012131,
+  "snapshotBlock": 34012131,
+  "rpcUrl": "https://jsonrpc-yominet-1.anvil.asia-southeast.initia.xyz",
+  "accounts": [
+    2160,
+    78,
+    232,
+    1020,
+    430,
+    587
+  ],
+  "samples": [
+    {
+      "accountIndex": 2160,
+      "chainBlock": 34012608,
+      "mirrorBlock": 34012131,
+      "blockSkew": 477,
+      "operatorWei": "52855156441522874",
+      "ownerWei": "87556493570908523"
+    },
+    {
+      "accountIndex": 78,
+      "chainBlock": 34012608,
+      "mirrorBlock": 34012131,
+      "blockSkew": 477,
+      "operatorWei": "724972816243495",
+      "ownerWei": "267503965447596"
+    },
+    {
+      "accountIndex": 232,
+      "chainBlock": 34012608,
+      "mirrorBlock": 34012131,
+      "blockSkew": 477,
+      "operatorWei": "968735465761150",
+      "ownerWei": "514198476456656"
+    },
+    {
+      "accountIndex": 1020,
+      "chainBlock": 34012608,
+      "mirrorBlock": 34012131,
+      "blockSkew": 477,
+      "operatorWei": "5607514639991513",
+      "ownerWei": "19021495334334025"
+    },
+    {
+      "accountIndex": 430,
+      "chainBlock": 34012608,
+      "mirrorBlock": 34012131,
+      "blockSkew": 477,
+      "operatorWei": "3459689477488520",
+      "ownerWei": "3135736790372969"
+    },
+    {
+      "accountIndex": 587,
+      "chainBlock": 34012608,
+      "mirrorBlock": 34012131,
+      "blockSkew": 477,
+      "operatorWei": "25083025909955959",
+      "ownerWei": "9975841584998852"
+    }
+  ],
+  "rpcCalls": {
+    "ok": 21,
+    "deliberateFailures": 1
+  },
+  "counts": {
+    "accountsChecked": 6,
+    "balancesVerified": 12,
+    "degradationChecked": 1
+  },
+  "problems": []
+}

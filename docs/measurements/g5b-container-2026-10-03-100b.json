@@ -1,0 +1,44 @@
+{
+  "gate": "g5b-container",
+  "measuredAt": "2026-10-03T19:48:26.999Z",
+  "image": "kami-lens:g5",
+  "versionCheck": {
+    "declared": "1.0.0",
+    "reported": "kami-lens 1.0.0 (upstream Asphodel-OS/kamigotchi @ ffda396330af1bc33238b6c37188772152b45439)",
+    "installed": "1.0.0",
+    "installedPkg": "1.0.0",
+    "installedPackages": "1"
+  },
+  "coldSeconds": 40,
+  "warmSeconds": 30,
+  "checkpointPhase": {
+    "thirdSeconds": 30,
+    "blockAtLive": 34012456,
+    "blockNow": 34012470,
+    "offThreadAtLive": 0,
+    "offThreadNow": 1,
+    "offThreadSample": [
+      "[daemon] checkpoint written off-thread {"
+    ],
+    "failedLines": [],
+    "childPeakRssKb": "1617228"
+  },
+  "steps": {
+    "imageBuilt": true,
+    "versionMatches": true,
+    "containerUp": true,
+    "coldHealthy": true,
+    "coldMode": true,
+    "warmHealthy": true,
+    "warmMode": true,
+    "warmResumeBlock": true,
+    "warmBeatsCold": true,
+    "checkpointChildShipped": true,
+    "checkpointBootHealthy": true,
+    "periodicCheckpointRan": true,
+    "checkpointRanOffThread": true,
+    "noCheckpointFailures": true,
+    "checkpointBlockAdvanced": true
+  },
+  "match": true
+}

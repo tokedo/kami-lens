@@ -1,0 +1,108 @@
+{
+  "gate": "g10b-cdn-parity",
+  "measuredAt": "2026-10-03T19:59:53.735Z",
+  "checks": {
+    "noUnhealedRanges": true,
+    "reconcileBaselineSeeded": true,
+    "reconciledThroughAtOrPastLoad": true,
+    "driftProbeRan": true,
+    "driftZeroDivergences": true,
+    "driftSampledEnough": true,
+    "occupancyVerified": true,
+    "componentsMatchProduction": true,
+    "entitiesAndValuesOrdered": true
+  },
+  "sync": {
+    "reconnects": 0,
+    "gapsHealed": 0,
+    "gapsDeferred": 0,
+    "reconcilePasses": 1,
+    "reconciledThrough": 34010386,
+    "appliedThrough": 34012717,
+    "lastReconcileAt": "2026-10-03T19:58:55.046Z",
+    "unhealedRanges": [],
+    "lastHealMs": null,
+    "shortReads": 0,
+    "olderWritesSkipped": 0,
+    "lastReconcileAdvanceAt": "2026-10-03T19:58:54.043Z",
+    "reconcileIntervalMs": 120000
+  },
+  "lastFullLoad": {
+    "source": "cdn",
+    "kind": "full",
+    "prefix": "96/34010386/2026-10-03T18Z",
+    "block": 34010386,
+    "nonce": 96,
+    "seconds": 8.66,
+    "at": "2026-10-03T19:58:50.780Z"
+  },
+  "drift": {
+    "ts": "2026-10-03T19:59:11Z",
+    "sampled": 50,
+    "divergent": 0,
+    "divergences": [],
+    "excused": 0,
+    "excused_race": 0,
+    "excused_races": [],
+    "oracle_cursor_lag": 11.423929,
+    "lens_block": 34012730,
+    "ms": 13956,
+    "unreadable": 0,
+    "exitCode": 0
+  },
+  "socketWarmup": "ok",
+  "driftArgv": [
+    "<drift-probe>",
+    "--node",
+    "<node>",
+    "--cli",
+    "<repo>/dist/cli.js",
+    "--data-dir",
+    "<repo>/gates/.artifacts/g10-data",
+    "--lens-timeout",
+    "40",
+    "--self-timeout",
+    "420",
+    "--log",
+    "<repo>/gates/.artifacts/g10-data/drift_probe.log"
+  ],
+  "driftSampled": 50,
+  "driftSampleTarget": 50,
+  "occupancy": {
+    "exitCode": 0,
+    "tail": [
+      "[g3.b] delta re-pin 34012725 → 34012725",
+      "[g3.b] node 79 (Abandoned Campsite): 42 ACTIVE harvests",
+      "PASS G3.b {\"node\":79,\"activeHarvests\":42,\"verified\":42,\"negativeSamples\":10}"
+    ]
+  },
+  "production": {
+    "checkpoint": {
+      "blockNumber": 34012613,
+      "kamigazeNonce": 96,
+      "stateEntries": 3089721,
+      "numComponents": 99,
+      "numEntities": 1318487,
+      "at": "2026-10-03T19:54:50.378Z",
+      "durationMs": 4750,
+      "inFlight": false
+    },
+    "blockDelta": 80,
+    "cdn": {
+      "block": 34012693,
+      "components": 99,
+      "entities": 1318490,
+      "values": 3089726
+    },
+    "production": {
+      "block": 34012613,
+      "components": 99,
+      "entities": 1318487,
+      "values": 3089721
+    },
+    "componentsEqual": true,
+    "entitiesOrdered": true,
+    "valuesOrdered": true
+  },
+  "match": true
+}

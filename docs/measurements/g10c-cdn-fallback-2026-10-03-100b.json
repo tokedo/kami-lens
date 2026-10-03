@@ -1,0 +1,160 @@
+{
+  "gate": "g10c-cdn-fallback",
+  "measuredAt": "2026-10-03T20:01:06.006Z",
+  "deadCdnUrl": "https://state.prod.kamigotchi.io/does-not-exist",
+  "reachedLive": true,
+  "liveError": null,
+  "timeToLiveMs": 50203,
+  "servedLine": "[state] full load served by gRPC {\"source\":\"https://api.prod.kamigotchi.io\",\"cachedBlockBeforeLoad\":0,\"cdnConfigured\":true,\"block\":34012744,\"nonce\":96,\"components\":99,\"entities\":1318490,\"values\":3089726,\"seconds\":32.32}",
+  "lastFullLoad": {
+    "source": "grpc",
+    "kind": "full",
+    "block": 34012744,
+    "nonce": 96,
+    "seconds": 32.32,
+    "at": "2026-10-03T20:00:45.344Z"
+  },
+  "cdnLines": [
+    "[cdn] manifest unavailable {\"status\":403}"
+  ],
+  "progress": {
+    "maxSilenceMs": 2590,
+    "longestSilentMs": 0,
+    "longestSilentOn": "BACKFILL|72.6|Querying for State|0",
+    "silences": []
+  },
+  "memory": {
+    "peakRssKb": 4277840,
+    "peakHeapRssKb": 4277840
+  },
+  "status": {
+    "state": "LIVE",
+    "msg": "Streaming Live Events",
+    "percentage": 100,
+    "liveBlockNumber": 34012769,
+    "streamSilentMs": 2052,
+    "bootstrapMode": "cold",
+    "resumeFromBlock": 0,
+    "checkpoint": {
+      "blockNumber": 34012744,
+      "kamigazeNonce": 96,
+      "stateEntries": 3089726,
+      "numComponents": 99,
+      "numEntities": 1318490,
+      "at": "2026-10-03T20:01:01.098Z",
+      "durationMs": 0,
+      "inFlight": false
+    },
+    "checkpointCount": 1,
+    "tripwires": {
+      "unknownComponentIds": 0,
+      "unknownComponentSchemas": 0,
+      "decodeFailures": 0,
+      "kamigazeNonceBumps": 0,
+      "nonFiniteValues": 0,
+      "configUnavailable": 0
+    },
+    "degraded": [],
+    "kamiden": {
+      "configured": true,
+      "url": "https://api.prod.kamigotchi.io",
+      "stream": {
+        "state": "connecting",
+        "topics": [],
+        "startedAt": "2026-10-03T20:01:01.098Z",
+        "framesReceived": 0,
+        "feedFrames": 0,
+        "lastFrameAtWallMs": 0,
+        "silentMs": 0,
+        "messageFramesDropped": 0,
+        "messagesDropped": 0,
+        "retries": 0,
+        "consecutiveFailures": 0,
+        "lastError": null,
+        "events": {
+          "movement": 0,
+          "harvestEnd": 0,
+          "kill": 0,
+          "trade": 0,
+          "kamiCast": 0,
+          "droptableReveal": 0,
+          "sacrificeReveal": 0,
+          "kamiMarketList": 0,
+          "kamiMarketBuy": 0,
+          "kamiMarketOffer": 0,
+          "kamiMarketAccept": 0,
+          "kamiMarketCancel": 0
+        }
+      },
+      "buffer": {
+        "size": 0,
+        "capacity": 4096,
+        "evicted": 0,
+        "newestSeq": 0
+      },
+      "unary": {}
+    },
+    "rpcReads": {
+      "ok": 5,
+      "failed": 0
+    },
+    "sync": {
+      "reconnects": 0,
+      "gapsHealed": 0,
+      "gapsDeferred": 0,
+      "reconcilePasses": 1,
+      "reconciledThrough": 34012744,
+      "appliedThrough": 34012768,
+      "lastReconcileAt": "2026-10-03T20:00:49.674Z",
+      "unhealedRanges": [],
+      "lastHealMs": null,
+      "shortReads": 0,
+      "olderWritesSkipped": 0,
+      "lastReconcileAdvanceAt": "2026-10-03T20:00:47.316Z",
+      "reconcileIntervalMs": 120000
+    },
+    "incompleteRows": {
+      "total": 0,
+      "refused": 0,
+      "flagged": 0,
+      "lastBlock": null,
+      "lastAt": null
+    },
+    "lastFullLoad": {
+      "source": "grpc",
+      "kind": "full",
+      "block": 34012744,
+      "nonce": 96,
+      "seconds": 32.32,
+      "at": "2026-10-03T20:00:45.344Z"
+    },
+    "heap": {
+      "limitMb": 8240,
+      "source": "explicit"
+    },
+    "bootstrapAttempts": 0,
+    "startedAt": "2026-10-03T20:00:10.896Z",
+    "liveAt": "2026-10-03T20:00:58.884Z",
+    "config": {
+      "chainId": 428962654539583,
+      "worldAddress": "0x2729174c265dbBd8416C6449E0E813E88f43D0E7",
+      "jsonRpcUrl": "https://jsonrpc-yominet-1.anvil.asia-southeast.initia.xyz",
+      "wsRpcUrl": "wss://jsonrpc-ws-yominet-1.anvil.asia-southeast.initia.xyz",
+      "kamigazeUrl": "https://api.prod.kamigotchi.io",
+      "stateCdnUrl": "https://state.prod.kamigotchi.io/does-not-exist",
+      "kamidenUrl": "https://api.prod.kamigotchi.io",
+      "chatEnabled": true,
+      "enrich": false,
+      "dataDir": "<repo>/gates/.artifacts/g10-data-grpc",
+      "checkpointIntervalMs": 3600000,
+      "reconcileIntervalMs": 120000
+    }
+  },
+  "checks": {
+    "manifestRefused": true,
+    "noCdnLoadAttempted": true,
+    "fellBackToGrpc": true
+  },
+  "note": "The contract is \"a dead CDN takes the gRPC path\", not \"the gRPC path works\". A gRPC cold boot that fails the way L-6 failed on the VM is recorded here as evidence about Kamigaze, not as a fallback defect.",
+  "match": true
+}

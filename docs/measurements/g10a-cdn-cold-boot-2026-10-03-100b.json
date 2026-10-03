@@ -1,0 +1,105 @@
+{
+  "gate": "g10a-cdn-cold-boot",
+  "measuredAt": "2026-10-03T19:59:11.511Z",
+  "outcome": "LIVE",
+  "cdnUrl": "https://state.prod.kamigotchi.io",
+  "timeToLiveMs": 31588,
+  "servedBy": "cdn",
+  "servedLine": "[state] full load served by CDN {\"source\":\"https://state.prod.kamigotchi.io\",\"cachedBlockBeforeLoad\":0,\"cdnConfigured\":true,\"prefix\":\"96/34010386/2026-10-03T18Z\",\"block\":34010386,\"nonce\":96,\"components\":99,\"entities\":1318475,\"values\":3089660,\"seconds\":8.66}",
+  "prefix": "96/34010386/2026-10-03T18Z",
+  "loadProfile": {
+    "wallSeconds": 8.66,
+    "applySeconds": 6.6,
+    "applyShareOfWall": "76%",
+    "valuesApplySeconds": 4.58,
+    "entitiesApplySeconds": 2.03,
+    "protoParseSeconds": 1.06,
+    "fetchSecondsInflatedByBlocking": 24.26,
+    "parkedSeconds": 0.12,
+    "applySlices": 146,
+    "chunkFetchConcurrency": 6,
+    "chunkRetries": 0,
+    "valueRows": 3089660,
+    "entityRows": 1318474,
+    "microsecondsPerValueRow": 1.5,
+    "megabytes": 208.4,
+    "megabytesPerSecond": 24.1
+  },
+  "lastFullLoad": {
+    "source": "cdn",
+    "kind": "full",
+    "prefix": "96/34010386/2026-10-03T18Z",
+    "block": 34010386,
+    "nonce": 96,
+    "seconds": 8.66,
+    "at": "2026-10-03T19:58:50.780Z"
+  },
+  "progress": {
+    "maxSilenceMs": 1982,
+    "longestSilentMs": 0,
+    "longestSilentOn": "LIVE|100|Streaming Live Events|34012692",
+    "preLiveStallBoundMs": 90000,
+    "headroomMs": 88018,
+    "concernThresholdMs": 60000,
+    "overConcernThreshold": false,
+    "silences": [],
+    "samples": 225
+  },
+  "memory": {
+    "peakRssKb": 4634976,
+    "peakHeapRssKb": 4634976,
+    "samples": 28
+  },
+  "bridgePath": "delta-first: delta applied, then gap-filled from the delta head",
+  "deltaSpan": {
+    "from": 34010386,
+    "to": 34012693,
+    "blocks": 2307,
+    "toBlock": 34012717
+  },
+  "bridgeLines": [
+    "[bridge] delta-first bridge {\"from\":34010386,\"toBlock\":34012717}",
+    "[bridge] snapshot delta applied {\"from\":34010386,\"to\":34012693,\"blocks\":2307,\"toBlock\":34012717}"
+  ],
+  "gapfillLines": [],
+  "storedBlocks": 2,
+  "cdnLines": [
+    "[cdn] cold boot: loading full state from CDN {\"block\":34010386,\"nonce\":96,\"values\":4,\"entities\":5}",
+    "[cdn] chunk fetch concurrency {\"limit\":6,\"availableParallelism\":18,\"chunks\":9}",
+    "[cdn] load profile {\"wallSeconds\":8.66,\"applySeconds\":6.6,\"applyShareOfWall\":\"76%\",\"valuesApplySeconds\":4.58,\"entitiesApplySeconds\":2.03,\"protoParseSeconds\":1.06,\"fetchSecondsInflatedByBlocking\":24.26,\"parkedSeconds\":0.12,\"applySlices\":146,\"chunkFetchConcurrency\":6,\"chunkRetries\":0,\"valueRows\":3089660,\"entityRows\":1318474,\"microsecondsPerValueRow\":1.5,\"megabytes\":208.4,\"megabytesPerSecond\":24.1}"
+  ],
+  "checkpoint": {
+    "blockNumber": 34010386,
+    "kamigazeNonce": 96,
+    "stateEntries": 3089660,
+    "numComponents": 99,
+    "numEntities": 1318475,
+    "at": "2026-10-03T19:59:11.508Z",
+    "durationMs": 0,
+    "inFlight": false
+  },
+  "sync": {
+    "reconnects": 0,
+    "gapsHealed": 0,
+    "gapsDeferred": 0,
+    "reconcilePasses": 1,
+    "reconciledThrough": 34010386,
+    "appliedThrough": 34012717,
+    "lastReconcileAt": "2026-10-03T19:58:55.046Z",
+    "unhealedRanges": [],
+    "lastHealMs": null,
+    "shortReads": 0,
+    "olderWritesSkipped": 0,
+    "lastReconcileAdvanceAt": "2026-10-03T19:58:54.043Z",
+    "reconcileIntervalMs": 120000
+  },
+  "degraded": [],
+  "tripwires": {
+    "unknownComponentIds": 0,
+    "unknownComponentSchemas": 0,
+    "decodeFailures": 0,
+    "kamigazeNonceBumps": 0,
+    "nonFiniteValues": 0,
+    "configUnavailable": 0
+  }
+}
