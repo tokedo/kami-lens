@@ -363,7 +363,10 @@
         "unhealedRanges",
         "lastHealMs",
         "reconcileIntervalMs",
-        "appliedThrough"
+        "appliedThrough",
+        "shortReads",
+        "olderWritesSkipped",
+        "lastReconcileAdvanceAt"
       ],
       "properties": {
         "reconnects": {
@@ -425,6 +428,21 @@
             "null"
           ],
           "description": "1.0.0 (A5): every write of every block up to and including this one has been APPLIED to the mirror \u2014 by the bootstrap fill, by a continuity-checked stream frame (frame block - 1), or by a proven chain read contiguous with it. The same value every answer carries as meta.appliedThrough. Always >= reconciledThrough when both are set. null before LIVE."
+        },
+        "shortReads": {
+          "type": "number",
+          "description": "1.0.0 (A2(a)): chain reads the batch proof caught SHORT since process start \u2014 a backend whose own head was below the chunk's end answered, and the answer was not taken as complete (the gap heal re-read it; the reconcile kept only the proven prefix). Each one is a regression the 0.6.x reconcile would have applied."
+        },
+        "olderWritesSkipped": {
+          "type": "number",
+          "description": "1.0.0 (A2(c)): updates the apply path refused because a newer write for the same key, by (block, log index), was already applied \u2014 re-deliveries included. Normal and nonzero on a healthy daemon: every reconcile pass re-reads writes the stream already applied."
+        },
+        "lastReconcileAdvanceAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "1.0.0 (A2): when reconciledThrough last advanced (ISO 8601), or was seeded. More than two reconcile intervals ago while there is work to do raises `reconcile-stalled:<sec>` in `degraded`."
         }
       }
     },

@@ -44,7 +44,7 @@ import { log } from 'utils/logger';
 import { createSyncWorker } from 'workers/create';
 import { Ack, InputType } from 'workers/sync';
 import { getStateStore } from 'workers/sync/state';
-import { SyncWorkerConfig, isNetworkComponentUpdateEvent } from 'workers/types';
+import { MARK_TXHASH, SyncWorkerConfig, isNetworkComponentUpdateEvent } from 'workers/types';
 import { CheckpointHost } from 'workers/checkpoint/host';
 
 import { setupCacheInvalidationHandler } from 'network/systems/CacheInvalidationSystem';
@@ -55,10 +55,14 @@ import { KamidenFeeds, KamidenStatus } from './kamiden';
 import {
   type FullLoadRecord,
   fullLoadReport,
+  onAppliedAdvance,
   type SyncHealth,
+  syncHealth,
   syncHealthReport,
+  syncHooks,
   unhealedForMs,
 } from './sync-health';
+import { QueryError } from './queries/build';
 import { Tripwires, absorbTripwires, tripwireReport } from './tripwires';
 import { heapLimitMb, heapSource, type HeapSource } from './heap';
 import { incompleteRowsReport, type IncompleteRows } from './projection-health';
@@ -235,6 +239,51 @@ export class KamiLensDaemon {
   readonly rpc: NativeBalanceReader;
 
   private rpcProvider: JsonRpcProvider | null = null;
+
+  /** 1.0.0 (A7): the chain head, sampled in the BACKGROUND every
+   * HEAD_SAMPLE_INTERVAL_MS — `status` reads this and does no network I/O
+   * on its request path. Undefined until the first sample lands. */
+  headSample: { blockNumber: number; sampledAt: string; sampledAtWallMs: number } | undefined;
+  private headTimer: NodeJS.Timeout | null = null;
+  static readonly HEAD_SAMPLE_INTERVAL_MS = 10_000;
+  static readonly HEAD_SAMPLE_TIMEOUT_MS = 5_000;
+  /** a sample older than this is not served (the three head fields are
+   * absent together, as they always were on a failed read) */
+  static readonly HEAD_SAMPLE_MAX_AGE_MS = 60_000;
+
+  private async sampleHeadNow(): Promise<void> {
+    try {
+      const blockNumber = await Promise.race([
+        this.rpc.blockNumber(),
+        new Promise<undefined>((resolve) =>
+          setTimeout(() => resolve(undefined), KamiLensDaemon.HEAD_SAMPLE_TIMEOUT_MS).unref?.()
+        ),
+      ]);
+      if (blockNumber === undefined || !Number.isFinite(blockNumber)) return;
+      const now = Date.now();
+      this.headSample = {
+        blockNumber,
+        sampledAt: new Date(clock.now()).toISOString(),
+        sampledAtWallMs: now,
+      };
+    } catch {
+      /* counted in rpcReads by the reader itself */
+    }
+  }
+
+  private startHeadSampler(): void {
+    if (this.headTimer) return;
+    void this.sampleHeadNow();
+    this.headTimer = setInterval(() => void this.sampleHeadNow(), KamiLensDaemon.HEAD_SAMPLE_INTERVAL_MS);
+    this.headTimer.unref?.();
+  }
+
+  /** The head sample `status` serves: the latest one, if it is fresh. */
+  currentHeadSample(): { blockNumber: number; sampledAt: string } | undefined {
+    const h = this.headSample;
+    if (!h || Date.now() - h.sampledAtWallMs > KamiLensDaemon.HEAD_SAMPLE_MAX_AGE_MS) return undefined;
+    return { blockNumber: h.blockNumber, sampledAt: h.sampledAt };
+  }
   private rpcOk = 0;
   private rpcFailed = 0;
   private rpcLastError: string | null = null;
@@ -291,6 +340,7 @@ export class KamiLensDaemon {
 
   async start(): Promise<void> {
     await this.preflight();
+    this.startHeadSampler();
     // warm/cold marker (G5.b): a cached block means the worker resumes
     // incrementally from the snapshot; zero means a full bootstrap
     try {
@@ -386,6 +436,11 @@ export class KamiLensDaemon {
       mappings[keccak256(contractId)] = key;
     }
 
+    // 1.0.0 (A5): a new world starts with nothing applied and nothing
+    // verified; its bootstrap fill and its reconcile seed set both again
+    syncHealth.appliedThrough = null;
+    syncHealth.reconciledThrough = null;
+
     const ack$ = new Subject<Ack>();
     const worker = createSyncWorker(ack$);
     this.worker = worker;
@@ -405,6 +460,9 @@ export class KamiLensDaemon {
             }
             continue;
           }
+          // 1.0.0 (A5): a marker carries no world write and says nothing
+          // about whether the stream is alive
+          if (update.txHash === MARK_TXHASH) continue;
           if (update.blockNumber > this.liveBlockNumber) this.liveBlockNumber = update.blockNumber;
           // 1.0.0 (A1): the first event after a stall re-anchors the clock now
           // — not at the next 300 s tick (see syncClock)
@@ -769,6 +827,11 @@ export class KamiLensDaemon {
       sync.unhealedRanges.length > 0 &&
       reconcileIntervalMs > 0 &&
       unhealedForMs() > 2 * reconcileIntervalMs;
+    // 1.0.0 (A2): the reconcile has work (the mirror has applied past what
+    // it has verified) and reconciledThrough has not moved for more than two
+    // intervals — a backend lagging for that long, or reads failing. The
+    // seconds are measured from its last advance (or its seeding).
+    const reconcileStalledSec = this.reconcileStalledSec(sync, reconcileIntervalMs);
     const streamSilentMs =
       this.liveAt && this.lastStreamEventAtWallMs > 0
         ? Date.now() - this.lastStreamEventAtWallMs
@@ -804,6 +867,7 @@ export class KamiLensDaemon {
           : []),
         ...(streamStalled ? [`stream-stalled:${Math.floor(streamSilentMs / 1000)}s`] : []),
         ...(unhealedStale ? [`unhealed-ranges:${sync.unhealedRanges.length}`] : []),
+        ...(reconcileStalledSec !== null ? [`reconcile-stalled:${reconcileStalledSec}`] : []),
         ...Object.entries(tripwires)
           .filter(([, count]) => count > 0)
           .map(([name, count]) => `${name}:${count}`),
@@ -842,6 +906,63 @@ export class KamiLensDaemon {
     };
   }
 
+  /** `reconcile-stalled:<sec>` (1.0.0, A2): seconds since reconciledThrough
+   * last advanced, when that is more than two reconcile intervals AND there
+   * is something to verify (the mirror has applied past it). null otherwise —
+   * including before LIVE and with the reconcile switched off. */
+  private reconcileStalledSec(sync: SyncHealth, reconcileIntervalMs: number): number | null {
+    if (!this.liveAt || this.stopped || reconcileIntervalMs <= 0) return null;
+    if (sync.reconciledThrough === null || sync.lastReconcileAdvanceAt === null) return null;
+    const applied = sync.appliedThrough ?? this.liveBlockNumber;
+    if (applied <= sync.reconciledThrough) return null;
+    const since = Date.now() - Date.parse(sync.lastReconcileAdvanceAt);
+    return since > 2 * reconcileIntervalMs ? Math.floor(since / 1000) : null;
+  }
+
+  /** `--at-least <block>` (1.0.0, A5): resolve once appliedThrough >= block,
+   * or refuse with NOT_APPLIED after `maxWaitMs`. Event-driven: it wakes on
+   * every advance of the mark, never polls. After CATCH_UP_AFTER_MS still
+   * short, and with the background head sample at or past block + K, it asks
+   * the stream for ONE proven catch-up read (the stream coalesces). */
+  static readonly CATCH_UP_AFTER_MS = 1_000;
+
+  waitApplied(block: number, maxWaitMs: number): Promise<void> {
+    const reached = () => syncHealth.appliedThrough !== null && syncHealth.appliedThrough >= block;
+    if (reached()) return Promise.resolve();
+    return new Promise<void>((resolve, reject) => {
+      let done = false;
+      const finish = (err?: Error) => {
+        if (done) return;
+        done = true;
+        off();
+        clearTimeout(timer);
+        clearTimeout(nudge);
+        if (err) reject(err);
+        else resolve();
+      };
+      const off = onAppliedAdvance(() => {
+        if (reached()) finish();
+      });
+      const nudge = setTimeout(() => {
+        const head = this.headSample?.blockNumber;
+        if (!reached() && head !== undefined && head >= block + 1) syncHooks.requestCatchUp?.(block);
+      }, Math.min(KamiLensDaemon.CATCH_UP_AFTER_MS, maxWaitMs));
+      const timer = setTimeout(() => {
+        const err = new QueryError(
+          'NOT_APPLIED',
+          `block ${block} was not applied within ${maxWaitMs} ms: appliedThrough=${syncHealth.appliedThrough}, ` +
+            `reconciledThrough=${syncHealth.reconciledThrough}` +
+            (this.headSample ? `, chain head ${this.headSample.blockNumber}` : '') +
+            '. Nothing was served; retry, or read status.'
+        ) as QueryError & { appliedThrough: number | null };
+        err.appliedThrough = syncHealth.appliedThrough;
+        finish(err);
+      }, maxWaitMs);
+      timer.unref?.();
+      nudge.unref?.();
+    });
+  }
+
   private teardownWorker(): void {
     for (const sub of this.subscriptions) sub.unsubscribe();
     this.subscriptions = [];
@@ -862,6 +983,7 @@ export class KamiLensDaemon {
     this.disarmPreLiveWatchdog();
     if (this.checkpointTimer) clearInterval(this.checkpointTimer);
     if (this.clockSyncTimer) clearInterval(this.clockSyncTimer);
+    if (this.headTimer) clearInterval(this.headTimer);
     this.clockProvider?.destroy();
     if (this.retryTimer) clearTimeout(this.retryTimer);
     // §3.5 (0.6.3), shutdown protocol. A checkpoint already in flight is

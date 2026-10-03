@@ -543,6 +543,60 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
  * and the refusal message says so by listing what the calling path takes. */
 export const CLIENT_FLAGS: readonly string[] = ['--prose', '--no-authored', '--stateless'];
 
+// ------------------------------------------ 1.0.0 (A5) read-your-writes
+
+/** The two VALUED options every world read accepts (1.0.0, A5). They are not
+ * per-query arguments — they decide WHEN the read is served, not what it
+ * answers — so they are taken off the token list here, before the per-query
+ * vocabulary is checked, on both entry points. */
+export const AT_LEAST = '--at-least';
+export const MAX_WAIT = '--max-wait';
+export const MAX_WAIT_DEFAULT_MS = 5_000;
+export const MAX_WAIT_CAP_MS = 30_000;
+
+export type Freshness = { atLeast?: number; maxWaitMs: number };
+
+/** Split `--at-least <block>` / `--max-wait <ms>` (also the `--opt=value`
+ * form) out of a query's tokens. BAD_ARGS on a malformed value, on a
+ * `--max-wait` without `--at-least`, on a wait above the cap, and on either
+ * option against `status` (it is not a world read). */
+export function takeFreshnessArgs(
+  query: string,
+  tokens: readonly string[]
+): { args: string[]; freshness: Freshness } {
+  const args: string[] = [];
+  let atLeast: number | undefined;
+  let maxWait: number | undefined;
+  const parse = (name: string, raw: string | undefined, max?: number): number => {
+    const n = raw !== undefined && /^\d+$/.test(raw) ? Number(raw) : NaN;
+    if (!Number.isSafeInteger(n)) {
+      throw new QueryError('BAD_ARGS', `${name} needs a non-negative integer, got '${raw ?? ''}'`);
+    }
+    if (max !== undefined && n > max) {
+      throw new QueryError('BAD_ARGS', `${name} is capped at ${max} (got ${n})`);
+    }
+    return n;
+  };
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i]!;
+    const [flag, inline] = t.includes('=') ? [t.slice(0, t.indexOf('=')), t.slice(t.indexOf('=') + 1)] : [t, undefined];
+    if (flag === AT_LEAST || flag === MAX_WAIT) {
+      const raw = inline ?? tokens[++i];
+      if (flag === AT_LEAST) atLeast = parse(AT_LEAST, raw);
+      else maxWait = parse(MAX_WAIT, raw, MAX_WAIT_CAP_MS);
+      continue;
+    }
+    args.push(t);
+  }
+  if ((atLeast !== undefined || maxWait !== undefined) && query === 'status') {
+    throw new QueryError('BAD_ARGS', `${AT_LEAST} / ${MAX_WAIT} apply to world reads, not to 'status'`);
+  }
+  if (maxWait !== undefined && atLeast === undefined) {
+    throw new QueryError('BAD_ARGS', `${MAX_WAIT} needs ${AT_LEAST} <block>`);
+  }
+  return { args, freshness: { atLeast, maxWaitMs: maxWait ?? MAX_WAIT_DEFAULT_MS } };
+}
+
 /** The `--flags` a query declares as ARGUMENTS. */
 export function declaredArgs(query: string): readonly string[] {
   return REGISTRY[query as QueryName]?.args ?? [];
@@ -589,7 +643,13 @@ export function routeCliArgs(
   const known = isKnownQuery(command);
   const positional: string[] = [];
   const flags = new Set<string>();
-  for (const arg of remaining) {
+  // 1.0.0 (A5): the valued freshness options are validated here (the same
+  // function the socket uses) and ride through to the daemon verbatim
+  const { args: rest, freshness } = takeFreshnessArgs(command, remaining);
+  if (freshness.atLeast !== undefined) {
+    positional.push(AT_LEAST, String(freshness.atLeast), MAX_WAIT, String(freshness.maxWaitMs));
+  }
+  for (const arg of rest) {
     if (!arg.startsWith('--')) positional.push(arg);
     else if (declared.includes(arg)) positional.push(arg);
     else if (CLIENT_FLAGS.includes(arg)) flags.add(arg);

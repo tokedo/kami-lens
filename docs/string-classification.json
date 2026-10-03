@@ -80,7 +80,8 @@
       "stateCdnUrl": "system"
     },
     "Sync": {
-      "lastReconcileAt": "system"
+      "lastReconcileAt": "system",
+      "lastReconcileAdvanceAt": "system"
     },
     "KamidenStatus": {
       "url": "system"

@@ -21,7 +21,13 @@ import { log } from 'utils/logger';
 import { KamiLensDaemon } from './daemon';
 import { SILENT_STALL_MS } from './kamiden';
 import { buildEnvelope, QueryError, serveQuery } from './queries';
-import { assertSocketArgs, loadSchema, REGISTRY, QueryName } from './queries/registry';
+import {
+  assertSocketArgs,
+  loadSchema,
+  REGISTRY,
+  QueryName,
+  takeFreshnessArgs,
+} from './queries/registry';
 import { getVersionInfo } from './version';
 
 export const SOCKET_NAME = 'kami-lens.sock';
@@ -29,11 +35,6 @@ export const SOCKET_NAME = 'kami-lens.sock';
 export function socketPath(dataDir: string): string {
   return path.join(dataDir, SOCKET_NAME);
 }
-
-/** How long a status answer will wait for the chain head before giving up on
- * it. Deliberately short: the three head fields are worth having, and they
- * are not worth making `status` slow. */
-const HEAD_SAMPLE_TIMEOUT_MS = 2_000;
 
 /** A chain-head observation, sampled beside a status answer.
  *
@@ -53,30 +54,6 @@ export type HeadSample = {
    * than a number of unknown age */
   sampledAt: string;
 };
-
-/** Sample the chain head for a status answer. Returns undefined on any
- * failure — the caller then omits all three head fields rather than serving
- * a 0 or a null (§3.14: the could-lie doctrine). The read goes through the
- * daemon's own reader, so its success and its last error are already counted
- * in `rpcReads`. */
-export async function sampleHead(daemon: KamiLensDaemon): Promise<HeadSample | undefined> {
-  try {
-    // BOUNDED, because `status` is the one query that must always answer.
-    // It is the daemon's own health surface: the local watchdog polls it
-    // every 60 s and the container healthcheck every 30 s, and both read a
-    // hang as "unreachable". An RPC that stops responding must cost this
-    // answer three optional fields, never the answer itself — the same
-    // never-block-the-mirror-on-an-RPC rule the gas block already follows.
-    const blockNumber = await Promise.race([
-      daemon.rpc.blockNumber(),
-      new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), HEAD_SAMPLE_TIMEOUT_MS)),
-    ]);
-    if (blockNumber === undefined || !Number.isFinite(blockNumber)) return undefined;
-    return { blockNumber, sampledAt: new Date(clock.now()).toISOString() };
-  } catch {
-    return undefined;
-  }
-}
 
 /** §1.2 (0.5.2): Kamiden feed health, as an array shaped like `degraded` so
  * a caller gates on it the same way. It is SEPARATE from `degraded` and that
@@ -234,15 +211,21 @@ async function handle(daemon: KamiLensDaemon, req: Request): Promise<Record<stri
     // plausible answer to a question it did not ask, from the same daemon
     // that refused the identical tokens on the CLI. One rule now, in the
     // registry, used by both.
-    assertSocketArgs(req.query, req.args ?? []);
+    // 1.0.0 (A5): --at-least / --max-wait come off the tokens first — they
+    // decide WHEN a read is served, not what it answers
+    const { args: queryArgs, freshness } = takeFreshnessArgs(req.query, req.args ?? []);
+    assertSocketArgs(req.query, queryArgs);
     const opts = { prose: req.prose, noAuthored: req.noAuthored, oversize: req.oversize };
     if (req.query === 'status') {
-      // §3.15 (0.5.1): one eth_blockNumber per status answer, awaited here
-      // because `handle` is async and `buildStatusData` must stay sync (see
-      // the note on HeadSample). A failure is not an error: the three head
-      // fields are simply absent, and rpcReads.lastError says why.
+      // 1.0.0 (A7): NO network I/O on this path. Until 1.0.0 every status
+      // answer awaited one eth_blockNumber (bounded at 2 s) on the one thread
+      // — measured 275 ms idle and 1,059 ms behind one large node read. The
+      // head is now sampled in the background every 10 s (daemon.ts
+      // headSample) and served with its own sampledAt; a sample older than
+      // 60 s, or none yet, omits the three head fields together, exactly as
+      // a failed read always did.
       const envelope = buildEnvelope(
-        buildStatusData(daemon, await sampleHead(daemon)),
+        buildStatusData(daemon, daemon.currentHeadSample()),
         loadSchema('status'),
         { blockNumber: daemon.getStatus().liveBlockNumber, stale: isStale(daemon), mode: 'daemon' },
         opts
@@ -270,6 +253,13 @@ async function handle(daemon: KamiLensDaemon, req: Request): Promise<Record<stri
           (state.msg ? ` — ${state.msg}` : '')
       );
     }
+    // 1.0.0 (A5), READ-YOUR-WRITES: hold the read until the mirror has
+    // applied the caller's block, or refuse NOT_APPLIED carrying the current
+    // appliedThrough. The mirror is captured AFTER the wait, so the answer is
+    // built from state that includes the block.
+    if (freshness.atLeast !== undefined) {
+      await daemon.waitApplied(freshness.atLeast, freshness.maxWaitMs);
+    }
     const mirror = daemon.getMirror();
     if (!mirror) throw new QueryError('NOT_READY', 'daemon not LIVE: mirror not initialized yet');
     const ctx = {
@@ -288,7 +278,7 @@ async function handle(daemon: KamiLensDaemon, req: Request): Promise<Record<stri
     // defaultOperator prefill (DESIGN §5): a convenience default for the
     // operator-argument tools when the argument is omitted — the same
     // general query, never a special path
-    let args = req.args ?? [];
+    let args = queryArgs;
     const def = REGISTRY[req.query as QueryName];
     // COUNT POSITIONALS, NOT TOKENS (0.5.1). This read `args.length === 0`,
     // so a flag on its own suppressed the prefill: `party --full` or
@@ -309,7 +299,16 @@ async function handle(daemon: KamiLensDaemon, req: Request): Promise<Record<stri
     return { id, ok: true, ...envelope };
   } catch (e) {
     const code = e instanceof QueryError ? e.code : ((e as { code?: string }).code ?? 'INTERNAL');
-    return { id, ok: false, error: { code, message: e instanceof Error ? e.message : String(e) } };
+    // 1.0.0 (A5): NOT_APPLIED carries the appliedThrough it timed out at
+    const extra =
+      code === 'NOT_APPLIED'
+        ? { appliedThrough: (e as { appliedThrough?: number | null }).appliedThrough ?? null }
+        : {};
+    return {
+      id,
+      ok: false,
+      error: { code, message: e instanceof Error ? e.message : String(e), ...extra },
+    };
   }
 }
 
