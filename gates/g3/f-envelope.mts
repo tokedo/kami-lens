@@ -25,6 +25,7 @@ import { serveQuery } from '../../src/queries';
 import { loadSchema } from '../../src/queries/registry';
 import { query as queryKamis } from '../../src/network/shapes/Kami/queries';
 import { getKamiIndex } from '../../src/network/shapes/utils/component';
+import { getComponentValue, HasValue, runQuery } from '../../src/engine/recs';
 import {
   ARTIFACTS_DIR,
   REPO_ROOT,
@@ -179,6 +180,40 @@ const accountRoom = (
     .data as { roomIndex: number }
 ).roomIndex;
 
+// 1.0.0 leg B fixtures, chosen mechanically: an account holding a pending
+// portal receipt, a live pool pair, an ERC20 item, and node 62's first two
+// occupants for the selector forms
+let receiptAccount = 0;
+for (const e of runQuery([HasValue(components.EntityType, { value: 'TOKEN_RECEIPT' })])) {
+  const owner = getComponentValue(components.OwnsWithdrawalID, e)?.value as string | undefined;
+  const accE = owner ? world.entityToIndex.get(owner as never) : undefined;
+  const idx = accE !== undefined ? Number(getComponentValue(components.AccountIndex, accE)?.value ?? 0) : 0;
+  if (idx > 0) {
+    receiptAccount = idx;
+    break;
+  }
+}
+const itemsData = (await serveQuery(mirror, 'items', [], { stale: false, mode: 'daemon' })).data as {
+  items: { index: number; type: string }[];
+  pools: { items: number[]; reserves: number[] }[];
+};
+const livePool = itemsData.pools.find((p) => p.reserves[0]! > 0 && p.reserves[1]! > 0);
+const erc20Item = itemsData.items.find((i) => i.type === 'ERC20');
+const node62 = (await serveQuery(mirror, 'node', ['62'], { stale: false, mode: 'daemon' })).data as {
+  harvests: { kami: { index: number } }[];
+};
+const node62Targets = [...node62.harvests.map((h) => h.kami.index).slice(0, 2), 99_999_999].join(',');
+if (!receiptAccount || !livePool || !erc20Item || node62.harvests.length === 0) {
+  fail('G3.f', {
+    reason: 'a 1.0.0 leg-B presence fixture is missing from the snapshot — refusing rather than skipping',
+    receiptAccount,
+    livePool: Boolean(livePool),
+    erc20Item: Boolean(erc20Item),
+    node62Occupants: node62.harvests.length,
+  });
+}
+const quoteArgs = [String(livePool!.items[0]), String(livePool!.items[1]), '100000'];
+
 const CASES: {
   query: string;
   args: string[];
@@ -188,6 +223,13 @@ const CASES: {
   { query: 'kami', args: [firstKami] },
   { query: 'account', args: [String(anAccount)] },
   { query: 'account', args: [String(anAccount)], opts: { prose: true } },
+  // 1.0.0 leg B
+  { query: 'kami', args: [firstKami, '--equipment'] },
+  { query: 'node', args: ['62', '--with-vitals', '--targets', node62Targets] },
+  { query: 'receipts', args: [String(receiptAccount)] },
+  { query: 'receipts', args: [String(receiptAccount)], opts: { noAuthored: true } },
+  { query: 'quote', args: quoteArgs },
+  { query: 'item', args: [String(erc20Item!.index)] },
   { query: 'party', args: [String(anAccount)] },
   { query: 'node', args: ['62'] },
   { query: 'item', args: ['1'] },
@@ -288,6 +330,34 @@ const ENRICHED_PRESENCE: { query: string; args: string[]; paths: string[] }[] = 
  * silently and invisibly to a derivation-vs-emission comparison. These must
  * be present with the flag OFF — they are not enrichment. */
 const BASE_PRESENCE: { query: string; args: string[]; paths: string[] }[] = [
+  // 1.0.0 leg B: every new string must survive the fail-safe, flag off
+  {
+    query: 'receipts',
+    args: [String(receiptAccount)],
+    paths: [
+      'account.name',
+      'account.ownerAddress',
+      'account.operatorAddress',
+      'receiptsTotal',
+      'receipts[].id',
+      'receipts[].item.name',
+      'receipts[].tokenAmount',
+      'receipts[].token.address',
+      'receipts[].lane',
+      'receipts[].payout.route',
+      'receipts[].payout.address',
+      'receipts[].state',
+    ],
+  },
+  { query: 'quote', args: quoteArgs, paths: ['pool.id', 'from.name', 'to.name', 'mode', 'amountOut'] },
+  { query: 'items', args: [], paths: ['items[].token.address', 'items[].token.scale'] },
+  { query: 'item', args: [String(erc20Item!.index)], paths: ['token.address', 'token.scale'] },
+  { query: 'kami', args: [firstKami, '--equipment'], paths: ['equipment.capacity', 'equipment.slots[].slot'] },
+  {
+    query: 'node',
+    args: ['62', '--targets', node62Targets],
+    paths: ['harvestsSelected', 'targetsAbsent'],
+  },
   // the parity trio + E1
   { query: 'merchant', args: ['1'], paths: ['listings[].item.for', 'listings[].item.rarity'] },
   { query: 'inventory', args: [String(anAccount)], paths: ['items[].item.rarity'] },

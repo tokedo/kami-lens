@@ -274,7 +274,11 @@ export async function replayOnto(
 export async function writeMeasurement(gate: string, data: Record<string, unknown>): Promise<string> {
   await fs.mkdir(MEASUREMENTS_DIR, { recursive: true });
   const date = new Date().toISOString().slice(0, 10);
-  const file = path.join(MEASUREMENTS_DIR, `${gate}-${date}.json`);
+  // 1.0.0: MEASUREMENT_TAG keeps two same-day runs apart (a release whose
+  // legs are gated on the same day would otherwise overwrite the first
+  // leg's record with the second's)
+  const tag = process.env.MEASUREMENT_TAG ? `-${process.env.MEASUREMENT_TAG}` : '';
+  const file = path.join(MEASUREMENTS_DIR, `${gate}-${date}${tag}.json`);
   await fs.writeFile(file, JSON.stringify({ gate, measuredAt: new Date().toISOString(), ...data }, null, 2) + '\n');
   return file;
 }

@@ -229,6 +229,24 @@ const ADDITIVE_LEAVES_100A = [
 ];
 const ADDITIVE_PREFIXES_100A = ['incompleteRows.'];
 
+/** 1.0.0 leg B adds ONE thing to a flag-off answer on this fixture: an ERC20
+ * item row (here `items[19]`, the one ERC20 item the fixture's registry
+ * holds) gains `token.address` and `token.scale` (B6) on `items` and
+ * `items --full` — and on `item <index>` for an ERC20 index, which this gate
+ * does not sample. Matched by PATTERN, root or `items[i]` then `token.`,
+ * because `address` and `scale` are leaf names that a leaf-name entry would
+ * let through anywhere in the tree. Everything else leg B adds is behind a
+ * flag or a new query (feed counts, node selectors, roster --full,
+ * kami --equipment, receipts, quote, pool-history) and never reaches this
+ * gate's flag-off cases; the `feed` default change and the removed
+ * `meta.asOf` aliases are outside it too (kamiden-backed; meta). */
+const ADDITIVE_PATTERNS_100B = [/^(items\[\d+\]\.)?token\.(address|scale)$/];
+
+/** 1.0.0 leg B changes one VALUE on status: `upstreamPin`, ef898fc9 ->
+ * ffda3963 (B7). Asserted against the built pin rather than masked blind,
+ * the way `version` is. */
+const STATUS_PIN_CHANGED = 'upstreamPin';
+
 /** Does a leaf path belong to a 0.5.2 additive field? Matches the last
  * dot-segment (array indices stripped), so `kamis[3].cooldownUntil` and
  * `harvests[0].vitals.cooldownUntil` both resolve to `cooldownUntil`. */
@@ -241,7 +259,8 @@ function isAdditive052(path: string): boolean {
     ADDITIVE_LEAVES_062.includes(leaf) ||
     ADDITIVE_LEAVES_063.includes(leaf) ||
     ADDITIVE_LEAVES_100A.includes(leaf) ||
-    ADDITIVE_PREFIXES_100A.some((p) => path.startsWith(p))
+    ADDITIVE_PREFIXES_100A.some((p) => path.startsWith(p)) ||
+    ADDITIVE_PATTERNS_100B.some((re) => re.test(path))
   );
 }
 
@@ -554,6 +573,16 @@ for (const key of Object.keys(base1.cases)) {
       });
     }
     maskSet.add(STATUS_EXPECTED_CHANGED);
+    const builtPin = getVersionInfo().upstreamPin;
+    if (n[STATUS_PIN_CHANGED] !== builtPin) {
+      problems.push({
+        case: key,
+        reason: 'status upstreamPin does not match the built UPSTREAM pin',
+        served: n[STATUS_PIN_CHANGED],
+        built: builtPin,
+      });
+    }
+    maskSet.add(STATUS_PIN_CHANGED);
   } else if (unexpectedAdded.length > 0) {
     problems.push({
       case: key,
@@ -596,6 +625,8 @@ await writeMeasurement('g3g-flag-off-identity', {
   baselines: baselines.map((b) => ({ label: b.label, clockPinSec: b.capture.clockPinSec ?? null })),
   comparedAgainst: reference.label,
   statusExpectedChanged: { path: STATUS_EXPECTED_CHANGED, to: getVersionInfo().version },
+  statusPinChanged: { path: STATUS_PIN_CHANGED, to: getVersionInfo().upstreamPin },
+  additivePatterns100B: ADDITIVE_PATTERNS_100B.map(String),
   cases: report,
   leavesCompared: comparedTotal,
   leavesMasked: maskedTotal,

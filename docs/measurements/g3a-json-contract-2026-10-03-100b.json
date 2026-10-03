@@ -1,0 +1,23 @@
+{
+  "gate": "g3a-json-contract",
+  "measuredAt": "2026-10-03T19:35:18.297Z",
+  "snapshotBlock": 33004688,
+  "validated": 1418,
+  "enrichedValidated": 188,
+  "kamisSampled": 300,
+  "accountsSampled": 40,
+  "nodesSampled": 64,
+  "failures": 0,
+  "failureSamples": [],
+  "flagOffEnrichmentHits": {},
+  "legB": {
+    "kami --equipment": 30,
+    "node selectors": 34,
+    "roster --full": 10,
+    "receipts": 23,
+    "receiptOwnersInFixture": 18,
+    "quote": 36,
+    "item ERC20": 1
+  },
+  "match": true
+}

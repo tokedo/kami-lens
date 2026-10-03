@@ -25,6 +25,7 @@ import { query as queryKamis } from '../../src/network/shapes/Kami/queries';
 import { getAllNodes } from '../../src/network/shapes/Node';
 import { getAllRooms } from '../../src/network/shapes/Room';
 import { getKamiIndex } from '../../src/network/shapes/utils/component';
+import { getComponentValue, HasValue, runQuery } from '../../src/engine/recs';
 import {
   ARTIFACTS_DIR,
   fail,
@@ -266,6 +267,89 @@ for (const lbArgs of [
     }
   }
 }
+// --- 1.0.0 leg B: every new query and every new argument form ------------
+const legB: Record<string, number> = {};
+const countB = (k: string) => (legB[k] = (legB[k] ?? 0) + 1);
+{
+  // kami --equipment, alone and beside --stats
+  for (const index of kamiIndexes.filter((i) => i > 0).slice(0, 30)) {
+    await check('kami', [String(index), '--equipment']);
+    await check('kami', [String(index), '--stats', '--equipment']);
+    countB('kami --equipment');
+  }
+  // node selectors on every node with occupants: --targets (two present, one
+  // absent), --account (the first occupant's owner), both, and the vitals
+  // and attacker forms
+  for (const n of nodes) {
+    const base = await serveQuery(mirror, 'node', [String(n.index), '--full'], { stale: false, mode: 'daemon' });
+    const rows = (base.data as { harvests: { kami: { index: number }; account: { index: number } }[] }).harvests;
+    if (rows.length === 0) continue;
+    const ks = rows.map((r) => r.kami.index).filter((i) => i > 0);
+    const targets = [...ks.slice(0, 2), 99_999_999].join(',');
+    const owner = rows.find((r) => r.account.index > 0)?.account.index;
+    await check('node', [String(n.index), '--targets', targets]);
+    await check('node', [String(n.index), '--with-vitals', '--targets', targets]);
+    if (owner !== undefined) {
+      await check('node', [String(n.index), '--account', String(owner)]);
+      await check('node', [String(n.index), '--with-vitals', '--account', String(owner), '--targets', targets]);
+      if (ks[0] !== undefined) {
+        await check('node', [String(n.index), String(ks[0]), '--with-vitals', '--eligible-only', '--account', String(owner)]);
+      }
+    }
+    countB('node selectors');
+  }
+  // roster --stats --full (and the no-op --full)
+  for (const a of [...accountIndexes].slice(0, 10)) {
+    await check('roster', [String(a), '--stats', '--full']);
+    await check('roster', [String(a), '--full']);
+    countB('roster --full');
+  }
+  // receipts: every account the mirror holds a pending receipt for, plus
+  // accounts with none (the empty answer is a legal instance too)
+  const receiptOwners = new Set<number>();
+  for (const e of runQuery([HasValue(components.EntityType, { value: 'TOKEN_RECEIPT' })])) {
+    const owner = getComponentValue(components.OwnsWithdrawalID, e)?.value as string | undefined;
+    const accE = owner ? world.entityToIndex.get(owner as never) : undefined;
+    const idx = accE !== undefined ? Number(getComponentValue(components.AccountIndex, accE)?.value ?? 0) : 0;
+    if (idx > 0) receiptOwners.add(idx);
+  }
+  for (const a of [...receiptOwners, ...[...accountIndexes].slice(0, 5)]) {
+    await check('receipts', [String(a)]);
+    countB('receipts');
+  }
+  legB.receiptOwnersInFixture = receiptOwners.size;
+  // quote: every live pool, both directions, both modes, small and large
+  for (const pool of (itemsEnv.data as { pools?: { items: number[]; reserves: number[] }[] }).pools ?? []) {
+    const [a, b] = pool.items as [number, number];
+    for (const [from, to, rOut] of [
+      [a, b, pool.reserves[1]!],
+      [b, a, pool.reserves[0]!],
+    ] as const) {
+      for (const args of [
+        [String(from), String(to), '1000'],
+        [String(from), String(to), '100000'],
+        [String(from), String(to), String(Math.max(1, Math.floor(rOut / 10))), '--exact-out'],
+      ]) {
+        try {
+          await check('quote', args);
+          countB('quote');
+        } catch (e) {
+          // a refusal is a legal answer for a pool the chain would refuse
+          if ((e as { code?: string }).code !== 'NOT_QUOTABLE') throw e;
+          countB('quote NOT_QUOTABLE');
+        }
+      }
+    }
+  }
+  // the ERC20 item rows (token block)
+  for (const item of (itemsEnv.data as { items: { index: number; type: string }[] }).items) {
+    if (item.type === 'ERC20') {
+      await check('item', [String(item.index)]);
+      countB('item ERC20');
+    }
+  }
+}
+
 // --- §3.12 enriched mode: the same schemas, the flag on -------------------
 {
   const accs = [...accountIndexes].slice(0, 5);
@@ -374,6 +458,7 @@ await writeMeasurement('g3a-json-contract', {
   failures: failures.length,
   failureSamples: failures.slice(0, 10),
   flagOffEnrichmentHits,
+  legB,
   match: failures.length === 0 && validated > 300 && enrichedValidated > 50 && flagOffLeaks === 0,
 });
 
