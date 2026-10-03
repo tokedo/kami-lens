@@ -46,6 +46,11 @@
           "type": "number",
           "description": "§3.13: every ACTIVE harvest on the node, whether or not this answer served it. 732 measured on one node at one pin, a 266 KB answer with vitals."
         },
+        "harvestsSelected": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "1.0.0 (B2): present exactly when a selector (--targets, --account) was given. The rows the selector kept, BEFORE --eligible-only and before the row cap; harvestsTotal keeps reporting the WHOLE node. Selection happens before projection, so only these rows pay for vitals."
+        },
         "harvestsEligible": {
           "type": "integer",
           "description": "§3.13 (0.5.2): `--eligible-only` ONLY, absent without the flag. Rows that passed the filter, out of harvestsTotal — which keeps reporting the WHOLE node. From 0.5.3 the filter is TARGET-SIDE (threshold > 0 and margin > 0), so this counts targets in reach; whether the attacker can act on them is attacker.blocked."
@@ -53,6 +58,11 @@
         "harvestsServed": {
           "type": "number",
           "description": "§3.13: how many rows this answer carries. Below the total when the cap fired; --full lifts it."
+        },
+        "targetsAbsent": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 0 },
+          "description": "1.0.0 (B2): --targets only. The requested kami indices with NO active harvest on this node, ascending (independent of --account). Empty when every target is here."
         },
         "harvests": {
           "type": "array",

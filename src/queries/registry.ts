@@ -122,6 +122,21 @@ const int = (s: string | undefined, what: string): number => {
 const optInt = (s: string | undefined, what: string): number | undefined =>
   s === undefined ? undefined : int(s, what);
 
+/** 1.0.0 (B2): `node --targets` — a comma-separated list of kami indices,
+ * 1 to NODE_TARGETS_MAX of them (duplicates collapse). */
+export const NODE_TARGETS_MAX = 500;
+function parseTargets(raw: string): number[] {
+  const parts = raw.split(',').map((p) => p.trim());
+  if (parts.some((p) => !/^\d+$/.test(p))) {
+    throw new QueryError('BAD_ARGS', `--targets needs comma-separated kami indices, got '${raw}'`);
+  }
+  const unique = [...new Set(parts.map(Number))];
+  if (unique.length > NODE_TARGETS_MAX) {
+    throw new QueryError('BAD_ARGS', `--targets takes at most ${NODE_TARGETS_MAX} kami indices (got ${unique.length})`);
+  }
+  return unique;
+}
+
 /** 1.0.0: take one declared VALUED option out of the tokens — `--flag <v>`
  * or `--flag=<v>`. Given twice, or with no value after it, is BAD_ARGS (a
  * second value silently winning would be the §3.13 silent-argument defect). */
@@ -209,8 +224,13 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     name: 'node',
     summary:
       'node with its ACTIVE harvests; --with-vitals [attackerKamiIndex] adds occupant vitals + liquidation preview, plus attacker.blocked (the attacker\'s own gate: null, ATTACKER_STARVING or ATTACKER_COOLDOWN) (--full lifts the row cap, --stats adds the stat block, --eligible-only serves the rows whose target is in reach — threshold > 0 and margin > 0 — regardless of the attacker\'s own state, so an empty list means no target in reach and never "my kami is starving")',
-    args: ['--with-vitals', '--full', '--stats', '--eligible-only'],
-    parseArgs: (positional) => {
+    args: ['--with-vitals', '--full', '--stats', '--eligible-only', '--targets', '--account'],
+    valued: ['--targets', '--account'],
+    parseArgs: (tokens) => {
+      // 1.0.0 (B2): the valued selectors come off FIRST — their values are
+      // bare tokens and would otherwise be read as the index or attacker
+      const { value: targetsRaw, rest: r1 } = takeValued(tokens, '--targets');
+      const { value: accountRaw, rest: positional } = takeValued(r1, '--account');
       const rest = positional.filter((p) => !p.startsWith('--'));
       const withVitals = positional.includes('--with-vitals');
       const [index, attacker] = rest;
@@ -239,6 +259,9 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
           '--eligible-only needs an attacker kami argument (eligibility is a pairing, not a property)'
         );
       }
+      if (rest.length > 2) {
+        throw new QueryError('BAD_ARGS', `node takes <index> [attacker], got ${rest.length} positionals`);
+      }
       return {
         index: int(index, 'node index'),
         withVitals,
@@ -246,6 +269,8 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
         full: positional.includes('--full'),
         stats: positional.includes('--stats'),
         eligibleOnly,
+        ...(targetsRaw !== undefined ? { targets: parseTargets(targetsRaw) } : {}),
+        ...(accountRaw !== undefined ? { account: int(accountRaw, '--account') } : {}),
       };
     },
     stateless: false,
@@ -260,6 +285,8 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
           full?: boolean;
           stats?: boolean;
           eligibleOnly?: boolean;
+          targets?: number[];
+          account?: number;
         },
         ctx.enrich
       ),
@@ -287,19 +314,24 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     name: 'roster',
     operatorArg: true,
     summary:
-      'compact roster: one line per kami (index, state, hp) + where the account is (--stats adds the stat block and CAPS the list)',
-    args: ['--stats'],
+      'compact roster: one line per kami (index, state, hp) + where the account is (--stats adds the stat block and CAPS the list; --full lifts that cap)',
+    args: ['--stats', '--full'],
     parseArgs: (positional) => {
-      const [accountIndex] = positional.filter((p) => p !== '--stats');
+      const [accountIndex] = positional.filter((p) => !p.startsWith('--'));
       return {
         accountIndex: int(accountIndex, 'account index'),
         stats: positional.includes('--stats'),
+        full: positional.includes('--full'),
       };
     },
     stateless: false,
     kamiden: false,
     build: (ctx, a) =>
-      rosterQuery(ctx.mirror, a as { accountIndex: number; stats?: boolean }, ctx.enrich),
+      rosterQuery(
+        ctx.mirror,
+        a as { accountIndex: number; stats?: boolean; full?: boolean },
+        ctx.enrich
+      ),
   },
   item: {
     name: 'item',

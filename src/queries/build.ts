@@ -1124,6 +1124,10 @@ export type NodeOut = {
     blocked: Extract<LiquidationBlocker, 'ATTACKER_STARVING' | 'ATTACKER_COOLDOWN'> | null;
   };
   harvestsTotal: number;
+  /** 1.0.0 (B2): present exactly when a selector (`--targets`, `--account`)
+   * was given — the rows the selector kept, BEFORE `--eligible-only` and
+   * before the row cap. `harvestsTotal` stays the whole node. */
+  harvestsSelected?: number;
   /** §3.13 (0.5.2): `--eligible-only` only, absent without it. How many of
    * `harvestsTotal` passed the filter — so a filtered answer still says what
    * it filtered out of, and an empty `harvests` list means "none eligible"
@@ -1132,6 +1136,10 @@ export type NodeOut = {
    * attacker can act on them is `attacker.blocked`, once. */
   harvestsEligible?: number;
   harvestsServed: number;
+  /** 1.0.0 (B2): `--targets` only — the requested kami indices with NO
+   * active harvest on this node (ascending; whatever `--account` says).
+   * Empty when every target is here. */
+  targetsAbsent?: number[];
   harvests: {
     /** `--full` only */
     id?: string;
@@ -1192,6 +1200,10 @@ export function nodeQuery(
     full?: boolean;
     stats?: boolean;
     eligibleOnly?: boolean;
+    /** 1.0.0 (B2): keep only these occupant kami indices */
+    targets?: number[];
+    /** 1.0.0 (B2): keep only occupants owned by this account index */
+    account?: number;
   },
   enrich = false
 ): NodeOut {
@@ -1230,10 +1242,31 @@ export function nodeQuery(
     };
   }
 
-  const rows = harvestEntities.map((h) => {
+  // 1.0.0 (B2): SELECTION BEFORE PROJECTION. Identity (harvest, occupant,
+  // owner) is cheap; the vitals and the liquidation preview are not — on
+  // the largest node, the whole-node vitals read was ~1.3 MB and the bulk of
+  // the answer's time. A caller that knows which occupants it cares about
+  // (its targets, or one account's kamis) now pays for exactly those.
+  const harvestsTotal = harvestEntities.length;
+  const targets = args.targets !== undefined ? new Set(args.targets) : undefined;
+  const selector = targets !== undefined || args.account !== undefined;
+  let picks = harvestEntities.map((h) => {
     const harvest = getHarvest(world, components, h);
     const kami = getHarvestKami(world, components, h);
     const owner = kami ? getKamiAccount(world, components, kami.entity) : undefined;
+    return { harvest, kami, owner };
+  });
+  let targetsAbsent: number[] | undefined;
+  if (targets !== undefined) {
+    const here = new Set(picks.map((p) => p.kami?.index).filter((i) => i !== undefined));
+    targetsAbsent = [...targets].filter((t) => !here.has(t)).sort((a, b) => a - b);
+    picks = picks.filter((p) => p.kami !== undefined && targets.has(p.kami.index));
+  }
+  if (args.account !== undefined) {
+    picks = picks.filter((p) => p.owner?.index === args.account);
+  }
+
+  const rows = picks.map(({ harvest, kami, owner }) => {
     const row: NodeOut['harvests'][number] = {
       ...(full ? { id: harvest.id } : {}),
       state: harvest.state,
@@ -1297,8 +1330,8 @@ export function nodeQuery(
   rows.sort((a, b) => a.kami.index - b.kami.index);
   // §3.13 (0.5.2): filter BEFORE the cap, and keep the unfiltered total —
   // capRows reports the length of whatever it is handed, which is the
-  // filtered set, and `harvestsTotal` must stay the node's own figure.
-  const harvestsTotal = rows.length;
+  // filtered set, and `harvestsTotal` must stay the node's own figure
+  // (taken above, before the 1.0.0 selectors).
   const eligibleOnly = args.eligibleOnly === true;
   // §3.13 (0.5.3): TARGET-SIDE, and read off the numbers this answer SERVES.
   // `threshold > 0 && margin > 0` is `canMog(attacker, occupant)` written in
@@ -1326,8 +1359,10 @@ export function nodeQuery(
     ...(enrich ? { room: roomRefOut(mirror, node.roomIndex) } : {}),
     ...(attackerOut ? { attacker: attackerOut } : {}),
     harvestsTotal,
+    ...(selector ? { harvestsSelected: rows.length } : {}),
     ...(eligibleOnly ? { harvestsEligible: selected.length } : {}),
     harvestsServed: served.length,
+    ...(targetsAbsent !== undefined ? { targetsAbsent } : {}),
     harvests: served,
   };
 }
@@ -1448,7 +1483,7 @@ export type RosterOut = {
  * the party report for the same kami at the same block.) */
 export function rosterQuery(
   mirror: Mirror,
-  args: { accountIndex: number; stats?: boolean },
+  args: { accountIndex: number; stats?: boolean; full?: boolean },
   enrich = false
 ): RosterOut {
   const { world, components } = mirror;
@@ -1501,8 +1536,11 @@ export function rosterQuery(
   // sorts by kami index before capping, exactly as `party` and `node` do.
   // Flag-off is deliberately NOT sorted, because sorting it would change a
   // default answer (G3.g) for no gain on an uncapped list.
+  // 1.0.0 (B2): `--full` lifts that cap (sorted, counts served, every row);
+  // without --stats the roster is uncapped already and `--full` changes
+  // nothing.
   const capped = withStats
-    ? capRows([...kamis].sort((a, b) => a.index - b.index), false)
+    ? capRows([...kamis].sort((a, b) => a.index - b.index), args.full === true)
     : null;
   return {
     account: {

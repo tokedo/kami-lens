@@ -160,3 +160,20 @@ export function addKami(m: SyntheticMirror, spec: KamiSpec): EntityIndex {
 export function drop(m: SyntheticMirror, entity: EntityIndex, name: keyof Components): void {
   removeComponent(m.components[name] as never, entity);
 }
+
+/** An account owning the given (already added) kamis — OwnsKamiID is the
+ * kami -> account join. */
+export function addAccount(m: SyntheticMirror, index: number, kamis: number[]): EntityIndex {
+  const { world, components: c } = m;
+  const id = hashArgs(['account', index], ['string', 'uint32']);
+  const e = world.registerEntity({ id });
+  setComponent(c.EntityType, e, { value: 'ACCOUNT' });
+  setComponent(c.AccountIndex, e, { value: index });
+  setComponent(c.Name, e, { value: `account ${index}` });
+  setComponent(c.RoomIndex, e, { value: 1 });
+  for (const k of kamis) {
+    const ke = world.entityToIndex.get(hashArgs(['kami.id', k], ['string', 'uint32']))!;
+    setComponent(c.OwnsKamiID, ke, { value: id });
+  }
+  return e;
+}
