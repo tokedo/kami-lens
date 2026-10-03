@@ -33,6 +33,7 @@ import {
   roomQuery,
   rosterQuery,
 } from './build';
+import { parseQuoteAmount, quoteQuery, receiptsQuery } from './eth';
 import { EnvelopeOptions, QuerySchema } from './envelope';
 import {
   auctionsQuery,
@@ -42,6 +43,7 @@ import {
   FEED_LIMIT_MAX,
   feedQuery,
   killersQuery,
+  poolHistoryQuery,
   marketQuery,
   portalQuery,
   QueryCtx,
@@ -74,7 +76,10 @@ export type QueryName =
   | 'transfers'
   | 'feed'
   | 'chat'
-  | 'skills';
+  | 'skills'
+  | 'receipts'
+  | 'quote'
+  | 'pool-history';
 
 export type QueryDef = {
   name: QueryName;
@@ -359,6 +364,64 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     kamiden: false,
     build: (ctx, a) =>
       itemsQuery(ctx.mirror, a as { type?: string; full?: boolean }, ctx.enrich),
+  },
+  receipts: {
+    name: 'receipts',
+    operatorArg: true,
+    summary:
+      'the account\'s PENDING token-portal receipts (mirror): item, amounts, tax, end time, claimable-now, lane and payout route. Pending only — the portal deletes a receipt when it is claimed or cancelled, so an empty list means nothing is waiting, NOT that nothing was ever withdrawn (history: `portal`)',
+    parseArgs: ([key]) => {
+      if (key === undefined) {
+        throw new QueryError('BAD_ARGS', 'receipts needs an account index, a name or an address');
+      }
+      if (/^0x[0-9a-fA-F]{40}$/.test(key)) return { address: key };
+      return /^\d+$/.test(key) ? { index: Number(key) } : { name: key };
+    },
+    stateless: false,
+    kamiden: false,
+    build: (ctx, a) => receiptsQuery(ctx.mirror, a as { index?: number; name?: string; address?: string }),
+  },
+  quote: {
+    name: 'quote',
+    summary:
+      'pool swap quote, chain-exact (the reference client\'s pool pricing over the mirror\'s reserves): <fromItem> <toItem> <amount> sells exactly <amount>; --exact-out buys exactly <amount> (amountIn rounds up). Fee included; NOT_QUOTABLE when the chain would refuse the swap',
+    args: ['--exact-out'],
+    parseArgs: (positional) => {
+      const rest = positional.filter((p) => !p.startsWith('--'));
+      if (rest.length !== 3) {
+        throw new QueryError('BAD_ARGS', 'quote needs <fromItem> <toItem> <amount>');
+      }
+      const [from, to, amount] = rest;
+      return {
+        from: int(from, 'from item index'),
+        to: int(to, 'to item index'),
+        amount: parseQuoteAmount(amount),
+        exactOut: positional.includes('--exact-out'),
+      };
+    },
+    stateless: false,
+    kamiden: false,
+    build: (ctx, a) =>
+      quoteQuery(ctx.mirror, a as { from: number; to: number; amount: number; exactOut?: boolean }),
+  },
+  'pool-history': {
+    name: 'pool-history',
+    summary:
+      'a pool\'s price history (kamiden GetPoolPriceHistory): <itemA> <itemB> [fromTs seconds] — points {bucketTs, price}, price in quote units per base unit',
+    parseArgs: (positional) => {
+      if (positional.length < 2 || positional.length > 3) {
+        throw new QueryError('BAD_ARGS', 'pool-history needs <itemA> <itemB> [fromTs]');
+      }
+      const [a, b, fromTs] = positional;
+      return {
+        itemA: int(a, 'item index'),
+        itemB: int(b, 'item index'),
+        fromTs: optInt(fromTs, 'fromTs (seconds)'),
+      };
+    },
+    stateless: false,
+    kamiden: true,
+    build: (ctx, a) => poolHistoryQuery(ctx, a as { itemA: number; itemB: number; fromTs?: number }),
   },
   skills: {
     name: 'skills',

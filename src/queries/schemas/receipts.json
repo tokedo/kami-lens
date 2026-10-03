@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kami-lens/schemas/receipts.json",
+  "$ref": "#/$defs/Receipts",
+  "$defs": {
+    "Receipts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["account", "receiptsTotal", "receipts"],
+      "description": "1.0.0 (B6): an account's PENDING token-portal receipts, from the mirror. PENDING ONLY: the portal deletes a receipt entity when it is claimed or cancelled, so the mirror cannot hold a settled one — an empty list means nothing is waiting, NOT that nothing was ever withdrawn. History is the Kamiden-backed `portal` query.",
+      "properties": {
+        "account": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["index", "name", "ownerAddress", "operatorAddress"],
+          "properties": {
+            "index": {
+              "type": "integer"
+            },
+            "name": {
+              "type": "string"
+            },
+            "ownerAddress": {
+              "type": "string",
+              "description": "the zero address when the mirror holds none"
+            },
+            "operatorAddress": {
+              "type": "string",
+              "description": "the CURRENT operator — the payout of an operator-lane claim made now; the zero address when the mirror holds none"
+            }
+          }
+        },
+        "receiptsTotal": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "every pending receipt the account holds; all are served (uncapped)"
+        },
+        "receipts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PendingReceipt"
+          },
+          "description": "ordered by endTime, then id"
+        }
+      }
+    },
+    "PendingReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "item",
+        "itemAmount",
+        "tokenAmount",
+        "tax",
+        "token",
+        "startTime",
+        "endTime",
+        "claimableNow",
+        "secondsToClaimable",
+        "lane",
+        "payout",
+        "state"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "the receipt entity id — what claim and cancel take"
+        },
+        "item": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["index", "name"],
+          "properties": {
+            "index": {
+              "type": "integer"
+            },
+            "name": {
+              "type": "string"
+            }
+          }
+        },
+        "itemAmount": {
+          "type": "number",
+          "description": "net item units: toGameUnits(tokenAmount, scale) = floor(tokenAmount / 10^(18 − scale)), the contract's own conversion"
+        },
+        "tokenAmount": {
+          "type": "string",
+          "pattern": "^[0-9]+$",
+          "description": "what the claim transfers, in token base units (18 dp): a uint256 as a decimal string"
+        },
+        "tax": {
+          "type": "number",
+          "description": "export tax taken at withdraw time, item units (not refunded on cancel)"
+        },
+        "token": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["address", "scale"],
+          "description": "the token and scale the claim uses (the item registry's ERC20 registration, mirrored by the portal). For an item since unregistered: the receipt's own recorded address with scale 0 — and state PAUSED, since a claim would revert.",
+          "properties": {
+            "address": {
+              "type": "string"
+            },
+            "scale": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18
+            }
+          }
+        },
+        "startTime": {
+          "type": "integer",
+          "description": "withdraw time, chain seconds"
+        },
+        "endTime": {
+          "type": "integer",
+          "description": "earliest claim time, chain seconds"
+        },
+        "claimableNow": {
+          "type": "boolean",
+          "description": "endTime <= the projection clock AND not paused. The portal-wide on/off switch is contract storage and is NOT mirrored."
+        },
+        "secondsToClaimable": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "max(0, endTime − the projection clock)"
+        },
+        "lane": {
+          "type": "string",
+          "enum": ["OWNER", "OPERATOR"],
+          "description": "OPERATOR when the receipt carries the PORTAL_TO_OPERATOR flag (withdrawToOperator)"
+        },
+        "payout": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["route", "address"],
+          "description": "where a claim made NOW would pay: the owner, or for an operator-lane receipt the account's CURRENT operator. The contract resolves the operator at claim time.",
+          "properties": {
+            "route": {
+              "type": "string",
+              "enum": ["OWNER", "OPERATOR"]
+            },
+            "address": {
+              "type": "string"
+            }
+          }
+        },
+        "state": {
+          "type": "string",
+          "enum": ["WAITING", "CLAIMABLE", "PAUSED"],
+          "description": "PAUSED: the receipt is admin-disabled (or its item unregistered); CLAIMABLE: endTime reached; WAITING: not yet"
+        }
+      }
+    }
+  }
+}

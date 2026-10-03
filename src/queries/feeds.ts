@@ -1182,6 +1182,39 @@ export async function portalQuery(
   };
 }
 
+// -------------------------------------------------------- pool-history
+
+export type PoolHistoryOut = {
+  /** the pair as the service orders it: price is quote units per base unit */
+  baseIndex: number;
+  quoteIndex: number;
+  /** service buckets, ascending as served: bucketTs in seconds */
+  points: { bucketTs: number; price: number }[];
+};
+
+/** 1.0.0 (B7): the pool modal's price chart — Kamiden GetPoolPriceHistory
+ * {indexA, indexB, fromTs?} (new at the 1.0.0 pin), served verbatim. The
+ * service derives it from the pools' own swap/sync events; the lens adds
+ * nothing to it. */
+export async function poolHistoryQuery(
+  ctx: QueryCtx,
+  args: { itemA: number; itemB: number; fromTs?: number }
+): Promise<PoolHistoryOut> {
+  const kamiden = requireKamiden(ctx, 'pool price history');
+  const res = await kamiden.unary('GetPoolPriceHistory', (c) =>
+    c.getPoolPriceHistory({
+      indexA: args.itemA,
+      indexB: args.itemB,
+      ...(args.fromTs !== undefined ? { fromTs: args.fromTs } : {}),
+    })
+  );
+  return {
+    baseIndex: res.baseIndex,
+    quoteIndex: res.quoteIndex,
+    points: (res.points ?? []).map((p) => ({ bucketTs: p.bucketTs, price: p.price })),
+  };
+}
+
 // ----------------------------------------------------------- transfers
 
 export type TransferOut = {

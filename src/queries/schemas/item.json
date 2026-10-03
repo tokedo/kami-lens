@@ -37,6 +37,16 @@
         "rarity": {
           "type": "number"
         },
+        "token": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["address", "scale"],
+          "description": "1.0.0 (B6): ERC20 items ONLY (absent on every other item, compact and --full alike). The token the portal pays for this item and its conversion scale: token base units = item units × 10^(18 − scale). Read from the item registry, which the portal mirrors into its own storage.",
+          "properties": {
+            "address": { "type": "string", "description": "ERC20 contract address" },
+            "scale": { "type": "integer", "minimum": 0, "maximum": 18 }
+          }
+        },
         "pools": {
           "type": "array",
           "description": "swap venues trading this item; an empty array means none",

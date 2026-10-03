@@ -364,7 +364,11 @@ export class QueryError extends Error {
       | 'INCOMPLETE'
       /** 1.0.0 (A5): `--at-least <block>` timed out before the mirror had
        * applied that block. The error carries the current `appliedThrough`. */
-      | 'NOT_APPLIED',
+      | 'NOT_APPLIED'
+      /** 1.0.0 (B6): `quote` on a pool the chain would refuse to swap on —
+       * disabled, a zero reserve, an untradable item, an exact-out ask at or
+       * above the output reserve, or an exact-in amount that buys nothing. */
+      | 'NOT_QUOTABLE',
     message: string
   ) {
     super(message);
@@ -1714,6 +1718,9 @@ export type ItemOut = {
    * kami food from an account food when both read `type: FOOD`. */
   for?: string;
   rarity: number;
+  /** 1.0.0 (B6): ERC20 items only — the token the portal mints/pays for
+   * this item and its scale (token units = item units × 10^(18 − scale)) */
+  token?: { address: string; scale: number };
   /** pools trading this item (0.3.0); present on the single-item answer,
    * an empty array when the item trades in none */
   pools?: PoolOut[];
@@ -1734,6 +1741,7 @@ function toItemOut(
     description?: string;
     for?: string;
     rarity?: number;
+    token?: { address: string; scale: number };
   },
   full = false
 ): ItemOut {
@@ -1747,6 +1755,9 @@ function toItemOut(
     // empty string reads as a fact, and 77 of 177 items genuinely have none
     ...(item.for ? { for: item.for } : {}),
     rarity: item.rarity ?? 0,
+    // 1.0.0 (B6): an ERC20 item's portal token — the shape read it and this
+    // dropped it. ERC20 items only, compact and --full alike, LAST.
+    ...(item.token ? { token: { address: item.token.address, scale: item.token.scale } } : {}),
   };
 }
 
@@ -1832,11 +1843,9 @@ export type PoolOut = {
  *
  * FACTS ONLY, deliberately. The reserves, the fee, the share supply and the
  * creation time are read out of the mirror and are chain-verifiable per row.
- * The swap-output formula is NOT served: the pinned client carries no pool
- * module, so there is no upstream implementation to be faithful to and no
- * differential gate that could catch a transcription error in one. A
- * consumer holding the two reserves and the fee has everything the formula
- * consumes. Quoting arrives with a pin whose client ships the pool module.
+ * Until 1.0.0 the pinned client carried no pool module, so no swap formula
+ * was served here; the 1.0.0 pin ships one (network/shapes/Pool) and the
+ * `quote` query serves it — this listing stays facts-only.
  *
  * Discovery is mirror-only: the entity-type component carries no on-chain
  * reverse index, so "which pools exist" is answerable from the local mirror

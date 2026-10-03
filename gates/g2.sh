@@ -15,6 +15,12 @@
 #                    public RPC; heals near-head itself. Set G2D_SNAPSHOT to a
 #                    fresher base when c2.v8snap has aged — the reference is
 #                    the chain either way, and the base used is recorded.
+#   G2.e [live]      (1.0.0) the pool swap quote is chain-exact: `quote` for
+#                    the MUSU/103 pool and the deepest other pool, both
+#                    directions, EXACT_IN and EXACT_OUT, against an
+#                    independent uint256 LibPool on the on-chain reserves at
+#                    the mirror's own block. Set G2E_SNAPSHOT to a recent
+#                    base (the shared c2.v8snap is ~1M blocks old).
 #   G2.c [live]      clock-skew immunity. Needs two dumps produced
 #                    CONCURRENTLY at the same target block — one in a
 #                    ±120 s clock-skewed container, one unskewed:
@@ -38,6 +44,9 @@ $TSX gates/g2/b-display-parity.mts
 
 step "G2.d kami-sheet stat block vs GetterSystem on chain (live)"
 $TSX gates/g2/d-stats-chain.mts ${G2D_SNAPSHOT:+--snapshot "$G2D_SNAPSHOT"}
+
+step "G2.e pool quote vs chain reserves, both directions, both modes (live)"
+$TSX gates/g2/e-quote-chain.mts ${G2E_SNAPSHOT:+--snapshot "$G2E_SNAPSHOT"}
 
 step "G2.c clock-skew immunity (compare concurrent dumps)"
 if [[ ! -f gates/.artifacts/g2c-skewed.json || ! -f gates/.artifacts/g2c-unskewed.json ]]; then

@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kami-lens/schemas/quote.json",
+  "$ref": "#/$defs/Quote",
+  "$defs": {
+    "Quote": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pool",
+        "from",
+        "to",
+        "mode",
+        "amountIn",
+        "amountOut",
+        "feeAmountIn",
+        "spotAmountOut",
+        "priceImpactBps",
+        "reservesAfter"
+      ],
+      "description": "1.0.0 (B6): a constant-product pool swap quote — the reference client's pool pricing (network/shapes/Pool, BigInt, floors matching LibPool) over the mirror's reserves. Chain-exact: gate G2.e compares it against on-chain reserves at the same block, both directions, both modes. The amounts are integers in item units.",
+      "properties": {
+        "pool": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "items", "reserves", "feeBps"],
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              },
+              "minItems": 2,
+              "maxItems": 2,
+              "description": "canonical order, low index first"
+            },
+            "reserves": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 2,
+              "maxItems": 2,
+              "description": "aligned to items"
+            },
+            "feeBps": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000
+            }
+          }
+        },
+        "from": {
+          "$ref": "#/$defs/QuoteItem"
+        },
+        "to": {
+          "$ref": "#/$defs/QuoteItem"
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["EXACT_IN", "EXACT_OUT"],
+          "description": "EXACT_IN: sell exactly the amount; EXACT_OUT (--exact-out): buy at least the amount"
+        },
+        "amountIn": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "what the swap takes. EXACT_OUT: the smallest input whose output covers the ask (calcAmountIn, rounded up)"
+        },
+        "amountOut": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "what the chain pays for amountIn (calcAmountOut, rounded down). EXACT_OUT: >= the amount asked for, usually equal. Use it as the swap's minAmountOut bound, less any slippage allowance."
+        },
+        "feeAmountIn": {
+          "type": "number",
+          "minimum": 0,
+          "description": "the fee share of amountIn in input units, amountIn × feeBps / 10000; may be fractional (the pool keeps it as reserve)"
+        },
+        "spotAmountOut": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "amountIn at the pre-trade reserve ratio, no fee, no impact: floor(amountIn × reserveOut / reserveIn)"
+        },
+        "priceImpactBps": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "the curve's cost beyond the fee, in basis points of the fee-adjusted ideal output (display figure, rounded; the amounts are exact)"
+        },
+        "reservesAfter": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "[from-side reserve, to-side reserve] after this swap — the whole amountIn enters, amountOut leaves"
+        }
+      }
+    },
+    "QuoteItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "name"],
+      "properties": {
+        "index": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

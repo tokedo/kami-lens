@@ -46,6 +46,7 @@
       "state": "system"
     },
     "Item": {
+      "address": "system",
       "name": "registry",
       "description": "registry",
       "type": "system",
@@ -365,6 +366,27 @@
     },
     "Equipment": {
       "slot": "system",
+      "name": "registry"
+    },
+    "Receipts": {
+      "name": "authored-id",
+      "ownerAddress": "system",
+      "operatorAddress": "system"
+    },
+    "PendingReceipt": {
+      "id": "system",
+      "name": "registry",
+      "tokenAmount": "system",
+      "address": "system",
+      "lane": "system",
+      "route": "system",
+      "state": "system"
+    },
+    "Quote": {
+      "id": "system",
+      "mode": "system"
+    },
+    "QuoteItem": {
       "name": "registry"
     }
   }

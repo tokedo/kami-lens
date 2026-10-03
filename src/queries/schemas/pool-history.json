@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kami-lens/schemas/pool-history.json",
+  "$ref": "#/$defs/PoolHistory",
+  "$defs": {
+    "PoolHistory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseIndex", "quoteIndex", "points"],
+      "description": "1.0.0 (B7): Kamiden GetPoolPriceHistory {indexA, indexB, fromTs?}, served verbatim — the pool modal's price chart. KAMIDEN_UNAVAILABLE when the service cannot answer.",
+      "properties": {
+        "baseIndex": {
+          "type": "integer",
+          "description": "price is quote units per one base unit"
+        },
+        "quoteIndex": {
+          "type": "integer"
+        },
+        "points": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["bucketTs", "price"],
+            "properties": {
+              "bucketTs": {
+                "type": "integer",
+                "description": "bucket start, seconds"
+              },
+              "price": {
+                "type": "number"
+              }
+            }
+          },
+          "description": "as the service orders them"
+        }
+      }
+    }
+  }
+}

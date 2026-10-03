@@ -1,0 +1,268 @@
+{
+  "record": "1.0.0 B6 live read-only verification — the ETH loop read off a mirror healed to near head, cross-checked against the chain at the same block",
+  "date": "2026-10-03",
+  "block": 34011901,
+  "method": "a branch-built mirror loaded from a recent snapshot, healed by RPC replay to head-6, queried in-process through serveQuery (the socket's own entry point); the receipt cross-check is eth_call against the ValueComponent, TimeEnd component and the PORTAL_TO_OPERATOR flag entity at the same block. Account identities are withheld from this public record.",
+  "item103": {
+    "id": "0x692f5f074250b213782d70705ba3fd5b041ade3be3256b6957eb6e8dc1ab81b6",
+    "index": 103,
+    "name": "Ether Shard",
+    "type": "ERC20",
+    "description": "Crystallized gas. Not the kind you breathe.",
+    "rarity": 2,
+    "token": {
+      "address": "0xE1Ff7038eAAAF027031688E1535a055B2Bac2546",
+      "scale": 5
+    },
+    "pools": [
+      {
+        "id": "0x5586c017231d4b6276e9119f2d5b17cb30324edd78b5e5c07a4924320195e879",
+        "items": [
+          1,
+          103
+        ],
+        "reserves": [
+          9293213,
+          15328
+        ],
+        "feeBps": 30,
+        "lpSupply": 377125,
+        "startTime": 1790864291,
+        "impliedRate": {
+          "item0PerItem1": 606.28999217119,
+          "item1PerItem0": 0.0016493757325910855
+        }
+      }
+    ]
+  },
+  "erc20ItemsServedWithToken": [
+    {
+      "index": 100,
+      "name": "Onyx Shard",
+      "type": "ERC20",
+      "rarity": 4,
+      "token": {
+        "address": "0x4BaDFb501Ab304fF11217C44702bb9E9732E7CF4",
+        "scale": 2
+      }
+    },
+    {
+      "index": 103,
+      "name": "Ether Shard",
+      "type": "ERC20",
+      "rarity": 2,
+      "token": {
+        "address": "0xE1Ff7038eAAAF027031688E1535a055B2Bac2546",
+        "scale": 5
+      }
+    }
+  ],
+  "pool_1_103": {
+    "id": "0x5586c017231d4b6276e9119f2d5b17cb30324edd78b5e5c07a4924320195e879",
+    "items": [
+      1,
+      103
+    ],
+    "reserves": [
+      9293213,
+      15328
+    ],
+    "feeBps": 30,
+    "lpSupply": 377125,
+    "startTime": 1790864291,
+    "impliedRate": {
+      "item0PerItem1": 606.28999217119,
+      "item1PerItem0": 0.0016493757325910855
+    }
+  },
+  "quotes": {
+    "sell 100000 MUSU for shards": {
+      "pool": {
+        "id": "0x5586c017231d4b6276e9119f2d5b17cb30324edd78b5e5c07a4924320195e879",
+        "items": [
+          1,
+          103
+        ],
+        "reserves": [
+          9293213,
+          15328
+        ],
+        "feeBps": 30
+      },
+      "from": {
+        "index": 1,
+        "name": "MUSU"
+      },
+      "to": {
+        "index": 103,
+        "name": "Ether Shard"
+      },
+      "mode": "EXACT_IN",
+      "amountIn": 100000,
+      "amountOut": 162,
+      "feeAmountIn": 300,
+      "spotAmountOut": 164,
+      "priceImpactBps": 149,
+      "reservesAfter": [
+        9393213,
+        15166
+      ]
+    },
+    "buy exactly 10 shards (--exact-out)": {
+      "pool": {
+        "id": "0x5586c017231d4b6276e9119f2d5b17cb30324edd78b5e5c07a4924320195e879",
+        "items": [
+          1,
+          103
+        ],
+        "reserves": [
+          9293213,
+          15328
+        ],
+        "feeBps": 30
+      },
+      "from": {
+        "index": 1,
+        "name": "MUSU"
+      },
+      "to": {
+        "index": 103,
+        "name": "Ether Shard"
+      },
+      "mode": "EXACT_OUT",
+      "amountIn": 6086,
+      "amountOut": 10,
+      "feeAmountIn": 18.258,
+      "spotAmountOut": 10,
+      "priceImpactBps": 8,
+      "reservesAfter": [
+        9299299,
+        15318
+      ]
+    },
+    "sell 10 shards for MUSU": {
+      "pool": {
+        "id": "0x5586c017231d4b6276e9119f2d5b17cb30324edd78b5e5c07a4924320195e879",
+        "items": [
+          1,
+          103
+        ],
+        "reserves": [
+          9293213,
+          15328
+        ],
+        "feeBps": 30
+      },
+      "from": {
+        "index": 103,
+        "name": "Ether Shard"
+      },
+      "to": {
+        "index": 1,
+        "name": "MUSU"
+      },
+      "mode": "EXACT_IN",
+      "amountIn": 10,
+      "amountOut": 6040,
+      "feeAmountIn": 0.03,
+      "spotAmountOut": 6062,
+      "priceImpactBps": 8,
+      "reservesAfter": [
+        15338,
+        9287173
+      ]
+    }
+  },
+  "portalConfigs": {
+    "PORTAL_TOKEN_EXPORT_DELAY": {
+      "name": "PORTAL_TOKEN_EXPORT_DELAY",
+      "value": 43200,
+      "valueRaw": "43200"
+    },
+    "PORTAL_ITEM_EXPORT_TAX": {
+      "name": "PORTAL_ITEM_EXPORT_TAX",
+      "values": [
+        1,
+        50,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "PORTAL_ITEM_IMPORT_TAX": {
+      "name": "PORTAL_ITEM_IMPORT_TAX",
+      "values": [
+        1,
+        50,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  },
+  "shardHolders": {
+    "inventoriesHoldingItem103": 13,
+    "largestAccountHolder": {
+      "inventoryRowServed": [
+        {
+          "balance": 21405,
+          "item": {
+            "id": "0x692f5f074250b213782d70705ba3fd5b041ade3be3256b6957eb6e8dc1ab81b6",
+            "index": 103,
+            "name": "Ether Shard",
+            "type": "ERC20",
+            "rarity": 2
+          }
+        }
+      ],
+      "mirrorBalance": 21405
+    }
+  },
+  "pendingReceiptsInWorld": 20,
+  "pendingOperatorLaneReceiptsInWorld": 1,
+  "laneReceipt": {
+    "served": {
+      "id": "0x6d8117d6bc95bcf029c5b24b3a58d32f0a3258d5a82542d89c94073a4c79baac",
+      "item": {
+        "index": 103,
+        "name": "Ether Shard"
+      },
+      "itemAmount": 369,
+      "tokenAmount": "3690000000000000",
+      "tax": 2,
+      "token": {
+        "address": "0xe1ff7038eaaaf027031688e1535a055b2bac2546",
+        "scale": 5
+      },
+      "startTime": 1790901774,
+      "endTime": 1790944974,
+      "claimableNow": true,
+      "secondsToClaimable": 0,
+      "lane": "OPERATOR",
+      "state": "CLAIMABLE",
+      "payout": {
+        "route": "OPERATOR",
+        "address": "(withheld)"
+      }
+    },
+    "receiptsTotalForItsAccount": 1,
+    "chain": {
+      "id": "0x6d8117d6bc95bcf029c5b24b3a58d32f0a3258d5a82542d89c94073a4c79baac",
+      "value": "3690000000000000",
+      "timeEnd": "1790944974",
+      "laneFlag": true
+    },
+    "match": {
+      "tokenAmount": true,
+      "endTime": true,
+      "lane": true,
+      "itemAmount = tokenAmount / 10^(18-scale)": true
+    }
+  }
+}
