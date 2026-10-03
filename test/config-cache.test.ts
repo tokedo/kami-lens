@@ -38,7 +38,9 @@ const { ArrayCache, ValueCache, getArray, getValue, isRealConfigArray } = await 
   '../src/app/cache/config/base'
 );
 
-const world = {} as never;
+// an empty world: the reader is stubbed, and the 1.0.0 write-invalidation
+// bookkeeping (B4) looks the config entity up and finds none
+const world = { entityToIndex: new Map() } as never;
 const comps = {} as never;
 const REAL = [5, 0, 480, 0, 0, 0, 10, 0];
 

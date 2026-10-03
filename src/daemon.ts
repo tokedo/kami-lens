@@ -48,6 +48,8 @@ import { MARK_TXHASH, SyncWorkerConfig, isNetworkComponentUpdateEvent } from 'wo
 import { CheckpointHost } from 'workers/checkpoint/host';
 
 import { setupCacheInvalidationHandler } from 'network/systems/CacheInvalidationSystem';
+import { clearConfigCaches, watchConfigWrites } from 'app/cache/config/base';
+import { KamiCache } from 'app/cache/kami/base';
 
 import { ConfigSource, KamiLensConfig, resolveConfigDetailed } from './config';
 import type { NativeBalanceReader } from './queries/build';
@@ -515,6 +517,12 @@ export class KamiLensDaemon {
     );
 
     applyNetworkUpdates(world, components, worker.ecsEvents$, mappings, ack$);
+
+    // 1.0.0 (B4): a config write drops the cached config fields it touched,
+    // and the kami cache built from them. A new world restarts entity
+    // indices, so the config bookkeeping is emptied before it is rebuilt.
+    clearConfigCaches();
+    this.subscriptions.push(watchConfigWrites(components, () => KamiCache.clear()));
 
     // Kamiden feed consumer (M4): stream casts/kills invalidate the
     // affected kami/bonus cache rows, exactly upstream's
