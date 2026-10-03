@@ -55,7 +55,40 @@ export type NetworkComponentUpdate<C extends Components = Components> = {
   txHash: string;
   txMetadata?: TxMetadata;
   blockNumber: number;
+  /** 1.0.0 (A2(c)): the chain log's own index within its block. Present on
+   * every event read from a stream frame or from a chain range (the frame's
+   * (blockNumber, logIndex) IS the chain log's — measured 265/265,
+   * 2026-10-03), and absent on events whose position is unknown: snapshot /
+   * state-cache entries and Kamigaze diff events. The apply path orders by
+   * (blockNumber, logIndex) and never lets an older write overwrite a newer
+   * one. */
+  logIndex?: number;
+  /** 1.0.0 (A5): a statement the apply path acts on once this update (and
+   * everything before it) has been applied. See AppliedMark. */
+  appliedMark?: AppliedMark;
 };
+
+/** "Once this has been applied, every write of every block up to and
+ * including `through` is in the mirror — PROVIDED the mirror already held
+ * everything through `anchor`." (1.0.0, A5.)
+ *
+ * - the bootstrap fill: anchor null (unconditional), through = its end block;
+ * - a continuity-checked stream frame in block F: anchor = the block the
+ *   stream's unbroken chain of frames started from, through = F - 1 (frames
+ *   are one per log, in order, so a frame in F means no log of any block
+ *   below F is still to come);
+ * - a proven chain range [from, c]: anchor = from - 1, through = c, and
+ *   `reconciled` when it was the periodic reconcile (which also moves
+ *   reconciledThrough). */
+export type AppliedMark = {
+  anchor: number | null;
+  through: number;
+  reconciled?: boolean;
+};
+
+/** txHash of a marker update that carries only an AppliedMark (no world
+ * write). The daemon's stream-liveness tap ignores it. */
+export const MARK_TXHASH = 'mark';
 
 export type SystemCallTransaction = {
   hash: string;

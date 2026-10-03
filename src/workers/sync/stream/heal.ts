@@ -16,6 +16,28 @@
 // `options: { batch: false }` (daemon.ts). So that ladder is dead code here
 // and this is the only such guard in the process.
 //
+// 1.0.0 (A2): THE READ PROVES ITSELF. The rpcHead check below proves the
+// head on one request; the logs then came from another, against a pool whose
+// backends clamp `toBlock` to their own head and answer short with no error
+// (measured 2026-10-03: 23 of 900 such reads short, every one against a proven
+// head at or past the range end). One logged case: reconcile
+// 33872681..33872746 proved rpcHead=33872747 and read its logs elsewhere.
+// Every chunk is now read through the range reader's batch proof
+// (workers/sync/utils.ts: [eth_blockNumber, eth_getLogs, eth_blockNumber] as
+// ONE request, proven through min(t, h1 - K)), the rpcHead check stays only as
+// the cheap wait for a node to reach `to`, and:
+//   - a GAP heal needs every chunk proven to its end — a short chunk is
+//     re-read (a fresh request, so usually another backend) within the head
+//     budget, then deferred exactly as before;
+//   - a RECONCILE (and an --at-least catch-up) accepts the proven PREFIX: it
+//     stops at the first short chunk and returns only events at or below the
+//     proven block, with `provenThrough` saying where that is. Its caller
+//     advances to that block and never to the requested end.
+// The returned events are COLLAPSED to the newest write per key (by block,
+// log index): the mirror is latest-write-per-key, so this changes nothing a
+// complete apply would end with, and it means no reader can ever observe a
+// range half-replayed (an older write applied, its newer one not yet).
+//
 // A DEFERRED RANGE IS NEVER PARTIALLY APPLIED. If the node is behind, or the
 // subscription is torn down mid-heal, the range is recorded as unhealed and
 // nothing is applied — the next reconcile tick (or the next gap heal, if it
@@ -60,7 +82,10 @@ export interface RpcHeadSource {
   fetch: () => Promise<number>;
 }
 
-export type HealReason = 'gap' | 'reconcile';
+export type HealReason = 'gap' | 'reconcile' | 'catch-up';
+
+/** How often a short-proven gap chunk is re-read, inside the head budget. */
+export const PROOF_RETRY_MS = 1_000;
 
 export type HealResult =
   | {
@@ -71,10 +96,17 @@ export type HealResult =
       rpcHead: number | null;
       headSource: 'ws' | 'http' | null;
       chunks: number;
+      /** 1.0.0 (A2): the block through which this result is PROVEN complete
+       * (= `to` for a whole range; lower for a partial reconcile) */
+      provenThrough: number;
+      /** chunk reads the proof caught short (each one a lagging backend) */
+      shortReads: number;
+      /** the last serving backend's own head (the proof's h1) */
+      batchHead: number | null;
     }
   | {
       ok: false;
-      deferred: 'rpc-head-behind' | 'torn-down';
+      deferred: 'rpc-head-behind' | 'torn-down' | 'proof-short' | 'rpc-error';
       from: number;
       to: number;
       ms: number;
@@ -120,6 +152,25 @@ export interface HealRangeOptions {
   headPollMs?: number;
   /** annotation for the [heal] line when Kamigaze answered the wide part */
   path?: 'rpc' | 'kamigaze+rpc';
+  /** 1.0.0 (A2(b)): accept the proven prefix (reconcile, catch-up). A gap
+   * heal leaves it unset: the whole range or nothing. */
+  partial?: boolean;
+  /** 1.0.0 (A3): pause between chunk reads, so a long window does not burst
+   * the public RPC */
+  paceMs?: number;
+}
+
+type Positioned = NetworkComponentUpdate<Components> & { logIndex?: number };
+
+/** Newest write per (component, entity), by (block, log index); the output is
+ * in position order. Events without a position keep arrival order and win
+ * over nothing — a range read has none. */
+export function collapseLatest(events: Positioned[]): Positioned[] {
+  const last = new Map<string, Positioned>();
+  for (const e of events) last.set(`${e.component}|${e.entity}`, e);
+  return [...last.values()].sort(
+    (a, b) => a.blockNumber - b.blockNumber || (a.logIndex ?? 0) - (b.logIndex ?? 0)
+  );
 }
 
 /**
@@ -140,41 +191,123 @@ export async function healRange(options: HealRangeOptions): Promise<HealResult> 
     headWaitMs = RPC_HEAD_WAIT_MS,
     headPollMs = RPC_HEAD_POLL_MS,
     path = 'rpc',
+    partial = false,
+    paceMs = 0,
   } = options;
   const t0 = Date.now();
+  const deadline = t0 + headWaitMs;
 
   // an empty range is a real, successful no-op — the common reconcile case
   if (to < from) {
-    return { ok: true, events: [], logs: 0, ms: 0, rpcHead: null, headSource: null, chunks: 0 };
+    return {
+      ok: true,
+      events: [],
+      logs: 0,
+      ms: 0,
+      rpcHead: null,
+      headSource: null,
+      chunks: 0,
+      provenThrough: to,
+      shortReads: 0,
+      batchHead: null,
+    };
   }
 
-  const head = await awaitRpcHead(to, rpcHead, { signal, headWaitMs, headPollMs });
-  if (head === null) {
+  const defer = (
+    deferred: 'rpc-head-behind' | 'torn-down' | 'proof-short' | 'rpc-error',
+    head: { blockNumber: number; source: 'ws' | 'http' } | null
+  ): HealResult => {
     const ms = Date.now() - t0;
-    const deferred = signal?.aborted ? 'torn-down' : 'rpc-head-behind';
     recordUnhealed(from, to);
     syncHealth.gapsDeferred++;
     syncHealth.lastHealMs = ms;
     log.warn(
       `[heal] ${reason} ${from}..${to} DEFERRED (${deferred}) ms=${ms} — range recorded unhealed, nothing applied`
     );
-    return { ok: false, deferred, from, to, ms, rpcHead: null, headSource: null };
-  }
+    return {
+      ok: false,
+      deferred,
+      from,
+      to,
+      ms,
+      rpcHead: head?.blockNumber ?? null,
+      headSource: head?.source ?? null,
+    };
+  };
 
-  const events: NetworkComponentUpdate<Components>[] = [];
+  // the cheap wait for SOME node to reach `to`. It is no longer the proof
+  // (the batch below is); a partial read does not wait for it at all.
+  const head = partial
+    ? null
+    : await awaitRpcHead(to, rpcHead, { signal, headWaitMs, headPollMs });
+  if (!partial && head === null) return defer(signal?.aborted ? 'torn-down' : 'rpc-head-behind', null);
+
+  const events: Positioned[] = [];
   const chunks = chunkRanges(from, to, chunkBlocks);
+  let provenThrough = to;
+  let shortReads = 0;
+  let batchHead: number | null = null;
+  let read = 0;
   for (const [f, t] of chunks) {
     if (signal?.aborted) {
-      const ms = Date.now() - t0;
-      recordUnhealed(from, to);
-      syncHealth.gapsDeferred++;
-      syncHealth.lastHealMs = ms;
-      log.warn(
-        `[heal] ${reason} ${from}..${to} DEFERRED (torn-down) ms=${ms} — range recorded unhealed, nothing applied`
-      );
-      return { ok: false, deferred: 'torn-down', from, to, ms, rpcHead: head.blockNumber, headSource: head.source };
+      if (partial) return { ...stopped(), provenThrough: f - 1 };
+      return defer('torn-down', head);
     }
-    events.push(...((await fetchWorldEvents(f, t)) as NetworkComponentUpdate<Components>[]));
+    let accepted = false;
+    for (;;) {
+      let r: Awaited<ReturnType<FetchWorldEvents>>;
+      try {
+        r = await fetchWorldEvents(f, t);
+      } catch (e) {
+        log.warn(`[heal] ${reason} chunk ${f}..${t} read failed`, e);
+        if (partial) break;
+        return defer('rpc-error', head);
+      }
+      read++;
+      const proven = (r as { provenThrough?: number }).provenThrough ?? f - 1;
+      batchHead = (r as { batchHead?: number }).batchHead ?? batchHead;
+      if (proven >= t) {
+        events.push(...(r as Positioned[]));
+        accepted = true;
+        break;
+      }
+      shortReads++;
+      syncHealth.shortReads++;
+      log.info(
+        `[heal] ${reason} chunk ${f}..${t} proven only through ${proven} ` +
+          `(the serving backend's head ${(r as { batchHead?: number }).batchHead ?? '?'})`
+      );
+      if (partial) {
+        events.push(...(r as Positioned[]).filter((e) => e.blockNumber <= proven));
+        provenThrough = Math.max(f - 1, proven);
+        break;
+      }
+      if (Date.now() >= deadline || signal?.aborted) {
+        return defer(signal?.aborted ? 'torn-down' : 'proof-short', head);
+      }
+      await sleep(PROOF_RETRY_MS, signal);
+    }
+    if (!accepted) {
+      if (partial) {
+        if (provenThrough === to) provenThrough = f - 1;
+        break;
+      }
+    }
+    if (paceMs > 0 && t < to) await sleep(paceMs, signal);
+  }
+
+  function stopped() {
+    return {
+      ok: true as const,
+      events: collapseLatest(events),
+      logs: events.length,
+      ms: Date.now() - t0,
+      rpcHead: head?.blockNumber ?? null,
+      headSource: head?.source ?? null,
+      chunks: read,
+      shortReads,
+      batchHead,
+    };
   }
 
   // the caller decides whether to APPLY these (it may have been torn down
@@ -182,16 +315,19 @@ export async function healRange(options: HealRangeOptions): Promise<HealResult> 
   const ms = Date.now() - t0;
   log.info(
     `[heal] ${reason} ${from}..${to} path=${path} logs=${events.length} ms=${ms} ` +
-      `rpcHead=${head.blockNumber} src=${head.source} chunks=${chunks.length}`
+      `proven=${provenThrough} batchHead=${batchHead ?? '?'} reads=${read} short=${shortReads}`
   );
   return {
     ok: true,
-    events,
+    events: collapseLatest(events),
     logs: events.length,
     ms,
-    rpcHead: head.blockNumber,
-    headSource: head.source,
-    chunks: chunks.length,
+    rpcHead: head?.blockNumber ?? null,
+    headSource: head?.source ?? null,
+    chunks: read,
+    provenThrough,
+    shortReads,
+    batchHead,
   };
 }
 

@@ -7,6 +7,25 @@
  *           componentId has no registry mapping increments
  *           tripwires.unknownComponentIds (the EmptyNetworkEvent
  *           heartbeat is excluded, as upstream's guard already does).
+ *           1.0.0 (A2(c)), THE ORDERING GUARD: applyNetworkUpdates is the one
+ *           place stream frames, gap heals, the reconcile, the bootstrap fill
+ *           and the state cache all land, and upstream wrote every update it
+ *           was handed, in arrival order. A chain re-read that came back
+ *           short therefore RESTORED a range's older writes (a harvest
+ *           start) over newer ones the stream had applied (its stop). Now it
+ *           remembers, per (component, entity), the (block, logIndex) of the
+ *           last write applied, and an update carrying a position is applied
+ *           only if it is strictly newer — an equal position is a
+ *           re-delivery and is skipped. Removals record their position too,
+ *           so an older set cannot bring a removed value back. An update
+ *           with NO position (state-cache entries, Kamigaze diff events)
+ *           applies unconditionally and forgets the key's position; the
+ *           stream's frontier rule keeps an older chain write from landing
+ *           on such a value. Positions at or below reconciledThrough are
+ *           forgotten when it advances — no later read reaches below it.
+ *           1.0.0 (A5): after each update it acts on that update's
+ *           AppliedMark, which is how appliedThrough and reconciledThrough
+ *           move only once the writes they vouch for are in the mirror.
  *           Everything else verbatim.
  */
 
@@ -30,6 +49,7 @@ import { log } from 'utils/logger';
 import { Ack, ack } from 'workers/sync';
 
 import { tripwires } from '../../tripwires';
+import { applyMark, syncHealth } from '../../sync-health';
 import {
   isNetworkComponentUpdateEvent,
   isSystemCallEvent,
@@ -129,6 +149,24 @@ export function applyNetworkUpdates<C extends Components>(
 ) {
   const txReduced$ = new Subject<string>();
 
+  // 1.0.0 (A2(c)): last applied position per (component, entity). The key is
+  // numeric (component slot * 2^26 + entity index) and the position packs
+  // block * 2^20 + logIndex — exact in a double for any block below 2^33.
+  const lastPos = new Map<number, number>();
+  const slotOf = new Map<string, number>();
+  const keyOf = (componentKey: string, entity: number): number => {
+    let slot = slotOf.get(componentKey);
+    if (slot === undefined) {
+      slot = slotOf.size;
+      slotOf.set(componentKey, slot);
+    }
+    return slot * 2 ** 26 + entity;
+  };
+  const prune = (through: number) => {
+    const floor = (through + 1) * 2 ** 20;
+    for (const [k, pos] of lastPos) if (pos < floor) lastPos.delete(k);
+  };
+
   // Send "ack" to tell the sync worker we're ready to receive events while not processing
   let processing = false;
   const ackSub = timer(0, 100)
@@ -137,6 +175,12 @@ export function applyNetworkUpdates<C extends Components>(
       map(() => ack)
     )
     .subscribe(ack$);
+
+  const settleMark = (mark: NonNullable<NetworkComponentUpdate['appliedMark']>) => {
+    if (applyMark(mark).reconciledAdvanced && syncHealth.reconciledThrough !== null) {
+      prune(syncHealth.reconciledThrough);
+    }
+  };
 
   const delayQueueSub = ecsEvents$.subscribe((updates) => {
     processing = true;
@@ -150,11 +194,31 @@ export function applyNetworkUpdates<C extends Components>(
         const component = componentKey ? components[componentKey] : undefined;
 
         if (!component) {
+          // 1.0.0 (A5): a marker update carries no write, only its mark
+          if (update.appliedMark) {
+            settleMark(update.appliedMark);
+            continue;
+          }
           if (update.txHash !== 'EmptyNetworkEvent') {
             tripwires.unknownComponentIds++;
             log.warn('Unknown component:', update.component);
           }
           continue;
+        }
+
+        // 1.0.0 (A2(c)): never let an older write overwrite a newer one
+        const key = keyOf(componentKey as string, entity);
+        if (update.logIndex !== undefined) {
+          const pos = update.blockNumber * 2 ** 20 + update.logIndex;
+          const last = lastPos.get(key);
+          if (last !== undefined && pos <= last) {
+            syncHealth.olderWritesSkipped++;
+            if (update.appliedMark) settleMark(update.appliedMark);
+            continue;
+          }
+          lastPos.set(key, pos);
+        } else {
+          lastPos.delete(key);
         }
 
         if (update.value === undefined) {
@@ -163,6 +227,7 @@ export function applyNetworkUpdates<C extends Components>(
         } else {
           setComponent(component as Component<Schema>, entity, update.value);
         }
+        if (update.appliedMark) settleMark(update.appliedMark);
       } else if (decodeAndEmitSystemCall && isSystemCallEvent(update)) {
         decodeAndEmitSystemCall(update);
       }

@@ -65,6 +65,43 @@
  *              the very budget the limit protects. Both are logged at WARN
  *              with the delay chosen.
  *
+ *           7. (1.0.0, A2/A3/A5) THE RECONCILE RUNS ON ITS OWN. It used to be a
+ *              tick merged into the raw subscription's pipeline, reading
+ *              under that subscription's abort signal — so the 10.5 s
+ *              no-frame timeout, or any resubscribe, killed a pass mid-read.
+ *              It now lives in this closure (which survives `retry`), on its
+ *              own AbortController (aborted only when the stream itself
+ *              ends), and emits through its own channel merged into the
+ *              output. It no longer needs to be serialized with frame
+ *              processing: every event now carries its chain position and
+ *              the apply path never lets an older write overwrite a newer
+ *              one (network/setup/utils.ts), so order of arrival no longer
+ *              decides what the mirror holds. Each pass reads
+ *              [reconciledThrough + 1, cursor] through the batch proof,
+ *              stops at the first chunk the proof does not cover, and
+ *              advances only to the block it proved (A2(b)). A long window
+ *              (the boot window, A3) is read in paced passes of at most
+ *              RECONCILE_PASS_MAX_BLOCKS, one after another, after LIVE.
+ *              THE FRONTIER RULE: data loaded without a position (the state
+ *              cache, the snapshot delta, a Kamigaze diff) may reflect writes
+ *              up to some block F. A chain range that starts at or below F is
+ *              applied only once it is proven through at least F — an in-order
+ *              replay that stopped short of F could re-apply an older chain
+ *              write over a value whose own position is unknown. Below that,
+ *              the pass applies nothing and waits for a better proof.
+ *           8. (1.0.0, A5) APPLIED MARKS. A frame that passed the continuity
+ *              check carries `appliedMark: {anchor, through: frame block - 1}`
+ *              — frames are one per log, in order, so a frame in block F
+ *              means every log below F has been delivered — anchored on the
+ *              block the stream's unbroken chain of frames started from. A
+ *              reconcile pass ends in a marker update {anchor: from - 1,
+ *              through: proven block, reconciled}. The apply path turns them
+ *              into `appliedThrough` and `reconciledThrough`.
+ *           9. (1.0.0, A5) CATCH-UP. `--at-least <block>` can ask for an
+ *              immediate proven read [appliedThrough + 1, block] (bounded),
+ *              through `syncHooks.requestCatchUp`; its marker anchors on the
+ *              appliedThrough it started from.
+ *
  *           `createClient` is a test seam: the recovery path had no hermetic
  *           coverage at all before 0.6.0 (test/stream-heal.test.ts). Body
  *           otherwise verbatim.
@@ -98,8 +135,14 @@ import { EmptyNetworkEvent } from 'constants/stream';
 import { Decode } from 'engine/encoders';
 import { Components } from 'engine/recs';
 import { log } from 'utils/logger';
-import { syncHealth } from '../../../sync-health';
-import { NetworkComponentUpdate, NetworkEvent } from '../../types';
+import { syncHealth, syncHooks } from '../../../sync-health';
+import {
+  AppliedMark,
+  MARK_TXHASH,
+  NetworkComponentUpdate,
+  NetworkEvent,
+  NetworkEvents,
+} from '../../types';
 import { createFetchWorldEventsInBlockRange } from '../utils';
 import { parseGetEventsSinceResponse } from './gapfill';
 import {
@@ -110,6 +153,7 @@ import {
   type RpcHeadSource,
 } from './heal';
 import { createTransformWorldEvents, parseSystemCalls, TransformWorldEvents } from './transform';
+import { HEAL_CHUNK_BLOCKS } from './heal';
 
 export type FetchWorldEvents = ReturnType<typeof createFetchWorldEventsInBlockRange>;
 
@@ -133,6 +177,43 @@ export const HEALTH_CHECK_BUFFER_MS = 2000;
  * it, and `status.sync` says so. */
 export const RECONCILE_INTERVAL_MS = 120_000;
 
+/** 1.0.0 (A3): one reconcile pass reads at most this many blocks (20 chunks
+ * of 50); a longer window — the boot window — is read in consecutive paced
+ * passes rather than one burst. */
+export const RECONCILE_PASS_MAX_BLOCKS = 1_000;
+
+/** 1.0.0 (A3): pause between chunk reads inside a pass, and between passes
+ * while a window is still being caught up. At ~0.4-0.6 s per batched read
+ * that is under two requests a second against the public RPC. */
+export const RECONCILE_PACE_MS = 250;
+export const RECONCILE_CATCHUP_GAP_MS = 1_000;
+
+/** 1.0.0 (A5): an --at-least catch-up reads at most this far past
+ * appliedThrough. */
+export const CATCHUP_MAX_BLOCKS = 2_000;
+
+/** The reconcile baseline, as the bootstrap hands it over (1.0.0, A3).
+ * `baseline`: the block this process's loaded state may claim — the
+ * PRE-DELTA cached block on a warm boot, the full load's lowest served block
+ * on a cold one; reconciledThrough starts here and the first passes re-read
+ * everything above it. `frontier`: the HIGHEST block any position-less data
+ * loaded at boot (cache, delta, diff) could reflect — the frontier rule's F.
+ * A bare number is a baseline that is also the frontier. */
+export type ReconcileSeed = { baseline: number; frontier?: number };
+
+/** A marker update: no world write, only a statement for the apply path. */
+export const markerEvent = (mark: AppliedMark): NetworkComponentUpdate<Components> =>
+  ({
+    type: NetworkEvents.NetworkComponentUpdate,
+    entity: '0',
+    component: 'Void',
+    value: undefined,
+    blockNumber: 0,
+    lastEventInTx: false,
+    txHash: MARK_TXHASH,
+    appliedMark: mark,
+  }) as unknown as NetworkComponentUpdate<Components>;
+
 export interface StreamOptions {
   url: string;
   worldAddress: string;
@@ -144,8 +225,9 @@ export interface StreamOptions {
   wakeSignal$?: Subject<void>;
   blockUpdate$?: Subject<number>;
   /** seeds reconciledThrough once the bootstrap gap-fill has landed; until
-   * then every reconcile tick is a counted no-op (§3.17) */
-  reconcileFrom$?: Subject<number>;
+   * then every reconcile tick is a counted no-op (§3.17). 1.0.0: a seed
+   * object carries the frontier too (ReconcileSeed). */
+  reconcileFrom$?: Observable<number | ReconcileSeed>;
   /** 0 disables the periodic reconcile (and `status.sync` says so) */
   reconcileIntervalMs?: number;
   onMessage?: () => void;
@@ -156,12 +238,22 @@ export interface StreamOptions {
   /** rpcHead budget overrides; tests use short ones */
   headWaitMs?: number;
   headPollMs?: number;
+  /** reconcile pacing overrides (1.0.0); tests use short ones */
+  reconcilePaceMs?: number;
+  reconcileCatchUpGapMs?: number;
 }
 
 interface StreamTrackingState {
   expectedPrevLogIndex: number;
   expectedPrevLogBlock: number;
   isFirstMessage: boolean;
+  /** 1.0.0 (A5): the block the stream's unbroken chain of frames started
+   * from (the first frame's prevLogBlockNumber) — the anchor of every frame's
+   * applied mark */
+  chainAnchor: number | null;
+  /** 1.0.0 (A2): the frontier rule's F — the highest block position-less
+   * data in the mirror may reflect */
+  frontier: number;
 }
 
 /** Fixed retry delays in seconds, capped at last value */
@@ -240,6 +332,8 @@ export function createStream(options: StreamOptions): Observable<NetworkEvent> {
     timeoutMs = KEEPALIVE_INTERVAL_MS + STREAM_TIMEOUT_BUFFER_MS,
     headWaitMs,
     headPollMs,
+    reconcilePaceMs = RECONCILE_PACE_MS,
+    reconcileCatchUpGapMs = RECONCILE_CATCHUP_GAP_MS,
   } = options;
   const transformWorldEvents = createTransformWorldEvents(decode);
 
@@ -248,6 +342,8 @@ export function createStream(options: StreamOptions): Observable<NetworkEvent> {
     expectedPrevLogIndex: -1,
     expectedPrevLogBlock: -1,
     isFirstMessage: true,
+    chainAnchor: null,
+    frontier: -Infinity,
   };
 
   // Update tracking state from main thread gapfill
@@ -260,31 +356,133 @@ export function createStream(options: StreamOptions): Observable<NetworkEvent> {
     }
   });
 
-  // The tick source and its timer live HERE, in the closure that survives
-  // `retry`, for the same reason trackingState does: createRawStream is
-  // rebuilt on every reconnect, and at the measured cadence (one close per
-  // ~55 s) an interval owned by the raw subscription would be reset before a
-  // 120 s tick ever fired.
-  const reconcileTick$ = new Subject<void>();
+  // divergence 7 (1.0.0): the reconcile, its timer, its abort signal and its
+  // output all live HERE, in the closure that survives `retry` — not in the
+  // raw subscription, whose teardown (a no-frame timeout, a resubscribe) used
+  // to kill a pass mid-read.
+  const reconcileAbort = new AbortController();
+  const reconcileOut$ = new Subject<NetworkComponentUpdate<Components>>();
+  /** stream-side: the next pass starts at reconcileCursor + 1. The PUBLIC
+   * reconciledThrough moves on the apply side, when the pass is applied. */
+  let reconcileCursor: number | null = null;
+  let reconcileRunning = false;
+  let catchUpRunning = false;
   let reconcileTimer: ReturnType<typeof setInterval> | null = null;
+  let followUp: ReturnType<typeof setTimeout> | null = null;
+
+  /** The frontier rule (divergence 7): may a proven range [from, c] be
+   * applied? */
+  const frontierAllows = (from: number, c: number) =>
+    from > trackingState.frontier || c >= trackingState.frontier;
+
+  const runReconcile = async (): Promise<void> => {
+    if (reconcileRunning || reconcileAbort.signal.aborted) return;
+    reconcileRunning = true;
+    try {
+      syncHealth.reconcilePasses++;
+      syncHealth.lastReconcileAt = new Date().toISOString();
+      const through = reconcileCursor;
+      const cursor = trackingState.expectedPrevLogBlock;
+      // not yet seeded, or nothing new since the last pass: a real no-op
+      if (through === null || cursor < 0 || cursor <= through) return;
+      const from_ = through + 1;
+      const to = Math.min(cursor, through + RECONCILE_PASS_MAX_BLOCKS);
+      const r = await healRange({
+        from: from_,
+        to,
+        reason: 'reconcile',
+        fetchWorldEvents,
+        rpcHead,
+        signal: reconcileAbort.signal,
+        headWaitMs,
+        headPollMs,
+        partial: true,
+        paceMs: reconcilePaceMs,
+      });
+      if (!r.ok || reconcileAbort.signal.aborted) return;
+      const c = r.provenThrough;
+      if (c < from_) return; // nothing proven this pass; the stall marker watches
+      if (!frontierAllows(from_, c)) {
+        log.info(
+          `[heal] reconcile ${from_}..${c} proven, but the boot frontier is ${trackingState.frontier}: ` +
+            'nothing applied until a pass is proven through it'
+        );
+        return;
+      }
+      settleHeal(from_, c, r.ms);
+      reconcileCursor = c;
+      for (const e of r.events) reconcileOut$.next(e);
+      reconcileOut$.next(markerEvent({ anchor: from_ - 1, through: c, reconciled: true }));
+      // a window longer than one pass (the boot window): keep going, paced
+      if (c < cursor - HEAL_CHUNK_BLOCKS && !reconcileAbort.signal.aborted) {
+        followUp = setTimeout(() => void runReconcile(), reconcileCatchUpGapMs);
+        followUp.unref?.();
+      }
+    } catch (e) {
+      log.warn('[heal] reconcile pass failed', e);
+    } finally {
+      reconcileRunning = false;
+    }
+  };
+
+  /** divergence 9: a bounded proven read [appliedThrough + 1, target] for an
+   * --at-least waiter */
+  const runCatchUp = async (target: number): Promise<void> => {
+    if (catchUpRunning || reconcileAbort.signal.aborted) return;
+    const a = syncHealth.appliedThrough;
+    if (a === null || a >= target) return;
+    catchUpRunning = true;
+    try {
+      const from_ = a + 1;
+      const to = Math.min(target, a + CATCHUP_MAX_BLOCKS);
+      const r = await healRange({
+        from: from_,
+        to,
+        reason: 'catch-up',
+        fetchWorldEvents,
+        rpcHead,
+        signal: reconcileAbort.signal,
+        partial: true,
+      });
+      if (!r.ok || reconcileAbort.signal.aborted || r.provenThrough < from_) return;
+      if (!frontierAllows(from_, r.provenThrough)) return;
+      for (const e of r.events) reconcileOut$.next(e);
+      reconcileOut$.next(markerEvent({ anchor: a, through: r.provenThrough }));
+    } catch (e) {
+      log.warn('[heal] catch-up read failed', e);
+    } finally {
+      catchUpRunning = false;
+    }
+  };
+
   if (reconcileIntervalMs > 0) {
-    reconcileTimer = setInterval(() => reconcileTick$.next(), reconcileIntervalMs);
+    reconcileTimer = setInterval(() => void runReconcile(), reconcileIntervalMs);
     reconcileTimer.unref?.();
   } else {
     log.warn('[stream] periodic reconcile DISABLED (reconcileIntervalMs = 0)');
   }
+  syncHooks.requestCatchUp = (target: number) => void runCatchUp(target);
 
-  const reconcileFromSub = reconcileFrom$?.subscribe((blockNumber) => {
-    if (syncHealth.reconciledThrough === null || blockNumber > syncHealth.reconciledThrough) {
-      log.info(`[heal] reconcile baseline seeded at block ${blockNumber}`);
-      syncHealth.reconciledThrough = blockNumber;
+  const reconcileFromSub = reconcileFrom$?.subscribe((seed) => {
+    const { baseline, frontier } = typeof seed === 'number' ? { baseline: seed, frontier: seed } : seed;
+    if (reconcileCursor === null || baseline > reconcileCursor) {
+      log.info(
+        `[heal] reconcile baseline seeded at block ${baseline}` +
+          (frontier !== undefined && frontier > baseline ? ` (boot frontier ${frontier})` : '')
+      );
+      reconcileCursor = baseline;
+      if (syncHealth.reconciledThrough === null || baseline > syncHealth.reconciledThrough) {
+        syncHealth.reconciledThrough = baseline;
+      }
+      syncHealth.lastReconcileAdvanceAt = new Date().toISOString();
     }
+    trackingState.frontier = Math.max(trackingState.frontier, frontier ?? baseline);
   });
 
   /** raw (re)subscriptions, so the first one is not counted as a reconnect */
   let subscriptions = 0;
 
-  return new Observable<NetworkEvent>((subscriber) => {
+  const live$ = new Observable<NetworkEvent>((subscriber) => {
     // Subscribe to wake signal to trigger immediate reconnection
     const wakeSub = wakeSignal$?.subscribe(() => {
       log.debug('[kamigaze] Wake signal received, forcing reconnection');
@@ -306,7 +504,6 @@ export function createStream(options: StreamOptions): Observable<NetworkEvent> {
       timeoutMs,
       headWaitMs,
       headPollMs,
-      reconcileTick$,
       onMessage,
     }).subscribe({
       next: (v) => subscriber.next(v),
@@ -363,6 +560,11 @@ export function createStream(options: StreamOptions): Observable<NetworkEvent> {
         return timer(delayMs);
       },
     }),
+  );
+
+  // divergence 7: the reconcile's own output joins the stream's here, past
+  // `retry`, so a resubscribe never touches it
+  return merge(live$, reconcileOut$).pipe(
     // divergence (ruling (g)1): every closure-scoped resource createStream
     // owns is released here. Upstream has no such hook because a browser tab
     // releases them by going away.
@@ -370,7 +572,10 @@ export function createStream(options: StreamOptions): Observable<NetworkEvent> {
       blockUpdateSub?.unsubscribe();
       reconcileFromSub?.unsubscribe();
       if (reconcileTimer) clearInterval(reconcileTimer);
-      reconcileTick$.complete();
+      if (followUp) clearTimeout(followUp);
+      reconcileAbort.abort();
+      reconcileOut$.complete();
+      if (syncHooks.requestCatchUp) syncHooks.requestCatchUp = undefined;
     })
   );
 }
@@ -388,7 +593,6 @@ interface RawStreamOptions {
   timeoutMs: number;
   headWaitMs?: number;
   headPollMs?: number;
-  reconcileTick$: Subject<void>;
   onMessage?: () => void;
 }
 
@@ -409,7 +613,6 @@ function createRawStream(options: RawStreamOptions): Observable<NetworkEvent> {
     timeoutMs,
     headWaitMs,
     headPollMs,
-    reconcileTick$,
     onMessage,
   } = options;
 
@@ -431,9 +634,8 @@ function createRawStream(options: RawStreamOptions): Observable<NetworkEvent> {
     // divergence 4: the no-data timeout sits on the RAW FRAMES, so it
     // measures server silence and not the duration of a heal. onMessage
     // fires from the same tap for the same reason — the worker's health
-    // check reads it, and a reconcile tick of our own must never make a
-    // silent stream look alive.
-    const rawDone$ = new Subject<void>();
+    // check reads it. (Since 1.0.0 the reconcile is not in this pipeline at
+    // all — divergence 7 — so this timeout can no longer kill one.)
     const raw$ = from(response).pipe(
       timeout({
         first: timeoutMs,
@@ -444,59 +646,13 @@ function createRawStream(options: RawStreamOptions): Observable<NetworkEvent> {
             return new Error(`Stream timeout - no data received for ${timeoutMs / 1000}s`);
           }),
       }),
-      tap(() => onMessage?.()),
-      map((chunk) => ({ kind: 'chunk' as const, chunk })),
-      // the ticks below never end on their own, so merge() would never
-      // complete and a clean server end would hang instead of resubscribing.
-      // The raw source drives completion.
-      finalize(() => rawDone$.next())
+      tap(() => onMessage?.())
     );
-    const ticks$ = reconcileTick$.pipe(
-      map(() => ({ kind: 'tick' as const })),
-      takeUntil(rawDone$)
-    );
-
-    /**
-     * One reconcile pass, serialized with chunk processing by the same
-     * concatMap. Re-reads [reconciledThrough + 1, cursor] from the chain:
-     * a complete range ending AT THE CURSOR, which is exactly the condition
-     * under which re-applying cannot regress a key (§3.17).
-     */
-    const reconcilePass = async (): Promise<NetworkComponentUpdate<Components>[]> => {
-      syncHealth.reconcilePasses++;
-      syncHealth.lastReconcileAt = new Date().toISOString();
-      const through = syncHealth.reconciledThrough;
-      const cursor = trackingState.expectedPrevLogBlock;
-      // not yet seeded, or nothing new since the last pass: a real no-op
-      if (through === null || cursor < 0 || cursor <= through) return [];
-      const from_ = through + 1;
-      const r = await healRange({
-        from: from_,
-        to: cursor,
-        reason: 'reconcile',
-        fetchWorldEvents,
-        rpcHead,
-        signal: abort.signal,
-        headWaitMs,
-        headPollMs,
-      });
-      if (!r.ok) return [];
-      if (closed) {
-        log.warn('[stream] subscription torn down during heal; reconcile NOT advanced');
-        abandonHeal(from_, cursor, r.ms);
-        return [];
-      }
-      settleHeal(from_, cursor, r.ms);
-      syncHealth.reconciledThrough = cursor;
-      return r.events;
-    };
 
     let sub: Subscription | undefined;
-    sub = merge(raw$, ticks$)
+    sub = raw$
       .pipe(
-        concatMap(async (item) => {
-          if (item.kind === 'tick') return reconcilePass();
-          const responseChunk = item.chunk;
+        concatMap(async (responseChunk) => {
           clock.observeBlockTimestamp(responseChunk.blockTimestamp);
           let events: NetworkComponentUpdate<Components>[] = (await transformWorldEvents(
             responseChunk
@@ -507,6 +663,13 @@ function createRawStream(options: RawStreamOptions): Observable<NetworkEvent> {
 
           if (trackingState.isFirstMessage) {
             trackingState.isFirstMessage = false;
+            // divergence 8: the stream's chain of frames starts here; every
+            // later frame's applied mark is anchored on this block. The
+            // bootstrap fill covers through the stream's start block, so a
+            // first frame whose previous log is at or below it continues the
+            // boot without a hole; one that is not waits for the boot-window
+            // reconcile, which re-reads (baseline, ...] regardless (A3).
+            trackingState.chainAnchor = responseChunk.prevLogBlockNumber;
             log.debug(
               `Stream started at block ${responseChunk.blockNumber}, logIndex ${responseChunk.logIndex}`
             );
@@ -529,6 +692,7 @@ function createRawStream(options: RawStreamOptions): Observable<NetworkEvent> {
               const from_ = trackingState.expectedPrevLogBlock;
               const to = responseChunk.blockNumber;
               const healed = await healGap({
+                frontierOut: trackingState,
                 client,
                 decode,
                 fetchWorldEvents,
@@ -568,6 +732,20 @@ function createRawStream(options: RawStreamOptions): Observable<NetworkEvent> {
 
           if (events.length === 0) return [EmptyNetworkEvent];
 
+          // divergence 8: this frame passed the continuity check (or its gap
+          // was healed under the proof), so once it is applied every log of
+          // every block below it is in the mirror
+          if (trackingState.chainAnchor !== null && responseChunk.blockNumber > 0) {
+            const last = events[events.length - 1]!;
+            events[events.length - 1] = {
+              ...last,
+              appliedMark: {
+                anchor: trackingState.chainAnchor,
+                through: responseChunk.blockNumber - 1,
+              },
+            };
+          }
+
           if (includeSystemCalls && events.length > 0) {
             const systemCalls = parseSystemCalls(events);
             return [...events, ...systemCalls];
@@ -588,6 +766,8 @@ function createRawStream(options: RawStreamOptions): Observable<NetworkEvent> {
 }
 
 interface HealGapOptions {
+  /** the closure's tracking state, so a wide gap can raise the frontier */
+  frontierOut: { frontier: number };
   client: StreamClient;
   decode: Decode;
   fetchWorldEvents: FetchWorldEvents;
@@ -620,6 +800,7 @@ type HealedGap = {
 
 async function healGap(options: HealGapOptions): Promise<HealedGap | null> {
   const {
+    frontierOut,
     client,
     decode,
     fetchWorldEvents,
@@ -665,6 +846,9 @@ async function healGap(options: HealGapOptions): Promise<HealedGap | null> {
       '[stream]'
     )) as NetworkComponentUpdate<Components>[];
     latestBlock = gapResponse.latestBlock;
+    // divergence 7: these events carry no position; they may reflect writes
+    // up to the diff's head, which is where the frontier rule must reach
+    frontierOut.frontier = Math.max(frontierOut.frontier, latestBlock, to);
   } catch (e) {
     log.warn('[heal] Kamigaze getEventsSince failed on a wide gap — falling back to the chain', e);
   }

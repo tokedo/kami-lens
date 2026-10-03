@@ -13,7 +13,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const h = vi.hoisted(() => {
   const state = {
     fetchSnapshot: null as null | ((cache: unknown) => Promise<unknown>),
-    streams: [] as { reconcileFrom$?: { subscribe: (fn: (n: number) => void) => unknown } }[],
+    streams: [] as {
+      reconcileFrom$?: { subscribe: (fn: (n: number | { baseline: number }) => void) => unknown };
+    }[],
     seeds: [] as number[],
     fillGaps: [] as { fromBlock: number; toBlock: number }[],
   };
@@ -44,9 +46,11 @@ vi.mock('workers/sync/snapshot', () => ({
 vi.mock('workers/sync/stream', () => ({
   KEEPALIVE_INTERVAL_MS: 10_000,
   HEALTH_CHECK_BUFFER_MS: 2_000,
+  markerEvent: (mark: unknown) => ({ txHash: 'mark', appliedMark: mark }),
   createStream: (opts: (typeof h.streams)[number]) => {
     h.streams.push(opts);
-    opts.reconcileFrom$?.subscribe((n) => h.seeds.push(n));
+    // 1.0.0: the seed is {baseline, frontier}; a bare number is a baseline
+    opts.reconcileFrom$?.subscribe((n) => h.seeds.push(typeof n === 'number' ? n : n.baseline));
     return NEVER;
   },
   fillGap: async (opts: { fromBlock: number; toBlock: number }) => {

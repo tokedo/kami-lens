@@ -53,6 +53,17 @@ export type SyncHealth = {
   unhealedRanges: UnhealedRange[];
   /** wall duration of the most recent heal attempt */
   lastHealMs: number | null;
+  /** 1.0.0 (A2(a)): chunk reads the batch proof caught short — a backend
+   * whose own head was below the chunk's end answered, and the answer was
+   * NOT taken as complete. Each one is a regression the 0.6.x reconcile
+   * would have applied. */
+  shortReads: number;
+  /** 1.0.0 (A2(c)): updates the apply path refused because a NEWER write
+   * for the same key had already been applied (re-deliveries included) */
+  olderWritesSkipped: number;
+  /** 1.0.0 (A2): when reconciledThrough last ADVANCED (ISO), or null. Read
+   * by the `reconcile-stalled:<sec>` marker in `degraded`. */
+  lastReconcileAdvanceAt: string | null;
 };
 
 /** Bound on the reported list. A daemon accumulating more than this many
@@ -71,6 +82,9 @@ const initial = (): SyncHealth => ({
   lastReconcileAt: null,
   unhealedRanges: [],
   lastHealMs: null,
+  shortReads: 0,
+  olderWritesSkipped: 0,
+  lastReconcileAdvanceAt: null,
 });
 
 export const syncHealth: SyncHealth = initial();
@@ -174,4 +188,53 @@ export function resetSyncHealth(): void {
   syncHealth.unhealedRanges.length = 0;
   unhealedSinceWallMs = null;
   lastFullLoad = null;
+}
+
+// ------------------------------------------------ 1.0.0 (A5) applied marks
+
+/** Hooks the in-process sync worker registers for the daemon (1.0.0). */
+export const syncHooks: {
+  /** ask the stream for an immediate proven read up to `target` (A5) */
+  requestCatchUp?: (target: number) => void;
+} = {};
+
+/** Listeners called whenever appliedThrough advances (the --at-least wait). */
+const appliedListeners = new Set<(appliedThrough: number) => void>();
+
+export function onAppliedAdvance(fn: (appliedThrough: number) => void): () => void {
+  appliedListeners.add(fn);
+  return () => appliedListeners.delete(fn);
+}
+
+/** Act on one AppliedMark — called by the apply path AFTER the updates before
+ * it have been written, never by the stream (1.0.0, A5). Returns whether the
+ * reconcile bound advanced, so the caller can prune what it no longer needs
+ * to remember. */
+export function applyMark(mark: {
+  anchor: number | null;
+  through: number;
+  reconciled?: boolean;
+}): { reconciledAdvanced: boolean } {
+  const a = syncHealth.appliedThrough;
+  const anchored = mark.anchor === null || (a !== null && a >= mark.anchor);
+  if (anchored && (a === null || mark.through > a)) {
+    syncHealth.appliedThrough = mark.through;
+    for (const fn of appliedListeners) {
+      try {
+        fn(mark.through);
+      } catch {
+        /* a listener's failure is its own */
+      }
+    }
+  }
+  let reconciledAdvanced = false;
+  if (mark.reconciled) {
+    const r = syncHealth.reconciledThrough;
+    if (r !== null && mark.anchor !== null && r >= mark.anchor && mark.through > r) {
+      syncHealth.reconciledThrough = mark.through;
+      syncHealth.lastReconcileAdvanceAt = new Date().toISOString();
+      reconciledAdvanced = true;
+    }
+  }
+  return { reconciledAdvanced };
 }

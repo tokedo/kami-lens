@@ -24,7 +24,18 @@
  *           the values one (12.1 s against 44.6 s over a whole image,
  *           measured 2026-09-18) and it is not worth a second divergence in
  *           this body until a measurement asks for it.
- *           Everything else verbatim.
+ *           1.0.0 (A3), THE STAMP IS THE LOWEST BLOCK SERVED. The five calls
+           of a delta (GetStateBlock, GetComponents, GetState removals,
+           GetState values, GetEntities) are separate requests with no
+           stickiness between them, and the cache used to be stamped with the
+           block the FIRST one named. A GetState served by a replica behind
+           that block left the cache claiming blocks it never read — and the
+           10-minute checkpoint persisted the claim. Now the cache is stamped
+           with the lowest of the state block and each GetState stream's
+           last served block (a stream that served nothing names none), and
+           the highest of them is kept beside it (`servedHigh`) for the
+           reconcile's frontier rule.
+           Everything else verbatim.
  */
 
 import { ClientError, Status } from 'nice-grpc-web';
@@ -222,6 +233,9 @@ export const fetchSnapshot = async (
 
     options.stateCache.lastStateValuesBlock = options.stateCache.lastKamigazeBlock;
     options.stateCache.lastStateRemovalsBlock = options.stateCache.lastKamigazeBlock;
+    // 1.0.0 (A3): what each GetState stream was actually served at
+    const startValues = options.stateCache.lastStateValuesBlock;
+    const startRemovals = options.stateCache.lastStateRemovalsBlock;
 
     setMessage?.('Querying for Components');
     log.debug('[snapshot] Starting fetchComponents');
@@ -243,9 +257,28 @@ export const fetchSnapshot = async (
     log.debug('[snapshot] Starting fetchEntities');
     await fetchEntities(options);
 
-    storeStateBlock(options.stateCache, BlockResponse);
-    options.stateCache.lastKamigazeBlock = BlockResponse.blockNumber;
+    // 1.0.0 (A3): stamp with the LOWEST block served, keep the highest
+    const served = [BlockResponse.blockNumber];
+    if (options.stateCache.lastStateValuesBlock > startValues) {
+      served.push(options.stateCache.lastStateValuesBlock);
+    }
+    if (options.stateCache.lastStateRemovalsBlock > startRemovals) {
+      served.push(options.stateCache.lastStateRemovalsBlock);
+    }
+    const lowest = Math.min(...served);
+    const highest = Math.max(...served);
+    if (lowest < BlockResponse.blockNumber) {
+      log.info('[snapshot] delta served below its state block — stamping the lowest', {
+        stateBlock: BlockResponse.blockNumber,
+        values: options.stateCache.lastStateValuesBlock,
+        removals: options.stateCache.lastStateRemovalsBlock,
+        stamp: lowest,
+      });
+    }
+    storeStateBlock(options.stateCache, { ...BlockResponse, blockNumber: lowest });
+    options.stateCache.lastKamigazeBlock = lowest;
     options.stateCache.kamigazeNonce = BlockResponse.nonce;
+    options.stateCache.servedHigh = highest;
 
     log.debug('[snapshot] fetchSnapshot completed', {
       finalBlock: options.stateCache.lastKamigazeBlock,

@@ -168,10 +168,13 @@ const fakeClient = (block: number, nonce: number): KamigazeServiceClient =>
 // lastStateValuesBlock / lastStateRemovalsBlock are the two fields the CDN path
 // deliberately leaves alone (spec 6, step 5): the gRPC path sets them from the chunk
 // headers and both are overwritten on the next fetchSnapshot before anything reads them.
+// 1.0.0: so is `servedHigh` — the gRPC delta's highest served block, kept
+// beside its stamp for the reconcile's frontier; the CDN path never runs one.
 const comparable = (cache: StateCache) => ({
   ...cache,
   lastStateValuesBlock: 0,
   lastStateRemovalsBlock: 0,
+  servedHigh: undefined,
 });
 
 const warmCache = (block: number, nonce: number): StateCache => {

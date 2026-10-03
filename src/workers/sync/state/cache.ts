@@ -7,6 +7,8 @@
  *           (tripwires.decodeFailures, incremented inside createDecode) and
  *           logged with component/entity/bytes instead of aborting the sync
  *           attempt — upstream crashes the whole load on one bad row.
+ *           1.0.0 (A3): StateCache gains an optional, never-persisted
+ *           `servedHigh` (see the field).
  *           Everything else verbatim.
  */
 
@@ -41,6 +43,11 @@ export type StateCache = {
   kamigazeNonce: number;
   lastStateValuesBlock: number;
   lastStateRemovalsBlock: number;
+  /** 1.0.0 (A3), lens-only, never persisted: the HIGHEST block any stream of
+   * the last snapshot delta was served at. The cache is stamped with the
+   * LOWEST (what it may claim); this is how far its position-less values
+   * may reach (the reconcile's frontier). */
+  servedHigh?: number;
 };
 
 // create an empty StateCache

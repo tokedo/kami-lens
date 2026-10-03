@@ -71,7 +71,9 @@ export async function fetchGapEvents(
       `[gapfill] ${new Date().toISOString()} Got ${events.length} events from Kamigaze - latestBlock ${gapResponse.latestBlock}`
     );
     setPercentage?.(100);
-    return events;
+    // 1.0.0 (A3): these events carry no position, and they may reflect writes
+    // up to the diff's own head — the reconcile's frontier must reach it
+    return Object.assign(events, { latestBlock: gapResponse.latestBlock });
   } catch (err) {
     log.warn(
       `[gapfill] ${new Date().toISOString()} Kamigaze getEventsSince failed, falling back to RPC:`,

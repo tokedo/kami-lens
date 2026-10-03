@@ -8,7 +8,12 @@
  */
 
 export {
+  CATCHUP_MAX_BLOCKS,
   createStream,
+  markerEvent,
+  RECONCILE_PACE_MS,
+  RECONCILE_PASS_MAX_BLOCKS,
+  type ReconcileSeed,
   HEALTH_CHECK_BUFFER_MS,
   KEEPALIVE_INTERVAL_MS,
   RATE_LIMIT_DELAY_CAP_MS,

@@ -140,6 +140,25 @@
  *              flag, initOnce() checks it after every await (`stopped()`), a
  *              disposer registered after disposal runs at once (`own()`), and
  *              no retry is scheduled by a disposed worker.
+ *          18. THE BOOT WINDOW IS CHAIN-VERIFIED (1.0.0, A3). The reconcile
+ *              baseline used to be seeded at the stream's start block, so
+ *              nothing below it — the snapshot delta, the bootstrap gap fill,
+ *              the unchecked first stream frame — was ever re-read from the
+ *              chain. It is now seeded at the block this process's state may
+ *              CLAIM: the cached block from BEFORE the delta on a warm boot,
+ *              the image block on a CDN cold boot, the full load's (lowest
+ *              served) stamp on a gRPC one; and with it the FRONTIER, the
+ *              highest block any position-less data loaded at boot may reflect
+ *              (the delta's highest served block, the diff's head, the stream
+ *              start, the buffered frames). The reconcile then re-reads the
+ *              window after LIVE, paced, and applies it only once it is proven
+ *              through the frontier (stream.ts divergence 7). Two bounds keep
+ *              that window cheap: a warm cache more than BOOT_REPLAY_MAX_BLOCKS
+ *              behind the chain is released for a cold load, and a CDN image
+ *              more than that behind is declined for the gRPC full load.
+ *          19. THE BOOTSTRAP's APPLIED MARK (1.0.0, A5): just before LIVE a
+ *              marker update says everything through the stream's start block
+ *              is applied (the fill covered it); appliedThrough starts there.
  *           Type-hole fix: the snapshot catch block reads e.code on an
  *           unknown catch variable — cast to {code?: unknown} (upstream is
  *           vite-transpiled and never typechecked; no behavior change).
@@ -207,6 +226,8 @@ import {
   fillGap,
   HEALTH_CHECK_BUFFER_MS,
   KEEPALIVE_INTERVAL_MS,
+  markerEvent,
+  type ReconcileSeed,
   type RpcHeadSource,
 } from './stream';
 import {
@@ -239,6 +260,15 @@ export const shouldReleaseCacheForCdn = (
   manifest: { nonce: number }
 ): boolean => manifest.nonce !== cache.kamigazeNonce && cache.state.size > 0;
 
+/** Divergence 18 (1.0.0, A3): the longest boot window the daemon will
+ * re-read from the chain rather than load cold. On the order of the state
+ * CDN's export interval (~2 h): measured 2026-10-03, the chain ran 2.0-2.75 s
+ * per block over the preceding day, so 4,000 blocks is 2.2-3 h. Re-reading
+ * it costs ~80 batched requests, paced, after LIVE; a CDN cold load costs
+ * ~2 minutes and a ~4.5 GB heap peak. Far below the RPC's log retention
+ * (~1.02 M blocks), which is the hard bound the brief named. */
+export const BOOT_REPLAY_MAX_BLOCKS = 4_000;
+
 export enum InputType {
   Ack,
   Config,
@@ -265,7 +295,7 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
   /** seeds the stream's reconcile baseline once the bootstrap gap-fill has
    * landed (§3.17): every block up to streamStartBlockNumber is then known
    * to have been read completely. */
-  private reconcileFrom$ = new Subject<number>();
+  private reconcileFrom$ = new Subject<number | ReconcileSeed>();
   private lastMessageTime = Date.now();
   private syncState: SyncStatus = { state: SyncState.CONNECTING, msg: '', percentage: 0 };
   private config?: SyncWorkerConfig;
@@ -452,10 +482,38 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
     if (this.stopped('cache load')) return;
     console.log('INITIAL STATE (PRE-SYNC)', getStateReport(initialState));
 
+    // divergence 18: the chain head, for the two boot-window bounds. One
+    // eth_blockNumber; if it fails the bounds are simply not applied.
+    let bootHead: number | undefined;
+    try {
+      bootHead = await provider.getBlockNumber();
+    } catch (e) {
+      log.warn('[boot] head read failed — boot-window bounds not applied', e);
+    }
+    if (this.stopped('head read')) return;
+    if (
+      bootHead !== undefined &&
+      initialState.lastKamigazeBlock > 0 &&
+      bootHead - initialState.lastKamigazeBlock > BOOT_REPLAY_MAX_BLOCKS
+    ) {
+      log.warn('[boot] cached state is too far behind to verify by replay — loading cold', {
+        cachedBlock: initialState.lastKamigazeBlock,
+        head: bootHead,
+        behind: bootHead - initialState.lastKamigazeBlock,
+        limit: BOOT_REPLAY_MAX_BLOCKS,
+      });
+      initialState = createStateCache();
+    }
+    // the block the loaded state may claim, BEFORE any delta (divergence 18)
+    const preDeltaBlock = initialState.lastKamigazeBlock;
+    const preDeltaNonce = initialState.kamigazeNonce;
+
     const kamigazeClient = snapshotUrl ? createSnapshotClient(snapshotUrl) : undefined;
     const setPercentage = (percentage: number) => this.setLoadingState({ percentage });
     const setMessage = (msg: string) => this.setLoadingState({ msg });
     let loadedFromCdn = false;
+    /** divergence 18: the CDN image's block, when the CDN path ran */
+    let cdnImageBlock = 0;
 
     if (kamigazeClient) {
       this.setLoadingState({ msg: 'Querying for Components', percentage: 0 });
@@ -467,9 +525,20 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
         const cachedBlockBeforeLoad = initialState.lastKamigazeBlock;
         const cachedNonceBeforeLoad = initialState.kamigazeNonce;
 
-        const manifest = config.stateCdnUrl
+        let manifest = config.stateCdnUrl
           ? await planCdnLoad(config.stateCdnUrl, kamigazeClient, initialState)
           : undefined;
+        // divergence 18: an image too far behind to verify by replay is
+        // declined; the gRPC full load is stamped near the head instead
+        if (manifest && bootHead !== undefined && bootHead - manifest.block > BOOT_REPLAY_MAX_BLOCKS) {
+          log.warn('[cdn] image is too far behind to verify by replay — using the gRPC full load', {
+            imageBlock: manifest.block,
+            head: bootHead,
+            limit: BOOT_REPLAY_MAX_BLOCKS,
+          });
+          manifest = undefined;
+        }
+        if (manifest) cdnImageBlock = manifest.block;
 
         // divergence 8: the old cache is dead the moment the manifest's nonce
         // disagrees with it — fetchSnapshot's own nonce test would throw it
@@ -706,12 +775,32 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
     if (this.stopped('gap fill')) return;
     storeStateEvents(stateCache.current, [...gapStateEvents, ...initialLiveEvents]);
 
-    // divergence 7 (§3.17) + divergence 9 (0.6.2): the reconcile baseline.
-    // Everything up to the stream's start block has now been read as a
-    // complete range, so the periodic reconcile starts from here rather than
-    // from block 0. It fires HERE, below the merge, on BOTH gap paths — the
-    // bridge closes exactly the window fillGap does.
-    this.reconcileFrom$.next(streamStartBlockNumber);
+    // divergence 7 + 9 + 18 (1.0.0): the reconcile baseline is the block this
+    // process's loaded state may CLAIM — never the stream's start block, which
+    // would put the whole boot window (delta, gap fill, first frame) below the
+    // reconcile, unverified forever. It fires HERE, below the merge, on BOTH
+    // gap paths.
+    const baseline = loadedFromCdn
+      ? cdnImageBlock
+      : preDeltaBlock > 0 && preDeltaNonce === stateCache.current.kamigazeNonce
+        ? preDeltaBlock
+        : stateCache.current.lastKamigazeBlock;
+    const frontier = Math.max(
+      baseline,
+      stateCache.current.lastKamigazeBlock,
+      stateCache.current.servedHigh ?? 0,
+      (gapStateEvents as { latestBlock?: number }).latestBlock ?? 0,
+      streamStartBlockNumber,
+      ...initialLiveEvents.map((e) => e.blockNumber)
+    );
+    const seed: ReconcileSeed = { baseline, frontier };
+    log.info('[boot] reconcile seeded for the boot window', {
+      ...seed,
+      kind: loadedFromCdn ? 'cdn' : preDeltaBlock > 0 ? 'warm' : 'grpc-full',
+      window: Math.max(0, streamStartBlockNumber - baseline),
+      streamStart: streamStartBlockNumber,
+    });
+    this.reconcileFrom$.next(seed);
 
     /*
      * INITIALIZE STATE
@@ -756,6 +845,10 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
       }, delay);
       return;
     }
+
+    // divergence 19: appliedThrough starts at the stream's start block — the
+    // fill covered everything up to it (A5)
+    this.output$.next(markerEvent({ anchor: null, through: streamStartBlockNumber }) as NetworkEvent<C>);
 
     /*
      * FINISH

@@ -13,28 +13,35 @@ import { fetchEventsInBlockRangeChunked } from 'workers/sync/utils';
 // --------------------------------------------------------------- fakes ----
 
 /** Records every [from, to] it is asked for, in call order, and answers with
- * one event per requested block stamped `blockNumber = to` — the same stamp
- * createFetchWorldEventsInBlockRange applies (workers/sync/utils.ts). */
-export function makeFetchWorldEvents(options: { stallMs?: number; empty?: boolean } = {}) {
+ * one event per requested block at its own (block, logIndex 0) — the shape
+ * the 1.0.0 createFetchWorldEventsInBlockRange produces — PROVEN through `to`
+ * (a fresh backend: its batch head is past the range). `provenHead` models a
+ * lagging one. */
+export function makeFetchWorldEvents(
+  options: { stallMs?: number; empty?: boolean; provenHead?: number } = {}
+) {
   const ranges: [number, number][] = [];
   let stallMs = options.stallMs ?? 0;
   const fn = async (from: number, to: number) => {
     ranges.push([from, to]);
     if (stallMs > 0) await new Promise((r) => setTimeout(r, stallMs));
-    if (options.empty) return [];
+    const head = options.provenHead ?? to + 1;
+    const provenThrough = Math.min(to, head - 1);
+    if (options.empty) return Object.assign([], { provenThrough, batchHead: head });
     const out: NetworkComponentUpdate<Components>[] = [];
-    for (let b = from; b <= to; b++) {
+    for (let b = from; b <= Math.min(to, head); b++) {
       out.push({
         type: NetworkEvents.NetworkComponentUpdate,
         component: '0xcomp',
         entity: `0x${b.toString(16)}`,
         value: undefined,
-        blockNumber: to,
+        blockNumber: b,
+        logIndex: 0,
         lastEventInTx: true,
         txHash: `0xtx${b}`,
       } as unknown as NetworkComponentUpdate<Components>);
     }
-    return out;
+    return Object.assign(out, { provenThrough, batchHead: head });
   };
   return Object.assign(fn, {
     ranges,
@@ -113,6 +120,7 @@ import {
   settleHeal,
 } from 'workers/sync/stream/heal';
 import {
+  applyMark,
   recordUnhealed,
   resetSyncHealth,
   syncHealth,
@@ -576,7 +584,12 @@ describe('the periodic reconcile (§3.17)', () => {
     reconcileFrom$.next(100); // the bootstrap gap-fill landed at block 100
     expect(syncHealth.reconciledThrough).toBe(100);
 
-    const sub = stream$.subscribe(() => {});
+    // 1.0.0: reconciledThrough moves when the pass is APPLIED — the apply
+    // path acts on the pass's closing marker (network/setup/utils.ts)
+    const sub = stream$.subscribe((e) => {
+      const mark = (e as { appliedMark?: Parameters<typeof applyMark>[0] }).appliedMark;
+      if (mark) applyMark(mark);
+    });
     await new Promise((r) => setTimeout(r, 220));
     sub.unsubscribe();
 
@@ -711,7 +724,8 @@ describe('status.sync is declared where it must be', () => {
         return t === 'string' || (Array.isArray(t) && t.includes('string'));
       })
       .map(([k]) => k);
-    expect(stringLeaves).toEqual(['lastReconcileAt']);
+    // 1.0.0 adds lastReconcileAdvanceAt (the reconcile-stalled clock)
+    expect(stringLeaves.sort()).toEqual(['lastReconcileAdvanceAt', 'lastReconcileAt']);
     for (const leaf of stringLeaves) expect(cls.types.Sync?.[leaf]).toBe('system');
   });
 });
