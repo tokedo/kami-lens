@@ -200,11 +200,11 @@ withdrawals and an exact pool quote — and moves to the current game client.
    `lastReconcileAdvanceAt`. `degraded` can now say
    `reconcile-stalled:<seconds>`.
 10. **Shop prices on decaying listings can read higher than before — and
-    now match what the game charges.** Since late July the game floors a
-    falling-price listing at three periods of decay and charges at least 1
-    per unit; the client this daemon followed did not, so `merchant` could
-    show a price below the one you would pay. It now applies the same
-    floor.
+    now match what the game charges.** The game's contracts floor a
+    falling-price listing at three periods of decay and charge at least 1
+    per unit; the client version this daemon followed until now did not,
+    so `merchant` could show a price below the one you would pay. It now
+    applies the same floor, as the current game client does.
 11. **`version` reads `1.0.0` and `upstreamPin` reads `ffda3963…`.**
 
 Everything else is new and only appears when you ask for it:
