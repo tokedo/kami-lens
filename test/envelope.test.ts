@@ -364,7 +364,8 @@ describe('meta.reconciledThrough (§3.15, 0.6.1)', () => {
   it('the full meta key set is exactly what the contract names', () => {
     const env = buildEnvelope(structuredClone(DATA), loadSchema('room'), META);
     expect(Object.keys(env.meta).sort()).toEqual(
-      ['asOf', 'blockNumber', 'mode', 'reconciledThrough', 'servedAt', 'stale'].sort()
+      // 1.0.0 (A5): appliedThrough joins the always-present set
+      ['appliedThrough', 'asOf', 'blockNumber', 'mode', 'reconciledThrough', 'servedAt', 'stale'].sort()
     );
   });
 });

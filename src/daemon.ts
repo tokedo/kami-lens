@@ -61,6 +61,7 @@ import {
 } from './sync-health';
 import { Tripwires, absorbTripwires, tripwireReport } from './tripwires';
 import { heapLimitMb, heapSource, type HeapSource } from './heap';
+import { incompleteRowsReport, type IncompleteRows } from './projection-health';
 
 /** Documented error marker for refusing a cold start without a snapshot
  * source (DESIGN §3.1; asserted by gate G1.e). */
@@ -139,6 +140,10 @@ export type DaemonStatus = {
    * (an unhealed range that has outlived two reconcile intervals) does reach
    * `degraded`, as `unhealed-ranges:<N>`. */
   sync: SyncHealth & { reconcileIntervalMs: number };
+  /** 1.0.0 (A1): kamis the projection could not complete — refused on a
+   * single-entity read, flagged on a list read. A counter, not a tripwire:
+   * it never reaches `degraded` (see projection-health.ts). */
+  incompleteRows: IncompleteRows;
   /** §3.1 (0.6.2): which source served this process's full state load, and
    * how long it took. null on a WARM boot, which ran no full load at all —
    * that is not a fault, and is why the field is null rather than absent. */
@@ -401,7 +406,14 @@ export class KamiLensDaemon {
             continue;
           }
           if (update.blockNumber > this.liveBlockNumber) this.liveBlockNumber = update.blockNumber;
+          // 1.0.0 (A1): the first event after a stall re-anchors the clock now
+          // — not at the next 300 s tick (see syncClock)
+          const wasStalled =
+            this.liveAt !== null &&
+            this.lastStreamEventAtWallMs > 0 &&
+            Date.now() - this.lastStreamEventAtWallMs > KamiLensDaemon.STREAM_STALL_MS;
           this.lastStreamEventAtWallMs = Date.now();
+          if (wasStalled) void this.syncClock().catch((e) => log.warn('[daemon] clock sync failed', e));
         }
       })
     );
@@ -567,8 +579,22 @@ export class KamiLensDaemon {
     this.clockSyncTimer.unref?.();
   }
 
+  /** the block the last clock sample was taken on (1.0.0, A1) */
+  private lastClockSampleBlock = 0;
+
+  /** 1.0.0 (A1), THE POST-STALL RULE: a clock sample is taken only on a block
+   * NEWER than the previous sample's. Across a stream stall liveBlockNumber
+   * freezes, and re-observing the frozen block's header pins now() to that
+   * block's time — the projection clock stops while wall time runs on, and
+   * every projection quietly computes on a past instant (up to the whole
+   * stall). Skipping the sample keeps now() = wall time + the last measured
+   * offset, the best estimate there is. The first event after a stall then
+   * re-anchors immediately (see the status tap in bootstrap) rather than up to
+   * 300 s later. While the stall lasts, `degraded` carries stream-stalled and
+   * every answer is stamped stale. */
   private async syncClock(): Promise<void> {
     if (this.stopped || !this.liveBlockNumber) return;
+    if (this.liveBlockNumber <= this.lastClockSampleBlock) return;
     const { chainId, jsonRpcUrl } = this.config;
     this.clockProvider ??= new JsonRpcProvider(
       jsonRpcUrl,
@@ -580,7 +606,10 @@ export class KamiLensDaemon {
     // `observedBlock` in 0.6.1 with the envelope fields it feeds.
     const clockSampleBlock = this.liveBlockNumber;
     const block = await this.clockProvider.getBlock(clockSampleBlock);
-    if (block) clock.observeBlockTimestamp(block.timestamp, clockSampleBlock);
+    if (block && clockSampleBlock > this.lastClockSampleBlock) {
+      clock.observeBlockTimestamp(block.timestamp, clockSampleBlock);
+      this.lastClockSampleBlock = clockSampleBlock;
+    }
   }
 
   /** Bounded bootstrap retry (DESIGN §3.2): upstream shows the player an
@@ -786,6 +815,7 @@ export class KamiLensDaemon {
         ...(this.rpcLastError !== null ? { lastError: this.rpcLastError } : {}),
       },
       sync: { ...sync, reconcileIntervalMs },
+      incompleteRows: incompleteRowsReport(),
       lastFullLoad: fullLoadReport(),
       // read at answer time rather than cached at construction: the
       // re-exec (§3.1) happens before the daemon exists, so the value here

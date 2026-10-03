@@ -93,6 +93,26 @@
         },
         "liquidation": {
           "$ref": "#/$defs/Liquidation"
+        },
+        "incomplete": {
+          "const": true,
+          "description": "1.0.0 (A1): present, and true, only on a row whose kami the mirror cannot project completely (a required join — stats, progress, times, or an active harvest on a resolvable node while HARVESTING — is missing). Such a row carries NO vitals. Counted in meta.incompleteRows. A flagged row also carries no `liquidation` block."
+        }
+      },
+      "if": {
+        "properties": {
+          "incomplete": {
+            "const": true
+          }
+        },
+        "required": [
+          "incomplete"
+        ]
+      },
+      "then": {
+        "properties": {
+          "vitals": false,
+          "liquidation": false
         }
       }
     },

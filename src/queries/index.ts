@@ -8,6 +8,7 @@
 import { Mirror, QueryError } from './build';
 import { buildEnvelope, Envelope, EnvelopeOptions } from './envelope';
 import { QueryCtx } from './feeds';
+import { syncHealth } from '../sync-health';
 import { loadSchema, QUERY_NAMES, QueryName, REGISTRY } from './registry';
 
 export type { AsOf, Envelope, EnvelopeOptions } from './envelope';
@@ -34,11 +35,15 @@ export async function serveQuery(
   }
   const ctx = toCtx(target);
   const args = def.parseArgs(positional);
+  // 1.0.0 (A5): captured at DISPATCH, beside blockNumber — every write
+  // through it is in the mirror this answer reads (a lower bound; an async
+  // builder may also see later writes, never fewer)
+  const appliedThrough = opts.mode === 'stateless' ? null : syncHealth.appliedThrough;
   const data = await def.build(ctx, args, opts);
   return buildEnvelope(
     data,
     loadSchema(def.name),
-    { blockNumber: ctx.mirror.blockNumber, stale: opts.stale, mode: opts.mode },
+    { blockNumber: ctx.mirror.blockNumber, stale: opts.stale, mode: opts.mode, appliedThrough },
     def.forcesProse ? { ...opts, prose: true } : opts
   );
 }

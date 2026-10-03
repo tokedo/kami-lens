@@ -123,12 +123,33 @@ export type Envelope<T> = {
      * APPLIED state and advances on whatever the stream happened to deliver;
      * this one advances only over ranges read completely from the chain. */
     reconciledThrough: number | null;
+    /** 1.0.0 (A5): every write of every block up to and including this one
+     * had been applied to the mirror when the answer began building — the
+     * answer to "is my transaction reflected here?" (yes iff appliedThrough
+     * >= the receipt's block). Advanced by the bootstrap fill, by every
+     * continuity-checked stream frame (frame block − 1: frames are one per
+     * log, in order), and by every proven chain read contiguous with it.
+     * `null` before LIVE and on paths with no sync worker. Always >=
+     * `reconciledThrough` when both are set. */
+    appliedThrough: number | null;
     stale: boolean;
     mode: 'daemon' | 'stateless';
     asOf: AsOf;
+    /** 1.0.0 (A1): how many rows of this answer are `incomplete: true` —
+     * present only when there is at least one (the `suppressed` precedent) */
+    incompleteRows?: number;
     suppressed?: string[];
   };
 };
+
+/** Count the `incomplete: true` rows anywhere in an answer (1.0.0, A1). */
+export function countIncomplete(value: unknown): number {
+  if (Array.isArray(value)) return value.reduce((n: number, v) => n + countIncomplete(v), 0);
+  if (value === null || typeof value !== 'object') return 0;
+  let n = (value as { incomplete?: unknown }).incomplete === true ? 1 : 0;
+  for (const v of Object.values(value)) if (v !== null && typeof v === 'object') n += countIncomplete(v);
+  return n;
+}
 
 /** Build the §3.8 asOf block for one answer.
  *
@@ -354,7 +375,13 @@ function findNonFinite(value: unknown, at = ''): string | null {
 export function buildEnvelope<T>(
   data: T,
   schema: QuerySchema,
-  meta: { blockNumber: number; stale: boolean; mode: 'daemon' | 'stateless' },
+  meta: {
+    blockNumber: number;
+    stale: boolean;
+    mode: 'daemon' | 'stateless';
+    /** captured at dispatch by the caller; read here when not passed */
+    appliedThrough?: number | null;
+  },
   options: EnvelopeOptions = {}
 ): Envelope<T> {
   const classes = classifyPaths(schema);
@@ -388,21 +415,28 @@ export function buildEnvelope<T>(
     .map(([p]) => p)
     .sort();
 
+  const incompleteRows = countIncomplete(data);
   return {
     data,
     untrusted,
     meta: {
       servedAt: new Date().toISOString(),
-      ...meta,
+      blockNumber: meta.blockNumber,
+      stale: meta.stale,
+      mode: meta.mode,
       // §3.15 (0.6.1): the verified lower bound, on EVERY answer. It was
       // reachable only through `status.sync` before, which is not the answer
       // a reader is about to act on — and a consumer misread the CLOCK
       // anchor below as mirror lag twice for exactly that reason.
       reconciledThrough: syncHealth.reconciledThrough,
+      // 1.0.0 (A5): the applied lower bound, on EVERY answer — see the type
+      appliedThrough:
+        meta.appliedThrough !== undefined ? meta.appliedThrough : syncHealth.appliedThrough,
       // §3.8 (0.5.2): stamped here, in the ONE place every answer passes
       // through, so "the same shape everywhere" is structural rather than a
       // convention twenty-five builders are trusted to keep.
       asOf: buildAsOf(meta.blockNumber),
+      ...(incompleteRows > 0 ? { incompleteRows } : {}),
       ...(suppressed.length > 0 ? { suppressed: suppressed.sort() } : {}),
     },
   };

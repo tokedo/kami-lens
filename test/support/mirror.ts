@@ -32,9 +32,9 @@ export const packArray32 = (values: number[]): string => {
   return '0x' + packed.toString(16);
 };
 
-/** The live world's own kami config values at the time of writing — and, as
- * on the live world, NO `KAMI_REST_RECOVERY` field, which is what makes the
- * ported isFalsey guard never stamp the config sub-object. */
+/** The live world's own kami config arrays, read with `config <name> --array`
+ * on 2026-10-03 — and, as on the live world, NO `KAMI_REST_RECOVERY` field,
+ * the one the ported getter reads that this world does not define. */
 export const LIVE_KAMI_CONFIG: Record<string, number[]> = {
   KAMI_HARV_BOUNTY: [0, 9, 0, 0, 0, 0, 1000, 3],
   KAMI_HARV_EFFICACY_BODY: [3, 0, 650, 250, 0, 0, 0, 0],
@@ -44,23 +44,49 @@ export const LIVE_KAMI_CONFIG: Record<string, number[]> = {
   KAMI_HARV_STRAIN: [20, 0, 6500, 3, 0, 0, 1000, 3],
   KAMI_LIQ_ANIMOSITY: [0, 0, 400, 3, 0, 0, 0, 0],
   KAMI_LIQ_EFFICACY: [3, 0, 500, 500, 200, 0, 0, 0],
-  KAMI_LIQ_THRESHOLD: [0, 3, 1000, 3, 0, 3, 0, 3],
+  KAMI_LIQ_THRESHOLD: [0, 3, 1000, 3, 0, 3, 0, 0],
   KAMI_LIQ_SALVAGE: [0, 2, 0, 3, 0, 0, 0, 0],
   KAMI_LIQ_SPOILS: [45, 2, 0, 3, 0, 0, 0, 0],
   KAMI_LIQ_KARMA: [0, 0, 2000, 3, 0, 0, 0, 0],
   KAMI_LIQ_RECOIL: [1000, 3, 0, 0, 0, 0, 1000, 3],
   KAMI_LIQ_KARMA_EFFICACY: [3, 0, 1000, 1000, 400, 0, 0, 0],
   KAMI_REST_METABOLISM: [20, 0, 600, 3, 0, 0, 1000, 3],
+  KAMI_TREE_REQ: [0, 5, 15, 25, 40, 55, 75, 95],
+  KAMI_LVL_REQ_MULT_BASE: [1259, 3, 0, 0, 0, 0, 0, 0],
 };
 
-export function makeMirror(blockNumber = 1_000): SyntheticMirror {
+/** The live world's scalar kami config values (`config <name>`, 2026-10-03). */
+export const LIVE_KAMI_CONFIG_VALUES: Record<string, number> = {
+  KAMI_STANDARD_COOLDOWN: 180,
+  KAMI_LVL_REQ_BASE: 40,
+};
+
+/** Read by the ported getter, NOT defined by the live world. */
+export const LIVE_KAMI_CONFIG_UNDEFINED = ['KAMI_REST_RECOVERY'];
+
+export function makeMirror(
+  blockNumber = 1_000,
+  opts: { omitConfig?: string[] } = {}
+): SyntheticMirror {
   const world = createWorld();
   const components = createComponents(world);
   const mirror = { world, components, blockNumber };
+  // entity index 0 is falsy, and the ported getters read `if (!entity)` as
+  // "absent" (network/shapes/Config/types.ts) — on the live world index 0 is
+  // never a config or kami entity, so it is never one here either
+  world.registerEntity({ id: '0x0' as never });
+  const omit = new Set(opts.omitConfig ?? []);
   for (const [field, values] of Object.entries(LIVE_KAMI_CONFIG)) {
+    if (omit.has(field)) continue;
     const id = hashArgs(['is.config', field], ['string', 'string']);
     const e = world.registerEntity({ id });
     setComponent(components.Value, e, { value: packArray32(values) as unknown as number });
+  }
+  for (const [field, value] of Object.entries(LIVE_KAMI_CONFIG_VALUES)) {
+    if (omit.has(field)) continue;
+    const id = hashArgs(['is.config', field], ['string', 'string']);
+    const e = world.registerEntity({ id });
+    setComponent(components.Value, e, { value: ('0x' + value.toString(16)) as unknown as number });
   }
   return mirror;
 }

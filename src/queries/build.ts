@@ -11,7 +11,10 @@
 import * as clock from 'clock';
 
 import { tripwires } from '../tripwires';
+import { recordIncomplete } from '../projection-health';
 import { calcCurrentStamina } from 'app/cache/account';
+import { getConfigArray, getConfigValue } from 'app/cache/config';
+import { isRealConfigArray } from 'app/cache/config/base';
 import { cleanInventories } from 'app/cache/inventory';
 import {
   calcCooldown,
@@ -38,7 +41,14 @@ import {
   onCooldown,
 } from 'app/cache/kami/calcs';
 import { calcListingBuyPrice, calcListingSellPrice } from 'app/cache/npc';
-import { EntityIndex, HasValue, World, getComponentValue, runQuery } from 'engine/recs';
+import {
+  EntityIndex,
+  HasValue,
+  World,
+  getComponentValue,
+  hasComponent,
+  runQuery,
+} from 'engine/recs';
 import { formatEntityID } from 'engine/utils';
 import { id as keccakOfString } from 'ethers';
 import { Components } from 'network/';
@@ -344,7 +354,15 @@ export class QueryError extends Error {
       | 'CONFIG_UNAVAILABLE'
       /** §3.14: a non-finite value reached the serialization boundary, where
        * JSON would have turned it into a plausible-looking `null`. */
-      | 'NOT_FINITE',
+      | 'NOT_FINITE'
+      /** 1.0.0 (A1): a single-entity read of a kami the mirror cannot give a
+       * complete projection — a required join (stats, progress, times, or an
+       * active harvest on a resolvable node while HARVESTING) is missing.
+       * Refused rather than served as a healthy kami with hp 0/0. */
+      | 'INCOMPLETE'
+      /** 1.0.0 (A5): `--at-least <block>` timed out before the mirror had
+       * applied that block. The error carries the current `appliedThrough`. */
+      | 'NOT_APPLIED',
     message: string
   ) {
     super(message);
@@ -353,22 +371,83 @@ export class QueryError extends Error {
 
 // ------------------------------------------------- §3.14 honest vitals (0.5.0)
 
+/** The kami config fields the projection consumes AND the live world defines
+ * (1.0.0, A1). Read off the world itself on 2026-10-03 with `config <name>`:
+ * every one answers a real value. The ported getter also reads
+ * KAMI_REST_RECOVERY, which this world does NOT define (`config` answers
+ * NOT_FOUND) — so it is not required here, and it is exactly why the 0.5.0
+ * guard below was vacuous: the ported isFalsey ORs over all sixteen
+ * sub-blocks, the missing one is always "falsey", and the per-kami probe
+ * (one finite number) could never tell a hydrated config from an absent one.
+ *
+ * `array` fields must hold a REAL config array (isRealConfigArray: not the
+ * empty not-yet-hydrated read, not the eight-zeros missing-entity read).
+ * That is a presence test, not a non-zero test, on purpose: KAMI_LIQ_SALVAGE
+ * is [0,2,0,3,0,0,0,0] on the live world, all four VALUES zero, and is
+ * perfectly healthy. `value` fields must be finite and non-zero (both live
+ * ones are: 180 and 40). */
+export const REQUIRED_KAMI_CONFIG: ReadonlyArray<{ field: string; kind: 'array' | 'value' }> = [
+  { field: 'KAMI_HARV_BOUNTY', kind: 'array' },
+  { field: 'KAMI_HARV_EFFICACY_BODY', kind: 'array' },
+  { field: 'KAMI_HARV_EFFICACY_HAND', kind: 'array' },
+  { field: 'KAMI_HARV_FERTILITY', kind: 'array' },
+  { field: 'KAMI_HARV_INTENSITY', kind: 'array' },
+  { field: 'KAMI_HARV_STRAIN', kind: 'array' },
+  { field: 'KAMI_LIQ_ANIMOSITY', kind: 'array' },
+  { field: 'KAMI_LIQ_EFFICACY', kind: 'array' },
+  { field: 'KAMI_LIQ_THRESHOLD', kind: 'array' },
+  { field: 'KAMI_LIQ_SALVAGE', kind: 'array' },
+  { field: 'KAMI_LIQ_SPOILS', kind: 'array' },
+  { field: 'KAMI_LIQ_KARMA', kind: 'array' },
+  { field: 'KAMI_LIQ_RECOIL', kind: 'array' },
+  { field: 'KAMI_LIQ_KARMA_EFFICACY', kind: 'array' },
+  { field: 'KAMI_REST_METABOLISM', kind: 'array' },
+  { field: 'KAMI_TREE_REQ', kind: 'array' },
+  { field: 'KAMI_LVL_REQ_MULT_BASE', kind: 'array' },
+  { field: 'KAMI_STANDARD_COOLDOWN', kind: 'value' },
+  { field: 'KAMI_LVL_REQ_BASE', kind: 'value' },
+];
+
+/** The required fields this mirror does not (yet) hold, in list order. Reads
+ * go through the ported config cache, which caches a real value forever and
+ * never caches a sentinel (§4.2), so a hydrated mirror pays one map lookup
+ * per field. */
+export function missingKamiConfig(mirror: Mirror): string[] {
+  const { world, components } = mirror;
+  const missing: string[] = [];
+  for (const { field, kind } of REQUIRED_KAMI_CONFIG) {
+    if (kind === 'array') {
+      if (!isRealConfigArray(getConfigArray(world, components, field))) missing.push(field);
+    } else {
+      const v = getConfigValue(world, components, field);
+      if (!Number.isFinite(v) || v === 0) missing.push(field);
+    }
+  }
+  return missing;
+}
+
 /** Is this kami config block computable? A config that structured to NaN — an
  * unhydrated read — makes every value derived from it NaN, and JSON turns NaN
  * into `null`: an answer a reader cannot tell from a real zero. The daemon
  * refuses vitals until the block is real (SPEC §3.14, tripwire
- * `configUnavailable`). With the cache guards in place this should be
- * unreachable outside the first moments of a cold boot. */
-export function assertKamiConfigUsable(kami: { config?: unknown }): void {
+ * `configUnavailable`).
+ *
+ * 1.0.0 (A1): with a mirror, it ALSO requires every field of
+ * REQUIRED_KAMI_CONFIG to be present — the check that can actually see a
+ * missing config block on this world (see the list's comment). */
+export function assertKamiConfigUsable(kami: { config?: unknown }, mirror?: Mirror): void {
   const cfg = kami.config as
     | { harvest?: { intensity?: { nudge?: { value?: number } } } }
     | undefined;
   const probe = cfg?.harvest?.intensity?.nudge?.value;
-  if (cfg === undefined || probe === undefined || !Number.isFinite(probe)) {
+  const missing = mirror ? missingKamiConfig(mirror) : [];
+  if (cfg === undefined || probe === undefined || !Number.isFinite(probe) || missing.length > 0) {
     tripwires.configUnavailable += 1;
     throw new QueryError(
       'CONFIG_UNAVAILABLE',
-      'the kami config block has not hydrated: vitals would be computed from NaN and served as null. Retry once the daemon reports LIVE.'
+      'the kami config block has not hydrated' +
+        (missing.length > 0 ? ` (missing: ${missing.join(', ')})` : '') +
+        ': vitals would be computed from NaN or from absent constants. Retry once the daemon reports LIVE.'
     );
   }
 }
@@ -399,6 +478,83 @@ const KAMI_REFRESH = {
   stats: -1,
   time: -1,
   traits: -1,
+};
+
+// ------------------------------------------ 1.0.0 (A1) one projection point
+//
+// AN ANSWER NEVER LOOKS COMPLETE WHEN IT IS NOT. Until 1.0.0 four call sites
+// projected a kami (getKami with KAMI_REFRESH) and computed vitals from
+// whatever came back. A projection missing a sub-object is not an error to
+// those calculators — calcHealth of a kami with no stats is 0 of 0, a missing
+// progress is "no level", a missing harvest is "no node" — so a hollow kami was
+// served as a healthy-looking row, and an attacker with no stats read as
+// STARVING (test/projection-freshness.test.ts). The cause that produced them
+// (a backward clock step against the freshness stamps) is fixed at its source
+// in app/cache (clock.monotonicMs); THIS is the check that does not depend on
+// having found the only cause.
+
+/** A join every vitals answer is computed from. */
+export type KamiJoin = 'stats' | 'progress' | 'time' | 'harvest' | 'node';
+
+export type ProjectedKami = {
+  kami: ReturnType<typeof getKami>;
+  /** the joins this projection lacks; empty = complete */
+  missing: KamiJoin[];
+  /** the ONE legitimate incomplete shape: a HARVESTING kami whose active
+   * harvest is written by a later log of the same transaction. Between those
+   * two stream frames the mirror really does hold a HARVESTING kami with no
+   * active harvest. A list keeps (and flags) the row; it is not a fault. */
+  transient: boolean;
+};
+
+/** Project one kami through the forced-refresh cache path and say what it
+ * lacks.
+ *
+ * - stats / progress: the Health and Level COMPONENTS must exist and the
+ *   projection must carry the sub-object. Every kami on the live world holds
+ *   both (22,222 of 22,222 at block 33,461,577, every state).
+ * - time: the projection must carry the sub-object. NOT the LastTime
+ *   component — 4,646 of those 22,222 kamis (never acted) hold none, and the
+ *   ported getter reads it as 0, which is the truth about them.
+ * - HARVESTING: the kami's harvest entity must be ACTIVE and its node must
+ *   resolve. */
+export function projectKami(mirror: Mirror, entity: EntityIndex): ProjectedKami {
+  const { world, components } = mirror;
+  const kami = getKami(world, components, entity, KAMI_REFRESH);
+  const missing: KamiJoin[] = [];
+  if (!kami.stats || !hasComponent(components.Health, entity)) missing.push('stats');
+  if (!kami.progress || !hasComponent(components.Level, entity)) missing.push('progress');
+  if (!kami.time) missing.push('time');
+  if (kami.state === 'HARVESTING') {
+    if (!kami.harvest || kami.harvest.state !== 'ACTIVE') missing.push('harvest');
+    else if (!kami.harvest.node?.index) missing.push('node');
+  }
+  return { kami, missing, transient: missing.length === 1 && missing[0] === 'harvest' };
+}
+
+/** Refuse a single-entity read of an incomplete kami (kami, skills, the
+ * attacker of a pairing read) — the counter records it. */
+function refuseIncomplete(mirror: Mirror, p: ProjectedKami, role = 'kami'): never {
+  recordIncomplete('refused', mirror.blockNumber);
+  throw new QueryError(
+    'INCOMPLETE',
+    `${role} ${p.kami.index} cannot be projected completely from the mirror at block ` +
+      `${mirror.blockNumber}: missing ${p.missing.join(', ')}` +
+      (p.transient
+        ? ' (a HARVESTING kami with no active harvest is normally a one-transaction transient — retry)'
+        : '') +
+      '. Refused rather than served as a healthy kami.'
+  );
+}
+
+/** The row a LIST read serves for an incomplete kami: identity, state, the
+ * flag — and no vitals, no liquidation block. */
+export type IncompleteKami = {
+  id: string;
+  index: number;
+  name: string;
+  state: string;
+  incomplete: true;
 };
 
 // ------------------------------------------- §3.16 the kami sheet (0.5.1)
@@ -533,10 +689,36 @@ export function buildKamiVitals(
   entity: EntityIndex,
   withStats = false
 ): KamiVitals {
-  const { world, components } = mirror;
   KamiCache.clear();
-  const kami = getKami(world, components, entity, KAMI_REFRESH);
-  assertKamiConfigUsable(kami);
+  const p = projectKami(mirror, entity);
+  if (p.missing.length > 0) refuseIncomplete(mirror, p);
+  return vitalsOf(mirror, p.kami, entity, withStats);
+}
+
+/** The list-read form (party, roster): a complete kami's vitals, or the
+ * flagged identity row of an incomplete one. */
+export function kamiRow(
+  mirror: Mirror,
+  entity: EntityIndex,
+  withStats = false
+): KamiVitals | IncompleteKami {
+  KamiCache.clear();
+  const p = projectKami(mirror, entity);
+  if (p.missing.length > 0) {
+    recordIncomplete('flagged', mirror.blockNumber);
+    return { id: p.kami.id, index: p.kami.index, name: p.kami.name, state: p.kami.state, incomplete: true };
+  }
+  return vitalsOf(mirror, p.kami, entity, withStats);
+}
+
+function vitalsOf(
+  mirror: Mirror,
+  kami: ReturnType<typeof getKami>,
+  entity: EntityIndex,
+  withStats: boolean
+): KamiVitals {
+  const { world, components } = mirror;
+  assertKamiConfigUsable(kami, mirror);
   const hp = calcHealth(kami);
   const total = kami.stats?.health.total ?? 0;
   const owner = getKamiAccount(world, components, entity);
@@ -958,6 +1140,10 @@ export type NodeOut = {
     account: { index: number; name?: string };
     vitals?: HarvestVitals;
     liquidation?: LiquidationPreview;
+    /** 1.0.0 (A1): present (and true) only on a row whose occupant cannot be
+     * projected completely; such a row carries NO vitals and NO liquidation
+     * block. LAST on the row, so a complete row's key order is unchanged. */
+    incomplete?: true;
   }[];
 };
 
@@ -1026,7 +1212,12 @@ export function nodeQuery(
     if (entity === undefined) {
       throw new QueryError('NOT_FOUND', `attacker kami ${args.attacker} not in mirror`);
     }
-    attackerKami = getKami(world, components, entity, KAMI_REFRESH);
+    // 1.0.0 (A1): an attacker that cannot be projected completely refuses
+    // the PAIRING read — a hollow attacker reads as STARVING, which is a fact
+    // about this mirror, not about the kami
+    const pa = projectKami(mirror, entity);
+    if (pa.missing.length > 0) refuseIncomplete(mirror, pa, 'attacker kami');
+    attackerKami = pa.kami;
     attackerOut = {
       id: attackerKami.id,
       index: attackerKami.index,
@@ -1053,9 +1244,14 @@ export function nodeQuery(
         ? { index: owner.index, ...(full ? { name: owner.name } : {}) }
         : { index: 0, ...(full ? { name: '' } : {}) },
     };
-    if (args.withVitals && kami) {
-      const occupant = getKami(world, components, kami.entity, KAMI_REFRESH);
-      assertKamiConfigUsable(occupant);
+    const po = args.withVitals && kami ? projectKami(mirror, kami.entity) : undefined;
+    if (po && po.missing.length > 0) {
+      // 1.0.0 (A1): keep the row, flag it, serve no vitals and no liquidation
+      recordIncomplete('flagged', mirror.blockNumber);
+      row.incomplete = true;
+    } else if (args.withVitals && kami && po) {
+      const occupant = po.kami;
+      assertKamiConfigUsable(occupant, mirror);
       const hp = calcHealth(occupant);
       const leveling = levelingOf(mirror, occupant);
       row.vitals = {
@@ -1144,7 +1340,9 @@ export type PartyOut = {
    * served it. A truncated list is never mistakable for a complete one. */
   kamisTotal: number;
   kamisServed: number;
-  kamis: KamiVitals[];
+  /** 1.0.0 (A1): an incomplete kami is served as its identity row with
+   * `incomplete: true` and no vitals */
+  kamis: (KamiVitals | IncompleteKami)[];
 };
 
 /** Account party report. Rows keep FULL vitals — the party query is the
@@ -1163,7 +1361,7 @@ export function partyQuery(
     throw new QueryError('NOT_FOUND', `account ${args.accountIndex} not in mirror`);
   }
   const all = (account.kamis ?? [])
-    .map((k) => buildKamiVitals(mirror, k.entity, args.stats === true))
+    .map((k) => kamiRow(mirror, k.entity, args.stats === true))
     .sort((a, b) => a.index - b.index);
   const { served, total } = capRows(all, args.full === true);
   return {
@@ -1210,11 +1408,15 @@ export type RosterOut = {
   kamis: {
     index: number;
     state: string;
-    hp: number[];
+    /** absent on an `incomplete` row (1.0.0, A1) */
+    hp?: number[];
     /** §3.16 (0.5.1): `--stats` only. Absent without the flag. */
     stats?: KamiStatsOut;
     /** §3.16 (0.5.1): `--stats` only — [body, hand]. Absent without the flag. */
     affinities?: string[];
+    /** 1.0.0 (A1): present (and true) only on a kami the mirror cannot
+     * project completely; that row carries no `hp` */
+    incomplete?: true;
   }[];
   /** §3.16 (0.5.1): present ONLY under `--stats`, which caps this list.
    * The flag-off roster is uncapped and carries neither count — see the
@@ -1258,7 +1460,12 @@ export function rosterQuery(
   const levelUpReady: number[] = [];
   const skillPoints: number[][] = [];
   const kamis = (account.kamis ?? []).map((k) => {
-    const vitals = buildKamiVitals(mirror, k.entity, withStats);
+    const vitals = kamiRow(mirror, k.entity, withStats);
+    // 1.0.0 (A1): an incomplete kami keeps its row — index, state and the
+    // flag — and serves no hp; it joins neither leveling set
+    if ('incomplete' in vitals) {
+      return { index: vitals.index, state: vitals.state, incomplete: true as const };
+    }
     if (vitals.levelUpReady) levelUpReady.push(vitals.index);
     if (vitals.skillPoints) skillPoints.push([vitals.index, vitals.skillPoints]);
     return {
@@ -1356,7 +1563,11 @@ export function skillsQuery(
     throw new QueryError('NOT_FOUND', `kami ${args.kamiIndex} not in mirror`);
   }
   KamiCache.clear();
-  const kami = getKami(world, components, entity, KAMI_REFRESH);
+  // 1.0.0 (A1): the fourth projection site — a single-entity read, so an
+  // incomplete kami refuses (its unspent count would read as 0)
+  const pk = projectKami(mirror, entity);
+  if (pk.missing.length > 0) refuseIncomplete(mirror, pk);
+  const kami = pk.kami;
   const invested = (kami.skills?.investments ?? [])
     .filter((i) => i.index)
     .sort((a, b) => a.index - b.index)

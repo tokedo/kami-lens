@@ -284,7 +284,7 @@ async function runStateless(
     const envelope = buildEnvelope(
       data,
       loadSchema('kami-stateless' as never),
-      { blockNumber: data.blockNumber, stale: false, mode: 'stateless' },
+      { blockNumber: data.blockNumber, stale: false, mode: 'stateless', appliedThrough: null },
       { noAuthored: flags.has('--no-authored') }
     );
     console.log(JSON.stringify({ id: 1, ok: true, ...envelope }, null, 2));

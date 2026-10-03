@@ -43,6 +43,11 @@ export type SyncHealth = {
    * liveBlockNumber, advances even across event-less blocks). null until the
    * bootstrap gap-fill seeds it. */
   reconciledThrough: number | null;
+  /** 1.0.0 (A5): every write of every block up to and including this one
+   * has been APPLIED to the mirror (bootstrap fill, continuity-checked stream
+   * frames, proven chain reads contiguous with it). Written by the apply path
+   * only — never ahead of what the mirror holds. null before LIVE. */
+  appliedThrough: number | null;
   lastReconcileAt: string | null;
   /** ranges recovery could not apply, oldest first; capped */
   unhealedRanges: UnhealedRange[];
@@ -62,6 +67,7 @@ const initial = (): SyncHealth => ({
   gapsDeferred: 0,
   reconcilePasses: 0,
   reconciledThrough: null,
+  appliedThrough: null,
   lastReconcileAt: null,
   unhealedRanges: [],
   lastHealMs: null,

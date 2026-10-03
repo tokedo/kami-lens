@@ -2,9 +2,13 @@
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
  * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
  * path:     packages/client/src/app/cache/auction/base.ts
- * changes:  Date.now() → clock.now() at 1 call site plus the
- *           clock import (§3.8: offset-corrected stream clock, not naive
- *           wall clock — see src/clock.ts). Body otherwise verbatim.
+ * changes:  Date.now() → clock.monotonicMs() at 1 call site plus the
+ *           clock import. The value only ever stamps and ages CACHE
+ *           FRESHNESS, so it is read from a clock that cannot go backwards
+ *           (1.0.0, A1 — src/clock.ts monotonicMs). 0.2–0.6 read the
+ *           offset-corrected projection clock here, which steps backwards on
+ *           a re-anchor and then skipped every forced refresh until it caught
+ *           up again. Body otherwise verbatim.
  */
 
 import * as clock from 'clock';
@@ -46,7 +50,7 @@ export const get = (
   if (!auction) return NullAuction;
   if (!options) return auction;
 
-  const now = clock.now();
+  const now = clock.monotonicMs();
 
   if (options.balance != undefined) {
     const updateTs = SupplyUpdateTs.get(entity) ?? 0;

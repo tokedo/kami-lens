@@ -22,7 +22,8 @@
         "rpcReads",
         "sync",
         "lastFullLoad",
-        "heap"
+        "heap",
+        "incompleteRows"
       ],
       "properties": {
         "version": {
@@ -214,6 +215,9 @@
         },
         "heap": {
           "$ref": "#/$defs/Heap"
+        },
+        "incompleteRows": {
+          "$ref": "#/$defs/IncompleteRows"
         }
       }
     },
@@ -358,7 +362,8 @@
         "lastReconcileAt",
         "unhealedRanges",
         "lastHealMs",
-        "reconcileIntervalMs"
+        "reconcileIntervalMs",
+        "appliedThrough"
       ],
       "properties": {
         "reconnects": {
@@ -382,7 +387,7 @@
             "number",
             "null"
           ],
-          "description": "every block up to and including this one has been covered by a COMPLETE chain range read. Unlike `liveBlockNumber` \u2014 which is the block of the last APPLIED EVENT and so does not move across event-less blocks (\u00a73.15) \u2014 this advances whether or not the range carried logs, which makes it the honest lower bound on what the mirror has actually read. null until the bootstrap gap-fill seeds it."
+          "description": "every block up to and including this one has been RE-READ FROM THE CHAIN under the 1.0.0 proof (one JSON-RPC batch [eth_blockNumber, eth_getLogs, eth_blockNumber] per chunk, proven through min(chunk end, batch head - 1)) and applied. It advances only to a block the proof covers, never to the requested range end (1.0.0, A2(b)). Unlike `liveBlockNumber` it advances across event-less blocks. Seeded at the block this process's state was loaded from (the PRE-DELTA cached block on a warm boot), so the first passes re-read the whole boot window (A3). null until seeded."
         },
         "lastReconcileAt": {
           "type": [
@@ -413,6 +418,13 @@
         "reconcileIntervalMs": {
           "type": "number",
           "description": "the configured reconcile period, echoed here so a reader can tell a backstop that is switched off (0) from one that has simply not fired yet."
+        },
+        "appliedThrough": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "1.0.0 (A5): every write of every block up to and including this one has been APPLIED to the mirror \u2014 by the bootstrap fill, by a continuity-checked stream frame (frame block - 1), or by a proven chain read contiguous with it. The same value every answer carries as meta.appliedThrough. Always >= reconciledThrough when both are set. null before LIVE."
         }
       }
     },
@@ -478,6 +490,43 @@
         "source": {
           "type": "string",
           "description": "'default' = Node chose it and it cleared the cold-boot floor. 'explicit' = an operator set --max-old-space-size (NODE_OPTIONS or a command line) and it was respected WHATEVER its value, including below the floor, with a warning. 'self-configured' = the daemon re-exec'd itself in place (same pid) to reach the floor."
+        }
+      }
+    },
+    "IncompleteRows": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total",
+        "refused",
+        "flagged",
+        "lastBlock",
+        "lastAt"
+      ],
+      "description": "1.0.0 (A1): kamis the mirror could not project completely, since process start. A single-entity read of one is REFUSED (INCOMPLETE); a list read keeps the row with `incomplete: true` and no vitals (FLAGGED). A status counter, deliberately NOT a tripwire: one case is legitimate (a HARVESTING kami between two logs of one transaction) and a tripwire would mark the daemon degraded for the rest of its life. Drives nothing.",
+      "properties": {
+        "total": {
+          "type": "number"
+        },
+        "refused": {
+          "type": "number"
+        },
+        "flagged": {
+          "type": "number"
+        },
+        "lastBlock": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "mirror block of the answer that saw the most recent one"
+        },
+        "lastAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "when (ISO 8601, wall clock)"
         }
       }
     }

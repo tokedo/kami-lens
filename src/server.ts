@@ -162,6 +162,9 @@ export function buildStatusData(
     // mirror was known-incomplete. `reconciledThrough` is the complete-range
     // lower bound that `liveBlockNumber` is not (§3.15).
     sync: s.sync as unknown as Record<string, unknown>,
+    // 1.0.0 (A1): kamis the projection could not complete — a counter that
+    // drives nothing (deliberately not a tripwire; see projection-health.ts)
+    incompleteRows: s.incompleteRows as unknown as Record<string, unknown>,
     // §3.1 (0.6.2): which source served this process's full state load. The
     // answer to "did this daemon cold-boot from the CDN or from gRPC, and how
     // long did it take" without grepping a log the reader may not have. null

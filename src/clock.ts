@@ -90,6 +90,31 @@ export function lastObservation(): ClockObservation | null {
   return observation;
 }
 
+/** Monotonic milliseconds, for CACHE FRESHNESS ONLY (1.0.0, A1).
+ *
+ * The ported app/cache modules stamp each sub-object with the time it was
+ * refreshed and skip a refresh whose window has not elapsed. Upstream stamps
+ * on Date.now(); 0.2–0.6 stamped on now() above — the PROJECTION clock, which
+ * steps BACKWARDS whenever a re-anchor lands on an older block than the last
+ * one implied (a stream stall is the live case). Every stamp taken before
+ * such a step then lies "in the future", the forced-refresh windows of
+ * queries/build.ts (-1 s) read as not elapsed, and a kami rebuilt after
+ * KamiCache.clear() came back WITHOUT its stats, progress, time and harvest:
+ * hp 0/0, no level, no node, a healthy attacker reading as starving
+ * (test/projection-freshness.test.ts).
+ *
+ * Freshness is a question about elapsed time on THIS process, so it is asked
+ * of a clock that cannot go backwards. The value is anchored far from zero on
+ * purpose: the ported getters read a missing stamp as `?? 0`, and an
+ * unstamped sub-object must always look older than any refresh window — as it
+ * did against a wall-clock reading. Projection math (cooldowns, health, harvest
+ * accrual) keeps reading now(), the chain-anchored clock; this one is never a
+ * time of day. */
+const MONOTONIC_BASE_MS = 1e12;
+export function monotonicMs(): number {
+  return MONOTONIC_BASE_MS + performance.now();
+}
+
 /** Test/gate hook: forget all observations (back to upstream Date.now()). */
 export function reset(): void {
   offsetMs = 0;

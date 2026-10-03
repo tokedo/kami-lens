@@ -22,11 +22,13 @@
 // These tests drive the real projection over a synthetic mirror and step the
 // real clock exactly the way daemon.ts syncClock does.
 
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as clock from 'clock';
+import { setComponent } from 'engine/recs';
+import { hashArgs } from 'network/shapes/utils';
 import { buildKamiVitals, nodeQuery } from '../src/queries/build';
-import { addKami, makeMirror } from './support/mirror';
+import { addKami, addNode, makeMirror } from './support/mirror';
 
 const nowSec = () => Math.floor(Date.now() / 1000);
 
@@ -90,5 +92,46 @@ describe('A1: a backward clock step must not hollow out a projected kami', () =>
     anchor(t - 120);
     const after = nodeQuery(m, { index: 11, withVitals: true, attacker: 302 });
     expect(after.attacker!.blocked).toBeNull();
+  });
+});
+
+// The harvest cache (app/cache/harvest/base.ts) keeps one harvest object per
+// harvest entity for the life of the process — the builders never clear it —
+// and refreshes its `node` only when the node stamp is older than 2 s. That
+// stamp was on the same backward-stepping clock. A harvest entity is one per
+// kami and is REUSED across harvests, so a kami that stopped on one node and
+// started on another kept being served on the OLD node until the clock caught
+// up with the stamp — even after its own sub-objects had refreshed.
+describe('A1: the harvest cache serves the node a kami is on now', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('a kami that moved nodes is served on its new node after a backward clock step', () => {
+    // stamps from earlier cases in this worker were taken on the REAL
+    // monotonic clock; start the fake one past them (a fake clock that began
+    // behind a real stamp would be a backward step of its own)
+    const realPerf = performance.now();
+    vi.useFakeTimers({ toFake: ['Date', 'performance'] });
+    vi.advanceTimersByTime(realPerf + 1_000);
+    vi.setSystemTime(new Date('2026-10-03T12:00:00Z'));
+    const m = makeMirror();
+    const t = nowSec();
+    const e = addKami(m, { index: 901, state: 'HARVESTING', node: 7, lastTime: t - 600 });
+    anchor(t);
+    expect(buildKamiVitals(m, e).node?.index).toBe(7);
+
+    // the kami stops and starts again on node 9: same harvest entity, new node
+    addNode(m, 9);
+    const kamiId = hashArgs(['kami.id', 901], ['string', 'uint32']);
+    const harvest = m.world.entityToIndex.get(hashArgs(['harvest', kamiId], ['string', 'uint256']))!;
+    setComponent(m.components.SourceID, harvest, {
+      value: hashArgs(['node', 9], ['string', 'uint32']),
+    });
+
+    // a re-anchor steps the projection clock back 120 s; 120.5 s pass
+    anchor(t - 120);
+    vi.advanceTimersByTime(120_500);
+    expect(buildKamiVitals(m, e).node?.index).toBe(9);
   });
 });

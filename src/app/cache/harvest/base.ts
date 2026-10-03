@@ -2,9 +2,18 @@
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
  * upstream: Asphodel-OS/kamigotchi @ ef898fc9350a6085fb080419b12af96c2254e8f3
  * path:     packages/client/src/app/cache/harvest/base.ts
- * changes:  Date.now() → clock.now() at 1 call site plus the
- *           clock import (§3.8: offset-corrected stream clock, not naive
- *           wall clock — see src/clock.ts). Body otherwise verbatim.
+ * changes:  Date.now() → clock.monotonicMs() at 1 call site plus the
+ *           clock import. The value only stamps and ages CACHE FRESHNESS
+ *           (the kami and node sub-objects), so it is read from a clock that
+ *           cannot go backwards (1.0.0, A1 — src/clock.ts monotonicMs).
+ *           0.2–0.6 read the projection clock here; after it stepped back,
+ *           NodeUpdateTs lay in the future and a harvest kept serving the
+ *           node it was on BEFORE the step — HarvestCache is never cleared.
+ *           Upstream quirk kept: HarvestLastTs holds the harvest's chain
+ *           LastTime in SECONDS and is compared against a millisecond
+ *           reading, so the `live` window always reads as elapsed and the
+ *           live fields refresh on every read — under either clock. Body
+ *           otherwise verbatim.
  */
 
 import * as clock from 'clock';
@@ -41,7 +50,7 @@ export const get = (world: World, comps: Components, entity: EntityIndex, option
   const harvest = HarvestCache.get(entity)!;
   if (!options) return harvest;
 
-  const now = clock.now();
+  const now = clock.monotonicMs();
 
   // populate the live changing fields
   if (options.live != undefined) {

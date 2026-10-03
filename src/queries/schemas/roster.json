@@ -76,8 +76,7 @@
       "additionalProperties": false,
       "required": [
         "index",
-        "state",
-        "hp"
+        "state"
       ],
       "properties": {
         "index": {
@@ -104,7 +103,36 @@
             "type": "string"
           },
           "description": "§3.16 (0.5.1): [body, hand] affinities, `--stats` only. The reference client's own pair and its own defaulting ('NORMAL' where the trait carries none). The liquidation calcs turn on exactly this pair, so a reader previewing a liquidation could not check the preview's inputs without it."
+        },
+        "incomplete": {
+          "const": true,
+          "description": "1.0.0 (A1): present, and true, only on a row whose kami the mirror cannot project completely (a required join — stats, progress, times, or an active harvest on a resolvable node while HARVESTING — is missing). Such a row carries NO vitals. Counted in meta.incompleteRows."
         }
+      },
+      "if": {
+        "properties": {
+          "incomplete": {
+            "const": true
+          }
+        },
+        "required": [
+          "incomplete"
+        ]
+      },
+      "then": {
+        "properties": {
+          "hp": false,
+          "stats": false,
+          "affinities": false
+        }
+      },
+      "else": {
+        "properties": {
+          "hp": true
+        },
+        "required": [
+          "hp"
+        ]
       }
     },
     "RoomRef": {
