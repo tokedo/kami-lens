@@ -15,7 +15,8 @@
 // for n deterministic attacker/defender pairs.
 
 import { spawn } from 'node:child_process';
-import { createWriteStream, existsSync, readFileSync } from 'node:fs';
+import { createWriteStream, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
 import { createInterface } from 'node:readline';
 import { createReadStream } from 'node:fs';
 import path from 'node:path';
@@ -39,7 +40,14 @@ import {
 import { buildMirror } from './lib.mts';
 
 const G2_DIR = path.join(REPO_ROOT, 'gates', 'g2');
-const UPSTREAM_DIR = path.join(ARTIFACTS_DIR, 'upstream');
+// 1.0.0: G2A_UPSTREAM_DIR names a clone OTHER than the shared one — a pin
+// advance needs the candidate pin checked out, and checking it out in the
+// shared clone would move every other reader of it. Keep the override inside
+// this repo (e.g. gates/.artifacts/upstream-<pin>) so upstream's npm imports
+// still resolve from kami-lens node_modules by directory walk-up.
+const UPSTREAM_DIR = process.env.G2A_UPSTREAM_DIR
+  ? path.resolve(process.env.G2A_UPSTREAM_DIR)
+  : path.join(ARTIFACTS_DIR, 'upstream');
 const INPUTS = path.join(ARTIFACTS_DIR, 'g2a-inputs.ndjson');
 const OURS = path.join(ARTIFACTS_DIR, 'g2a-ours.ndjson');
 const THEIRS = path.join(ARTIFACTS_DIR, 'g2a-theirs.ndjson');
@@ -171,11 +179,30 @@ const ours: CalcRow[] = [];
 }
 
 // --- 4. upstream side (subprocess, clone-only alias map) --------------------
+// With the shared clone the checked-in alias map is used as is; with an
+// override it is re-pointed at that clone (absolute paths, written to the OS
+// temp dir — nothing under the repo is touched).
+const upstreamTsconfig = (() => {
+  const checkedIn = path.join(G2_DIR, 'tsconfig.upstream.json');
+  if (!process.env.G2A_UPSTREAM_DIR) return checkedIn;
+  const raw = readFileSync(checkedIn, 'utf8').replace(/^\s*\/\/.*$/gm, '');
+  const cfg = JSON.parse(raw) as { compilerOptions: { baseUrl: string; paths: Record<string, string[]> }; include: string[] };
+  const abs = (rel: string) =>
+    rel.startsWith('../.artifacts/upstream')
+      ? path.join(UPSTREAM_DIR, rel.slice('../.artifacts/upstream'.length))
+      : path.resolve(G2_DIR, rel);
+  cfg.compilerOptions.baseUrl = G2_DIR;
+  for (const [k, v] of Object.entries(cfg.compilerOptions.paths)) cfg.compilerOptions.paths[k] = v.map(abs);
+  cfg.include = [path.join(G2_DIR, 'a-upstream-runner.mts')];
+  const out = path.join(os.tmpdir(), `kami-lens-g2a-tsconfig-${process.pid}.json`);
+  writeFileSync(out, JSON.stringify(cfg, null, 2));
+  return out;
+})();
 const t2 = Date.now();
 const runnerExit = await new Promise<number>((resolve) => {
   const p = spawn(
     'npx',
-    ['tsx', '--tsconfig', path.join(G2_DIR, 'tsconfig.upstream.json'), path.join(G2_DIR, 'a-upstream-runner.mts'), INPUTS, THEIRS, String(NOW_MS)],
+    ['tsx', '--tsconfig', upstreamTsconfig, path.join(G2_DIR, 'a-upstream-runner.mts'), INPUTS, THEIRS, String(NOW_MS)],
     {
       cwd: G2_DIR,
       stdio: ['ignore', 'inherit', 'inherit'],
