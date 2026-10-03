@@ -22,7 +22,10 @@
 #                    the windowed-ranking deferral evidence measurement
 #
 # Needs: gates/.artifacts/c2.v8snap (mirror snapshot) and, for G6.c, the
-# warm overnight-data dir (the G4 daemon pattern).
+# warm overnight-data dir (the G4 daemon pattern). The live legs (G6.b,
+# G6.d) heal their base to near head first; LIVE_BASE_SNAPSHOT=<path> (or
+# --snapshot) names a fresher base than the ~1M-block-old fixture (1.0.0) —
+# the reference is the chain at the mirror's pinned block either way.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

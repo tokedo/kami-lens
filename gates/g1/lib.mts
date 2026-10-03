@@ -33,6 +33,22 @@ export const MEASUREMENTS_DIR = path.join(REPO_ROOT, 'docs', 'measurements');
 
 export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** 1.0.0 (B8): the BASE a live gate heals from. The shared `c2.v8snap`
+ * fixture ages (captured 2026-08-06, ~1M blocks behind by October), and
+ * healing it to head is a replay of that whole span before the first chain
+ * read — the gates that hard-coded it could not run. `--snapshot <path>` or
+ * `LIVE_BASE_SNAPSHOT=<path>` names a fresher base; the default is still the
+ * fixture. THE BASE DOES NOT CHANGE WHAT IS PROVED: these gates compare the
+ * mirror against the chain at the mirror's own pinned block, so a closer
+ * base only means less replay. Never written to, so no shared fixture is
+ * touched. Record `path.basename(base)` in the measurement. */
+export function liveBaseSnapshot(): string {
+  const i = process.argv.indexOf('--snapshot');
+  if (i >= 0 && process.argv[i + 1]) return process.argv[i + 1]!;
+  if (process.env.LIVE_BASE_SNAPSHOT) return process.env.LIVE_BASE_SNAPSHOT;
+  return path.join(ARTIFACTS_DIR, 'c2.v8snap');
+}
+
 // ---------------------------------------------------------------- hashing
 
 function stableJson(value: unknown): string {

@@ -25,7 +25,9 @@
 #
 # Needs: gates/.artifacts/c2.v8snap (mirror snapshot). G7.b heals that
 # snapshot to near head before reading, exactly as G6.b does, because the
-# public RPC serves eth_call state only a shallow window deep.
+# public RPC serves eth_call state only a shallow window deep;
+# LIVE_BASE_SNAPSHOT=<path> (or --snapshot) names a fresher base (1.0.0).
+# The ~1M-block-old fixture made that heal unrunnable.
 #
 # NOTE on evidence: item pools postdate the checked-in fixture snapshot, so
 # G7.a's pool checks are vacuous on a fixture captured before pools existed

@@ -34,8 +34,8 @@ import { NativeBalanceReader } from '../../src/queries/build';
 import { query as queryKamis } from '../../src/network/shapes/Kami/queries';
 import { getKamiIndex } from '../../src/network/shapes/utils/component';
 import {
-  ARTIFACTS_DIR,
   fail,
+  liveBaseSnapshot,
   loadCacheFromSnapshotFile,
   makeProvider,
   pass,
@@ -44,7 +44,9 @@ import {
 import { buildMirror } from '../g2/lib.mts';
 
 const config = resolveConfig();
-const cache = await loadCacheFromSnapshotFile(path.join(ARTIFACTS_DIR, 'c2.v8snap'), config);
+const base = liveBaseSnapshot();
+const cache = await loadCacheFromSnapshotFile(base, config);
+const baseBlock = cache.blockNumber;
 const { world, components } = buildMirror(cache);
 const mirror = { world, components, blockNumber: cache.blockNumber };
 
@@ -196,6 +198,8 @@ for (const accountIndex of accounts) {
 }
 
 await writeMeasurement('g6d-gas-balance', {
+  base: path.basename(base),
+  baseBlock,
   snapshotBlock: cache.blockNumber,
   rpcUrl: config.jsonRpcUrl,
   accounts,

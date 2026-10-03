@@ -34,8 +34,8 @@ import { queryInventoryInstance } from '../../src/network/shapes/Inventory';
 import { getEntity as getScoreEntity } from '../../src/network/shapes/Score/utils';
 import { EntityID } from '../../src/engine/recs';
 import {
-  ARTIFACTS_DIR,
   fail,
+  liveBaseSnapshot,
   loadCacheFromSnapshotFile,
   makeFetchWorldEvents,
   makeProvider,
@@ -53,7 +53,9 @@ const COMPONENT_ABI = [
 const abi = AbiCoder.defaultAbiCoder();
 
 const config = resolveConfig();
-const cache = await loadCacheFromSnapshotFile(path.join(ARTIFACTS_DIR, 'c2.v8snap'), config);
+const base = liveBaseSnapshot();
+const cache = await loadCacheFromSnapshotFile(base, config);
+const baseBlock = cache.blockNumber;
 {
   // two-stage heal (third first-run lesson): the coarse replay over a
   // day-old snapshot takes minutes, so a target computed before it is
@@ -302,6 +304,8 @@ const headAfter = await provider.getBlockNumber();
 provider.destroy();
 
 await writeMeasurement('g6b-chain-crosscheck', {
+  base: path.basename(base),
+  baseBlock,
   pinnedBlock,
   headAfterVerify: headAfter,
   blocksBehindAtEnd: headAfter - pinnedBlock,

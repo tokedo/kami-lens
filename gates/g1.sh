@@ -16,8 +16,9 @@
 # G4.c, G6, G7 and G8.b all read, so running G1 re-baselined every hermetic
 # gate's comparison base with nothing saying so. It now writes dated
 # artifacts (c1-<date>.v8snap, c2-<date>.v8snap) and leaves the fixtures
-# alone. G1.c reads this run's OWN artifacts either way, so G1 is
-# self-contained.
+# alone. G1.c reads this run's OWN artifacts (the paths G1.a records in
+# g1a-result.json — until 1.0.0 it still opened the shared fixtures by
+# name), so G1 is self-contained.
 #
 # G1_RECAPTURE=1 is the fixtures procedure: it writes c1.v8snap and
 # c2.v8snap as well, which is the deliberate act of moving the shared base

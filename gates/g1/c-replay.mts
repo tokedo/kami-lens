@@ -24,13 +24,31 @@ import {
 } from './lib.mts';
 import path from 'node:path';
 
-const { c1Block, c2Block } = await readArtifact<{ c1Block: number; c2Block: number }>(
-  'g1a-result.json'
-);
+const { c1Block, c2Block, c1Artifacts, c2Artifacts } = await readArtifact<{
+  c1Block: number;
+  c2Block: number;
+  c1Artifacts?: string[];
+  c2Artifacts?: string[];
+}>('g1a-result.json');
 
+// 1.0.0 (B8): replay THIS RUN's checkpoints — the paths G1.a recorded (its
+// dated artifacts; the shared fixtures only under G1_RECAPTURE=1). This read
+// the shared c1/c2 fixtures by name, so after 0.6.3 stopped G1.a writing them
+// it replayed a weeks-old pair: ~1M blocks, and not the span G1.a measured.
+const c1Path = c1Artifacts?.at(-1) ?? path.join(ARTIFACTS_DIR, 'c1.v8snap');
+const c2Path = c2Artifacts?.at(-1) ?? path.join(ARTIFACTS_DIR, 'c2.v8snap');
 const config = resolveConfig();
-const c1 = await loadCacheFromSnapshotFile(path.join(ARTIFACTS_DIR, 'c1.v8snap'), config);
-const c2 = await loadCacheFromSnapshotFile(path.join(ARTIFACTS_DIR, 'c2.v8snap'), config);
+const c1 = await loadCacheFromSnapshotFile(c1Path, config);
+const c2 = await loadCacheFromSnapshotFile(c2Path, config);
+if (c1.blockNumber !== c1Block || c2.blockNumber !== c2Block) {
+  fail('G1.c', {
+    reason: 'the checkpoints on disk are not the ones G1.a recorded',
+    c1Path,
+    c2Path,
+    recorded: { c1Block, c2Block },
+    onDisk: { c1: c1.blockNumber, c2: c2.blockNumber },
+  });
+}
 
 const provider = makeProvider(config);
 const fetchWorldEvents = makeFetchWorldEvents(provider, config);
@@ -49,6 +67,8 @@ const h1 = canonicalStateHash(c1);
 const h2 = canonicalStateHash(c2);
 
 await writeMeasurement('g1c-replay', {
+  c1: path.basename(c1Path),
+  c2: path.basename(c2Path),
   c1Block,
   c2Block,
   commonBlock: q,

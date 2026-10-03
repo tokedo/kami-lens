@@ -35,8 +35,8 @@ import { queryInventoryInstance } from '../../src/network/shapes/Inventory';
 import { EntityID } from '../../src/engine/recs';
 import { formatEntityID } from '../../src/engine/utils';
 import {
-  ARTIFACTS_DIR,
   fail,
+  liveBaseSnapshot,
   loadCacheFromSnapshotFile,
   makeFetchWorldEvents,
   makeProvider,
@@ -55,7 +55,9 @@ const REVERSE_ABI = ['function getEntitiesWithValue(bytes value) view returns (u
 const abi = AbiCoder.defaultAbiCoder();
 
 const config = resolveConfig();
-const cache = await loadCacheFromSnapshotFile(path.join(ARTIFACTS_DIR, 'c2.v8snap'), config);
+const base = liveBaseSnapshot();
+const cache = await loadCacheFromSnapshotFile(base, config);
+const baseBlock = cache.blockNumber;
 {
   // two-stage heal, as G6.b: pay the long gap first, then re-pin with a
   // cheap delta replay so the target is inside the state window when the
@@ -251,6 +253,8 @@ const headAfter = await provider.getBlockNumber();
 provider.destroy();
 
 await writeMeasurement('g7b-chain-crosscheck', {
+  base: path.basename(base),
+  baseBlock,
   pinnedBlock,
   servedAtBlock,
   headAfterVerify: headAfter,
