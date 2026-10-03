@@ -157,7 +157,13 @@ function streamClient(frames: StreamResponse[]): StreamClient {
 
 /** Boot: delta the 900 cache, build a mirror from it, start the stream with
  * its boot-window reconcile over a backend whose head `head()` decides. */
-async function boot(valuesAt: number, removalsAt: number, head: () => number, passMax?: number) {
+async function boot(
+  valuesAt: number,
+  removalsAt: number,
+  head: () => number,
+  passMax?: number,
+  opts: { frames?: StreamResponse[]; reconcileIntervalMs?: number } = {}
+) {
   resetSyncHealth();
   const loaded = await fetchSnapshot(
     cacheAt900(),
@@ -196,10 +202,11 @@ async function boot(valuesAt: number, removalsAt: number, head: () => number, pa
     includeSystemCalls: false,
     fetchWorldEvents: reader(provider),
     rpcHead: { cached: head, fetch: async () => head() },
-    createClient: () => streamClient([frame(1006, 0, 1005, 0), frame(1007, 1, 1006, 0)]),
+    createClient: () =>
+      streamClient(opts.frames ?? [frame(1006, 0, 1005, 0), frame(1007, 1, 1006, 0)]),
     timeoutMs: 30_000,
     reconcileFrom$,
-    reconcileIntervalMs: 30,
+    reconcileIntervalMs: opts.reconcileIntervalMs ?? 30,
     reconcilePaceMs: 0,
     reconcileCatchUpGapMs: 5,
     ...(passMax ? { reconcilePassMaxBlocks: passMax } : {}),
@@ -277,5 +284,23 @@ describe('A3: a boot window longer than one reconcile pass', () => {
     expect(syncHealth.reconciledThrough).toBeGreaterThanOrEqual(1004);
     // ~6 chunk reads, not a loop re-reading the same 20 blocks
     expect(provider.served.batches).toBeLessThan(12);
+  });
+});
+
+describe('A2(c) + A3: a GAP heal below the boot frontier is not applied either', () => {
+  it('a gap [950, 960] right after boot is deferred, not replayed over the newer delta values', async () => {
+    const { read, stop } = await boot(1004, 960, () => 5_000, undefined, {
+      // the stream starts low and its second frame opens a gap ending at 960,
+      // below the frontier (1007); no reconcile runs in this window
+      frames: [frame(950, 0, 949, 0), frame(960, 0, 955, 0)],
+      reconcileIntervalMs: 0,
+    });
+    const loadedView = read();
+    expect(loadedView.get(E1)).toEqual([3]);
+    await settle(150);
+    stop();
+    // replaying [950, 960] would have landed E1 = [2] (block 950) on [3]
+    expect(read()).toEqual(loadedView);
+    expect(syncHealth.unhealedRanges).toEqual([[950, 960]]);
   });
 });

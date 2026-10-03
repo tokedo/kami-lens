@@ -812,6 +812,18 @@ function createRawStream(options: RawStreamOptions): Observable<NetworkEvent> {
                 abandonHeal(healed.from, healed.to, healed.ms);
                 return [];
               }
+              // divergence 7: the frontier rule holds for a gap heal too — a
+              // range starting at or below the boot frontier is applied only
+              // if it reaches it. Otherwise it is deferred like any other
+              // (cursor unmoved), and the next frame's heal is wider.
+              if (!(healed.from > trackingState.frontier || healed.to >= trackingState.frontier)) {
+                log.warn(
+                  `[heal] gap ${healed.from}..${healed.to} ends below the boot frontier ` +
+                    `${trackingState.frontier} — deferred`
+                );
+                abandonHeal(healed.from, healed.to, healed.ms);
+                return [];
+              }
               settleHeal(healed.from, healed.to, healed.ms);
               events = [...healed.events, ...events];
             }
