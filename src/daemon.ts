@@ -66,13 +66,27 @@ import { QueryError } from './queries/build';
 import { Tripwires, absorbTripwires, tripwireReport } from './tripwires';
 import { heapLimitMb, heapSource, type HeapSource } from './heap';
 import { incompleteRowsReport, type IncompleteRows } from './projection-health';
+import {
+  bootstrapDelayMs,
+  clearBootstrapBackoff,
+  isResourceExhausted,
+  readBootstrapBackoff,
+  writeBootstrapBackoff,
+} from './backoff';
 
 /** Documented error marker for refusing a cold start without a snapshot
  * source (DESIGN §3.1; asserted by gate G1.e). */
 export const ERR_NO_SNAPSHOT_SOURCE = 'ERR_NO_SNAPSHOT_SOURCE';
 
-/** Bounded bootstrap retry schedule (DESIGN §3.2). */
-const BOOTSTRAP_RETRY_DELAYS_MS = [5_000, 15_000, 30_000, 60_000, 120_000];
+/** Bounded bootstrap retries per PROCESS (DESIGN §3.2): after this many
+ * failed attempts the daemon gives up loudly (exit 1). 1.0.0 (A6): the delay
+ * before each retry is exponential WITH JITTER (src/backoff.ts: 5 s doubling
+ * to a 10-minute cap, drawn from [d/2, d]), a rate-limited failure counts
+ * double, and the failure count is PERSISTED in the data directory — so a
+ * supervisor that restarts the daemon after it gave up does not start the
+ * ladder again at 5 s. Until 1.0.0 it was a fixed 5/15/30/60/120 s ladder
+ * that every restart reset. */
+const BOOTSTRAP_MAX_ATTEMPTS = 5;
 
 /** Pre-LIVE progress bound (0.5.2, DESIGN §3.2). The bootstrap path is a
  * chain of awaits, and BEFORE 0.5.2 not one of them had a timeout of its
@@ -355,8 +369,27 @@ export class KamiLensDaemon {
     } catch {
       this.bootstrapMode = 'cold';
     }
+    // 1.0.0 (A6): a daemon restarted in the middle of a failure streak keeps
+    // backing off where the last process left off
+    const persisted = await readBootstrapBackoff(this.config.dataDir);
+    if (persisted) {
+      this.persistedFailures = persisted.failures;
+      const delay = bootstrapDelayMs(persisted.failures);
+      log.warn(
+        `[daemon] ${persisted.failures} consecutive bootstrap failure(s) on record ` +
+          `(last ${persisted.lastFailureAt}); first attempt in ${(delay / 1000).toFixed(1)}s`
+      );
+      this.retryTimer = setTimeout(() => this.bootstrap(), delay);
+      this.retryTimer.unref?.();
+      return;
+    }
     this.bootstrap();
   }
+
+  /** failures carried over from earlier processes (1.0.0, A6) */
+  private persistedFailures = 0;
+  /** failures this process counts toward the backoff, rate limits double */
+  private backoffFailures = 0;
 
   /**
    * Loud-fail cold start (DESIGN §3.1): without a snapshot source, a fresh
@@ -590,6 +623,9 @@ export class KamiLensDaemon {
     if (status.state === SyncState.LIVE && !this.liveAt) {
       this.liveAt = new Date().toISOString();
       this.bootstrapAttempts = 0;
+      this.persistedFailures = 0;
+      this.backoffFailures = 0;
+      void clearBootstrapBackoff(this.config.dataDir);
       void this.onLive();
     }
     if (status.state === SyncState.FAILED) this.onFailed(status);
@@ -682,7 +718,15 @@ export class KamiLensDaemon {
     if (status.msg.includes('retrying in')) return;
 
     this.teardownWorker();
-    if (this.bootstrapAttempts > BOOTSTRAP_RETRY_DELAYS_MS.length) {
+    // 1.0.0 (A6): count the failure (twice if the server said "less") and
+    // remember it across a restart
+    this.backoffFailures += isResourceExhausted(status.msg) ? 2 : 1;
+    const failures = this.persistedFailures + this.backoffFailures;
+    void writeBootstrapBackoff(this.config.dataDir, {
+      failures,
+      lastFailureAt: new Date().toISOString(),
+    });
+    if (this.bootstrapAttempts > BOOTSTRAP_MAX_ATTEMPTS) {
       const error = new Error(
         `bootstrap failed after ${this.bootstrapAttempts} attempts: ${status.msg}`
       );
@@ -694,10 +738,10 @@ export class KamiLensDaemon {
       this.rejectLive(error);
       return;
     }
-    const delay = BOOTSTRAP_RETRY_DELAYS_MS[this.bootstrapAttempts - 1]!;
+    const delay = bootstrapDelayMs(failures);
     log.warn(
       `[daemon] bootstrap attempt ${this.bootstrapAttempts} failed (${status.msg}); ` +
-        `retrying in ${delay / 1000}s`
+        `retrying in ${(delay / 1000).toFixed(1)}s (${failures} consecutive failure(s))`
     );
     this.retryTimer = setTimeout(() => this.bootstrap(), delay);
     this.retryTimer.unref?.();

@@ -1,0 +1,333 @@
+{
+ "measurement": "production stream close cadence, re-measured for 1.0.0 (A6)",
+ "date": "2026-10-03",
+ "source": "one Mac daemon log, 2026-08-26..2026-10-03 (read-only); lines bucketed by the UTC day of the nearest preceding status line",
+ "notes": [
+  "chain-stream resubscribe lines are logged at WARN only from 0.6.0 (2026-09-06); before that the count is not observable here",
+  "2026-10-03 is a partial day (to ~15:00 UTC)",
+  "chainStreamClosed = resubscribes after `Response closed without grpc-status`; chainStreamTimeouts = after the 10.5 s no-frame timeout"
+ ],
+ "summary": {
+  "chainStreamClosedPerDay_0906_0914": "1,810-2,427",
+  "chainStreamClosedPerDay_since_0915": "0-3",
+  "chainStreamTimeoutsPerDay_since_0915": "1-67",
+  "kamidenClosedPerDay_0827_0929": "1,037-1,628 (13-45 on 09-23/24)",
+  "kamidenClosed_0930": 300,
+  "kamidenClosed_1001": 207,
+  "kamidenClosed_1002_1003": 0
+ },
+ "perDay": {
+  "2026-08-26": {
+   "chainStreamClosed": 0,
+   "chainStreamTimeouts": 0,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 0,
+   "kamidenClosed": 167,
+   "kamidenOther": 17
+  },
+  "2026-08-27": {
+   "chainStreamClosed": 0,
+   "chainStreamTimeouts": 0,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 0,
+   "kamidenClosed": 1295,
+   "kamidenOther": 156
+  },
+  "2026-08-28": {
+   "chainStreamClosed": 0,
+   "chainStreamTimeouts": 0,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 0,
+   "kamidenClosed": 1264,
+   "kamidenOther": 182
+  },
+  "2026-08-29": {
+   "chainStreamClosed": 0,
+   "chainStreamTimeouts": 0,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 0,
+   "kamidenClosed": 1571,
+   "kamidenOther": 171
+  },
+  "2026-08-30": {
+   "chainStreamClosed": 0,
+   "chainStreamTimeouts": 0,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 0,
+   "kamidenClosed": 1477,
+   "kamidenOther": 211
+  },
+  "2026-08-31": {
+   "chainStreamClosed": 0,
+   "chainStreamTimeouts": 0,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 0,
+   "kamidenClosed": 716,
+   "kamidenOther": 101
+  },
+  "2026-09-01": {
+   "chainStreamClosed": 0,
+   "chainStreamTimeouts": 0,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 0,
+   "kamidenClosed": 1424,
+   "kamidenOther": 165
+  },
+  "2026-09-02": {
+   "chainStreamClosed": 0,
+   "chainStreamTimeouts": 0,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 0,
+   "kamidenClosed": 1350,
+   "kamidenOther": 287
+  },
+  "2026-09-03": {
+   "chainStreamClosed": 0,
+   "chainStreamTimeouts": 0,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 0,
+   "kamidenClosed": 1446,
+   "kamidenOther": 229
+  },
+  "2026-09-04": {
+   "chainStreamClosed": 0,
+   "chainStreamTimeouts": 0,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 0,
+   "kamidenClosed": 1388,
+   "kamidenOther": 212
+  },
+  "2026-09-05": {
+   "chainStreamClosed": 0,
+   "chainStreamTimeouts": 0,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 0,
+   "kamidenClosed": 1505,
+   "kamidenOther": 233
+  },
+  "2026-09-06": {
+   "chainStreamClosed": 1810,
+   "chainStreamTimeouts": 23,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 0,
+   "kamidenClosed": 1561,
+   "kamidenOther": 193
+  },
+  "2026-09-07": {
+   "chainStreamClosed": 2388,
+   "chainStreamTimeouts": 31,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 0,
+   "kamidenClosed": 1578,
+   "kamidenOther": 194
+  },
+  "2026-09-08": {
+   "chainStreamClosed": 2389,
+   "chainStreamTimeouts": 27,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 8,
+   "kamidenClosed": 1611,
+   "kamidenOther": 163
+  },
+  "2026-09-09": {
+   "chainStreamClosed": 2427,
+   "chainStreamTimeouts": 90,
+   "chainStreamRateLimited": 4,
+   "chainStreamOther": 35,
+   "kamidenClosed": 1601,
+   "kamidenOther": 135
+  },
+  "2026-09-10": {
+   "chainStreamClosed": 2318,
+   "chainStreamTimeouts": 26,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 7,
+   "kamidenClosed": 1590,
+   "kamidenOther": 154
+  },
+  "2026-09-11": {
+   "chainStreamClosed": 2287,
+   "chainStreamTimeouts": 24,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 10,
+   "kamidenClosed": 1628,
+   "kamidenOther": 125
+  },
+  "2026-09-12": {
+   "chainStreamClosed": 1982,
+   "chainStreamTimeouts": 343,
+   "chainStreamRateLimited": 150,
+   "chainStreamOther": 4,
+   "kamidenClosed": 1134,
+   "kamidenOther": 148
+  },
+  "2026-09-13": {
+   "chainStreamClosed": 2392,
+   "chainStreamTimeouts": 24,
+   "chainStreamRateLimited": 1,
+   "chainStreamOther": 0,
+   "kamidenClosed": 1591,
+   "kamidenOther": 178
+  },
+  "2026-09-14": {
+   "chainStreamClosed": 1917,
+   "chainStreamTimeouts": 29,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 22,
+   "kamidenClosed": 1490,
+   "kamidenOther": 118
+  },
+  "2026-09-15": {
+   "chainStreamClosed": 2,
+   "chainStreamTimeouts": 30,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 5,
+   "kamidenClosed": 1314,
+   "kamidenOther": 130
+  },
+  "2026-09-16": {
+   "chainStreamClosed": 0,
+   "chainStreamTimeouts": 26,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 7,
+   "kamidenClosed": 1323,
+   "kamidenOther": 117
+  },
+  "2026-09-17": {
+   "chainStreamClosed": 3,
+   "chainStreamTimeouts": 27,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 11,
+   "kamidenClosed": 1053,
+   "kamidenOther": 91
+  },
+  "2026-09-18": {
+   "chainStreamClosed": 0,
+   "chainStreamTimeouts": 15,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 19,
+   "kamidenClosed": 1540,
+   "kamidenOther": 142
+  },
+  "2026-09-19": {
+   "chainStreamClosed": 2,
+   "chainStreamTimeouts": 7,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 32,
+   "kamidenClosed": 1598,
+   "kamidenOther": 158
+  },
+  "2026-09-20": {
+   "chainStreamClosed": 0,
+   "chainStreamTimeouts": 13,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 0,
+   "kamidenClosed": 1363,
+   "kamidenOther": 163
+  },
+  "2026-09-21": {
+   "chainStreamClosed": 1,
+   "chainStreamTimeouts": 1,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 0,
+   "kamidenClosed": 1618,
+   "kamidenOther": 174
+  },
+  "2026-09-22": {
+   "chainStreamClosed": 1,
+   "chainStreamTimeouts": 3,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 4,
+   "kamidenClosed": 1037,
+   "kamidenOther": 105
+  },
+  "2026-09-23": {
+   "chainStreamClosed": 0,
+   "chainStreamTimeouts": 15,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 6,
+   "kamidenClosed": 45,
+   "kamidenOther": 7
+  },
+  "2026-09-24": {
+   "chainStreamClosed": 0,
+   "chainStreamTimeouts": 8,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 26,
+   "kamidenClosed": 13,
+   "kamidenOther": 4
+  },
+  "2026-09-25": {
+   "chainStreamClosed": 1,
+   "chainStreamTimeouts": 41,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 0,
+   "kamidenClosed": 1441,
+   "kamidenOther": 145
+  },
+  "2026-09-26": {
+   "chainStreamClosed": 0,
+   "chainStreamTimeouts": 17,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 0,
+   "kamidenClosed": 1372,
+   "kamidenOther": 118
+  },
+  "2026-09-27": {
+   "chainStreamClosed": 1,
+   "chainStreamTimeouts": 18,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 0,
+   "kamidenClosed": 1493,
+   "kamidenOther": 115
+  },
+  "2026-09-28": {
+   "chainStreamClosed": 0,
+   "chainStreamTimeouts": 4,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 0,
+   "kamidenClosed": 1570,
+   "kamidenOther": 206
+  },
+  "2026-09-29": {
+   "chainStreamClosed": 0,
+   "chainStreamTimeouts": 14,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 8,
+   "kamidenClosed": 1048,
+   "kamidenOther": 171
+  },
+  "2026-09-30": {
+   "chainStreamClosed": 0,
+   "chainStreamTimeouts": 67,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 11,
+   "kamidenClosed": 300,
+   "kamidenOther": 24
+  },
+  "2026-10-01": {
+   "chainStreamClosed": 0,
+   "chainStreamTimeouts": 67,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 6,
+   "kamidenClosed": 207,
+   "kamidenOther": 29
+  },
+  "2026-10-02": {
+   "chainStreamClosed": 0,
+   "chainStreamTimeouts": 0,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 0,
+   "kamidenClosed": 0,
+   "kamidenOther": 0
+  },
+  "2026-10-03": {
+   "chainStreamClosed": 1,
+   "chainStreamTimeouts": 3,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 0,
+   "kamidenClosed": 0,
+   "kamidenOther": 0
+  }
+ }
+}

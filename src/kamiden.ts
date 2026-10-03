@@ -49,19 +49,20 @@ import {
 import { configureKamiden, getKamidenClient } from 'clients/kamiden';
 import { FeedCallbacks } from 'clients/kamiden/subscriptions';
 import { log } from 'utils/logger';
-
-/** Upstream's reconnect delay (clients/kamiden/client.ts setupSubscription). */
-const RETRY_DELAY_MS = 5_000;
+import { kamidenRetryDelayMs } from './backoff';
 
 /** How long the stream may be silent before `status.feedsDegraded` says so
- * (0.5.2, §3.2). Deliberately NOT a reconnect threshold: the production
- * server closes the subscription roughly every 40 s BY DESIGN (measured
- * 2026-07-21, gate G4.b; re-measured 2026-08-27 at ~one reconnect per 49 s
- * on a stream reporting `state: live` with zero consecutive failures), so a
- * rising `retries` count is this feed's healthy resting state and a
- * threshold under a minute would cry wolf on every routine close. Silence
- * past a minute is the signal — the same number the chain stream uses for
- * the same reason (KamiLensDaemon.STREAM_STALL_MS). */
+ * (0.5.2, §3.2). Deliberately NOT a reconnect threshold.
+ *
+ * THE PREMISE, RE-MEASURED (1.0.0, A6). Until late September the production
+ * server closed this subscription roughly every 40 s ("Response closed
+ * without grpc-status"): measured 2026-07-21 (gate G4.b), 2026-08-27 (~one
+ * per 49 s), and in the Mac daemon's own log at 1,000-1,600 closes a day
+ * from 2026-08-27 to 2026-09-29. Then it stopped: 300 on 09-30, 207 on 10-01,
+ * ZERO on 10-02 and on 10-03 to 15:00 UTC. So a rising `retries` count is no
+ * longer this feed's resting state — but a server that resumes closing must
+ * not read as an outage either, so the signal stays SILENCE past a minute
+ * (the chain stream's STREAM_STALL_MS), never the reconnect count. */
 export const SILENT_STALL_MS = 60_000;
 
 /** Topics requested on subscribe. MEASURED (2026-07-21, gate G4.b probe):
@@ -74,10 +75,10 @@ export const SILENT_STALL_MS = 60_000;
  * the ingestion drop below — the layer DESIGN trusts ("transport
  * promises are not trusted alone"), proven hermetically by G4.b. The
  * topics option stays configurable for the day the server grows a
- * vocabulary. Same probe: the server closes the stream every ~40 s
- * ("Response closed without grpc-status"), so resubscription is routine —
- * frames during a reconnect gap are lost, exactly as they are for the
- * upstream client's identical 5 s-retry loop. */
+ * vocabulary. Same probe: the server then closed the stream every ~40 s
+ * ("Response closed without grpc-status") — it stopped doing so at the end
+ * of September 2026 (see SILENT_STALL_MS) — and frames during a reconnect
+ * gap are lost, exactly as they are for the upstream client. */
 export const DEFAULT_STREAM_TOPICS: string[] = [];
 
 export type FeedEventType =
@@ -270,10 +271,14 @@ export class KamidenFeeds {
     this.retries++;
     this.consecutiveFailures++;
     this.lastError = reason;
-    log.warn(`[kamiden] stream error: ${reason} — retrying in ${RETRY_DELAY_MS / 1000}s`);
+    // 1.0.0 (A6): exponential with jitter from upstream's 5 s, doubled again
+    // on RESOURCE_EXHAUSTED, reset by the next frame — upstream retried
+    // every 5 s forever, in lockstep with every other client
+    const delay = kamidenRetryDelayMs(this.consecutiveFailures, reason);
+    log.warn(`[kamiden] stream error: ${reason} — retrying in ${(delay / 1000).toFixed(1)}s`);
     this.retryTimer = setTimeout(() => {
       if (this.abort && !this.abort.signal.aborted) void this.run(this.abort.signal);
-    }, RETRY_DELAY_MS);
+    }, delay);
     this.retryTimer.unref?.();
   }
 

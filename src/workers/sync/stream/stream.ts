@@ -58,12 +58,19 @@
  *           6. RECONNECT HYGIENE. The retry ladder resets on a working
  *              subscription, which upstream never does — without it
  *              retryCount only rises and every reconnect after the fifth
- *              paid the capped 10 s for the life of the process, on a stream
- *              that reconnects every ~55 s. And a RESOURCE_EXHAUSTED error
- *              carrying "retry in <N>s" is honoured (rounded up, capped at
- *              30 s) instead of being answered with a 1 s ladder that spends
- *              the very budget the limit protects. Both are logged at WARN
- *              with the delay chosen.
+ *              paid the capped 10 s for the life of the process (the stream
+ *              then reconnected every ~55 s; see RECONCILE_INTERVAL_MS for
+ *              the cadence now). A RESOURCE_EXHAUSTED error carrying "retry
+ *              in <N>s" is honoured (rounded up, capped at 30 s) instead of
+ *              being answered with a 1 s ladder that spends the very budget
+ *              the limit protects. 1.0.0 (A6): the ladder is exponential WITH
+ *              JITTER (1 s doubling to 10 s, drawn from [d/2, d]); a rate
+ *              limit DOUBLES the current backoff (up to 5 minutes) and is
+ *              never answered sooner than the server asked; and after
+ *              DEAD_SERVER_TIMEOUTS consecutive no-frame timeouts — a server
+ *              that accepts the subscription and then says nothing — the
+ *              next resubscribe waits 60-90 s instead of hammering it every
+ *              few seconds. All are logged at WARN with the delay chosen.
  *
  *           7. (1.0.0, A2/A3/A5) THE RECONCILE RUNS ON ITS OWN. It used to be a
  *              tick merged into the raw subscription's pipeline, reading
@@ -170,11 +177,17 @@ export const STREAM_TIMEOUT_BUFFER_MS = 500;
 /** Buffer added to keepalive interval for health check threshold (ms) */
 export const HEALTH_CHECK_BUFFER_MS = 2000;
 
-/** Default period of the reconcile tick (§3.17). Two minutes is chosen
- * against the measured reconnect cadence — one subscription close every
- * ~55 s over the 2026-08-26..09-06 log — so a tick lands every second or
- * third connection and its range stays a handful of blocks wide. 0 disables
- * it, and `status.sync` says so. */
+/** Default period of the reconcile tick (§3.17). Two minutes was chosen
+ * against the reconnect cadence of its day — one subscription close every
+ * ~55 s over the 2026-08-26..09-06 log, ~1,800-2,400 a day through 09-14.
+ * RE-MEASURED FOR 1.0.0 (A6): since 2026-09-15 the server closes the chain
+ * subscription 0-3 times a day and it times out 1-67 times a day, so most
+ * passes now run on a connection that has been up for hours. The interval
+ * stands on its own: it bounds how long a loss the stream never noticed can
+ * live, and since 1.0.0 the reconcile no longer lives inside the
+ * subscription at all (divergence 7), so a server that resumes closing every
+ * half minute cannot starve it either. 0 disables it, and `status.sync` says
+ * so. */
 export const RECONCILE_INTERVAL_MS = 120_000;
 
 /** 1.0.0 (A3): one reconcile pass reads at most this many blocks (20 chunks
@@ -256,51 +269,90 @@ interface StreamTrackingState {
   frontier: number;
 }
 
-/** Fixed retry delays in seconds, capped at last value */
-const RETRY_DELAYS_SECONDS = [1, 2, 3, 5, 10];
+/** 1.0.0 (A6): the ladder — 1 s doubling to 10 s, jittered by the caller. */
+const LADDER_BASE_MS = 1_000;
+const LADDER_CAP_MS = 10_000;
 
 /** Ceiling on a server-suggested retry delay. The server has been observed
  * asking for ~20 s; this bounds a pathological suggestion without ignoring
  * a reasonable one. */
 export const RATE_LIMIT_DELAY_CAP_MS = 30_000;
 
-function getRetryDelay(retryCount: number): number {
-  const index = Math.min(retryCount, RETRY_DELAYS_SECONDS.length - 1);
-  return RETRY_DELAYS_SECONDS[index] * 1000;
-}
+/** 1.0.0 (A6): a repeated RESOURCE_EXHAUSTED doubles the backoff up to this. */
+export const RATE_LIMIT_BACKOFF_CAP_MS = 300_000;
+
+/** 1.0.0 (A6): this many consecutive no-frame timeouts mean a server that
+ * accepts the subscription and then says nothing; the next resubscribe waits
+ * at least DEAD_SERVER_MIN_MS. */
+export const DEAD_SERVER_TIMEOUTS = 3;
+export const DEAD_SERVER_MIN_MS = 60_000;
+
+/** What the retry policy remembers between attempts (reset by a frame). */
+export type RetryContext = { consecutiveTimeouts: number; lastDelayMs: number };
 
 /**
  * How long to wait before resubscribing, and why (divergence, DESIGN §3.2).
+ * Returns the delay CEILING; the caller jitters it (`jitteredDelay`).
  *
- * Upstream climbs a fixed ladder and ignores what the server said. Both
- * halves matter to a daemon:
+ * Upstream climbs a fixed ladder and ignores what the server said. All of
+ * these matter to a daemon:
  *
  * - When the server answers RESOURCE_EXHAUSTED it says how long to wait
  *   ("rate limit exceeded, retry in 20s"). Climbing a 1 s ladder into a
  *   rate limit spends the budget the limit is protecting; 57 of the 59
  *   logged gap-fill failures in the 2026-08-26..09-06 daemon log were that
- *   error. The suggestion is honoured, rounded up and capped.
+ *   error. The suggestion is honoured, rounded up and capped — and (1.0.0)
+ *   a rate limit doubles the backoff the previous attempt used.
  * - The ladder itself is reset on success (`resetOnSuccess`), which upstream
  *   never does. Without it `retryCount` only ever rises, so from the sixth
  *   reconnect of the process onward EVERY reconnect paid the capped 10 s —
  *   and the same log shows 17,369 reconnects over eleven days, i.e. one per
  *   ~55 s. A page reload resets upstream's counter; nothing reset ours.
+ * - (1.0.0) After DEAD_SERVER_TIMEOUTS consecutive no-frame timeouts the
+ *   server is treated as down, not flaky: at least DEAD_SERVER_MIN_MS.
  */
 export function retryDelayFor(
   error: { message?: string } | undefined,
-  retryCount: number
-): { ms: number; reason: 'wake' | 'rate-limit' | 'ladder'; suggestedSec?: number } {
-  if (error?.message?.includes('Wake signal')) return { ms: 0, reason: 'wake' };
-  const hint = /retry in\s+([0-9]+(?:\.[0-9]+)?)\s*s/i.exec(error?.message ?? '');
-  if (hint && /RESOURCE_EXHAUSTED|rate limit/i.test(error?.message ?? '')) {
-    const seconds = Math.ceil(Number(hint[1]));
-    return {
-      ms: Math.min(seconds * 1000, RATE_LIMIT_DELAY_CAP_MS),
-      reason: 'rate-limit',
-      suggestedSec: seconds,
-    };
+  retryCount: number,
+  ctx: RetryContext = { consecutiveTimeouts: 0, lastDelayMs: 0 }
+): {
+  ms: number;
+  reason: 'wake' | 'rate-limit' | 'ladder' | 'dead-server';
+  suggestedSec?: number;
+} {
+  const message = error?.message ?? '';
+  if (message.includes('Wake signal')) return { ms: 0, reason: 'wake' };
+  const hint = /retry in\s+([0-9]+(?:\.[0-9]+)?)\s*s/i.exec(message);
+  const exhausted = /RESOURCE_EXHAUSTED|rate limit/i.test(message);
+  if (exhausted) {
+    const doubled = Math.min(RATE_LIMIT_BACKOFF_CAP_MS, 2 * ctx.lastDelayMs);
+    if (hint) {
+      const seconds = Math.ceil(Number(hint[1]));
+      return {
+        ms: Math.max(Math.min(seconds * 1000, RATE_LIMIT_DELAY_CAP_MS), doubled),
+        reason: 'rate-limit',
+        suggestedSec: seconds,
+      };
+    }
+    return { ms: Math.max(LADDER_BASE_MS, doubled), reason: 'rate-limit' };
   }
-  return { ms: getRetryDelay(retryCount), reason: 'ladder' };
+  if (/Stream timeout/.test(message) && ctx.consecutiveTimeouts >= DEAD_SERVER_TIMEOUTS) {
+    return { ms: DEAD_SERVER_MIN_MS, reason: 'dead-server' };
+  }
+  return { ms: Math.min(LADDER_CAP_MS, LADDER_BASE_MS * 2 ** retryCount), reason: 'ladder' };
+}
+
+/** 1.0.0 (A6): the delay actually waited. The ladder is drawn from [d/2, d];
+ * a rate limit and a dead server are never answered SOONER than their floor
+ * (the server's own ask, 60 s) and get up to a quarter / 30 s on top. */
+export function jitteredDelay(
+  chosen: ReturnType<typeof retryDelayFor>,
+  random: () => number = Math.random
+): number {
+  if (chosen.reason === 'wake') return 0;
+  if (chosen.reason === 'ladder') return Math.round(chosen.ms * (0.5 + 0.5 * random()));
+  if (chosen.reason === 'dead-server') return chosen.ms + Math.round(30_000 * random());
+  return chosen.ms + Math.round(chosen.ms * 0.25 * random());
 }
 
 /**
@@ -479,6 +531,9 @@ export function createStream(options: StreamOptions): Observable<NetworkEvent> {
     trackingState.frontier = Math.max(trackingState.frontier, frontier ?? baseline);
   });
 
+  /** divergence 6 (1.0.0): what the retry policy remembers; a frame resets it */
+  const retryCtx: RetryContext = { consecutiveTimeouts: 0, lastDelayMs: 0 };
+
   /** raw (re)subscriptions, so the first one is not counted as a reconnect */
   let subscriptions = 0;
 
@@ -504,7 +559,11 @@ export function createStream(options: StreamOptions): Observable<NetworkEvent> {
       timeoutMs,
       headWaitMs,
       headPollMs,
-      onMessage,
+      onMessage: () => {
+        retryCtx.consecutiveTimeouts = 0;
+        retryCtx.lastDelayMs = 0;
+        onMessage?.();
+      },
     }).subscribe({
       next: (v) => subscriber.next(v),
       error: (e) => subscriber.error(e),
@@ -522,7 +581,8 @@ export function createStream(options: StreamOptions): Observable<NetworkEvent> {
       // the capped delay for the life of the process.
       resetOnSuccess: true,
       delay: (error, retryCount) => {
-        const chosen = retryDelayFor(error, retryCount);
+        if (/Stream timeout/.test(error?.message ?? '')) retryCtx.consecutiveTimeouts++;
+        const chosen = retryDelayFor(error, retryCount, retryCtx);
 
         // Immediate retry on wake signal
         if (chosen.reason === 'wake') {
@@ -530,15 +590,21 @@ export function createStream(options: StreamOptions): Observable<NetworkEvent> {
           return timer(0);
         }
 
-        const delayMs = chosen.ms;
-        if (chosen.reason === 'rate-limit') {
+        const delayMs = jitteredDelay(chosen);
+        retryCtx.lastDelayMs = delayMs;
+        if (chosen.reason === 'dead-server') {
           log.warn(
-            `[kamigaze] rate limited — the server asked for ${chosen.suggestedSec}s; ` +
-              `resubscribing in ${delayMs / 1000}s (attempt ${retryCount})`
+            `[kamigaze] ${retryCtx.consecutiveTimeouts} consecutive no-frame timeouts — ` +
+              `treating the server as down; resubscribing in ${(delayMs / 1000).toFixed(1)}s`
+          );
+        } else if (chosen.reason === 'rate-limit') {
+          log.warn(
+            `[kamigaze] rate limited — the server asked for ${chosen.suggestedSec ?? '?'}s; ` +
+              `resubscribing in ${(delayMs / 1000).toFixed(1)}s (attempt ${retryCount})`
           );
         } else {
           log.warn(
-            `[kamigaze] resubscribing in ${delayMs / 1000}s (attempt ${retryCount}): ${error?.message ?? 'unknown error'}`
+            `[kamigaze] resubscribing in ${(delayMs / 1000).toFixed(1)}s (attempt ${retryCount}): ${error?.message ?? 'unknown error'}`
           );
         }
 
