@@ -1,0 +1,16 @@
+{
+  "gate": "g3b-node-occupancy",
+  "measuredAt": "2026-10-03T16:39:20.405Z",
+  "snapshot": "<scratch>/g3b-base.v8snap (a copy of the 1.0.0-branch soak daemon's own cache, block 34,007,220; G3B_SNAPSHOT)",
+  "pinnedBlock": 34007530,
+  "verifyElapsedMs": 9614,
+  "rpcStateDepthNote": "eth_call state served only ~50-120 blocks deep (measured 2026-07-21: ok@50, reverted@120)",
+  "nodeIndex": 63,
+  "nodeName": "Deeper Forest Path",
+  "activeHarvests": 41,
+  "verified": 41,
+  "violations": [],
+  "negativeSamples": 10,
+  "negativeViolations": [],
+  "match": true
+}
