@@ -133,7 +133,7 @@ so a machine that can do the first start can always restart.
 
 ## Status
 
-**1.0.1.** Daemon, CLI, and library are implemented and
+**1.0.2.** Daemon, CLI, and library are implemented and
 gate-verified against the pinned upstream commit and the live game,
 with dated per-run evidence in `docs/measurements/`. The verification
 suite is G0–G10 (G8, G9 and G10 are manual and live); every run writes
@@ -141,6 +141,19 @@ its own dated record, and the record — not this paragraph — is what a
 given release rests on. The contract registry is [SPEC.md](SPEC.md);
 per-surface coverage — what is served, what is deferred, what is out
 of scope — is [docs/coverage.md](docs/coverage.md).
+
+### What changed in 1.0.2, for the things that read this daemon
+
+Every five minutes the daemon checks its clock against the chain, and until
+1.0.2 it did so on the newest block it already had, which in a quiet moment
+could be 20 seconds old — so for the next five minutes cooldowns read up to
+that much too long and health, stamina and harvest totals a point low. It now
+waits for the stream to deliver a block newer than its last check and checks
+on that one, so the clock is no longer as far behind as the quiet moment was
+long, and it still never runs ahead of the chain. Nothing to do but upgrade:
+no field is added, renamed or removed, `version` reads `1.0.2`, and
+`meta.asOf.clockSampleAgoMs` may now go past 300,000 on a healthy daemon
+while no new block arrives.
 
 ### What changed in 1.0.1, for the things that read this daemon
 

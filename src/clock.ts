@@ -10,8 +10,9 @@
 // Observation sources, in practice: the Kamigaze stream's blockTimestamp
 // proto field arrives as 0 — the server never populates it (measured live
 // 2026-07-21; that tap stays armed in workers/sync/stream in case it ever
-// does) — so the operative feed is the daemon's slow-cadence RPC fetch of a
-// streamed block's header timestamp (src/daemon.ts syncClock, §3.8).
+// does) — so the operative feed is the daemon's RPC fetch of a streamed
+// block's header timestamp, armed on a slow cadence (src/daemon.ts syncClock,
+// §3.8).
 //
 // Properties, chosen deliberately:
 // - Before the first observation the offset is 0, i.e. exactly upstream's
@@ -35,6 +36,17 @@
 // 0.5.2 does not change the projection (that is G2.b-gated and upstream's);
 // it EXPOSES the facts, through lastObservation() and the envelope's
 // meta.asOf, so a caller can pad rather than guess.
+//
+// WHICH BLOCK IS SAMPLED (1.0.2, DESIGN §3.8). Until 1.0.2 the daemon's 300 s
+// timer sampled the newest block the stream had delivered AS IT STOOD, so the
+// offset also carried that block's AGE at the read — measured in a live
+// session on 2026-10-04 at −23,977 ms on a sample taken inside a 26 s gap
+// between blocks. The timer now only ARMS a sample, and the next stream event
+// on a block newer than the last sample takes it; this module's code is
+// unchanged. The error stays
+// one-sided: a header is read after its block exists, so blockTimestamp*1000
+// − Date.now() at the read is at or below the true offset, and now() runs
+// behind chain time, never ahead.
 
 /** One accepted block-timestamp observation. `blockNumber` is 0 when the
  * caller did not name the block (the stream tap does not). */

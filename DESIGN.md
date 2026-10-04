@@ -6,7 +6,8 @@ parity-reference standard amended 2026-07-21; §3.1/§3.2 gap-recovery
 inverted and §3.17 added 2026-09-06; §3.8 clock fields renamed and §3.15
 freshness paragraph added 2026-09-06; §3.1 state-CDN cold boot and §4.1
 bridge added 2026-09-17, describes 0.6.2; §3.18 added 2026-10-03 for 1.0.0,
-its apply-order rule corrected 2026-10-04 for 1.0.1). Evidence base:
+its apply-order rule corrected 2026-10-04 for 1.0.1; §3.8 clock sample
+taken on a fresh block 2026-10-04 for 1.0.2). Evidence base:
 [docs/upstream-client-architecture.md](docs/upstream-client-architecture.md)
 (study of the official client at upstream commit `ef898fc9`),
 re-verified claim-by-claim against a fresh clone on 2026-07-20 (see
@@ -435,7 +436,10 @@ would read as a measurement.
 the block whose header timestamp last calibrated the offset-corrected clock,
 refreshed every `CLOCK_SYNC_INTERVAL_MS` = 300 s (`src/daemon.ts` `syncClock`).
 So `clockSampleAgoMs` **cycles 0–300 s on a perfectly healthy mirror**, and a
-value near 300 s means the next sync is due — not that anything is late. It is
+value near 300 s means the next sync is due — not that anything is late. (Since
+1.0.2 the timer arms the sample and the next newer block takes it — below — so
+the cycle runs a little past 300 s, and on past it for as long as no newer
+block arrives.) It is
 **not mirror lag**, it is not the age of the answer, and it says nothing
 whatever about applied state. Mirror lag is `status.blockLag`
 (`headBlockNumber − meta.blockNumber`); verified applied state is
@@ -452,6 +456,46 @@ That is the lesson worth keeping: **a doc comment loses to a field name.**
 0.6.1 renames rather than re-explains, and the old names ship one more
 release carrying identical values (SPEC §1.4) before they are removed at
 0.7.0.
+
+**The sample is taken on a fresh block (1.0.2).** Until 1.0.2 the 300 s timer
+took the sample itself, on `liveBlockNumber` as it stood — the newest block
+the stream had delivered, however long ago that was. So the offset carried
+not only the pipeline's lag but that block's *age* at the moment of the read,
+and for the 300 s that followed every projection computed on an instant that
+far in the past. Measured in a live session on 2026-10-04: `clockOffsetMs`
+−3,973, −23,977, −2,979, −3,048, −10,635, −5,643 and −7,647 ms on consecutive
+samples. The −23,977 was read inside a 26 s gap between blocks — at a quiet
+hour, gaps of 10 s or more were 14 in 400 blocks, about a fifth of wall time —
+and for the next five minutes `cooldownSec` read ~23 s long, stamina and
+resting HP one point low, and a harvest one block after its start
+`musu.accrued: -1`. 1.0.0's post-LIVE rule already held the mechanism that
+removes this: an armed flag, and a sample taken by the status tap on the next
+stream event whose block is newer than the last sample. 1.0.2 routes the timer
+through it — every tick ARMS the flag and samples nothing. When the event that
+takes the sample is the one delivering a new block, the header read follows
+that delivery by one RPC round trip. A header read that returns null (a
+lagging backend) or throws re-arms the flag, so the next newer block is tried
+rather than the next tick's. On an idle chain nothing is sampled and `now()`
+keeps wall time + the last measured offset, the post-stall rule's own
+reasoning — which is why `clockSampleAgoMs` may now exceed 300 s with nothing
+wrong. Deliberately nothing more: no smoothing, no window, no change to
+`clock.now()`, to the projection, or to any `meta.asOf` field.
+
+**It cannot move the clock ahead of the chain.** A header is read only for a
+block the stream has already delivered, so the block exists before the read
+returns, and `observeBlockTimestamp` takes `Date.now()` after it returns: header
+time × 1000 − wall time at that instant is at or below the true chain-minus-wall
+offset, provided only that a block's header time is not later than the moment
+it was produced. Sampling sooner after delivery shrinks how far *behind* the
+offset is; it adds no path by which it could be ahead — which is what keeps an
+action sent because the lens says a cooldown "has ended" from reverting. (A
+wall clock stepped forward between two samples carries the step into `now()`
+until the next one, as in every release; on a flowing chain the interval
+between samples is still 300 s plus the wait for the next block, and on an idle
+one 1.0.1 did not sample either.)
+What 1.0.2 leaves as it was: the offset is one observation, it still absorbs
+the stream's end-to-end lag and one round trip, and `now()` is still not
+monotonic.
 
 `cooldownUntil` follows from the same reasoning at the field level: the raw
 on-chain cooldown end time, served beside the projected `cooldownSec`, so a
