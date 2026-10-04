@@ -151,9 +151,40 @@ that much too long and health, stamina and harvest totals a point low. It now
 waits until the stream delivers a block newer than any it has seen and checks
 against the newest block of that delivery, so the clock no longer falls behind
 by however long the quiet moment lasted, and it still never runs ahead of the
-chain. Nothing to do but upgrade: no field is added, renamed or removed,
-`version` reads `1.0.2`, and `meta.asOf.clockSampleAgoMs` may now go past
-300,000 on a healthy daemon while no new block arrives.
+chain. Nothing to do for this but upgrade: `version` reads `1.0.2`, and
+`meta.asOf.clockSampleAgoMs` may now go past 300,000 on a healthy daemon
+while no new block arrives.
+
+**Also in 1.0.2:**
+
+- **`inventory` says which item an unlisted row is.** A few accounts hold an
+  item the game's item list does not contain; such a row used to read as item
+  0, "None". It now carries that item's own number as `item.index` and
+  `unregistered: true` (the name stays "None"). If you validate `inventory`
+  with a closed schema, allow `unregistered`.
+- **Harvest amounts are never negative.** `musu.accrued`, a node row's
+  `vitals.musuAccrued`, and the liquidation preview's `spoils`, `salvage` and
+  `recoil` read 0 where the clock being a second behind used to give −1 just
+  after a harvest started.
+- **The first check of the start-up blocks against the chain starts
+  sooner.** It now begins about a second after the stream's first block,
+  not up to two minutes later.
+- **One extra clock check shortly after a start or a stream outage.** The
+  first check after either can land on an old block while the stream catches
+  up, so the daemon checks once more about 30 seconds later.
+
+**Two things that are not new, stated plainly:**
+
+- **`meta.appliedThrough` is a lower bound.** When the daemon has applied
+  part of block B it reports B − 1, because more of B may still be on its
+  way; it reports B only when the next block's data arrives or a read of the
+  chain proves B complete. So on a quiet chain `--at-least B` can answer
+  `NOT_APPLIED` with a short `--max-wait` even though your transaction's
+  writes are already in the mirror: retry, or allow a longer wait.
+- **`meta.reconciledThrough` starts again from the start-up point after every
+  restart,** so it can read lower than before the restart. That is by design:
+  each run of the daemon re-checks its own loaded data against the chain, and
+  the number climbs back as it does.
 
 ### What changed in 1.0.1, for the things that read this daemon
 
