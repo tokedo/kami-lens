@@ -665,6 +665,25 @@ export class KamiLensDaemon {
   }
 
   private onSyncStatus(status: SyncStatus): void {
+    // 1.0.3 (C2): the worker's LIVE is REPORTED only once the clock has a
+    // value. With no sample yet, it is seeded from the chain head's header
+    // first (seedClockAtLive, one CLOCK_READ_TIMEOUT_MS budget), and only
+    // then does the daemon turn LIVE — so the first answer it serves already
+    // carries a measured offset. Until then it keeps its pre-LIVE status
+    // (world reads answer NOT_READY) while the live events the worker already
+    // streams are applied as usual. A failed seed changes nothing else: LIVE
+    // follows with no sample (offset 0), as in 1.0.2.
+    if (status.state === SyncState.LIVE && !this.liveAt && !this.clockSeedDone) {
+      if (!this.clockSeedInFlight) {
+        this.clockSeedInFlight = true;
+        void this.seedClockAtLive().finally(() => {
+          this.clockSeedInFlight = false;
+          this.clockSeedDone = true;
+          if (!this.stopped) this.onSyncStatus(status);
+        });
+      }
+      return;
+    }
     this.syncStatus = status;
     if (status.state === SyncState.LIVE && !this.liveAt) {
       this.liveAt = new Date().toISOString();
@@ -720,6 +739,18 @@ export class KamiLensDaemon {
    * for a backlog to have drained and short against the cadence. */
   static readonly CLOCK_FOLLOW_UP_MS = 30_000;
 
+  /** 1.0.3 (C1): the most a clock header read may take. A read that hung on
+   * the public RPC until the provider's own timeout left a 1.0.2 daemon with
+   * NO sample for its first 47 s of LIVE (2026-10-04) — clock.now() was the
+   * raw wall clock, up to ~3 s AHEAD of this chain. Five seconds is two to
+   * three block times, and far above a healthy header read. */
+  static readonly CLOCK_READ_TIMEOUT_MS = 5_000;
+
+  /** 1.0.3 (C2): attempts at the seed's head read, sharing ONE
+   * CLOCK_READ_TIMEOUT_MS budget — a fast failure (null, an error) is retried
+   * at once; a hung read uses up the budget, and LIVE is not delayed past it. */
+  static readonly CLOCK_SEED_ATTEMPTS = 3;
+
   private startClockSync(): void {
     if (this.clockSyncTimer) clearInterval(this.clockSyncTimer);
     this.clockFollowUpOwed = true; // B2
@@ -764,6 +795,85 @@ export class KamiLensDaemon {
    * clears it and arms ONE more sample CLOCK_FOLLOW_UP_MS later */
   private clockFollowUpOwed = false;
   private clockFollowUpTimer: NodeJS.Timeout | null = null;
+  /** 1.0.3 (C2): the seed at LIVE is running / has run (once per process) */
+  private clockSeedInFlight = false;
+  private clockSeedDone = false;
+
+  /** the clock's own RPC provider, built on first use (§3.8) */
+  private clockRpc(): Pick<JsonRpcProvider, 'getBlock'> {
+    const { chainId, jsonRpcUrl } = this.config;
+    this.clockProvider ??= new JsonRpcProvider(
+      jsonRpcUrl,
+      { chainId, name: 'yominet' },
+      { staticNetwork: true }
+    );
+    return this.clockProvider;
+  }
+
+  /** 1.0.3 (C1): one header read for the clock, abandoned after `timeoutMs`
+   * (the provider's own request timeout is far longer). Rejects on timeout;
+   * a late answer from the abandoned read is ignored. Only the clock's reads
+   * go through here — no other RPC use is affected. */
+  private async readClockHeader(
+    tag: number | 'latest',
+    timeoutMs = KamiLensDaemon.CLOCK_READ_TIMEOUT_MS
+  ): Promise<Awaited<ReturnType<JsonRpcProvider['getBlock']>>> {
+    let timer: NodeJS.Timeout | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error(`clock header read timed out after ${timeoutMs} ms`)),
+        timeoutMs
+      );
+      timer.unref?.();
+    });
+    try {
+      return await Promise.race([this.clockRpc().getBlock(tag), timeout]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /** 1.0.3 (C2): the sample taken when the daemon goes LIVE and none exists
+   * yet — the chain HEAD's header (eth_getBlockByNumber "latest"), up to
+   * CLOCK_SEED_ATTEMPTS reads sharing one CLOCK_READ_TIMEOUT_MS budget. It is
+   * behind chain time by the head's age at the read — the safe direction —
+   * and it counts as a sample ON THE HEAD BLOCK: lastClockSampleBlock rises
+   * to it, so a backlog block at or below it never replaces it, and the first
+   * freshly delivered block above it does (then its +30 s follow-up, B2 — the
+   * seed does not use that up). The BOOT block is never read: startClockSync
+   * still counts it as sampled. Never rejects; a failure leaves the clock
+   * unmeasured (offset 0) with one WARN line. */
+  private async seedClockAtLive(): Promise<void> {
+    if (clock.lastObservation() !== null) return;
+    const deadline = Date.now() + KamiLensDaemon.CLOCK_READ_TIMEOUT_MS;
+    let attempts = 0;
+    let last = 'no attempt';
+    while (attempts < KamiLensDaemon.CLOCK_SEED_ATTEMPTS && !this.stopped) {
+      const left = deadline - Date.now();
+      if (left <= 0) break;
+      attempts++;
+      try {
+        const head = await this.readClockHeader('latest', left);
+        if (head && head.number > 0 && head.timestamp > 0) {
+          if (this.stopped) return;
+          clock.observeBlockTimestamp(head.timestamp, head.number);
+          this.lastClockSampleBlock = Math.max(this.lastClockSampleBlock, head.number);
+          log.info(
+            `[daemon] clock seeded at LIVE from the chain head (block ${head.number}, offset ${clock.offset()} ms)`
+          );
+          return;
+        }
+        last = 'no header';
+      } catch (e) {
+        last = (e as Error)?.message ?? String(e);
+      }
+    }
+    if (this.stopped) return;
+    log.warn(
+      `[daemon] clock seed at LIVE failed (${attempts} attempt(s), last: ${last}) — ` +
+        `projecting on the wall clock until the first sample`
+    );
+  }
 
   /** 1.0.0 (A1), THE POST-STALL RULE: a clock sample is taken only on a block
    * NEWER than the previous sample's. Across a stream stall liveBlockNumber
@@ -782,16 +892,11 @@ export class KamiLensDaemon {
    * so far — never by the timer. It reads liveBlockNumber when it runs: the
    * newest block of that batch. A header read that returns null (a lagging
    * backend) or throws RE-ARMS the sample, so the next newer block is tried
-   * rather than the next tick's. */
+   * rather than the next tick's — and since 1.0.3 so does one that has not
+   * answered within CLOCK_READ_TIMEOUT_MS (C1). */
   private async syncClock(): Promise<void> {
     if (this.stopped || !this.liveBlockNumber) return;
     if (this.liveBlockNumber <= this.lastClockSampleBlock) return;
-    const { chainId, jsonRpcUrl } = this.config;
-    this.clockProvider ??= new JsonRpcProvider(
-      jsonRpcUrl,
-      { chainId, name: 'yominet' },
-      { staticNetwork: true }
-    );
     // the CLOCK sample (§3.8): this names the block whose header timestamp
     // calibrates the offset, not the mirror's position. Renamed from
     // `observedBlock` in 0.6.1 with the envelope fields it feeds (the old
@@ -799,7 +904,9 @@ export class KamiLensDaemon {
     const clockSampleBlock = this.liveBlockNumber;
     let block: Awaited<ReturnType<JsonRpcProvider['getBlock']>>;
     try {
-      block = await this.clockProvider.getBlock(clockSampleBlock);
+      // 1.0.3 (C1): bounded — a read that hangs gives up after
+      // CLOCK_READ_TIMEOUT_MS and re-arms below, like one that throws
+      block = await this.readClockHeader(clockSampleBlock);
     } catch (e) {
       this.clockAwaitingLiveSample = true;
       throw e;
