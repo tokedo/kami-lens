@@ -215,19 +215,20 @@ describe('1.0.2: the clock timer arms a sample; the next newer block takes it', 
     const h = liveDaemon(-300); // ticks at t = 0
     close = h.close;
     for (let t = -298; t <= -20; t += 2) await h.deliver(t);
-    expect(h.asked).toEqual([B(-298)]); // the post-LIVE sample
+    // the post-LIVE sample, and its one follow-up 30 s later (B2)
+    expect(h.asked).toEqual([B(-298), B(-268)]);
     expect(clock.offset()).toBe(0);
 
     // the tick lands 20 s after the newest block: reading B(-20) now would set
     // the offset to −20 s. It must read nothing and leave the offset alone.
     await h.to(0);
-    expect(h.asked).toEqual([B(-298)]);
+    expect(h.asked).toEqual([B(-298), B(-268)]);
     expect(clock.offset()).toBe(0);
-    expect(clock.lastObservation()?.blockNumber).toBe(B(-298));
+    expect(clock.lastObservation()?.blockNumber).toBe(B(-268));
 
     // the next block is sampled on its own event, so its age is ~0
     await h.deliver(15);
-    expect(h.asked).toEqual([B(-298), B(15)]);
+    expect(h.asked).toEqual([B(-298), B(-268), B(15)]);
     expect(clock.lastObservation()).toEqual({
       blockTimestampSec: T0 + 15,
       blockNumber: B(15),
@@ -237,14 +238,14 @@ describe('1.0.2: the clock timer arms a sample; the next newer block takes it', 
 
     // one sample per arming: the block after it is not sampled
     await h.deliver(17);
-    expect(h.asked).toEqual([B(-298), B(15)]);
+    expect(h.asked).toEqual([B(-298), B(-268), B(15)]);
   });
 
   it('the scripted gap: blocks at 0, 2, 4, 30, 32 s and a tick at 28 s — the sample is the 30 s block read at 30 s', async () => {
     const h = liveDaemon(-272); // ticks at t = 28
     close = h.close;
     for (let t = -270; t <= 4; t += 2) await h.deliver(t); // ..., 0, 2, 4
-    expect(clock.lastObservation()?.blockNumber).toBe(B(-270));
+    expect(clock.lastObservation()?.blockNumber).toBe(B(-240)); // the B2 follow-up
     await h.to(28); // the tick, 24 s into a 26 s gap
     await h.deliver(30);
     await h.deliver(32);
@@ -255,7 +256,7 @@ describe('1.0.2: the clock timer arms a sample; the next newer block takes it', 
       blockNumber: B(30),
       atWallMs: (T0 + 30) * 1000,
     });
-    expect(h.asked).toEqual([B(-270), B(30)]);
+    expect(h.asked).toEqual([B(-270), B(-240), B(30)]);
   });
 
   it('a null header leaves the sample armed; the following newer block is sampled', async () => {
@@ -264,10 +265,10 @@ describe('1.0.2: the clock timer arms a sample; the next newer block takes it', 
     for (let t = -298; t <= -2; t += 2) await h.deliver(t);
     await h.to(0); // the tick arms
     await h.deliver(5); // its header is not served yet
-    expect(h.asked).toEqual([B(-298), B(5)]);
-    expect(clock.lastObservation()?.blockNumber).toBe(B(-298));
+    expect(h.asked).toEqual([B(-298), B(-268), B(5)]); // B(-268): the B2 follow-up
+    expect(clock.lastObservation()?.blockNumber).toBe(B(-268));
     await h.deliver(7); // tried at once, not 300 s later
-    expect(h.asked).toEqual([B(-298), B(5), B(7)]);
+    expect(h.asked).toEqual([B(-298), B(-268), B(5), B(7)]);
     expect(clock.lastObservation()?.blockNumber).toBe(B(7));
     expect(clock.offset()).toBe(0);
   });
@@ -318,10 +319,10 @@ describe('1.0.2: only a newer-than-delivered block takes the sample; the read is
     await h.to(0); // armed; the newest delivered block is B(-20)
     // newer than the last SAMPLE (B(-298)), not newer than B(-20)
     await h.batch(5, [-100], { final: true });
-    expect(h.asked).toEqual([B(-298)]);
-    expect(clock.lastObservation()?.blockNumber).toBe(B(-298));
+    expect(h.asked).toEqual([B(-298), B(-268)]); // B(-268): the B2 follow-up
+    expect(clock.lastObservation()?.blockNumber).toBe(B(-268));
     await h.deliver(9); // still armed: the next newer block takes it
-    expect(h.asked).toEqual([B(-298), B(9)]);
+    expect(h.asked).toEqual([B(-298), B(-268), B(9)]);
     expect(clock.offset()).toBe(0);
   });
 
@@ -331,7 +332,7 @@ describe('1.0.2: only a newer-than-delivered block takes the sample; the read is
     for (let t = -298; t <= -20; t += 2) await h.deliver(t);
     await h.to(0);
     await h.batch(10, [8, 9, 10]); // every one of them is newer than B(-20)
-    expect(h.asked).toEqual([B(-298), B(10)]);
+    expect(h.asked).toEqual([B(-298), B(-268), B(10)]); // B(-268): the B2 follow-up
     expect(clock.lastObservation()).toEqual({
       blockTimestampSec: T0 + 10,
       blockNumber: B(10),
@@ -368,11 +369,11 @@ describe('1.0.2: only a newer-than-delivered block takes the sample; the read is
     const h = liveDaemon(-150); // ticks at t = 150, outside this case
     close = h.close;
     for (let t = -148; t <= -100; t += 2) await h.deliver(t);
-    expect(h.asked).toEqual([B(-148)]);
+    expect(h.asked).toEqual([B(-148), B(-118)]); // B(-118): the B2 follow-up
     // 100 s of silence; the first frame after it heals from the last block
     // delivered (B(-100)) through its own block, oldest first
     await h.batch(0, [-100, -60, 0]);
-    expect(h.asked).toEqual([B(-148), B(0)]); // NOT B(-100), 100 s old
+    expect(h.asked).toEqual([B(-148), B(-118), B(0)]); // NOT B(-100), 100 s old
     expect(clock.offset()).toBe(0);
   });
 
@@ -381,11 +382,67 @@ describe('1.0.2: only a newer-than-delivered block takes the sample; the read is
     close = h.close;
     for (let t = -148; t <= -100; t += 2) await h.deliver(t);
     await h.batch(0, [-120], { final: true }); // a reconcile pass lands inside the stall
-    expect(h.asked).toEqual([B(-148)]);
+    expect(h.asked).toEqual([B(-148), B(-118)]); // B(-118): the B2 follow-up
     // the stream resumes 20 s later — no longer a "stall" by the 60 s rule,
     // yet the re-anchor the stall asked for is still owed
     await h.deliver(20);
-    expect(h.asked).toEqual([B(-148), B(20)]);
+    expect(h.asked).toEqual([B(-148), B(-118), B(20)]);
     expect(clock.offset()).toBe(0);
+  });
+});
+
+// 1.0.2 (B2) — one follow-up sample about 30 s after the first one.
+//
+// The first sample after LIVE, or after a stall, is taken on the first block
+// the stream delivers then — and that block can itself be old: the stream
+// replays its backlog first (−7.0 s measured on the clock-only candidate). It
+// then stood for 300 s. So that sample arms ONE more, CLOCK_FOLLOW_UP_MS
+// (30 s) after it, taken by the same rule as every other; then the 300 s
+// cadence alone.
+
+describe('1.0.2 (B2): a follow-up sample ~30 s after the first one after LIVE or a stall', () => {
+  let close: (() => void) | null = null;
+  afterEach(() => {
+    close?.();
+    close = null;
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('after LIVE: the first sample is on an old backlog block; 30 s later one more, then only the 300 s cadence', async () => {
+    const h = liveDaemon(0); // ticks at t = 300
+    close = h.close;
+    await h.batch(2, [-5]); // the stream's first delivery: a block from 7 s ago
+    expect(h.asked).toEqual([B(-5)]);
+    expect(clock.offset()).toBe(-7_000);
+    for (let t = 4; t <= 30; t += 2) await h.deliver(t);
+    expect(h.asked).toEqual([B(-5)]); // not yet
+    await h.deliver(32); // the follow-up, armed at t = 32 (the first sample + 30 s)
+    expect(h.asked).toEqual([B(-5), B(32)]);
+    expect(clock.offset()).toBe(0);
+    for (let t = 34; t <= 298; t += 2) await h.deliver(t);
+    expect(h.asked).toEqual([B(-5), B(32)]); // ONE follow-up, not a second cadence
+    await h.to(300); // the tick
+    await h.deliver(302);
+    for (let t = 304; t <= 360; t += 2) await h.deliver(t);
+    expect(h.asked).toEqual([B(-5), B(32), B(302)]); // a tick's sample has no follow-up
+  });
+
+  it('after a stall: the first sample is on an old block; 30 s later one more', async () => {
+    const h = liveDaemon(-150); // ticks at t = 150
+    close = h.close;
+    for (let t = -148; t <= -100; t += 2) await h.deliver(t);
+    expect(h.asked).toEqual([B(-148), B(-118)]); // the post-LIVE sample and its follow-up
+    // 100 s of silence; the reconnect's first delivery is a backlog block from 8 s ago
+    await h.batch(0, [-8]);
+    expect(h.asked).toEqual([B(-148), B(-118), B(-8)]);
+    expect(clock.offset()).toBe(-8_000);
+    for (let t = 2; t <= 28; t += 2) await h.deliver(t);
+    expect(h.asked).toEqual([B(-148), B(-118), B(-8)]);
+    await h.deliver(30); // armed at t = 30
+    expect(h.asked).toEqual([B(-148), B(-118), B(-8), B(30)]);
+    expect(clock.offset()).toBe(0);
+    for (let t = 32; t <= 140; t += 2) await h.deliver(t);
+    expect(h.asked).toEqual([B(-148), B(-118), B(-8), B(30)]);
   });
 });
