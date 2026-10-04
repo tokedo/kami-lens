@@ -697,6 +697,118 @@ describe('the periodic reconcile (§3.17)', () => {
   });
 });
 
+// 1.0.2 — the boot window is read when the stream's first frame arrives.
+//
+// The seed schedules the boot window's first pass one catch-up gap after it
+// lands, and on a real boot that is BEFORE the stream has delivered its first
+// frame: the pass found no cursor (`cursor < 0`), returned as a no-op, and
+// nothing tried again until the interval tick — measured on a 1.0.1 daemon,
+// LIVE at 06:55:18Z and the first pass applied at 06:57:14Z. Such a pass is
+// now OWED and runs one catch-up gap after the first frame sets the cursor.
+
+describe('1.0.2: an owed boot-window pass runs when the first frame arrives', () => {
+  /** a fetch that also records WHEN each read started */
+  const timedFetch = () => {
+    const inner = makeFetchWorldEvents();
+    const startedAt: number[] = [];
+    const fn = (async (from: number, to: number) => {
+      startedAt.push(Date.now());
+      return inner(from, to);
+    }) as unknown as typeof inner;
+    return Object.assign(fn, { ranges: inner.ranges, startedAt });
+  };
+
+  it('seeded before the first frame: the first pass starts within one catch-up gap of that frame', async () => {
+    resetSyncHealth();
+    const fetchWorldEvents = timedFetch();
+    // the first frame lands well after the seed's own pass has run (20 ms)
+    const client = makeClient([{ delayMs: 120, frame: frame(100, 5, 99, 3) }]);
+    const reconcileFrom$ = new Subject<number>();
+    const stream$ = createStream({
+      ...baseOptions(),
+      fetchWorldEvents,
+      rpcHead: makeRpcHead({ cached: 10_000 }),
+      createClient: () => client,
+      timeoutMs: 30_000,
+      reconcileFrom$,
+      reconcileIntervalMs: 60_000, // the interval tick never fires in this case
+      reconcileCatchUpGapMs: 20,
+    });
+    reconcileFrom$.next(90); // the boot window is (90, cursor]
+    let firstFrameAt = 0;
+    const sub = stream$.subscribe(() => {
+      if (!firstFrameAt) firstFrameAt = Date.now();
+    });
+    await new Promise((r) => setTimeout(r, 400));
+    sub.unsubscribe();
+
+    expect(firstFrameAt).toBeGreaterThan(0);
+    expect(fetchWorldEvents.ranges).toEqual([[91, 100]]);
+    const lag = fetchWorldEvents.startedAt[0]! - firstFrameAt;
+    expect(lag).toBeGreaterThanOrEqual(15); // paced: one catch-up gap, not at once
+    expect(lag).toBeLessThan(150);
+  });
+
+  it('no double pass: two frames before it runs still owe exactly one pass', async () => {
+    resetSyncHealth();
+    const fetchWorldEvents = makeFetchWorldEvents();
+    const client = makeClient([
+      { delayMs: 120, frame: frame(100, 5, 99, 3) },
+      { delayMs: 5, frame: frame(105, 2, 100, 5) }, // chained: no gap heal
+    ]);
+    const reconcileFrom$ = new Subject<number>();
+    const stream$ = createStream({
+      ...baseOptions(),
+      fetchWorldEvents,
+      rpcHead: makeRpcHead({ cached: 10_000 }),
+      createClient: () => client,
+      timeoutMs: 30_000,
+      reconcileFrom$,
+      reconcileIntervalMs: 60_000,
+      reconcileCatchUpGapMs: 40,
+    });
+    reconcileFrom$.next(90);
+    const sub = stream$.subscribe(() => {});
+    await new Promise((r) => setTimeout(r, 400));
+    sub.unsubscribe();
+
+    // the seed's pass (owed: no cursor) and the ONE owed pass after the frames
+    expect(syncHealth.reconcilePasses).toBe(2);
+    expect(fetchWorldEvents.ranges).toEqual([[91, 105]]);
+  });
+
+  it('the interval tick still works alongside it, and the window is read once', async () => {
+    resetSyncHealth();
+    const fetchWorldEvents = makeFetchWorldEvents();
+    const client = makeClient([
+      { delayMs: 120, frame: frame(100, 5, 99, 3) },
+      { delayMs: 150, frame: frame(110, 2, 100, 5) }, // chained, at ~270 ms
+    ]);
+    const reconcileFrom$ = new Subject<number>();
+    const stream$ = createStream({
+      ...baseOptions(),
+      fetchWorldEvents,
+      rpcHead: makeRpcHead({ cached: 10_000 }),
+      createClient: () => client,
+      timeoutMs: 30_000,
+      reconcileFrom$,
+      reconcileIntervalMs: 50,
+      reconcileCatchUpGapMs: 20,
+    });
+    reconcileFrom$.next(90);
+    const sub = stream$.subscribe(() => {});
+    await new Promise((r) => setTimeout(r, 500));
+    sub.unsubscribe();
+
+    // (90, 100] once, then the tick reads what the second frame added
+    expect(fetchWorldEvents.ranges).toEqual([
+      [91, 100],
+      [101, 110],
+    ]);
+    expect(syncHealth.reconcilePasses).toBeGreaterThan(5);
+  });
+});
+
 // ------------------------------------------------- 4b. the status surface --
 
 describe('status.sync is declared where it must be', () => {
