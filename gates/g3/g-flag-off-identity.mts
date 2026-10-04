@@ -242,6 +242,12 @@ const ADDITIVE_PREFIXES_100A = ['incompleteRows.'];
  * `meta.asOf` aliases are outside it too (kamiden-backed; meta). */
 const ADDITIVE_PATTERNS_100B = [/^(items\[\d+\]\.)?token\.(address|scale)$/];
 
+/** 1.0.1 adds ONE leaf to a flag-off answer: `sync.reconcileRepairs` on
+ * `status` (the repair tripwire; 0 on this fixture). Its partner
+ * `sync.lastRepair` is absent until a repair happens and never appears here,
+ * so it is not listed. */
+const ADDITIVE_LEAVES_101 = ['reconcileRepairs'];
+
 /** 1.0.0 leg B changes one VALUE on status: `upstreamPin`, ef898fc9 ->
  * ffda3963 (B7). Asserted against the built pin rather than masked blind,
  * the way `version` is. */
@@ -259,6 +265,7 @@ function isAdditive052(path: string): boolean {
     ADDITIVE_LEAVES_062.includes(leaf) ||
     ADDITIVE_LEAVES_063.includes(leaf) ||
     ADDITIVE_LEAVES_100A.includes(leaf) ||
+    ADDITIVE_LEAVES_101.includes(leaf) ||
     ADDITIVE_PREFIXES_100A.some((p) => path.startsWith(p)) ||
     ADDITIVE_PATTERNS_100B.some((re) => re.test(path))
   );

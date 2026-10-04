@@ -34,9 +34,19 @@
 //     proven block, with `provenThrough` saying where that is. Its caller
 //     advances to that block and never to the requested end.
 // The returned events are COLLAPSED to the newest write per key (by block,
-// log index): the mirror is latest-write-per-key, so this changes nothing a
-// complete apply would end with, and it means no reader can ever observe a
-// range half-replayed (an older write applied, its newer one not yet).
+// transaction index, log index — 1.0.1: on Yominet a log's index restarts in
+// every transaction, so the index alone orders nothing across transactions):
+// the mirror is latest-write-per-key, so this changes nothing a complete
+// apply would end with, and it means no reader can ever observe a range
+// half-replayed (an older write applied, its newer one not yet).
+//
+// 1.0.1: AND EACH ONE IS MARKED `final`. The range is proven complete through
+// its last block, so every log of every block in it is in hand, and a key's
+// newest write in the range is the LAST write of that write's own block. The
+// apply path's guard (network/setup/utils.ts) uses exactly that: a final
+// write of block B is applied unless the key holds a write of a later block
+// or B's final write already; a stream frame of B arriving after it is, by
+// definition, not newer. Nothing else in the process sets `final`.
 //
 // A DEFERRED RANGE IS NEVER PARTIALLY APPLIED. If the node is behind, or the
 // subscription is torn down mid-heal, the range is recorded as unhealed and
@@ -160,17 +170,37 @@ export interface HealRangeOptions {
   paceMs?: number;
 }
 
-type Positioned = NetworkComponentUpdate<Components> & { logIndex?: number };
+type Positioned = NetworkComponentUpdate<Components>;
 
-/** Newest write per (component, entity), by (block, log index); the output is
- * in position order. Events without a position keep arrival order and win
- * over nothing — a range read has none. */
+/** Chain order of two chain-read events (1.0.1): block, then TRANSACTION,
+ * then the log's index within that transaction. Inside one block, an event
+ * without a transaction index cannot be placed (none comes from a range read)
+ * and compares equal, so arrival order decides. */
+export function chainOrder(a: Positioned, b: Positioned): number {
+  if (a.blockNumber !== b.blockNumber) return a.blockNumber - b.blockNumber;
+  if (a.transactionIndex === undefined || b.transactionIndex === undefined) return 0;
+  return a.transactionIndex - b.transactionIndex || (a.logIndex ?? 0) - (b.logIndex ?? 0);
+}
+
+/** Newest write per (component, entity), by chain position (block,
+ * transaction index, log index); the output is in chain order. Two writes the
+ * position cannot order keep arrival order: the later one wins. */
 export function collapseLatest(events: Positioned[]): Positioned[] {
   const last = new Map<string, Positioned>();
-  for (const e of events) last.set(`${e.component}|${e.entity}`, e);
-  return [...last.values()].sort(
-    (a, b) => a.blockNumber - b.blockNumber || (a.logIndex ?? 0) - (b.logIndex ?? 0)
-  );
+  for (const e of events) {
+    const k = `${e.component}|${e.entity}`;
+    const prev = last.get(k);
+    if (prev === undefined || chainOrder(e, prev) >= 0) last.set(k, e);
+  }
+  return [...last.values()].sort(chainOrder);
+}
+
+/** A PROVEN range's collapsed writes, each marked `final` (1.0.1; see the
+ * banner): the range holds every log of every block in it, so a key's newest
+ * write in the range is the last write of its own block. Only healRange calls
+ * this, and only on events from chunks the proof covers. */
+function finalWrites(events: Positioned[]): Positioned[] {
+  return collapseLatest(events).map((e) => ({ ...e, final: true }));
 }
 
 /**
@@ -299,7 +329,7 @@ export async function healRange(options: HealRangeOptions): Promise<HealResult> 
   function stopped() {
     return {
       ok: true as const,
-      events: collapseLatest(events),
+      events: finalWrites(events),
       logs: events.length,
       ms: Date.now() - t0,
       rpcHead: head?.blockNumber ?? null,
@@ -319,7 +349,7 @@ export async function healRange(options: HealRangeOptions): Promise<HealResult> 
   );
   return {
     ok: true,
-    events: collapseLatest(events),
+    events: finalWrites(events),
     logs: events.length,
     ms,
     rpcHead: head?.blockNumber ?? null,

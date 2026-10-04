@@ -62,13 +62,28 @@ export type SyncHealth = {
    * NOT taken as complete. Each one is a regression the 0.6.x reconcile
    * would have applied. */
   shortReads: number;
-  /** 1.0.0 (A2(c)): updates the apply path refused because a NEWER write
-   * for the same key had already been applied (re-deliveries included) */
+  /** 1.0.0 (A2(c)), rule corrected in 1.0.1: updates the apply path
+   * refused because the key already held a write of a LATER block, or the
+   * FINAL write of the update's own block (network/setup/utils.ts) */
   olderWritesSkipped: number;
   /** 1.0.0 (A2): when reconciledThrough last ADVANCED (ISO), or null. Read
    * by the `reconcile-stalled:<sec>` marker in `degraded`. */
   lastReconcileAdvanceAt: string | null;
+  /** 1.0.1, the repair tripwire: writes from the PERIODIC reconcile (not a
+   * gap heal, a catch-up, or the boot window) that the apply path applied
+   * AND that changed the mirror's value, for a block strictly below the
+   * stream cursor as it stood when the pass started. 0 on a healthy stream:
+   * the stream had already applied everything there. Each one is a WARN
+   * line. Not a tripwire in the `degraded` sense — it never reaches
+   * `degraded`; the write it counts is the mirror being put RIGHT. */
+  reconcileRepairs: number;
+  /** 1.0.1: the most recent repair; absent until there is one. */
+  lastRepair?: RepairRecord;
 };
+
+/** One reconcile repair (1.0.1): the write's block, the component (its
+ * registry name), the entity id, and when it was applied (ISO). */
+export type RepairRecord = { block: number; component: string; entity: string; at: string };
 
 /** Bound on the reported list. A daemon accumulating more than this many
  * distinct unhealed ranges is not going to be fixed by reporting all of
@@ -89,6 +104,7 @@ const initial = (): SyncHealth => ({
   shortReads: 0,
   olderWritesSkipped: 0,
   lastReconcileAdvanceAt: null,
+  reconcileRepairs: 0,
 });
 
 export const syncHealth: SyncHealth = initial();
@@ -99,7 +115,20 @@ export const syncHealth: SyncHealth = initial();
 let unhealedSinceWallMs: number | null = null;
 
 export function syncHealthReport(): SyncHealth {
-  return { ...syncHealth, unhealedRanges: syncHealth.unhealedRanges.map((r) => [r[0], r[1]]) };
+  const { lastRepair, ...rest } = syncHealth;
+  return {
+    ...rest,
+    unhealedRanges: syncHealth.unhealedRanges.map((r) => [r[0], r[1]]),
+    // 1.0.1: absent, not null, until there is one
+    ...(lastRepair ? { lastRepair: { ...lastRepair } } : {}),
+  };
+}
+
+/** Book one reconcile repair (1.0.1) — called by the apply path, which alone
+ * knows whether the write was applied and whether it changed the value. */
+export function recordRepair(repair: Omit<RepairRecord, 'at'>, now: Date = new Date()): void {
+  syncHealth.reconcileRepairs++;
+  syncHealth.lastRepair = { ...repair, at: now.toISOString() };
 }
 
 /** How long the mirror has been known-incomplete, in ms; 0 when it is not. */
@@ -189,6 +218,7 @@ export function fullLoadReport(): FullLoadRecord | null {
 /** Test-only: back to a fresh process's counters. */
 export function resetSyncHealth(): void {
   Object.assign(syncHealth, initial());
+  delete syncHealth.lastRepair;
   syncHealth.unhealedRanges.length = 0;
   unhealedSinceWallMs = null;
   lastFullLoad = null;

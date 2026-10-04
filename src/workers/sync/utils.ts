@@ -48,6 +48,18 @@
  *           stamped every event of a range with the range END and dropped
  *           the index, so nothing downstream could order a re-read against
  *           what was already applied (A2(c)).
+ *           1.0.1: and its TRANSACTION INDEX. On Yominet a log's index
+ *           restarts in every transaction, so (block, logIndex) is not a
+ *           place in a block — (block, transactionIndex, logIndex) is. The
+ *           logs were always sorted by that triple here (as upstream's
+ *           fetchEventsInBlockRange sorts them); the events now carry it, so
+ *           every later sort or collapse of them (stream/heal.ts) can use it.
+ *           This reader's output is ORDERED and NOT final per event:
+ *           collapsing it to block-final writes is healRange's job, over a
+ *           range the proof covers. fetchEventsInBlockRangeChunked below
+ *           concatenates chunk answers without consulting the proof, so its
+ *           output (the bootstrap fill's RPC path, gapfill.ts) is ordered,
+ *           unproven and never marked final.
  */
 
 import { awaitPromise, range, to256BitString } from '@mud-classic/utils';
@@ -344,10 +356,11 @@ export function createFetchWorldEventsInBlockRange<C extends Components>(
   const toEvents = async (
     logs: { log: RpcLog; block: number; txIndex: number; index: number }[]
   ): Promise<NetworkComponentUpdate<C>[]> => {
+    // chain order: block, then TRANSACTION, then the log's index within it
     logs.sort((a, b) => a.block - b.block || a.txIndex - b.txIndex || a.index - b.index);
     const ecsEvents: NetworkComponentUpdate<C>[] = [];
     for (let i = 0; i < logs.length; i++) {
-      const { log: raw, block, index } = logs[i]!;
+      const { log: raw, block, txIndex, index } = logs[i]!;
       let parsed: ReturnType<Interface['parseLog']>;
       try {
         parsed = iface().parseLog({ topics: raw.topics, data: raw.data });
@@ -368,8 +381,10 @@ export function createFetchWorldEventsInBlockRange<C extends Components>(
         component,
         entity,
         value: undefined,
-        // 1.0.0 (A2(c)): the log's OWN block and index, never the range end
+        // 1.0.0 (A2(c)): the log's OWN block and index, never the range end;
+        // 1.0.1: and its transaction — the index restarts in every one
         blockNumber: block,
+        transactionIndex: txIndex,
         logIndex: index,
         lastEventInTx: logs[i + 1]?.log.transactionHash !== raw.transactionHash,
         txHash: raw.transactionHash,

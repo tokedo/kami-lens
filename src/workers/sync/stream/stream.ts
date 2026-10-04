@@ -80,10 +80,14 @@
  *              own AbortController (aborted only when the stream itself
  *              ends), and emits through its own channel merged into the
  *              output. It no longer needs to be serialized with frame
- *              processing: every event now carries its chain position and
- *              the apply path never lets an older write overwrite a newer
- *              one (network/setup/utils.ts), so order of arrival no longer
- *              decides what the mirror holds. Each pass reads
+ *              processing: every event now carries its real block, every
+ *              proven chain read marks its collapsed writes block-FINAL
+ *              (1.0.1), and the apply path never lets an older write
+ *              overwrite a newer one (network/setup/utils.ts) — inside one
+ *              block the stream's arrival order is the truth, and a chain
+ *              read's final write beats any frame of its block — so the
+ *              interleaving of the two no longer decides what the mirror
+ *              holds. Each pass reads
  *              [reconciledThrough + 1, cursor] through the batch proof,
  *              stops at the first chunk the proof does not cover, and
  *              advances only to the block it proved (A2(b)). A long window
@@ -108,6 +112,16 @@
  *              immediate proven read [appliedThrough + 1, block] (bounded),
  *              through `syncHooks.requestCatchUp`; its marker anchors on the
  *              appliedThrough it started from.
+ *          10. (1.0.1) THE REPAIR TRIPWIRE. A periodic pass whose range starts
+ *              above the boot frontier stamps its writes with the stream
+ *              cursor as it stood when the pass started (`reconcileCursor`);
+ *              the apply path counts a write of a block strictly below it
+ *              that it applied and that changed the mirror's value
+ *              (`status.sync.reconcileRepairs`). On a healthy stream that
+ *              stays 0 — the stream already applied every write of every
+ *              block it moved past; the cursor's own block is excluded
+ *              because the stream may still be inside it. Gap heals,
+ *              catch-ups and the boot window are not stamped.
  *
  *           `createClient` is a test seam: the recovery path had no hermetic
  *           coverage at all before 0.6.0 (test/stream-heal.test.ts). Body
@@ -477,7 +491,16 @@ export function createStream(options: StreamOptions): Observable<NetworkEvent> {
         held = null;
         settleHeal(range.from, range.through, r.ms);
         reconcileCursor = range.through;
-        for (const e of collapseLatest(range.events)) reconcileOut$.next(e);
+        // divergence 10 (1.0.1): above the boot frontier, a write this pass
+        // must CHANGE, for a block the stream had already moved past when the
+        // pass started, is one the stream path missed — stamp the cursor so
+        // the apply path can count it. The boot window (a range starting at
+        // or below the frontier) corrects position-less data by design and
+        // is not stamped.
+        const stamp = range.from > trackingState.frontier;
+        for (const e of collapseLatest(range.events)) {
+          reconcileOut$.next(stamp ? { ...e, reconcileCursor: cursor } : e);
+        }
         reconcileOut$.next(
           markerEvent({ anchor: range.from - 1, through: range.through, reconciled: true })
         );
@@ -776,6 +799,15 @@ function createRawStream(options: RawStreamOptions): Observable<NetworkEvent> {
               );
               gapToFill = true;
             }
+            // 1.0.1: this check compares (prevLogBlockNumber, prevLogIndex),
+            // and on Yominet a log's index restarts in every transaction. So
+            // a gap whose two edges carry the SAME index in the same block —
+            // the last frame seen and the last frame lost, one transaction's
+            // log 7 and a later transaction's log 7, say — passes it unseen. It
+            // is left as it is (a frame carries no transaction index to
+            // compare); the periodic reconcile re-reads every block below
+            // the cursor and is what covers it, and
+            // status.sync.reconcileRepairs counts what it had to fix.
             if (responseChunk.prevLogIndex !== trackingState.expectedPrevLogIndex) {
               log.warn(
                 `Stream continuity warning: prevLogIndex mismatch. Expected ${trackingState.expectedPrevLogIndex}, got ${responseChunk.prevLogIndex}`

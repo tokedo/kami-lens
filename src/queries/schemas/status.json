@@ -435,7 +435,7 @@
         },
         "olderWritesSkipped": {
           "type": "number",
-          "description": "1.0.0 (A2(c)): updates the apply path refused because a newer write for the same key, by (block, log index), was already applied \u2014 re-deliveries included. Normal and nonzero on a healthy daemon: every reconcile pass re-reads writes the stream already applied."
+          "description": "1.0.0 (A2(c)), rule corrected in 1.0.1: updates the apply path refused because the key already held a write of a LATER block, or the FINAL write of the update's own block (the last write of that block for that key, as a proven chain read says) \u2014 re-deliveries of a reconciled block included. Never decided by log index, which on Yominet restarts in every transaction. Normal and nonzero on a healthy daemon: every reconcile pass re-reads writes the stream already applied."
         },
         "lastReconcileAdvanceAt": {
           "type": [
@@ -443,6 +443,43 @@
             "null"
           ],
           "description": "1.0.0 (A2): when reconciledThrough last advanced (ISO 8601), or was seeded. More than two reconcile intervals ago while there is work to do raises `reconcile-stalled:<sec>` in `degraded`."
+        },
+        "reconcileRepairs": {
+          "type": "integer",
+          "description": "1.0.1 (optional; served by every 1.0.1 daemon): writes from the PERIODIC reconcile \u2014 not a gap heal, not a catch-up, not the boot window over position-less loaded data \u2014 that the apply path applied AND that changed the mirror's value, for a block strictly below the stream cursor as it stood when that pass started. Stays 0 on a healthy stream, which has already applied every write of every block it has moved past. It rises when the reconcile had to correct the mirror: a heal that was deferred, a loss the stream's continuity check did not see, or a defect in the stream path. Each one is a WARN line in the daemon log. Never sets `degraded` \u2014 the write it counts is the mirror being put right."
+        },
+        "lastRepair": {
+          "$ref": "#/$defs/Repair",
+          "description": "1.0.1 (optional): the most recent reconcile repair. ABSENT (the key is missing, not null) until there has been one in this process."
+        }
+      }
+    },
+    "Repair": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "1.0.1: one write the periodic reconcile had to correct (see `sync.reconcileRepairs`).",
+      "required": [
+        "block",
+        "component",
+        "entity",
+        "at"
+      ],
+      "properties": {
+        "block": {
+          "type": "integer",
+          "description": "the block of the chain write that was applied"
+        },
+        "component": {
+          "type": "string",
+          "description": "the component's name in this daemon's registry (e.g. `Health`)"
+        },
+        "entity": {
+          "type": "string",
+          "description": "the entity id (hex)"
+        },
+        "at": {
+          "type": "string",
+          "description": "when the repair was applied (ISO 8601, wall clock)"
         }
       }
     },
