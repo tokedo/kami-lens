@@ -523,7 +523,10 @@ export class KamiLensDaemon {
             this.lastStreamEventAtWallMs > 0 &&
             Date.now() - this.lastStreamEventAtWallMs > KamiLensDaemon.STREAM_STALL_MS;
           this.lastStreamEventAtWallMs = Date.now();
-          if (wasStalled) this.clockAwaitingLiveSample = true;
+          if (wasStalled) {
+            this.clockAwaitingLiveSample = true;
+            this.clockFollowUpOwed = true; // B2: its first sample gets one follow-up
+          }
           // 1.0.0 (A1) after LIVE; 1.0.2 after every clock tick and every
           // stall: an ARMED sample is taken by an event that delivers a newer
           // block than any delivered so far (and than the last sample) — never
@@ -709,8 +712,17 @@ export class KamiLensDaemon {
    * the sample stays armed and the next newer block is tried. */
   private static readonly CLOCK_SYNC_INTERVAL_MS = 300_000;
 
+  /** 1.0.2 (B2): how long after the first sample following LIVE or a stall
+   * ONE more sample is armed. That first sample is taken on the first block
+   * the stream delivers then, and the stream replays its backlog first, so
+   * the block can itself be old (−7.0 s measured on the clock-only
+   * candidate) — and it then stood for 300 s. Thirty seconds is long enough
+   * for a backlog to have drained and short against the cadence. */
+  static readonly CLOCK_FOLLOW_UP_MS = 30_000;
+
   private startClockSync(): void {
     if (this.clockSyncTimer) clearInterval(this.clockSyncTimer);
+    this.clockFollowUpOwed = true; // B2
     // 1.0.0 (A1): at LIVE the newest block the mirror holds is the BOOT
     // block (the cache's or the bootstrap fill's) — minutes old on a cold
     // boot (2,175 blocks behind the head on the CDN boot of 2026-10-03), so
@@ -743,10 +755,15 @@ export class KamiLensDaemon {
    * newer than any delivered so far (and than lastClockSampleBlock) takes it,
    * and the read runs at the end of that event's worker batch (the status tap
    * in bootstrap). Set at LIVE (1.0.0, A1), by every clock tick and by the
-   * first event after a stall (1.0.2), and again by a header read that
-   * returned null or threw (1.0.2, see syncClock); cleared by the tap when it
-   * takes the sample. */
+   * first event after a stall (1.0.2), CLOCK_FOLLOW_UP_MS after the first
+   * sample following LIVE or a stall (1.0.2, B2), and again by a header read
+   * that returned null or threw (1.0.2, see syncClock); cleared by the tap
+   * when it takes the sample. */
   private clockAwaitingLiveSample = false;
+  /** 1.0.2 (B2): set at LIVE and by a stall; the next successful sample
+   * clears it and arms ONE more sample CLOCK_FOLLOW_UP_MS later */
+  private clockFollowUpOwed = false;
+  private clockFollowUpTimer: NodeJS.Timeout | null = null;
 
   /** 1.0.0 (A1), THE POST-STALL RULE: a clock sample is taken only on a block
    * NEWER than the previous sample's. Across a stream stall liveBlockNumber
@@ -791,6 +808,18 @@ export class KamiLensDaemon {
     if (block && clockSampleBlock > this.lastClockSampleBlock) {
       clock.observeBlockTimestamp(block.timestamp, clockSampleBlock);
       this.lastClockSampleBlock = clockSampleBlock;
+      // 1.0.2 (B2): the first sample after LIVE or a stall arms one more,
+      // taken by the same rule as every other (the next event that delivers
+      // a newer block; the read at the end of its batch)
+      if (this.clockFollowUpOwed && !this.stopped) {
+        this.clockFollowUpOwed = false;
+        if (this.clockFollowUpTimer) clearTimeout(this.clockFollowUpTimer);
+        this.clockFollowUpTimer = setTimeout(() => {
+          this.clockFollowUpTimer = null;
+          this.clockAwaitingLiveSample = true;
+        }, KamiLensDaemon.CLOCK_FOLLOW_UP_MS);
+        this.clockFollowUpTimer.unref?.();
+      }
     }
   }
 
@@ -1131,6 +1160,7 @@ export class KamiLensDaemon {
     this.disarmPreLiveWatchdog();
     if (this.checkpointTimer) clearInterval(this.checkpointTimer);
     if (this.clockSyncTimer) clearInterval(this.clockSyncTimer);
+    if (this.clockFollowUpTimer) clearTimeout(this.clockFollowUpTimer);
     if (this.headTimer) clearInterval(this.headTimer);
     this.clockProvider?.destroy();
     if (this.retryTimer) clearTimeout(this.retryTimer);

@@ -503,8 +503,16 @@ flag, so the next newer block is tried rather than the next tick's. On an idle
 chain nothing is sampled and `now()`
 keeps wall time + the last measured offset, the post-stall rule's own
 reasoning — which is why `clockSampleAgoMs` may now exceed 300 s with nothing
-wrong. Deliberately nothing more: no smoothing, no window, no change to
-`clock.now()`, to the projection, or to any `meta.asOf` field.
+wrong.
+
+**One follow-up after LIVE or a stall.** The first sample after LIVE, or after
+a stall, is taken on the first block the stream delivers then — and the stream
+replays its backlog first, so that block can itself be old: −7.0 s measured on
+the clock-only candidate, a correction that then stood for 300 s. So that
+first sample arms ONE more, `CLOCK_FOLLOW_UP_MS` = 30 s later, taken by the same
+rule as every other sample; after it the 300 s cadence alone (a tick's sample
+has no follow-up). Deliberately nothing more: no smoothing, no window, no
+change to `clock.now()`, to the projection, or to any `meta.asOf` field.
 
 **It cannot move the clock ahead of the chain.** A header is read only for a
 block already delivered to the daemon (by the stream, or by a proven chain
