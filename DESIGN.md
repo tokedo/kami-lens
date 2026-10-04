@@ -5,7 +5,8 @@ Kamiden scope settled in design session 2, same date; §3.7
 parity-reference standard amended 2026-07-21; §3.1/§3.2 gap-recovery
 inverted and §3.17 added 2026-09-06; §3.8 clock fields renamed and §3.15
 freshness paragraph added 2026-09-06; §3.1 state-CDN cold boot and §4.1
-bridge added 2026-09-17, describes 0.6.2). Evidence base:
+bridge added 2026-09-17, describes 0.6.2; §3.18 added 2026-10-03 for 1.0.0,
+its apply-order rule corrected 2026-10-04 for 1.0.1). Evidence base:
 [docs/upstream-client-architecture.md](docs/upstream-client-architecture.md)
 (study of the official client at upstream commit `ef898fc9`),
 re-verified claim-by-claim against a fresh clone on 2026-07-20 (see
@@ -1238,9 +1239,10 @@ daemon, then a chain cross-check of every ACTIVE harvest.
 
 **Superseded in part at 1.0.0 (§3.18).** "A recovery range ends at the
 current cursor" was the ordering invariant here because nothing else could
-order a re-read against what was applied. 1.0.0 gives every event its chain
-position and the apply path a per-key guard, proves every chain read on the
-answer itself, and moves the reconcile out of the subscription.
+order a re-read against what was applied. 1.0.0 gives every event its real
+block and the apply path a per-key guard (whose rule 1.0.1 corrects — §3.18,
+"A2, corrected"), proves every chain read on the answer itself, and moves the
+reconcile out of the subscription.
 
 ### 3.18 Correctness in 1.0.0: complete answers, proven reads, exact freshness
 
@@ -1286,9 +1288,11 @@ lies above h1, proven through `min(end, h1 − 1)` (K = 1 is margin for a head
 that runs ahead of its log index, which 900 samples cannot exclude). A gap heal
 needs the whole range proven; the reconcile takes the proven prefix and
 advances `reconciledThrough` only that far. Independently of the proof, every
-event keeps its real `(block, logIndex)` — a stream frame's is the chain log's
-own, measured 265 of 265 — and the apply path never lets an older write for a
-key overwrite a newer one. With that guard a range need no longer end at the
+event keeps its real block — a stream frame's `(block, logIndex)` is the chain
+log's own, measured 265 of 265 — and the apply path never lets an older write
+for a key overwrite a newer one, by the rule in "A2, corrected in 1.0.1" below
+(1.0.0's rule compared log indices, and that was wrong). With that guard a
+range need no longer end at the
 cursor, the reconcile no longer needs to be serialized with frames, and so it
 runs in the stream's outer closure on its own abort signal: the 10.5 s
 no-frame timeout can no longer kill it. Data with no position (the cache, a
@@ -1296,6 +1300,89 @@ delta, a Kamigaze diff) may reflect writes up to a FRONTIER block; a chain range
 that starts at or below it is applied only once proven through it, because an
 in-order replay that stopped short of the frontier could land an older chain
 write on a value whose own position is unknown.
+
+**A2, corrected in 1.0.1 — one block, several transactions (field report
+2026-10-04).** 1.0.0's guard kept the last applied `(block, logIndex)`
+per key and refused anything not strictly newer, reading `logIndex` as a place
+inside the block. On Yominet it is not: a log's index restarts in every
+TRANSACTION. A real five-transaction block has 44 World logs indexed 1..16,
+then 1..7 four times — 16 distinct values for 44 logs — and `eth_getLogs` and
+the stream frame agree (the 265/265 measurement was right; the reading of it
+was not). `(block, transactionIndex, logIndex)` is
+a place; `(block, logIndex)` is not, and a stream frame carries no transaction
+index. So a later transaction's write whose index was not greater than an
+earlier transaction's write to the same key in the same block was refused —
+on the stream, and again when the reconcile re-read the block, because its
+collapsed newest write carries the same small index. In that block all 7 keys
+written by more than one transaction were left on a non-final write (6 of them
+because the later transaction's index was LOWER); in a real three-transaction
+block indexed 1..9 in each, all 6 such keys were, every one at an EQUAL index.
+Over one hour of chain, 479 keys ended different from the chain, with
+`degraded` empty throughout. The invariant 1.0.1 holds instead:
+
+- **I1, stream order is truth inside the stream.** Two stream writes to one
+  key in one block are both applied, in arrival order, whatever their indices.
+- **I2, the chain can always repair.** A write a PROVEN chain read says is the
+  last write of its block for its key ("block-final") is applied unless the
+  key already holds a write of a strictly later block, or a block-final write
+  of the same block.
+- **I3, nothing older wins.** After a block-final write of block B is applied,
+  no write of block ≤ B for that key is (a late stream frame of B is, by
+  definition, not newer than B's final write); after any write of B, no write
+  of a block below B.
+- **I4, nothing treats `logIndex` as a place inside a block.** Inside one
+  transaction it orders that transaction's logs; across transactions only the
+  transaction index (chain reads) or arrival order (the stream) does.
+
+The rule that gives them: per key, the guard keeps the BLOCK of the last write
+applied and whether it was block-final; an update of block B is skipped iff
+that block is later than B, or is B and final; otherwise it is applied and the
+key records (B, the update's own `final`). `final` is set in exactly one place —
+`healRange`, on the collapsed output of a proven read (the reconcile, a gap
+heal, a catch-up, the held boot window): the range holds every log of every
+block in it, so a key's newest write in the range is the last write of its own
+block. The range reader keeps `transactionIndex` on its events, and every sort
+or collapse of chain events inside a block uses (transaction index, log index).
+A RAW reader output — the bootstrap fill's RPC path
+(`fetchEventsInBlockRangeChunked`, which concatenates chunk answers without
+consulting the proof) and the no-stream mode — is left ORDERED and UNMARKED
+rather than collapsed: it is not proven, so it cannot claim finality, and
+ordered by (block, transaction, log) it is exactly a stream (on the bootstrap
+path it is folded into the state cache in that order and reaches the mirror
+position-less anyway). Position-less data keeps its treatment — applied, the
+key's place forgotten — and the frontier rule is unchanged.
+
+`reconciledThrough` advancing to R forgets the places of blocks BELOW R and
+keeps R's own. Below R every later write is a re-read of a complete block;
+R itself may still be streaming, because a pass reads up to the stream's
+cursor and can prove R while the stream is inside it — and 1.0.0's prune of
+R itself would let the rest of R's frames land on R's final write (I3).
+
+**The stream's continuity check has the same blind spot, and is left as it
+is.** It compares `(prevLogBlockNumber, prevLogIndex)`, so with per-transaction
+indices it accepts a gap whose two edges carry the same index in the same
+block (the last frame seen is one transaction's log 7, the last frame lost is
+a later transaction's log 7). A frame carries no transaction index to compare
+instead. The periodic reconcile, which re-reads every block below the cursor,
+is what covers it — one more reason for the tripwire.
+
+**The tripwire, so the next such loss is not found by a player.**
+`status.sync.reconcileRepairs` counts the PERIODIC reconcile's writes that the
+guard applied AND that changed the mirror's value (an exact comparison over
+every decoded shape, absence included), for a block strictly below the stream
+cursor as it stood when the pass started; `lastRepair` names the latest. The
+pass stamps that cursor on its writes only when its range starts above the
+boot frontier, so gap heals, catch-ups and the boot window (which corrects
+position-less data by design) are never counted, and neither is the cursor's
+own block, which the stream may not have finished. On a healthy stream it
+stays 0: the stream has already applied every write of every block it moved
+past. Each repair is one WARN line; it never sets `degraded` — the write it
+counts is the mirror being put right, and a counter a reader can watch is the
+point.
+
+A 1.0.0 daemon's SAVED world is not affected: the file is written only from
+the state export and the snapshot service (§3.5), never from the live mirror,
+so a warm restart on 1.0.1 rebuilds every value under the corrected rule.
 
 **A3 — the boot window is chain-verified too.** The snapshot delta's five calls
 have no stickiness either, and the cache was stamped with the block the FIRST

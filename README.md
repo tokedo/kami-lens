@@ -133,7 +133,7 @@ so a machine that can do the first start can always restart.
 
 ## Status
 
-**1.0.0.** Daemon, CLI, and library are implemented and
+**1.0.1.** Daemon, CLI, and library are implemented and
 gate-verified against the pinned upstream commit and the live game,
 with dated per-run evidence in `docs/measurements/`. The verification
 suite is G0–G10 (G8, G9 and G10 are manual and live); every run writes
@@ -141,6 +141,48 @@ its own dated record, and the record — not this paragraph — is what a
 given release rests on. The contract registry is [SPEC.md](SPEC.md);
 per-surface coverage — what is served, what is deferred, what is out
 of scope — is [docs/coverage.md](docs/coverage.md).
+
+### What changed in 1.0.1, for the things that read this daemon
+
+1.0.1 fixes a correctness defect in 1.0.0 and adds two fields to `status`.
+Nothing else in any answer changes; `version` reads `1.0.1`, `upstreamPin`
+is unchanged.
+
+**What was wrong.** When two or more transactions in the same block wrote
+the same value — a kami's health, a timestamp, a harvest's state — 1.0.0
+could keep an EARLIER transaction's write instead of the last one, and its
+periodic re-read of the chain could not correct it. The daemon then served
+the stale value, with `degraded` empty, until that value was written again
+in a later block. In a real five-transaction block, every one of the 7 values
+written by more than one transaction was left on an earlier write; over one
+hour of chain, 479 values ended up different from the chain. Every 1.0.0 daemon is affected; 0.6.x is not. The
+cause: on this chain a log's position number restarts in every transaction,
+and 1.0.0's rule for "is this write newer than the one I have?" read it as a
+position in the block. The rule now never compares those numbers: within one
+block the live stream's order decides, and the chain's own last write of a
+block, once read back in full, always lands.
+
+**What to do: upgrade and restart.** A normal restart is enough — you do not
+need to delete anything or start from scratch. The world file the daemon
+saves on disk is only ever written from the game's own state export and
+snapshot service, never from the values a running daemon applied, so it
+never held the stale values; on restart every value is rebuilt under the
+corrected rule. (Starting from an empty `--data-dir` also works, and costs
+what a first start costs — see "Minimum machine" above — but it fixes nothing
+a restart does not.)
+
+**Two new fields in `status.sync`, both optional:**
+
+- `reconcileRepairs` — how many times the daemon's periodic re-read of the
+  chain had to correct a value the live stream should already have
+  delivered (for a block the stream had already moved past). On a healthy
+  daemon it stays `0`. If it rises, the daemon has fixed something by itself
+  — each one is also a WARN line in its log — and it is worth reporting.
+  It never puts anything in `degraded`.
+- `lastRepair` — the most recent such correction: `block`, `component`,
+  `entity` and `at`. The key is absent until there has been one.
+
+If you validate `status` with a closed schema, allow both.
 
 ### What changed in 1.0.0, for the things that read this daemon
 
