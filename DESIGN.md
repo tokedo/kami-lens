@@ -1461,7 +1461,10 @@ block any stream was served at, and the highest is kept as part of the
 frontier. The reconcile baseline is the block the loaded state may claim (the
 pre-delta cached block, the CDN image block, or the full load's stamp), so the
 first passes re-read the whole boot window after LIVE, paced, and HOLD what
-they prove until it reaches the frontier — then apply it once. Two numbers, two
+they prove until it reaches the frontier — then apply it once. (1.0.2: the first
+of them used to run before the stream's first frame — no cursor, so a no-op —
+and the window then waited for the 120 s tick; a pass that finds no cursor is
+now OWED and runs one catch-up gap after the first frame sets it.) Two numbers, two
 directions: the stamp is the lowest block served (what the cache may claim),
 the frontier the highest (what its position-less values may reflect). Beyond
 4,000 blocks (~2.2-3 h at the measured block time, on the order of the CDN's

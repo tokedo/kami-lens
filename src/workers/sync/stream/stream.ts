@@ -123,6 +123,16 @@
  *              because the stream may still be inside it. Gap heals,
  *              catch-ups and the boot window are not stamped.
  *
+ *          11. (1.0.2) AN OWED BOOT-WINDOW PASS. The seed schedules the boot
+ *              window's first pass one catch-up gap after it lands, and on a
+ *              real boot that is before the stream's first frame: no cursor,
+ *              so the pass could not bound the window and returned, and
+ *              nothing tried again until the interval tick (a 1.0.1 daemon:
+ *              LIVE 06:55:18Z, first pass applied 06:57:14Z). Such a pass is
+ *              now OWED, and the first frame to set the cursor schedules it one
+ *              catch-up gap later; a pass that runs with a cursor in the
+ *              meantime (the tick) cancels it, so the window is not read twice.
+ *
  *           `createClient` is a test seam: the recovery path had no hermetic
  *           coverage at all before 0.6.0 (test/stream-heal.test.ts). Body
  *           otherwise verbatim.
@@ -438,6 +448,10 @@ export function createStream(options: StreamOptions): Observable<NetworkEvent> {
   let catchUpRunning = false;
   let reconcileTimer: ReturnType<typeof setInterval> | null = null;
   let followUp: ReturnType<typeof setTimeout> | null = null;
+  /** divergence 11 (1.0.2): a pass that found the baseline seeded but no
+   * stream cursor yet is OWED, and the first frame schedules it */
+  let reconcileOwed = false;
+  let owedPass: ReturnType<typeof setTimeout> | null = null;
 
   /** The frontier rule (divergence 7): may a proven range [from, c] be
    * applied? */
@@ -459,6 +473,19 @@ export function createStream(options: StreamOptions): Observable<NetworkEvent> {
       syncHealth.lastReconcileAt = new Date().toISOString();
       const through = reconcileCursor;
       const cursor = trackingState.expectedPrevLogBlock;
+      // divergence 11 (1.0.2): seeded, but the stream has delivered no frame
+      // yet — the boot window cannot be bounded. The pass is OWED: the first
+      // frame schedules it (see live$), instead of the next interval tick.
+      if (through !== null && cursor < 0) {
+        reconcileOwed = true;
+        return;
+      }
+      // a pass with a cursor is running now, so an owed one still waiting
+      // for its catch-up gap would only repeat it
+      if (owedPass) {
+        clearTimeout(owedPass);
+        owedPass = null;
+      }
       // not yet seeded, or nothing new since the last pass: a real no-op
       if (through === null || cursor < 0 || cursor <= through) return;
       const start = held ? held.through + 1 : through + 1;
@@ -618,7 +645,20 @@ export function createStream(options: StreamOptions): Observable<NetworkEvent> {
         onMessage?.();
       },
     }).subscribe({
-      next: (v) => subscriber.next(v),
+      next: (v) => {
+        subscriber.next(v);
+        // divergence 11 (1.0.2): this frame has set the cursor — the owed
+        // pass runs one catch-up gap from now (the paced-pass rules and the
+        // frontier rule apply to it as to any other pass)
+        if (reconcileOwed && trackingState.expectedPrevLogBlock >= 0) {
+          reconcileOwed = false;
+          owedPass = setTimeout(() => {
+            owedPass = null;
+            void runReconcile();
+          }, reconcileCatchUpGapMs);
+          owedPass.unref?.();
+        }
+      },
       error: (e) => subscriber.error(e),
       complete: () => subscriber.complete(),
     });
@@ -692,6 +732,7 @@ export function createStream(options: StreamOptions): Observable<NetworkEvent> {
       reconcileFromSub?.unsubscribe();
       if (reconcileTimer) clearInterval(reconcileTimer);
       if (followUp) clearTimeout(followUp);
+      if (owedPass) clearTimeout(owedPass);
       reconcileAbort.abort();
       reconcileOut$.complete();
       if (syncHooks.requestCatchUp) syncHooks.requestCatchUp = undefined;
