@@ -13,6 +13,7 @@ import { Subject } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import * as clock from 'clock';
+import { SyncState } from 'engine/constants';
 import { log } from 'utils/logger';
 import { NetworkEvents } from 'workers/types';
 import { KamiLensDaemon } from '../src/daemon';
@@ -123,19 +124,37 @@ type TapInternals = {
   liveBlockNumber: number;
   liveAt: string | null;
   stopped: boolean;
-  clockProvider: { getBlock: (n: number) => Promise<{ timestamp: number } | null> };
+  clockProvider: {
+    getBlock: (n: number | string) => Promise<{ number?: number; timestamp: number } | null>;
+  };
   clockSyncTimer: NodeJS.Timeout | null;
   bootstrap: () => void;
   startClockSync: () => void;
   teardownWorker: () => void;
+  // 1.0.3: the LIVE transition itself, and the onLive side effects a
+  // hermetic test must not run (a store read, the checkpoint child, Kamiden)
+  onSyncStatus: (s: { state: SyncState; msg: string; percentage: number }) => void;
+  readCheckpointReport: (ms: number) => Promise<unknown>;
+  checkpoint: () => Promise<void>;
+  kamiden: { start: () => void };
 };
+
+type HeaderAnswer = 'ok' | 'null' | 'throw' | 'hang';
 
 /** A LIVE daemon whose clock timer started at `tLive` (so it ticks at
  * tLive + 300 s), with its boot block ten minutes old. `header(n)` decides how
- * the header read of block n answers. */
+ * the header read of block n answers ('hang': never — 1.0.3).
+ *
+ * By default the harness sets the daemon LIVE the way 1.0.2's tests always
+ * did — liveAt, the boot block, startClockSync — which is the post-seed half
+ * of LIVE, i.e. a LIVE whose 1.0.3 seed did not land. `viaLive` instead
+ * sends the worker's LIVE status through onSyncStatus, the real transition
+ * (1.0.3), with the chain head's header answering as `head` says, the head
+ * block `headAgeSec` old. */
 function liveDaemon(
   tLive: number,
-  header: (n: number) => 'ok' | 'null' | 'throw' = () => 'ok'
+  header: (n: number) => HeaderAnswer = () => 'ok',
+  opts: { viaLive?: boolean; head?: () => HeaderAnswer; headAgeSec?: number } = {}
 ) {
   vi.useFakeTimers({
     now: (T0 + tLive) * 1000,
@@ -143,20 +162,45 @@ function liveDaemon(
   });
   const d = new KamiLensDaemon({ dataDir: path.join(os.tmpdir(), 'kami-lens-clock-void') });
   const internals = d as unknown as TapInternals;
-  const asked: number[] = [];
+  const asked: (number | string)[] = [];
+  const answer = async <T>(how: HeaderAnswer, value: () => T): Promise<T | null> => {
+    if (how === 'throw') throw new Error('header read failed');
+    if (how === 'null') return null; // a lagging load-balanced backend
+    if (how === 'hang') return new Promise<never>(() => {}); // a read that never returns
+    return value();
+  };
   internals.clockProvider = {
     getBlock: async (n) => {
       asked.push(n);
-      const how = header(n);
-      if (how === 'throw') throw new Error('header read failed');
-      if (how === 'null') return null; // a lagging load-balanced backend
-      return { timestamp: T0 + (n - B(0)) };
+      if (n === 'latest') {
+        const headT = Math.floor(Date.now() / 1000) - T0 - (opts.headAgeSec ?? 0);
+        return answer((opts.head ?? (() => 'ok'))(), () => ({
+          number: B(headT),
+          timestamp: T0 + headT,
+        }));
+      }
+      return answer(header(n as number), () => ({ timestamp: T0 + ((n as number) - B(0)) }));
     },
   };
   internals.bootstrap();
-  internals.liveAt = new Date().toISOString();
   internals.liveBlockNumber = B(tLive - 600); // the boot block
-  internals.startClockSync();
+  /** the observation as it stood when LIVE was REPORTED (status$), and when */
+  const atLive: { observation?: ReturnType<typeof clock.lastObservation>; at?: number } = {};
+  if (opts.viaLive) {
+    internals.readCheckpointReport = async () => ({});
+    internals.checkpoint = async () => {};
+    internals.kamiden.start = () => {};
+    d.status$.subscribe((st) => {
+      if (st.state === 'LIVE' && atLive.at === undefined) {
+        atLive.observation = clock.lastObservation();
+        atLive.at = Date.now();
+      }
+    });
+    internals.onSyncStatus({ state: SyncState.LIVE, msg: 'Streaming Live Events', percentage: 100 });
+  } else {
+    internals.liveAt = new Date().toISOString();
+    internals.startClockSync();
+  }
 
   const flush = async () => {
     for (let i = 0; i < 20; i++) await Promise.resolve();
@@ -199,7 +243,7 @@ function liveDaemon(
     if (internals.clockSyncTimer) clearInterval(internals.clockSyncTimer);
     internals.teardownWorker();
   };
-  return { asked, to, deliver, batch, close };
+  return { asked, to, deliver, batch, close, atLive, daemon: d };
 }
 
 describe('1.0.2: the clock timer arms a sample; the next newer block takes it', () => {
@@ -445,4 +489,107 @@ describe('1.0.2 (B2): a follow-up sample ~30 s after the first one after LIVE or
     for (let t = 32; t <= 140; t += 2) await h.deliver(t);
     expect(h.asked).toEqual([B(-148), B(-118), B(-8), B(30)]);
   });
+});
+
+// 1.0.3 — the clock has a value from LIVE on, and a hung header read cannot
+// delay it.
+//
+// Found on a 1.0.2 deploy (2026-10-04): the first header read after LIVE hung
+// on the public RPC until the provider's own timeout, so for 47 s there was
+// no sample at all and clock.now() was the raw wall clock — up to ~3 s AHEAD
+// of the chain, whose block timestamps run 0.3-3 s behind the wall clock when
+// a block appears. C1: every clock header read gives up after
+// CLOCK_READ_TIMEOUT_MS (5 s) and re-arms. C2: when the worker reports LIVE
+// and no sample exists, the clock is seeded from the chain head's header
+// BEFORE the daemon reports LIVE (within one shared 5 s budget); the seed is
+// behind by the head's age, and the first freshly delivered block replaces it.
+
+describe('1.0.3 (C1): a hung clock header read gives up after 5 s and re-arms', () => {
+  let close: (() => void) | null = null;
+  afterEach(() => {
+    close?.();
+    close = null;
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('a read that never resolves: within 5 s the sample is re-armed, and the next newer block takes it', async () => {
+    const warn = vi.spyOn(log, 'warn').mockImplementation(() => {});
+    const h = liveDaemon(0, (n) => (n === B(2) ? 'hang' : 'ok'));
+    close = h.close;
+    await h.deliver(2); // the read of B(2) hangs
+    expect(h.asked).toEqual([B(2)]);
+    await h.deliver(6); // 4 s in: still in flight, nothing armed
+    expect(h.asked).toEqual([B(2)]);
+    await h.to(7); // 5 s: the read gives up
+    expect(warn).toHaveBeenCalledWith('[daemon] clock sync failed', expect.any(Error));
+    await h.deliver(8);
+    expect(h.asked).toEqual([B(2), B(8)]);
+    expect(clock.lastObservation()?.blockNumber).toBe(B(8));
+    expect(clock.offset()).toBe(0);
+  });
+});
+
+describe('1.0.3 (C2): the clock is seeded from the chain head when the daemon goes LIVE', () => {
+  let close: (() => void) | null = null;
+  afterEach(() => {
+    close?.();
+    close = null;
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('LIVE is reported with a sample on the HEAD (not the boot block); the first fresh block replaces it; one +30 s follow-up', async () => {
+    const h = liveDaemon(0, () => 'ok', { viaLive: true, headAgeSec: 1 });
+    close = h.close;
+    await h.to(0);
+    expect(h.daemon.getStatus().state).toBe('LIVE');
+    // set when LIVE was reported: the head, one second old — behind, never ahead
+    expect(h.atLive.observation).toEqual({
+      blockTimestampSec: T0 - 1,
+      blockNumber: B(-1),
+      atWallMs: T0 * 1000,
+    });
+    expect(h.atLive.observation?.blockNumber).not.toBe(B(-600)); // the boot block
+    expect(clock.offset()).toBe(-1_000);
+    expect(h.asked).toEqual(['latest']);
+    // a backlog block older than the seed's head does not replace it
+    await h.batch(1, [-3]);
+    expect(h.asked).toEqual(['latest']);
+    // the first freshly delivered block does
+    await h.deliver(2);
+    expect(h.asked).toEqual(['latest', B(2)]);
+    expect(clock.lastObservation()?.blockNumber).toBe(B(2));
+    expect(clock.offset()).toBe(0);
+    // ...and arms the one follow-up, 30 s after it — once
+    for (let t = 4; t <= 298; t += 2) await h.deliver(t);
+    expect(h.asked).toEqual(['latest', B(2), B(32)]);
+  });
+
+  it.each(['throw', 'null', 'hang'] as const)(
+    'a head read that fails every attempt (%s): LIVE within the 5 s budget, offset 0, a WARN line, then 1.0.2',
+    async (how) => {
+      const warn = vi.spyOn(log, 'warn').mockImplementation(() => {});
+      const h = liveDaemon(0, () => 'ok', { viaLive: true, head: () => how });
+      close = h.close;
+      if (how === 'hang') {
+        await h.to(4.9);
+        expect(h.daemon.getStatus().state).not.toBe('LIVE'); // still seeding
+      }
+      await h.to(5);
+      expect(h.daemon.getStatus().state).toBe('LIVE');
+      expect(h.atLive.at).toBeLessThanOrEqual((T0 + 5) * 1000);
+      expect(h.atLive.observation).toBeNull();
+      expect(clock.offset()).toBe(0);
+      // bounded: immediate retries on a fast failure, one attempt when it hangs
+      expect(h.asked).toEqual(how === 'hang' ? ['latest'] : ['latest', 'latest', 'latest']);
+      expect(warn).toHaveBeenCalledWith(expect.stringMatching(/^\[daemon\] clock seed at LIVE failed/));
+      // the first delivered block samples as in 1.0.2, and arms its follow-up
+      await h.deliver(6);
+      expect(h.asked.slice(-1)).toEqual([B(6)]);
+      expect(clock.lastObservation()?.blockNumber).toBe(B(6));
+      for (let t = 8; t <= 40; t += 2) await h.deliver(t);
+      expect(h.asked.filter((n) => typeof n === 'number')).toEqual([B(6), B(36)]);
+    }
+  );
 });
