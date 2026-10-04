@@ -232,3 +232,48 @@ describe('sameComponentValue: exact, for every value shape the decoder produces'
     expect(sameComponentValue(b as never, a as never)).toBe(same);
   });
 });
+
+describe('a repair is a block-FINAL write', () => {
+  it('a stamped write that is NOT block-final is applied by the guard but never counted; the same write marked final is', () => {
+    // No live source stamps a non-final write: stream.ts stamps only the
+    // periodic reconcile's healRange output, which is always final. This pins
+    // the clause that says so — a repair is a proven block-final write, never
+    // a write that a later one of the same block may still supersede.
+    const world = createWorld();
+    const components = createComponents(world);
+    const ecsEvents$ = new Subject<NetworkEvent[]>();
+    applyNetworkUpdates(
+      world,
+      components,
+      ecsEvents$ as never,
+      { [COMPONENT]: 'Value' } as Record<string, keyof Components> as never,
+      new Subject<Ack>()
+    );
+    const entity = formatEntityID(`0x${E1.toString(16)}`);
+    const write = (value: number[], extra: Record<string, unknown> = {}) =>
+      ({
+        type: 'NetworkComponentUpdate',
+        component: COMPONENT,
+        entity,
+        value: { value },
+        blockNumber: 900,
+        logIndex: 1,
+        lastEventInTx: true,
+        txHash: '0x1',
+        ...extra,
+      }) as unknown as NetworkEvent;
+    const value = () => getComponentValue(components.Value, world.entityToIndex.get(entity)!)?.value;
+
+    ecsEvents$.next([write([1])]); // a stream write: (900, not final)
+    ecsEvents$.next([write([2], { reconcileCursor: 950 })]); // stamped, below the cursor, NOT final
+    expect(value()).toEqual([2]); // the guard applied it (same block, nothing final there)
+    expect(syncHealth.reconcileRepairs).toBe(0);
+    expect(repairLines()).toBe(0);
+
+    ecsEvents$.next([write([3], { reconcileCursor: 950, final: true })]);
+    expect(value()).toEqual([3]);
+    expect(syncHealth.reconcileRepairs).toBe(1);
+    expect(repairLines()).toBe(1);
+    world.dispose();
+  });
+});

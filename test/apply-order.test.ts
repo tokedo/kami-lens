@@ -45,7 +45,7 @@ import {
   markerEvent,
   type StreamClient,
 } from 'workers/sync/stream';
-import { healRange, type HealReason } from 'workers/sync/stream/heal';
+import { collapseLatest, healRange, type HealReason } from 'workers/sync/stream/heal';
 import {
   createFetchWorldEventsInBlockRange,
   createLatestEventStreamRPC,
@@ -630,5 +630,38 @@ describe('1.0.1: two transactions write one key in one block', () => {
     m.apply(streamed(chain[3]!));
     expect([m.value(E1), m.value(E3)]).toEqual([[4], [7]]);
     m.world.dispose();
+  });
+});
+
+describe('1.0.1: collapseLatest — chain position decides; arrival decides only what position cannot', () => {
+  const ev = (value: number, place: { transactionIndex?: number; logIndex?: number; blockNumber?: number }) =>
+    ({
+      type: NetworkEvents.NetworkComponentUpdate,
+      component: L16_COMPONENT,
+      entity: formatEntityID(`0x${E1.toString(16)}`),
+      value: { value: [value] },
+      blockNumber: 900,
+      lastEventInTx: true,
+      txHash: '0xc0',
+      ...place,
+    }) as unknown as NetworkComponentUpdate;
+  const values = (events: NetworkComponentUpdate[]) => events.map((e) => (e.value as { value: number[] }).value);
+
+  it('one key, one block, no transaction index (the position cannot order them): the LATER arrival wins', () => {
+    expect(values(collapseLatest([ev(1, { logIndex: 5 }), ev(2, { logIndex: 3 })]))).toEqual([[2]]);
+  });
+
+  it('one key, the SAME full position twice: the LATER arrival wins', () => {
+    const at = { transactionIndex: 2, logIndex: 3 };
+    expect(values(collapseLatest([ev(1, at), ev(2, at)]))).toEqual([[2]]);
+  });
+
+  it('one key, arriving out of chain order: the chain-later write wins whatever the arrival', () => {
+    expect(
+      values(collapseLatest([ev(5, { transactionIndex: 5, logIndex: 1 }), ev(3, { transactionIndex: 3, logIndex: 9 })]))
+    ).toEqual([[5]]);
+    expect(values(collapseLatest([ev(9, { blockNumber: 901, logIndex: 1 }), ev(8, { logIndex: 7 })]))).toEqual([
+      [9],
+    ]);
   });
 });
