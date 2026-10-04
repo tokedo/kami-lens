@@ -435,7 +435,7 @@
         },
         "olderWritesSkipped": {
           "type": "number",
-          "description": "1.0.0 (A2(c)), rule corrected in 1.0.1: updates the apply path refused because the key already held a write of a LATER block, or the FINAL write of the update's own block (the last write of that block for that key, as a proven chain read says) \u2014 re-deliveries of a reconciled block included. Never decided by log index, which on Yominet restarts in every transaction. Normal and nonzero on a healthy daemon: every reconcile pass re-reads writes the stream already applied."
+          "description": "1.0.0 (A2(c)), rule corrected in 1.0.1: updates the apply path refused because the key already held a write of a LATER block, or the FINAL write of the update's own block (the last write of that block for that key, as a proven chain read says) \u2014 re-deliveries of a reconciled block included. Never decided by log index, which on Yominet restarts in every transaction. Normal and nonzero on a healthy daemon: a reconcile pass re-reads keys the stream has since written again in a later block, and a stream frame can arrive after a chain read already applied its block's final write. From 1.0.1 a chain read's final write over the SAME block the stream last wrote is applied (an identical value on a healthy stream), not skipped, so this reads lower than 1.0.0 did for the same traffic."
         },
         "lastReconcileAdvanceAt": {
           "type": [
