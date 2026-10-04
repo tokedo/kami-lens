@@ -506,6 +506,9 @@ export class KamiLensDaemon {
             this.lastStreamEventAtWallMs > 0 &&
             Date.now() - this.lastStreamEventAtWallMs > KamiLensDaemon.STREAM_STALL_MS;
           this.lastStreamEventAtWallMs = Date.now();
+          // 1.0.0 (A1) after LIVE, 1.0.2 after every clock tick: an ARMED
+          // sample is taken here, on the event that brings a block newer than
+          // the last sample — not by the timer (see startClockSync)
           const firstLive =
             this.clockAwaitingLiveSample && update.blockNumber > this.lastClockSampleBlock;
           if (firstLive) this.clockAwaitingLiveSample = false;
@@ -672,9 +675,11 @@ export class KamiLensDaemon {
    * the stream tap in workers/sync/stream stays armed in case that changes,
    * and fresher observations would simply win). The operative source is
    * therefore the header timestamp of a block the stream HAS delivered,
-   * fetched via RPC on a slow cadence. A very fresh block can be missing on
-   * a lagging load-balanced backend (the G1.b lesson) — getBlock() then
-   * returns null and the sync just waits for the next tick. */
+   * fetched via RPC. This is the cadence at which a sample is ARMED (1.0.2);
+   * the sample itself is taken on the next stream event of a newer block. A
+   * very fresh block can be missing on a lagging load-balanced backend (the
+   * G1.b lesson) — getBlock() then returns null, the sample stays armed and
+   * the next newer block is tried. */
   private static readonly CLOCK_SYNC_INTERVAL_MS = 300_000;
 
   private startClockSync(): void {
@@ -684,18 +689,32 @@ export class KamiLensDaemon {
     // boot (2,175 blocks behind the head on the CDN boot of 2026-10-03), so
     // anchoring on it ran the projection clock that far in the past for the
     // first 300 s. It counts as already sampled; the first stream event on a
-    // newer block anchors the clock (the status tap), then the timer runs.
+    // newer block anchors the clock (the status tap).
     this.lastClockSampleBlock = Math.max(this.lastClockSampleBlock, this.liveBlockNumber);
     this.clockAwaitingLiveSample = true;
+    // 1.0.2: the timer only ARMS the next sample, the same way. Until 1.0.2
+    // it sampled liveBlockNumber as it stood — the newest block the stream
+    // had delivered, however long ago — so the offset carried that block's
+    // AGE at the read, and every projection ran that far in the past for the
+    // next 300 s (a live session on 2026-10-04: clockOffsetMs −2,979 to
+    // −23,977, the −23,977 sampled inside a 26 s gap between blocks). Taken
+    // on the event that brings a newer block, the header read follows that
+    // block's delivery by one RPC round trip. On an idle chain nothing is
+    // sampled and now() stays wall time + the last measured offset — the
+    // post-stall rule's reasoning (see syncClock).
     this.clockSyncTimer = setInterval(() => {
-      void this.syncClock().catch((e) => log.warn('[daemon] clock sync failed', e));
+      this.clockAwaitingLiveSample = true;
     }, KamiLensDaemon.CLOCK_SYNC_INTERVAL_MS);
     this.clockSyncTimer.unref?.();
   }
 
   /** the block the last clock sample was taken on (1.0.0, A1) */
   private lastClockSampleBlock = 0;
-  /** true from LIVE until the first stream event on a newer block (A1) */
+  /** a clock sample is ARMED: the next stream event on a block newer than
+   * lastClockSampleBlock takes it (the status tap in bootstrap). Set at LIVE
+   * (1.0.0, A1), by every clock tick (1.0.2), and again by a header read
+   * that returned null or threw (1.0.2, see syncClock); cleared by the tap
+   * when it triggers the sample. */
   private clockAwaitingLiveSample = false;
 
   /** 1.0.0 (A1), THE POST-STALL RULE: a clock sample is taken only on a block
@@ -707,7 +726,12 @@ export class KamiLensDaemon {
    * offset, the best estimate there is. The first event after a stall then
    * re-anchors immediately (see the status tap in bootstrap) rather than up to
    * 300 s later. While the stall lasts, `degraded` carries stream-stalled and
-   * every answer is stamped stale. */
+   * every answer is stamped stale.
+   *
+   * 1.0.2: called only from the status tap — on an armed sample or the first
+   * event after a stall — never by the timer. A header read that returns null
+   * (a lagging backend) or throws RE-ARMS the sample, so the next newer block
+   * is tried rather than the next tick's. */
   private async syncClock(): Promise<void> {
     if (this.stopped || !this.liveBlockNumber) return;
     if (this.liveBlockNumber <= this.lastClockSampleBlock) return;
@@ -722,7 +746,14 @@ export class KamiLensDaemon {
     // `observedBlock` in 0.6.1 with the envelope fields it feeds (the old
     // envelope names were removed in 1.0.0).
     const clockSampleBlock = this.liveBlockNumber;
-    const block = await this.clockProvider.getBlock(clockSampleBlock);
+    let block: Awaited<ReturnType<JsonRpcProvider['getBlock']>>;
+    try {
+      block = await this.clockProvider.getBlock(clockSampleBlock);
+    } catch (e) {
+      this.clockAwaitingLiveSample = true;
+      throw e;
+    }
+    if (!block) this.clockAwaitingLiveSample = true;
     if (block && clockSampleBlock > this.lastClockSampleBlock) {
       clock.observeBlockTimestamp(block.timestamp, clockSampleBlock);
       this.lastClockSampleBlock = clockSampleBlock;
