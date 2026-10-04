@@ -41,8 +41,9 @@
 // timer sampled the newest block the stream had delivered AS IT STOOD, so the
 // offset also carried that block's AGE at the read — measured in a live
 // session on 2026-10-04 at −23,977 ms on a sample taken inside a 26 s gap
-// between blocks. The timer now only ARMS a sample, and the next stream event
-// on a block newer than the last sample takes it; this module's code is
+// between blocks. The timer now only ARMS a sample; the next stream event that
+// delivers a block NEWER than any delivered so far takes it, and the header
+// read is of the newest block delivered when it runs. This module's code is
 // unchanged. The error stays
 // one-sided: a header is read after its block exists, so blockTimestamp*1000
 // − Date.now() at the read is at or below the true offset, and now() runs

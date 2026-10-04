@@ -437,9 +437,9 @@ the block whose header timestamp last calibrated the offset-corrected clock,
 refreshed every `CLOCK_SYNC_INTERVAL_MS` = 300 s (`src/daemon.ts` `syncClock`).
 So `clockSampleAgoMs` **cycles 0–300 s on a perfectly healthy mirror**, and a
 value near 300 s means the next sync is due — not that anything is late. (Since
-1.0.2 the timer arms the sample and the next newer block takes it — below — so
-the cycle runs a little past 300 s, and on past it for as long as no newer
-block arrives.) It is
+1.0.2 the timer arms the sample and the next delivery of a newer block takes it
+— below — so the cycle runs a little past 300 s, and on past it for as long as
+no newer block arrives.) It is
 **not mirror lag**, it is not the age of the answer, and it says nothing
 whatever about applied state. Mirror lag is `status.blockLag`
 (`headBlockNumber − meta.blockNumber`); verified applied state is
@@ -469,20 +469,46 @@ hour, gaps of 10 s or more were 14 in 400 blocks, about a fifth of wall time —
 and for the next five minutes `cooldownSec` read ~23 s long, stamina and
 resting HP one point low, and a harvest one block after its start
 `musu.accrued: -1`. 1.0.0's post-LIVE rule already held the mechanism that
-removes this: an armed flag, and a sample taken by the status tap on the next
-stream event whose block is newer than the last sample. 1.0.2 routes the timer
-through it — every tick ARMS the flag and samples nothing. When the event that
-takes the sample is the one delivering a new block, the header read follows
-that delivery by one RPC round trip. A header read that returns null (a
-lagging backend) or throws re-arms the flag, so the next newer block is tried
-rather than the next tick's. On an idle chain nothing is sampled and `now()`
+removes this: an armed flag, and a sample taken by the status tap. 1.0.2
+routes the timer through it — every tick ARMS the flag and samples nothing —
+and makes the rule for taking the sample exact: **the next stream event that
+delivers a block NEWER than any delivered so far takes it; the header read is
+of the newest block delivered when it runs.**
+
+Both halves are needed, because not every event the daemon receives is the
+stream delivering something new. The periodic reconcile re-emits every write
+it re-read, each on its own older block (§3.17); a gap heal emits the healed
+range, oldest block first, ahead of the frame that triggered it, starting AT
+the last block delivered; a catch-up emits a proven range. A write of a block
+at or below the newest one delivered says nothing about "now" and never takes
+the sample — under the looser "newer than the last sample" a reconcile write
+landing between a tick and the next block read the newest block as it stood,
+which is the defect again. And the read happens once the event's whole worker
+batch is in: the tap is called once per batch (the worker buffers its output
+by time — 33 ms, at most 33,333 events — and hands each buffer over as one
+array, waiting for the apply side's ack before the next), and a frame's events
+are emitted synchronously in one go, so a gap heal and its frame arrive
+together and the read is of the frame's block, not of the oldest healed one. A
+burst larger than the buffer cap would arrive as two batches, and the first
+one's newest block would be read — older, never ahead. The first event after a
+stall now ARMS the sample rather than reading at once: until 1.0.2 that event
+could be a reconcile write landing inside the stall, or the head of the
+reconnect frame's gap heal, and the read then took the frozen block and pinned
+`now()` to its time by the whole stall — the case the post-stall rule exists to
+prevent. Armed, the re-anchor stays owed even when such a write resets the
+stall timer before the stream resumes.
+
+A header read that returns null (a lagging backend) or throws re-arms the
+flag, so the next newer block is tried rather than the next tick's. On an idle
+chain nothing is sampled and `now()`
 keeps wall time + the last measured offset, the post-stall rule's own
 reasoning — which is why `clockSampleAgoMs` may now exceed 300 s with nothing
 wrong. Deliberately nothing more: no smoothing, no window, no change to
 `clock.now()`, to the projection, or to any `meta.asOf` field.
 
 **It cannot move the clock ahead of the chain.** A header is read only for a
-block the stream has already delivered, so the block exists before the read
+block already delivered to the daemon (by the stream, or by a proven chain
+read), so the block exists before the read
 returns, and `observeBlockTimestamp` takes `Date.now()` after it returns: header
 time × 1000 − wall time at that instant is at or below the true chain-minus-wall
 offset, provided only that a block's header time is not later than the moment

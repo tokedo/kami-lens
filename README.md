@@ -148,12 +148,12 @@ Every five minutes the daemon checks its clock against the chain, and until
 1.0.2 it did so on the newest block it already had, which in a quiet moment
 could be 20 seconds old — so for the next five minutes cooldowns read up to
 that much too long and health, stamina and harvest totals a point low. It now
-waits for the stream to deliver a block newer than its last check and checks
-on that one, so the clock is no longer as far behind as the quiet moment was
-long, and it still never runs ahead of the chain. Nothing to do but upgrade:
-no field is added, renamed or removed, `version` reads `1.0.2`, and
-`meta.asOf.clockSampleAgoMs` may now go past 300,000 on a healthy daemon
-while no new block arrives.
+waits until the stream delivers a block newer than any it has seen and checks
+against the newest block of that delivery, so the clock no longer falls behind
+by however long the quiet moment lasted, and it still never runs ahead of the
+chain. Nothing to do but upgrade: no field is added, renamed or removed,
+`version` reads `1.0.2`, and `meta.asOf.clockSampleAgoMs` may now go past
+300,000 on a healthy daemon while no new block arrives.
 
 ### What changed in 1.0.1, for the things that read this daemon
 

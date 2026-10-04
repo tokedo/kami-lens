@@ -63,9 +63,10 @@ export type EnvelopeOptions = {
  * whose header timestamp last calibrated the offset-corrected clock,
  * refreshed every `CLOCK_SYNC_INTERVAL_MS` = 300 s (src/daemon.ts syncClock),
  * so `clockSampleAgoMs` cycles 0-300 s on a perfectly healthy mirror. Since
- * 1.0.2 the timer ARMS the sample and the next stream event on a block newer
- * than the last sample takes it, so the cycle runs a little past 300 s, and
- * on past it for as long as no newer block arrives (§3.8). It is
+ * 1.0.2 the timer ARMS the sample, the next stream event that delivers a
+ * block NEWER than any delivered so far takes it, and the header read is of
+ * the newest block delivered when it runs; so the cycle runs a little past
+ * 300 s, and on past it for as long as no newer block arrives (§3.8). It is
  * NOT mirror lag and says nothing about applied state. Mirror lag is
  * `status.blockLag`; verified applied state is `meta.reconciledThrough`.
  *
@@ -100,8 +101,8 @@ export type AsOf = {
   /** wall-clock ms since that clock sample. Cycles 0-300 s on a healthy
    * mirror (the sync cadence) and is bounded by NOTHING when the observation
    * keeps failing or the stream is stalled (§3.8). Since 1.0.2 a sample is
-   * taken only on a newer block after the 300 s tick, so it also runs past
-   * 300 s while the chain is idle. NOT mirror lag. */
+   * taken only when a newer block is delivered after the 300 s tick, so it
+   * also runs past 300 s while the chain is idle. NOT mirror lag. */
   clockSampleAgoMs?: number;
 };
 
