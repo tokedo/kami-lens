@@ -559,6 +559,54 @@ describe('1.0.1: two transactions write one key in one block', () => {
     m.world.dispose();
   });
 
+  it('(j) a position-less value forgets the key s place: a re-read of the block its FINAL write came from lands again', async () => {
+    // the wide-gap heal: a Kamigaze diff (no position) and then a chain
+    // top-up of the diff s head, applied in that order (stream.ts healGap)
+    const chain = [
+      { block: 800, tx: 2, logIndex: 3, entity: E1, value: [5] },
+      { block: 800, tx: 3, logIndex: 1, entity: E1, value: [6] },
+    ];
+    const m = caseMirror();
+    m.apply(await chainRead(chain, 781, 800, 'reconcile'));
+    expect(m.value(E1)).toEqual([6]); // E1 holds block 800's FINAL write
+    m.apply([
+      {
+        type: NetworkEvents.NetworkComponentUpdate,
+        component: L16_COMPONENT,
+        entity: formatEntityID(`0x${E1.toString(16)}`),
+        value: { value: [4] }, // a half-ingested diff: older than the chain
+        blockNumber: 790,
+        lastEventInTx: true,
+        txHash: '0xdiff',
+      },
+    ]);
+    expect(m.value(E1)).toEqual([4]);
+    m.apply(await chainRead(chain, 798, 800, 'gap'));
+    expect(m.value(E1)).toEqual([6]);
+    m.world.dispose();
+  });
+
+  it('prune: reaching reconciledThrough R forgets the places of blocks below R, and keeps R s own', () => {
+    // what forgetting MEANS, shown with writes no live source sends: below R
+    // every block has been re-read complete, so nothing newer can arrive there
+    // and the guard stops remembering; R itself may still be streaming
+    const R = 650;
+    const m = caseMirror();
+    syncHealth.reconciledThrough = R - 10;
+    const finalAt = (l: chain_.ChainLog) => streamed(l).map((e) => ({ ...e, final: true }));
+    m.apply(finalAt({ block: R - 1, tx: 1, logIndex: 1, entity: E1, value: [1] }));
+    m.apply(finalAt({ block: R, tx: 1, logIndex: 1, entity: E2, value: [2] }));
+    m.apply([markerEvent({ anchor: R - 10, through: R, reconciled: true })]);
+    expect(syncHealth.reconciledThrough).toBe(R);
+    // E1 s place (R - 1) is forgotten: an older write is no longer refused
+    m.apply(streamed({ block: R - 2, tx: 1, logIndex: 1, entity: E1, value: [10] }));
+    expect(m.value(E1)).toEqual([10]);
+    // E2 s place (R, final) is kept: a write of R is still refused
+    m.apply(streamed({ block: R, tx: 2, logIndex: 1, entity: E2, value: [20] }));
+    expect(m.value(E2)).toEqual([2]);
+    m.world.dispose();
+  });
+
   it('(k) a key pruned at reconciledThrough, then a gap heal that starts at that block', async () => {
     const R = 650;
     const chain = [
