@@ -713,6 +713,24 @@ export function equipmentOf(mirror: Mirror, kamiId: EntityID): EquipmentOut {
   };
 }
 
+/** 1.0.2 (B4): an AMOUNT the harvest projection produces, floored at 0 on
+ * output. The projection computes accrual as the stored balance plus
+ * floor((now − the harvest's last update) × rate); with the projection clock
+ * behind the chain a harvest started in the last block or two has a negative
+ * elapsed time, and `musu.accrued` read −1 (a live session on 2026-10-04).
+ * None of these can be negative on the chain: accrued MUSU is a stored
+ * balance plus a bounty over a non-negative elapsed time at a non-negative
+ * rate; salvage and spoils are the shares of that accrual the victim keeps
+ * and the attacker takes, paid out as token balances; recoil is the HP the
+ * attacker loses, the strain of the spoils (the ported calcRecoil already
+ * clamps its own boost at 0: "can't have negative recoil"). A negative
+ * value is the clock's error, not a fact, so it is served as 0. The ported
+ * projection is untouched; only the served number is floored. Applied to
+ * `musu.accrued` (kami, and party rows), node `vitals.musuAccrued`, and
+ * the node liquidation preview's `spoils`, `salvage` and `recoil`. NOT to
+ * `margin` (threshold − hp), which is negative by meaning. */
+export const nonNegativeAmount = (n: number): number => Math.max(0, n);
+
 export function buildKamiVitals(
   mirror: Mirror,
   entity: EntityIndex,
@@ -767,7 +785,8 @@ function vitalsOf(
   };
   if (kami.harvest && kami.harvest.state === 'ACTIVE') {
     vitals.musu = {
-      accrued: calcOutput(kami),
+      // 1.0.2 (B4): floored at 0 — see nonNegativeAmount
+      accrued: nonNegativeAmount(calcOutput(kami)),
       spotRatePerHr: getRateDisplay(kami.harvest.rates.total.spot, 2),
       avgRatePerHr: getRateDisplay(kami.harvest.rates.total.average, 2),
     };
@@ -1327,7 +1346,7 @@ export function nodeQuery(
           percent: Number(calcHealthPercent(occupant).toFixed(0)),
         },
         ...(full ? { hpRatePerHr: getRateDisplay(occupant.stats?.health.rate, 2) } : {}),
-        musuAccrued: calcOutput(occupant),
+        musuAccrued: nonNegativeAmount(calcOutput(occupant)), // 1.0.2 (B4)
         cooldownSec: Math.max(0, Math.floor(calcCooldown(occupant))),
         cooldownUntil: occupant.time?.cooldown ?? 0,
         // §3.13: the threat read needs to know how strong the occupant is
@@ -1350,9 +1369,11 @@ export function nodeQuery(
           ...(eligible ? {} : { reason: liquidationBlocker(attackerKami, threshold) }),
           threshold,
           margin: threshold - hp,
-          spoils: calcLiqSpoils(attackerKami, occupant),
-          salvage: calcLiqSalvage(occupant),
-          recoil: calcLiqRecoil(attackerKami, occupant),
+          // 1.0.2 (B4): shares of the occupant's accrual, and the strain of
+          // the spoils — floored at 0 with it (see nonNegativeAmount)
+          spoils: nonNegativeAmount(calcLiqSpoils(attackerKami, occupant)),
+          salvage: nonNegativeAmount(calcLiqSalvage(occupant)),
+          recoil: nonNegativeAmount(calcLiqRecoil(attackerKami, occupant)),
         };
       }
     }

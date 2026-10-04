@@ -65,7 +65,8 @@
           ],
           "properties": {
             "accrued": {
-              "type": "number"
+              "type": "number",
+              "minimum": 0
             },
             "spotRatePerHr": {
               "type": "string"

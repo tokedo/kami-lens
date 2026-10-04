@@ -161,7 +161,8 @@
           "description": "`--full` only from 0.5.0 (§3.13)."
         },
         "musuAccrued": {
-          "type": "number"
+          "type": "number",
+          "minimum": 0
         },
         "cooldownSec": {
           "type": "number"
@@ -244,13 +245,16 @@
           "description": "§3.13 (0.5.2): threshold minus the occupant's projected hp. May be negative. The projection error is NOT bounded (SPEC §3.13), so a caller wanting certainty requires a margin rather than trusting `eligible`."
         },
         "spoils": {
-          "type": "number"
+          "type": "number",
+          "minimum": 0
         },
         "salvage": {
-          "type": "number"
+          "type": "number",
+          "minimum": 0
         },
         "recoil": {
-          "type": "number"
+          "type": "number",
+          "minimum": 0
         }
       }
     },
