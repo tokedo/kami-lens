@@ -26,8 +26,8 @@
 import { AbiCoder, Interface } from 'ethers';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { Subject } from 'rxjs';
-import { describe, expect, it } from 'vitest';
+import { firstValueFrom, of, Subject, toArray } from 'rxjs';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { StreamResponse } from 'clients/kamigaze';
 import { createDecode } from 'engine/encoders';
@@ -37,9 +37,22 @@ import { createComponents } from 'network/components';
 import { applyNetworkUpdates } from 'network/setup';
 import { resetSyncHealth, syncHealth } from '../src/sync-health';
 import { Ack } from 'workers/sync';
-import { createStream, type StreamClient } from 'workers/sync/stream';
-import { createFetchWorldEventsInBlockRange } from 'workers/sync/utils';
+import { createStateCache, getStateCacheEntries, storeStateEvents } from 'workers/sync/state';
+import {
+  createStream,
+  createTransformWorldEvents,
+  fillGap,
+  markerEvent,
+  type StreamClient,
+} from 'workers/sync/stream';
+import { healRange, type HealReason } from 'workers/sync/stream/heal';
+import {
+  createFetchWorldEventsInBlockRange,
+  createLatestEventStreamRPC,
+  fetchEventsInBlockRangeChunked,
+} from 'workers/sync/utils';
 import { NetworkComponentUpdate, NetworkEvent, NetworkEvents } from 'workers/types';
+import * as chain_ from './support/chain';
 
 const WORLD = '0x2729174c265dbBd8416C6449E0E813E88f43D0E7';
 const abi = JSON.parse(
@@ -52,6 +65,11 @@ const iface = new Interface(abi as never);
 const COMPONENT_ID = '0xb3f96e7944f99619a1086b9a1272bbdff635f1cac9c8bf7ba6ce1a9aa202f19c';
 const ENTITY = 0xfeedn;
 
+/** `tx` is the log's transaction index within its block and `logIndex` its
+ * index WITHIN THAT TRANSACTION, as the chain numbers them (1.0.1; see
+ * test/support/chain.ts). Every fixture in this section has one log per
+ * block, so the numbers below did not change when the encoder stopped putting
+ * every log at transactionIndex 0. */
 type ChainLog = { block: number; logIndex: number; tx: number; value?: number[] };
 
 /** A log as ethers' getLogs returns it AND as the raw JSON-RPC wire carries it. */
@@ -76,7 +94,7 @@ function encode(l: ChainLog) {
       topics,
       data,
       blockNumber: l.block,
-      transactionIndex: 0,
+      transactionIndex: l.tx,
       index: l.logIndex,
       transactionHash,
     },
@@ -85,7 +103,7 @@ function encode(l: ChainLog) {
       topics,
       data,
       blockNumber: `0x${l.block.toString(16)}`,
-      transactionIndex: '0x0',
+      transactionIndex: `0x${l.tx.toString(16)}`,
       logIndex: `0x${l.logIndex.toString(16)}`,
       transactionHash,
       blockHash: `0x${l.block.toString(16).padStart(64, '0')}`,
@@ -255,5 +273,314 @@ describe('A2(c): a reconcile over a short chain answer never regresses a key', (
     expect.soft(getComponentValue(components.Value, entity)?.value).toEqual([2]);
     // (b) and the verified bound does not claim blocks the answer never covered
     expect.soft(syncHealth.reconciledThrough).toBeLessThanOrEqual(103);
+  });
+});
+
+
+// ---------------- 3. 1.0.1 (field report 2026-10-04): one block, several transactions
+//
+// On Yominet a log's index restarts in every transaction (a real
+// five-transaction block: 44 World logs indexed 1..16, then 1..7 four times),
+// and a stream frame carries no transaction index. 1.0.0's guard packed
+// `block * 2^20 + logIndex` and skipped an update whose position was not
+// greater than the last one applied for its key — so a LATER transaction's
+// write with an equal or lower index was dropped as "older", on the stream
+// and again on every re-read of the block. The rule now: per key, the block
+// of the last write applied and whether it was that block's FINAL write (as a
+// proven, collapsed chain read says). An update of block B is skipped iff the
+// key already holds a write of a later block, or B's final write. Every case
+// below goes through the real applyNetworkUpdates; the stream's writes are
+// the real transform of a frame, the chain's are the real range reader under
+// the real healRange.
+
+const L16_COMPONENT = formatComponentID(chain_.COMPONENT_ID);
+const E1 = 0xe1n;
+const E2 = 0xe2n;
+const E3 = 0xe3n;
+
+function caseMirror() {
+  const world = createWorld();
+  const components = createComponents(world);
+  const ecsEvents$ = new Subject<NetworkEvent[]>();
+  applyNetworkUpdates(
+    world,
+    components,
+    ecsEvents$ as never,
+    { [L16_COMPONENT]: 'Value' } as Record<string, keyof Components> as never,
+    new Subject<Ack>()
+  );
+  const apply = (events: unknown[]) => ecsEvents$.next(events as NetworkEvent[]);
+  const value = (e: bigint) => {
+    const idx = world.entityToIndex.get(formatEntityID(`0x${e.toString(16)}`));
+    return idx === undefined ? undefined : getComponentValue(components.Value, idx)?.value;
+  };
+  return { world, apply, value };
+}
+
+const transformFrame = createTransformWorldEvents(createDecode());
+/** What the stream delivers for one log: the real transform of its frame. */
+const streamed = (l: chain_.ChainLog) => transformFrame(chain_.frameFor(l, { block: 0, logIndex: 0 }));
+
+/** A proven chain read of [from, to] — the real reader, the real healRange —
+ * as the reconcile / catch-up (partial) or a gap heal (whole) makes it. */
+async function chainRead(
+  chain: chain_.ChainLog[],
+  from: number,
+  to: number,
+  reason: HealReason,
+  head = to + 10
+) {
+  const fetchWorldEvents = chain_.reader(
+    chain_.poolProvider(chain, { single: () => head, batch: () => head })
+  );
+  const r = await healRange({
+    from,
+    to,
+    reason,
+    fetchWorldEvents,
+    rpcHead: { cached: () => head, fetch: async () => head },
+    partial: reason !== 'gap',
+    headWaitMs: 50,
+    headPollMs: 5,
+  });
+  if (!r.ok) throw new Error(`chain read ${from}..${to} deferred (${r.deferred})`);
+  return r.events;
+}
+
+describe('1.0.1: two transactions write one key in one block', () => {
+  beforeEach(() => resetSyncHealth());
+
+  // one key, written by transaction 2 and then by transaction 4 of block B
+  const B = 400;
+  const tx2 = { block: B, tx: 2, logIndex: 5, entity: E1, value: [10] };
+  const tx4same = { block: B, tx: 4, logIndex: 5, entity: E1, value: [20] };
+  const tx4lower = { block: B, tx: 4, logIndex: 2, entity: E1, value: [20] };
+
+  it('(a) stream: tx 2 then tx 4 at the SAME log index — both apply, in arrival order', () => {
+    const m = caseMirror();
+    m.apply(streamed(tx2));
+    m.apply(streamed(tx4same));
+    expect(m.value(E1)).toEqual([20]);
+    m.world.dispose();
+  });
+
+  it('(b) stream: tx 4 s index is LOWER than tx 2 s — still both apply, tx 4 last', () => {
+    const m = caseMirror();
+    m.apply(streamed(tx2));
+    m.apply(streamed(tx4lower));
+    expect(m.value(E1)).toEqual([20]);
+    m.world.dispose();
+  });
+
+  it('(c) the reconcile of that block, after (a), ends on the chain s final write', async () => {
+    const m = caseMirror();
+    m.apply(streamed(tx2));
+    m.apply(streamed(tx4same));
+    m.apply(await chainRead([tx2, tx4same], B, B, 'reconcile'));
+    expect(m.value(E1)).toEqual([20]);
+    m.world.dispose();
+  });
+
+  it('(d) the stream LOST tx 4 s frame: the reconcile repairs the key', async () => {
+    const m = caseMirror();
+    m.apply(streamed(tx2));
+    expect(m.value(E1)).toEqual([10]);
+    m.apply(await chainRead([tx2, tx4lower], B, B, 'reconcile'));
+    expect(m.value(E1)).toEqual([20]);
+    m.world.dispose();
+  });
+
+  it('(e) a gap heal of [a..B], then the stream s late frames of B: the heal s final write stands', async () => {
+    const chain = [
+      { block: 500, tx: 2, logIndex: 1, entity: E1, value: [1] },
+      { block: 500, tx: 5, logIndex: 9, entity: E1, value: [5] },
+      { block: 500, tx: 7, logIndex: 2, entity: E1, value: [7] },
+    ];
+    const m = caseMirror();
+    m.apply(await chainRead(chain, 495, 500, 'gap'));
+    expect(m.value(E1)).toEqual([7]);
+    // the stream catches up with block 500 after the heal (its triggering
+    // frame, or the frames behind it): none of it is newer than the heal
+    m.apply(streamed(chain[1]!)); // tx 5, index 9 — HIGHER than the final write's 2
+    expect(m.value(E1)).toEqual([7]);
+    m.apply(streamed(chain[2]!));
+    expect(m.value(E1)).toEqual([7]);
+    // ...and a write of a later block is newer
+    m.apply(streamed({ block: 501, tx: 1, logIndex: 1, entity: E1, value: [8] }));
+    expect(m.value(E1)).toEqual([8]);
+    m.world.dispose();
+  });
+
+  it('(f) a catch-up read AHEAD of the stream, then the stream s frames for those blocks', async () => {
+    const chain = [
+      { block: 500, tx: 1, logIndex: 1, entity: E1, value: [1] },
+      { block: 501, tx: 1, logIndex: 8, entity: E1, value: [11] },
+      { block: 501, tx: 3, logIndex: 2, entity: E1, value: [13] },
+      { block: 502, tx: 1, logIndex: 1, entity: E2, value: [20] },
+      { block: 503, tx: 2, logIndex: 1, entity: E1, value: [14] },
+    ];
+    const m = caseMirror();
+    // the catch-up proves [500, 502] (the backend s head is 503)
+    m.apply(await chainRead(chain, 500, 502, 'catch-up', 503));
+    expect([m.value(E1), m.value(E2)]).toEqual([[13], [20]]);
+    // the stream now delivers those blocks, in chain order
+    for (const l of chain.slice(0, 4)) {
+      m.apply(streamed(l));
+      expect([m.value(E1), m.value(E2)]).toEqual([[13], [20]]);
+    }
+    m.apply(streamed(chain[4]!)); // block 503: past the catch-up
+    expect(m.value(E1)).toEqual([14]);
+    m.world.dispose();
+  });
+
+  it('(g) the reconcile proves block C while the stream is mid-C; the late frames of C change nothing — prune included', async () => {
+    // one key written at the same index by three transactions of block C
+    const C = 600;
+    const chain = [
+      { block: C, tx: 1, logIndex: 3, entity: E1, value: [31] },
+      { block: C, tx: 1, logIndex: 4, entity: E2, value: [9] },
+      { block: C, tx: 3, logIndex: 3, entity: E1, value: [32] },
+      { block: C, tx: 5, logIndex: 3, entity: E1, value: [33] },
+    ];
+    const m = caseMirror();
+    syncHealth.reconciledThrough = C - 2;
+    m.apply(streamed(chain[0]!));
+    m.apply(streamed(chain[1]!));
+    // the pass reads [C-1, C] while the stream is in C, and ends in its
+    // reconcile marker — which advances reconciledThrough to C and prunes
+    m.apply(await chainRead(chain, C - 1, C, 'reconcile'));
+    m.apply([markerEvent({ anchor: C - 2, through: C, reconciled: true })]);
+    expect(syncHealth.reconciledThrough).toBe(C);
+    expect(m.value(E1)).toEqual([33]);
+    const skipped = syncHealth.olderWritesSkipped;
+    // the rest of C arrives: no write of C is newer than C s final write
+    m.apply(streamed(chain[2]!));
+    expect(m.value(E1)).toEqual([33]);
+    m.apply(streamed(chain[3]!));
+    expect(m.value(E1)).toEqual([33]);
+    expect(syncHealth.olderWritesSkipped).toBe(skipped + 2);
+    m.world.dispose();
+  });
+
+  it('(h) a newer block s stream write, then a reconcile write of an older block: the newer one stands', async () => {
+    const chain = [
+      { block: 605, tx: 1, logIndex: 1, entity: E1, value: [5] },
+      { block: 610, tx: 2, logIndex: 1, entity: E1, value: [6] },
+    ];
+    const m = caseMirror();
+    m.apply(streamed(chain[1]!));
+    // a lagging backend proves the pass only through 605
+    const events = await chainRead(chain, 601, 610, 'reconcile', 606);
+    expect(events.map((e) => e.blockNumber)).toEqual([605]);
+    m.apply(events);
+    expect(m.value(E1)).toEqual([6]);
+    expect(syncHealth.olderWritesSkipped).toBe(1);
+    m.world.dispose();
+  });
+
+  describe('(i) a raw range read over a multi-transaction block — ordered, never final', () => {
+    // E1: three transactions, the same index; E2: removed then set by a later
+    // transaction at the same index; E3: set, then removed by a later
+    // transaction at a LOWER index
+    const chain = [
+      { block: 700, tx: 1, logIndex: 3, entity: E1, value: [31] },
+      { block: 700, tx: 1, logIndex: 9, entity: E3, value: [5] },
+      { block: 700, tx: 2, logIndex: 1, entity: E2 },
+      { block: 700, tx: 3, logIndex: 1, entity: E2, value: [8] },
+      { block: 700, tx: 3, logIndex: 3, entity: E1, value: [32] },
+      { block: 700, tx: 4, logIndex: 2, entity: E3 },
+      { block: 700, tx: 5, logIndex: 3, entity: E1, value: [33] },
+    ];
+    const truth = [[33], [8], undefined];
+    const fetchWorldEvents = () =>
+      chain_.reader(chain_.poolProvider(chain, { single: () => 710, batch: () => 710 }));
+    const read = (m: ReturnType<typeof caseMirror>) => [m.value(E1), m.value(E2), m.value(E3)];
+
+    it('the bootstrap fill (fillGap, RPC path) folded into the state cache', async () => {
+      const events = await fillGap({
+        kamigazeUrl: undefined,
+        decode: createDecode(),
+        fetchWorldEvents: fetchWorldEvents(),
+        fromBlock: 690,
+        toBlock: 700,
+      });
+      const cache = createStateCache();
+      storeStateEvents(cache, events as never);
+      const m = caseMirror();
+      m.apply([...getStateCacheEntries(cache)]);
+      expect(read(m)).toEqual(truth);
+      m.world.dispose();
+    });
+
+    it('the same read applied as it comes (the chunked reader, and the no-stream RPC mode)', async () => {
+      const chunked = await fetchEventsInBlockRangeChunked(fetchWorldEvents(), 690, 700);
+      expect(chunked.some((e) => (e as { final?: boolean }).final)).toBe(false);
+      const m1 = caseMirror();
+      m1.apply(chunked);
+      expect(read(m1)).toEqual(truth);
+      m1.world.dispose();
+
+      const live = await firstValueFrom(
+        createLatestEventStreamRPC(of(700), fetchWorldEvents()).pipe(toArray())
+      );
+      const m2 = caseMirror();
+      for (const e of live) m2.apply([e]);
+      expect(read(m2)).toEqual(truth);
+      m2.world.dispose();
+    });
+  });
+
+  it('(j) a position-less diff value, then a proven chain range: the chain s final writes land, later frames of their block do not', async () => {
+    const chain = [
+      { block: 800, tx: 2, logIndex: 3, entity: E1, value: [5] },
+      { block: 800, tx: 3, logIndex: 1, entity: E1, value: [6] },
+    ];
+    const m = caseMirror();
+    m.apply(streamed({ block: 790, tx: 1, logIndex: 1, entity: E1, value: [1] }));
+    // a Kamigaze diff event: no position, its block is the range START
+    m.apply([
+      {
+        type: NetworkEvents.NetworkComponentUpdate,
+        component: L16_COMPONENT,
+        entity: formatEntityID(`0x${E1.toString(16)}`),
+        value: { value: [4] },
+        blockNumber: 780,
+        lastEventInTx: true,
+        txHash: '0xdiff',
+      },
+    ]);
+    expect(m.value(E1)).toEqual([4]);
+    // the frontier rule (stream.ts; test/boot-replay.test.ts) lets only a
+    // range proven through the diff s frontier reach here
+    m.apply(await chainRead(chain, 781, 800, 'reconcile'));
+    expect(m.value(E1)).toEqual([6]);
+    m.apply(streamed(chain[0]!));
+    expect(m.value(E1)).toEqual([6]);
+    m.world.dispose();
+  });
+
+  it('(k) a key pruned at reconciledThrough, then a gap heal that starts at that block', async () => {
+    const R = 650;
+    const chain = [
+      { block: R, tx: 1, logIndex: 2, entity: E1, value: [1] },
+      { block: R, tx: 1, logIndex: 5, entity: E3, value: [7] },
+      { block: R, tx: 3, logIndex: 1, entity: E1, value: [2] },
+      { block: R + 2, tx: 2, logIndex: 1, entity: E1, value: [3] },
+      { block: R + 2, tx: 4, logIndex: 1, entity: E1, value: [4] },
+    ];
+    const m = caseMirror();
+    syncHealth.reconciledThrough = R - 1;
+    for (const l of chain.slice(0, 3)) m.apply(streamed(l));
+    expect([m.value(E1), m.value(E3)]).toEqual([[2], [7]]);
+    m.apply(await chainRead(chain, R, R, 'reconcile'));
+    m.apply([markerEvent({ anchor: R - 1, through: R, reconciled: true })]);
+    expect(syncHealth.reconciledThrough).toBe(R);
+    // the gap heal re-reads from the reconciled block
+    m.apply(await chainRead(chain, R, R + 2, 'gap'));
+    expect([m.value(E1), m.value(E3)]).toEqual([[4], [7]]);
+    // and the stream s frames of R + 2, arriving after it, are not newer
+    m.apply(streamed(chain[3]!));
+    expect([m.value(E1), m.value(E3)]).toEqual([[4], [7]]);
+    m.world.dispose();
   });
 });

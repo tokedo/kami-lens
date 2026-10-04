@@ -13,8 +13,8 @@ import { fetchEventsInBlockRangeChunked } from 'workers/sync/utils';
 // --------------------------------------------------------------- fakes ----
 
 /** Records every [from, to] it is asked for, in call order, and answers with
- * one event per requested block at its own (block, logIndex 0) — the shape
- * the 1.0.0 createFetchWorldEventsInBlockRange produces — PROVEN through `to`
+ * one event per requested block at its own (block, transactionIndex 0,
+ * logIndex 0) — the shape createFetchWorldEventsInBlockRange produces — PROVEN through `to`
  * (a fresh backend: its batch head is past the range). `provenHead` models a
  * lagging one. */
 export function makeFetchWorldEvents(
@@ -36,6 +36,9 @@ export function makeFetchWorldEvents(
         entity: `0x${b.toString(16)}`,
         value: undefined,
         blockNumber: b,
+        // one transaction per block, one log in it (1.0.1: the real reader
+        // carries the transaction index too)
+        transactionIndex: 0,
         logIndex: 0,
         lastEventInTx: true,
         txHash: `0xtx${b}`,
@@ -558,6 +561,7 @@ import { Subject } from 'rxjs';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { KamiLensDaemon } from '../src/daemon';
+import { classifyPaths } from '../src/queries/envelope';
 import { buildStatusData } from '../src/server';
 
 /** two chained frames, no gap: the cursor moves without a heal */
@@ -705,13 +709,69 @@ describe('status.sync is declared where it must be', () => {
     };
   };
 
+  /** 1.0.1: the two OPTIONAL fields of the block (declared, not required) */
+  const OPTIONAL_101 = ['lastRepair', 'reconcileRepairs'];
+
   it('the served block is exactly the declared block (additionalProperties: false)', () => {
+    resetSyncHealth();
+    // 1.0.1: with a repair on record every declared field is served — and
+    // the required ones are exactly the served ones minus the two optional
+    syncHealth.reconcileRepairs = 1;
+    syncHealth.lastRepair = { block: 1, component: 'Value', entity: '0x1', at: new Date(0).toISOString() };
     const daemon = new KamiLensDaemon({ dataDir: path.resolve(__dirname, '../gates/.artifacts/void-sync') });
     const data = buildStatusData(daemon) as { sync: Record<string, unknown> };
+    resetSyncHealth();
     expect(Object.keys(data.sync).sort()).toEqual(Object.keys(schema.$defs.Sync.properties).sort());
-    expect(schema.$defs.Sync.required.sort()).toEqual(Object.keys(data.sync).sort());
+    expect(schema.$defs.Sync.required.sort()).toEqual(
+      Object.keys(data.sync).filter((k) => !OPTIONAL_101.includes(k)).sort()
+    );
     expect(schema.$defs.Sync.additionalProperties).toBe(false);
     expect(schema.$defs.Status.required).toContain('sync');
+  });
+
+  it('1.0.1: reconcileRepairs and lastRepair — declared, optional, served, classified, never degraded', () => {
+    const repair = schema.$defs as unknown as {
+      Repair: { required: string[]; properties: Record<string, { type: unknown }>; additionalProperties: boolean };
+    };
+    // declared and optional
+    expect(Object.keys(schema.$defs.Sync.properties)).toEqual(expect.arrayContaining(OPTIONAL_101));
+    for (const k of OPTIONAL_101) expect(schema.$defs.Sync.required).not.toContain(k);
+    expect(schema.$defs.Sync.properties.reconcileRepairs).toMatchObject({ type: 'integer' });
+    expect(schema.$defs.Sync.properties.lastRepair).toMatchObject({ $ref: '#/$defs/Repair' });
+    expect(repair.Repair.required.sort()).toEqual(['at', 'block', 'component', 'entity']);
+    expect(Object.keys(repair.Repair.properties).sort()).toEqual(['at', 'block', 'component', 'entity']);
+    expect(repair.Repair.additionalProperties).toBe(false);
+    // its strings are classified `system`, so the envelope serves them
+    const classes = classifyPaths(schema as never);
+    for (const leaf of ['component', 'entity', 'at']) {
+      expect(classes.get(`sync.lastRepair.${leaf}`)).toBe('system');
+    }
+
+    const dataDir = path.resolve(__dirname, '../gates/.artifacts/void-sync');
+    // a fresh daemon: the counter at 0, no lastRepair key at all
+    resetSyncHealth();
+    const fresh = buildStatusData(new KamiLensDaemon({ dataDir })) as {
+      sync: Record<string, unknown>;
+      degraded: string[];
+    };
+    expect(fresh.sync.reconcileRepairs).toBe(0);
+    expect('lastRepair' in fresh.sync).toBe(false);
+
+    // after repairs: both served, exactly as recorded; `degraded` untouched
+    syncHealth.reconcileRepairs = 3;
+    syncHealth.lastRepair = { block: 900, component: 'Value', entity: '0xe1', at: '2026-01-01T00:00:00.000Z' };
+    const after = buildStatusData(new KamiLensDaemon({ dataDir })) as typeof fresh;
+    resetSyncHealth();
+    expect(after.sync.reconcileRepairs).toBe(3);
+    expect(after.sync.lastRepair).toEqual({
+      block: 900,
+      component: 'Value',
+      entity: '0xe1',
+      at: '2026-01-01T00:00:00.000Z',
+    });
+    expect(after.degraded).toEqual(fresh.degraded);
+    // resetSyncHealth forgets the record too
+    expect('lastRepair' in syncHealth).toBe(false);
   });
 
   it('every string leaf of the block is classified (or the envelope deletes it)', () => {

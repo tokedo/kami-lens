@@ -304,3 +304,19 @@ describe('A2(c) + A3: a GAP heal below the boot frontier is not applied either',
     expect(syncHealth.unhealedRanges).toEqual([[950, 960]]);
   });
 });
+
+describe('1.0.1: the boot window is not a repair', () => {
+  it('the replay that corrects the loaded values is not counted in reconcileRepairs', async () => {
+    // the loaded view differs from chain truth (the first test above); the
+    // replay that lands it there runs over position-less boot data, below the
+    // frontier — which is what the boot window is FOR, not a missed write
+    const { read, stop } = await boot(1004, 960, () => 5_000);
+    expect(read()).not.toEqual(truth);
+    await settle(250);
+    stop();
+    expect(read()).toEqual(truth);
+    expect(syncHealth.reconciledThrough).toBeGreaterThanOrEqual(1004);
+    expect(syncHealth.reconcileRepairs).toBe(0);
+    expect(syncHealth.lastRepair).toBeUndefined();
+  });
+});
