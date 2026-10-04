@@ -35,6 +35,11 @@
         },
         "item": {
           "$ref": "#/$defs/InventoryItem"
+        },
+        "unregistered": {
+          "type": "boolean",
+          "const": true,
+          "description": "1.0.2: present and true only when the inventory instance's stored item index has no registry entry. `item.index` is then that STORED index (which item the balance is of); the rest of `item` is the reference client's null item (name \"None\", id \"0\", type \"\", rarity 0). Absent on every registered row, and on an instance with no stored index (served as index 0, as before)."
         }
       }
     },

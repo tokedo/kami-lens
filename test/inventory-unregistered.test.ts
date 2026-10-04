@@ -91,6 +91,10 @@ describe('1.0.2 (B3): an unregistered inventory item says which item it is', () 
     expect(gum.item.index).toBe(GHOST_GUM);
     expect(gum.item.name).toBe('Maple-Flavor Ghost Gum');
     expect('unregistered' in gum).toBe(false);
+ 
+    // ascending item index (SPEC §1.1) holds for the index now served — the
+    // reference client's prep had sorted the null item first, as index 0
+    expect(rows.map((r) => r.item.index)).toEqual([0, GHOST_GUM, UNREGISTERED]);
   });
 
   it('a row whose stored index is itself absent stays as it was', async () => {

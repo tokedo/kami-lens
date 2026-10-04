@@ -2007,7 +2007,14 @@ export function toInventoryItemOut(
 
 export type InventoryOut = {
   account: { index: number; name: string };
-  items: { balance: number; item: InventoryItemOut }[];
+  items: {
+    balance: number;
+    item: InventoryItemOut;
+    /** 1.0.2 (B3): present and true only when the instance's stored item
+     * index has no registry entry — `item.index` is then that stored index,
+     * and the rest of `item` is upstream's null item ("None") */
+    unregistered?: true;
+  }[];
 };
 
 /** Any-account item inventory (0.2.0). Rows go through the inventory
@@ -2030,13 +2037,35 @@ export function inventoryQuery(
   if (!account.index) {
     throw new QueryError('NOT_FOUND', `account ${args.index ?? args.name} not in mirror`);
   }
-  return {
-    account: { index: account.index, name: account.name },
-    items: cleanInventories(account.inventories ?? []).map((inv) => ({
+  let unregistered = false;
+  const items = cleanInventories(account.inventories ?? []).map((inv) => {
+    const row: InventoryOut['items'][number] = {
       balance: inv.balance,
       item: toInventoryItemOut(mirror, inv.item, enrich),
-    })),
-  };
+    };
+    // 1.0.2 (B3): the ported shape resolves the item through the registry
+    // and, when the instance's stored ItemIndex has no registry entry,
+    // yields upstream's null item (getItem's own test: no entity) — served
+    // as index 0 "None", so a reader could not tell WHICH item the balance
+    // is of. Say which, from the component the registry lookup starts
+    // from; an instance with no stored index stays as it was.
+    if (!inv.item.entity) {
+      const stored = getComponentValue(components.ItemIndex, inv.entity)?.value as
+        | number
+        | undefined;
+      if (stored !== undefined && stored !== null) {
+        row.item.index = Number(stored);
+        row.unregistered = true;
+        unregistered = true;
+      }
+    }
+    return row;
+  });
+  // the reference client's prep sorted the null item as index 0; keep the
+  // registry's promise of ascending item index for the index now served
+  // (a stable sort: every other row keeps its place)
+  if (unregistered) items.sort((a, b) => a.item.index - b.item.index);
+  return { account: { index: account.index, name: account.name }, items };
 }
 
 // ---------------------------------------------------------------- room
