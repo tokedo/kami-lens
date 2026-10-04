@@ -133,7 +133,7 @@ so a machine that can do the first start can always restart.
 
 ## Status
 
-**1.0.2.** Daemon, CLI, and library are implemented and
+**1.0.3.** Daemon, CLI, and library are implemented and
 gate-verified against the pinned upstream commit and the live game,
 with dated per-run evidence in `docs/measurements/`. The verification
 suite is G0–G10 (G8, G9 and G10 are manual and live); every run writes
@@ -141,6 +141,19 @@ its own dated record, and the record — not this paragraph — is what a
 given release rests on. The contract registry is [SPEC.md](SPEC.md);
 per-surface coverage — what is served, what is deferred, what is out
 of scope — is [docs/coverage.md](docs/coverage.md).
+
+### What changed in 1.0.3, for the things that read this daemon
+
+Until its first check against the chain, a daemon projects on the machine's
+own wall clock — and the `meta.asOf` clock fields are absent then — which on
+this chain runs a little AHEAD of block time; 1.0.2 could take up to a minute
+to make that first check when the chain's public RPC was slow to answer. 1.0.3
+makes the first check against the chain's newest block when it goes LIVE,
+before it answers anything, so every answer carries a measured clock (if that
+read fails, the daemon says so in its log and behaves as 1.0.2 did), and no
+clock read may take longer than five seconds. Nothing to do but upgrade: no
+field changes, `version` reads `1.0.3`, and the daemon may report LIVE up to
+five seconds later than before.
 
 ### What changed in 1.0.2, for the things that read this daemon
 

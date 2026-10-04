@@ -82,7 +82,11 @@ export type EnvelopeOptions = {
  * present together, or all four absent together until the first clock
  * observation (§3.14, the §3.15 head-fields precedent) — before it there is
  * no measurement, the offset is 0 because nothing was measured rather than
- * because the clocks agree, and a served 0 would read as evidence. */
+ * because the clocks agree, and a served 0 would read as evidence. Until that
+ * observation the daemon projects on the machine's wall clock; since 1.0.3 it
+ * is taken from the chain head when the daemon goes LIVE, before LIVE is
+ * reported (§3.8), so a 1.0.3 daemon serves the four from its first answer
+ * unless that read failed. */
 export type AsOf = {
   /** mirror block, same value as `meta.blockNumber` — a LOWER BOUND (§3.15) */
   block: number;

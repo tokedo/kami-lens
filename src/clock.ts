@@ -17,7 +17,10 @@
 // Properties, chosen deliberately:
 // - Before the first observation the offset is 0, i.e. exactly upstream's
 //   Date.now() behavior. Hermetic gates (G2.a) run in this mode so both
-//   implementations read the same clock.
+//   implementations read the same clock. On this chain that mode runs AHEAD
+//   of block time (timestamps trail the wall clock by 0.3-3 s), so since
+//   1.0.3 the daemon takes its first observation from the chain head's
+//   header before it reports LIVE (src/daemon.ts seedClockAtLive, §3.8).
 // - The offset is the latest single observation, not smoothed. Block
 //   timestamps quantize to whole seconds and arrive with stream latency, so
 //   now() can step by up to ~1 s between chunks; projection math is

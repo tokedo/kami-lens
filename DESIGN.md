@@ -7,7 +7,8 @@ inverted and §3.17 added 2026-09-06; §3.8 clock fields renamed and §3.15
 freshness paragraph added 2026-09-06; §3.1 state-CDN cold boot and §4.1
 bridge added 2026-09-17, describes 0.6.2; §3.18 added 2026-10-03 for 1.0.0,
 its apply-order rule corrected 2026-10-04 for 1.0.1; §3.8 clock sample
-taken on a fresh block 2026-10-04 for 1.0.2). Evidence base:
+taken on a fresh block 2026-10-04 for 1.0.2, and seeded at LIVE for 1.0.3).
+Evidence base:
 [docs/upstream-client-architecture.md](docs/upstream-client-architecture.md)
 (study of the official client at upstream commit `ef898fc9`),
 re-verified claim-by-claim against a fresh clone on 2026-07-20 (see
@@ -530,6 +531,35 @@ one 1.0.1 did not sample either.)
 What 1.0.2 leaves as it was: the offset is one observation, it still absorbs
 the stream's end-to-end lag and one round trip, and `now()` is still not
 monotonic.
+
+**The clock has a value from LIVE on (1.0.3).** Until its first sample a
+daemon projects on the machine's own wall clock — the offset is 0 because
+nothing was measured — and on this chain that is AHEAD: a block's timestamp is
+0.3–3 s behind the wall clock when the block appears (84 blocks measured,
+median 0.9 s, the same after 26 s idle gaps). On a 1.0.2 deploy (2026-10-04)
+the first header read after LIVE hung on the public RPC until the provider's
+own timeout, and the daemon served 47 s of answers on that raw wall clock.
+Two changes. (C1) Every clock header read gives up after
+`CLOCK_READ_TIMEOUT_MS` = 5 s — two to three block times, far above a healthy
+read — and re-arms like a read that throws, so the next newer block is tried.
+(C2) When the sync worker reports LIVE and there is no sample yet, the daemon
+first reads the chain HEAD's header (`eth_getBlockByNumber("latest")`, up to
+three attempts sharing one 5 s budget: a fast failure is retried at once, a
+hung read uses the budget up) and observes it, and only then reports LIVE —
+so the first answer it serves carries the `meta.asOf` clock fields. BEFORE,
+not as: reported at once, the first answers would still be served on the raw
+wall clock for the length of the read, which is the defect; the price is that
+LIVE is reported at most 5 s later, while the live events the worker already
+streams are applied as usual and world reads answer `NOT_READY` (the pre-LIVE
+status stands). The seed is behind chain time by the head's age at the read
+— the safe direction, by the same argument as above (the head exists before
+its header is returned). It counts as a sample ON THE HEAD BLOCK:
+`lastClockSampleBlock` rises to it, so a backlog block at or below the head
+never replaces it, and the first freshly delivered block above it does,
+under the 1.0.2 rule, followed by the one +30 s follow-up (the seed does not
+use that up). The BOOT block is still never read — `startClockSync` still
+counts it as sampled. A seed that fails leaves 1.0.2's behaviour exactly: one
+WARN line, LIVE with no sample, offset 0 until the first delivered block.
 
 `cooldownUntil` follows from the same reasoning at the field level: the raw
 on-chain cooldown end time, served beside the projected `cooldownSec`, so a
