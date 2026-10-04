@@ -167,21 +167,31 @@ function liveDaemon(
     if (delta > 0) await vi.advanceTimersByTimeAsync(delta);
     await flush();
   };
+  /** one write of block B(t), as the worker hands it to the daemon */
+  const write = (t: number, extra: Record<string, unknown> = {}) => ({
+    type: NetworkEvents.NetworkComponentUpdate,
+    component: '0x01',
+    entity: '0x01',
+    value: undefined,
+    lastEventInTx: true,
+    txHash: `0x${B(t).toString(16)}`,
+    blockNumber: B(t),
+    logIndex: 1,
+    ...extra,
+  });
   /** the stream delivers block B(t) at t */
   const deliver = async (t: number) => {
     await to(t);
-    fake.worker!.ecsEvents$.next([
-      {
-        type: NetworkEvents.NetworkComponentUpdate,
-        component: '0x01',
-        entity: '0x01',
-        value: undefined,
-        lastEventInTx: true,
-        txHash: `0x${B(t).toString(16)}`,
-        blockNumber: B(t),
-        logIndex: 1,
-      },
-    ]);
+    fake.worker!.ecsEvents$.next([write(t)]);
+    await flush();
+  };
+  /** at wall time `at`, ONE worker batch carrying writes of B(t) for each t
+   * in `ts`, in that order — a gap heal's range ahead of the frame that
+   * triggered it, or a reconcile pass's re-read writes (`final: true`, as a
+   * proven chain read marks them) */
+  const batch = async (at: number, ts: number[], extra: Record<string, unknown> = {}) => {
+    await to(at);
+    fake.worker!.ecsEvents$.next(ts.map((t) => write(t, extra)));
     await flush();
   };
   const close = () => {
@@ -189,7 +199,7 @@ function liveDaemon(
     if (internals.clockSyncTimer) clearInterval(internals.clockSyncTimer);
     internals.teardownWorker();
   };
-  return { asked, to, deliver, close };
+  return { asked, to, deliver, batch, close };
 }
 
 describe('1.0.2: the clock timer arms a sample; the next newer block takes it', () => {
@@ -278,4 +288,104 @@ describe('1.0.2: the clock timer arms a sample; the next newer block takes it', 
       expect(clock.offset()).toBe(0);
     }
   );
+});
+
+// 1.0.2 — WHICH EVENT takes an armed sample, and WHICH BLOCK it reads.
+//
+// Not every event the daemon receives is the stream delivering something new.
+// The periodic reconcile re-emits every write it re-read, each on its own
+// (older) block; a gap heal emits the healed range, oldest block first, ahead
+// of the frame that triggered it; an --at-least catch-up emits a proven range.
+// An event of a block at or below the newest one delivered says nothing about
+// "now", so it never takes the sample: only an event that delivers a block
+// NEWER than any delivered so far does. And the header read is of the newest
+// block of that worker batch — the whole burst, not its first block — because
+// the read happens once the batch has been taken in.
+
+describe('1.0.2: only a newer-than-delivered block takes the sample; the read is of the newest block of the batch', () => {
+  let close: (() => void) | null = null;
+  afterEach(() => {
+    close?.();
+    close = null;
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('after a tick, a reconcile write of an older block takes no sample and leaves it armed', async () => {
+    const h = liveDaemon(-300); // ticks at t = 0
+    close = h.close;
+    for (let t = -298; t <= -20; t += 2) await h.deliver(t);
+    await h.to(0); // armed; the newest delivered block is B(-20)
+    // newer than the last SAMPLE (B(-298)), not newer than B(-20)
+    await h.batch(5, [-100], { final: true });
+    expect(h.asked).toEqual([B(-298)]);
+    expect(clock.lastObservation()?.blockNumber).toBe(B(-298));
+    await h.deliver(9); // still armed: the next newer block takes it
+    expect(h.asked).toEqual([B(-298), B(9)]);
+    expect(clock.offset()).toBe(0);
+  });
+
+  it('after a tick, one batch delivering N, N+1, N+2 takes ONE sample, on N+2', async () => {
+    const h = liveDaemon(-300);
+    close = h.close;
+    for (let t = -298; t <= -20; t += 2) await h.deliver(t);
+    await h.to(0);
+    await h.batch(10, [8, 9, 10]); // every one of them is newer than B(-20)
+    expect(h.asked).toEqual([B(-298), B(10)]);
+    expect(clock.lastObservation()).toEqual({
+      blockTimestampSec: T0 + 10,
+      blockNumber: B(10),
+      atWallMs: (T0 + 10) * 1000,
+    });
+    expect(clock.offset()).toBe(0);
+  });
+
+  it('after LIVE, a reconcile write of an older block takes no sample and leaves it armed', async () => {
+    // the first newer block's header is not served yet, so the sample stays
+    // armed with B(2) delivered and the boot block as the last sample
+    const h = liveDaemon(0, (n) => (n === B(2) ? 'null' : 'ok'));
+    close = h.close;
+    await h.deliver(2);
+    expect(h.asked).toEqual([B(2)]);
+    await h.batch(3, [1], { final: true }); // newer than the boot block, not than B(2)
+    expect(h.asked).toEqual([B(2)]);
+    await h.deliver(4);
+    expect(h.asked).toEqual([B(2), B(4)]);
+    expect(clock.lastObservation()?.blockNumber).toBe(B(4));
+    expect(clock.offset()).toBe(0);
+  });
+
+  it('after LIVE, one batch delivering N, N+1, N+2 takes ONE sample, on N+2', async () => {
+    const h = liveDaemon(0);
+    close = h.close;
+    await h.batch(10, [8, 9, 10]);
+    expect(h.asked).toEqual([B(10)]);
+    expect(clock.lastObservation()?.blockNumber).toBe(B(10));
+    expect(clock.offset()).toBe(0);
+  });
+
+  it('after a stall, a gap heal that starts AT the frozen block samples the newest block of the batch', async () => {
+    const h = liveDaemon(-150); // ticks at t = 150, outside this case
+    close = h.close;
+    for (let t = -148; t <= -100; t += 2) await h.deliver(t);
+    expect(h.asked).toEqual([B(-148)]);
+    // 100 s of silence; the first frame after it heals from the last block
+    // delivered (B(-100)) through its own block, oldest first
+    await h.batch(0, [-100, -60, 0]);
+    expect(h.asked).toEqual([B(-148), B(0)]); // NOT B(-100), 100 s old
+    expect(clock.offset()).toBe(0);
+  });
+
+  it('after a stall, a reconcile write of an older block takes no sample; the next newer block does', async () => {
+    const h = liveDaemon(-150);
+    close = h.close;
+    for (let t = -148; t <= -100; t += 2) await h.deliver(t);
+    await h.batch(0, [-120], { final: true }); // a reconcile pass lands inside the stall
+    expect(h.asked).toEqual([B(-148)]);
+    // the stream resumes 20 s later — no longer a "stall" by the 60 s rule,
+    // yet the re-anchor the stall asked for is still owed
+    await h.deliver(20);
+    expect(h.asked).toEqual([B(-148), B(20)]);
+    expect(clock.offset()).toBe(0);
+  });
 });
