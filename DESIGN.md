@@ -24,7 +24,11 @@ public Yominet RPC taken the same day (§4.1).
 - Answer discovery queries the chain cannot: node occupancy, room
   presence, market browsing — these require a synced local mirror
   (64 of 95 components are `BareComponent`: no on-chain reverse
-  lookup).
+  lookup. 95 is the count in the pinned source's `deploy.json`; the
+  live world registers **99** — every CDN image since 2026-09-18,
+  `docs/measurements/g10a-cdn-cold-boot-2026-09-18.json`
+  `components: 99` — and the mirror takes its component set from the
+  chain / CDN image, never from that list).
 
 ## 2. Non-goals
 
@@ -182,7 +186,9 @@ stream reconnect climbs a fixed ladder — 1, 2, 3, 5, 10 s, capped — and its
 counter is reset by the only thing that resets anything in a browser tab: a
 reload. A daemon has no reload. Measured over the 2026-08-26 → 09-06 daemon
 log: 17,369 reconnects in eleven days, about one every 55 s, because the
-production server closes the subscription every ~30-40 s by design. So from
+production server closed the subscription every ~30-40 s until mid-September
+2026 (since 2026-09-15 it closes 0-3 times a day and the 10.5 s no-frame
+timeout fires 1-67 times a day; re-measured 2026-10-03, A6). So from
 the sixth reconnect of the process onward, every single reconnect paid the
 capped 10 s, forever. `retry({ resetOnSuccess: true })` makes the ladder mean
 what it reads as.
@@ -205,11 +211,13 @@ minutes, `degraded: []`, `meta.stale: false`). `status.feedsDegraded` is the
 counterpart array, shaped the same so a caller gates on it the same way, and
 separate so the doctrine survives. It reads `kamiden-stream:<state>`
 whenever the stream is not live and `kamiden-silent:<N>s` past 60 s. It is
-deliberately NOT keyed on the reconnect count: the production server closes
-the subscription roughly every 40 s by design (measured 2026-07-21 at gate
-G4.b, re-measured 2026-08-27 at one close per 49 s on a stream reporting
-`live` with zero consecutive failures), so a rising `retries` is this feed's
-healthy resting state and the error text it logs
+deliberately NOT keyed on the reconnect count: the production server closed
+the subscription roughly every 40 s from July to late September 2026
+(measured 2026-07-21 at gate G4.b, re-measured 2026-08-27 at one close per
+49 s on a stream reporting `live` with zero consecutive failures; 1,037-1,628
+closes a day 08-27..09-29, then 300 on 09-30, 207 on 10-01 and none on 10-02
+and 10-03, re-measured 2026-10-03, A6), so a rising `retries` was this feed's
+healthy resting state and is never, by itself, a fault, and the error text it logs
 ("Response closed without grpc-status (Headers only)") is expected, not an
 upstream change.
 
@@ -387,7 +395,14 @@ observation.
 **What the offset actually measures, and it is not what the name says
 (0.5.2, measured).** The anchor is *a block the stream has delivered*, so the
 correction absorbs the Kamigaze pipeline's end-to-end lag along with any
-wall-clock skew, and at this pin the lag dominates. Measured live
+wall-clock skew. 0.5.2 read the measurement below as "the lag dominates";
+1.0.2 found that most of that offset was the AGE of the block the clock
+had sampled (the newest delivered block, however long ago it arrived), not
+stream lag. Since 1.0.2 the sample is taken on a freshly delivered block,
+and what remains in the offset is the stream's end-to-end lag plus one RPC
+round trip (SPEC lineage row 15: −3 to −8 s typical in the live session,
+−24 s only inside a 26 s block gap on 1.0.1; "The sample is taken on a
+fresh block (1.0.2)" below). Measured live
 2026-08-27 against an independent `eth_getBlockByNumber("latest")`, on a
 machine whose wall clock was correct to 1–2 s: **`clock.now()` ran 14.2–15.3
 s behind chain head time** across four consecutive samples. Three

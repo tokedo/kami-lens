@@ -173,8 +173,10 @@ docs/measurements/g4*-2026-07-21.json):
   exclusion is enforced at the ingestion drop, hermetically proven and
   counter-surfaced in status. The requested topics stay configurable
   for a future server vocabulary.
-- **The server closes the stream every ~40 s** ("Response closed
-  without grpc-status"); resubscription is routine (upstream's 5 s
+- **The server closed the stream every ~40 s from July to late September
+  2026** ("Response closed without grpc-status"; 1,037-1,628 closes a day
+  08-27..09-29, then 300 on 09-30, 207 on 10-01, none on 10-02 and 10-03,
+  re-measured 2026-10-03, A6); resubscription is routine (upstream's 5 s
   cadence) and feed events during a reconnect gap are lost — identical
   to the upstream client's exposure. The feed ring buffer is
   best-effort recent history, never a complete log. *User-observed

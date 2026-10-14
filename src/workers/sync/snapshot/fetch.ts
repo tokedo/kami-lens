@@ -59,9 +59,11 @@ export const CHUNK_TIMEOUT_MS = 30000;
 export const MAX_RETRIES = 20;
 export const RETRY_DELAYS = [1000, 2000, 3000, 5000, 10000];
 
-// ponytail: block-age heuristic. 30 days at 1s blocks, well past the ~25-30 day
-// break-even between a day of delta (1-5MB) and the full image (~120MB). It only
-// bounds the pathological case of a months-old cache; the exact value barely matters.
+// ponytail: block-age heuristic. The constant was sized as 30 days at 1 s blocks,
+// well past the ~25-30 day break-even between a day of delta (1-5MB) and the full
+// image (~120MB); Yominet blocks arrive about every 2 s on average and in bursts
+// (register F1), so it spans ≈60 days — left as is: it only bounds a months-old
+// cache, and the exact value barely matters.
 export const CDN_FULL_THRESHOLD_BLOCKS = 2_592_000;
 
 // RESOURCE_EXHAUSTED is expected backpressure, not a failure, so it gets its own

@@ -11,8 +11,13 @@ pnpm monorepo (`pnpm-workspace.yaml`: `packages/**`), two packages:
 
 - `packages/contracts` — Foundry. `src/solecs/` is a vendored MUD
   classic solidity ECS (World.sol, Component.sol, BareComponent.sol,
-  LibQuery.sol). `src/components/` (95 registered components;
-  `deploy.json` / `componentIDs.json`), `src/systems/` (incl.
+  LibQuery.sol). `src/components/` (95 components in the pinned
+  source's `deploy.json` (95 at `ffda3963` too); the live world
+  registers **99** (every CDN image since 2026-09-18,
+  `docs/measurements/g10a-cdn-cold-boot-2026-09-18.json`
+  `components: 99`) — the mirror takes its component set from the
+  chain / CDN image, never from this list; `deploy.json` /
+  `componentIDs.json`), `src/systems/` (incl.
   read-only `GetterSystem.sol`), `src/libraries/` (LibKami,
   LibHarvest, LibInventory… — canonical formulas).
 - `packages/client` — Vite + React 19 + TS. Layers:

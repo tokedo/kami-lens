@@ -519,12 +519,15 @@ missed.** On 2026-09-06 this daemon reported six kamis as harvesting for
 three and a half hours after they had stopped harvesting on chain, and a
 seventh a minute later. Nothing was wrong with the chain and nothing was
 wrong with the query — the mirror itself had a hole in it, and it had no
-way to know. The stream server closes its connection every half minute or
-so, and every time it reconnects the client asks "what did I miss?". The
-service that answers is filling its own store at the same moment, so the
-answer was reliably missing the newest few blocks — and the client took it,
-believed it, and moved its bookmark past the blocks it had never read. Once
-the bookmark moves, nothing goes back.
+way to know. The stream server closed its connection every half minute or
+so until mid-September 2026 (since 2026-09-15 it closes 0-3 times a day,
+and the client's 10.5-second no-frame timeout fires 1-67 times a day;
+re-measured 2026-10-03 for 1.0.0), and every time it reconnects the client
+asks "what did I miss?". The service that answers is filling its own
+store at the same moment, so the answer was reliably missing the newest
+few blocks — and the client took it, believed it, and moved its bookmark
+past the blocks it had never read. Once the bookmark moves, nothing goes
+back.
 
 From 0.6.0 every recovery read goes to **the chain**, which cannot be half
 finished. A recovery range is read completely or not at all; if the node
@@ -598,10 +601,13 @@ make chain answers look stale. But nine of the reads (killers, battles,
 trades, auctions, market, portal, transfers, feed, chat) come from the
 feed service, and a caller checking only the old list saw a healthy
 daemon while the feed was flapping. Check `feedsDegraded` before
-trusting any of those nine. Note that a rising reconnect count is
-normal here: the server hangs up roughly every 40 seconds by design, so
-the new list keys on whether the stream is live and how long it has
-been silent, not on how often it reconnected.
+trusting any of those nine. Note that a rising reconnect count is not,
+by itself, a fault here: the server hung up roughly every 40 seconds from
+July to late September 2026 (1,037-1,628 times a day, 08-27 to 09-29) and
+then stopped (300 on 09-30, 207 on 10-01, none on 10-02 and 10-03;
+re-measured 2026-10-03 for 1.0.0), so the new list keys on whether the
+stream is live and how long it has been silent, not on how often it
+reconnected.
 
 **Every answer now says when it was computed.** There is a new `asOf`
 block in the `meta` of every response: the mirror block, the moment the
@@ -609,8 +615,10 @@ projection math used, and — separately — which block the daemon's clock
 correction came from, how big that correction is, and how long ago it
 was taken. They are separate on purpose, because they are different
 facts. This matters because the daemon's clock was measured running
-about 15 seconds behind real chain time, and it can jump backwards by
-several seconds when it re-syncs. Nothing about the computed values
+about 15 seconds behind real chain time (a 0.5.2 measurement; 1.0.2
+found that offset was mostly the AGE of the block the clock had sampled,
+not stream lag — see "What changed in 1.0.2"), and it can jump backwards
+by several seconds when it re-syncs. Nothing about the computed values
 changed in this release; you can now see the uncertainty instead of
 guessing at it. Two related additions: single-kami and node-occupant
 reads carry `cooldownUntil`, the raw cooldown end time from the chain,

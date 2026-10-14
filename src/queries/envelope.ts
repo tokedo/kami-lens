@@ -98,9 +98,9 @@ export type AsOf = {
   clockSampleBlock?: number;
   /** that block's header timestamp (chain seconds) */
   clockSampleBlockTime?: number;
-  /** the correction itself. Measured live 2026-08-27 at −7.7 s to −17.4 s:
-   * it is dominated by the Kamigaze stream's end-to-end lag, NOT by
-   * wall-clock skew (§3.8) */
+  /** the correction itself: since 1.0.2 the stream's end-to-end lag plus one
+   * RPC round trip, NOT wall-clock skew; 0.5.2's −7.7 s to −17.4 s (2026-08-27)
+   * was mostly the sampled block's AGE (§3.8; SPEC lineage row 15) */
   clockOffsetMs?: number;
   /** wall-clock ms since that clock sample. Cycles 0-300 s on a healthy
    * mirror (the sync cadence) and is bounded by NOTHING when the observation
