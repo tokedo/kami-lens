@@ -673,6 +673,16 @@ export type KamiVitals = {
   hp: { current: number; total: number; percent: number };
   hpRatePerHr: string;
   musu?: { accrued: number; spotRatePerHr: string; avgRatePerHr: string };
+  /** 1.0.5: whole seconds until the chain accepts the next standard action;
+   * 0 only when the cooldown has ended. The ported calcCooldown returns
+   * FRACTIONAL seconds (cooldown end − clock.now()); until 1.0.4 it was served
+   * rounded DOWN, so a read 0.4 s before the end said 0 while the chain still
+   * refused the action ("kami on cooldown"), and on the same node answer
+   * `attacker.blocked` already said ATTACKER_COOLDOWN (onCooldown is
+   * calcCooldown > 0). Rounded UP, `cooldownSec > 0` exactly when
+   * onCooldown — the gate the liquidation preview uses. Applied at all three
+   * sites: this one (kami, and party rows), the node liquidation preview's
+   * attacker, and the node occupant rows. The ported calc is untouched. */
   cooldownSec: number;
   /** §3.8 (0.5.2): the RAW on-chain cooldown end time (chain seconds), the
    * number `cooldownSec` is projected FROM. Served so a caller can compare
@@ -779,7 +789,8 @@ function vitalsOf(
     ...leveling,
     hp: { current: hp, total, percent: Number(calcHealthPercent(kami).toFixed(0)) },
     hpRatePerHr: getRateDisplay(kami.stats?.health.rate, 2),
-    cooldownSec: Math.max(0, Math.floor(calcCooldown(kami))),
+    // 1.0.5: rounded UP — see KamiVitals.cooldownSec
+    cooldownSec: Math.max(0, Math.ceil(calcCooldown(kami))),
     cooldownUntil: kami.time?.cooldown ?? 0,
     account: owner.index ? { index: owner.index, name: owner.name } : undefined,
   };
@@ -1286,7 +1297,7 @@ export function nodeQuery(
       id: attackerKami.id,
       index: attackerKami.index,
       name: attackerKami.name,
-      cooldownSec: Math.max(0, Math.floor(calcCooldown(attackerKami))),
+      cooldownSec: Math.max(0, Math.ceil(calcCooldown(attackerKami))), // 1.0.5: rounded UP
       cooldownUntil: attackerKami.time?.cooldown ?? 0,
       // §3.13 (0.5.3): LAST on the object, so 0.5.2's key order is untouched
       // and the leaf is purely additive (G3.g's allowance list names it).
@@ -1347,7 +1358,7 @@ export function nodeQuery(
         },
         ...(full ? { hpRatePerHr: getRateDisplay(occupant.stats?.health.rate, 2) } : {}),
         musuAccrued: nonNegativeAmount(calcOutput(occupant)), // 1.0.2 (B4)
-        cooldownSec: Math.max(0, Math.floor(calcCooldown(occupant))),
+        cooldownSec: Math.max(0, Math.ceil(calcCooldown(occupant))), // 1.0.5: rounded UP
         cooldownUntil: occupant.time?.cooldown ?? 0,
         // §3.13: the threat read needs to know how strong the occupant is
         level: occupant.progress?.level,

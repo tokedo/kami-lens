@@ -77,7 +77,9 @@
           }
         },
         "cooldownSec": {
-          "type": "number"
+          "type": "number",
+          "minimum": 0,
+          "description": "§3.8 (1.0.5): whole seconds until the chain accepts the next standard action; 0 only when the cooldown has ended. Projected on this daemon's clock (§3.8) and rounded UP: until 1.0.4 it was rounded down and could read 0 up to one second before the chain accepted the action. Compare cooldownUntil against a block timestamp you trust for certainty."
         },
         "cooldownUntil": {
           "type": "integer",
