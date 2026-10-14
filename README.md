@@ -133,7 +133,7 @@ so a machine that can do the first start can always restart.
 
 ## Status
 
-**1.0.3.** Daemon, CLI, and library are implemented and
+**1.0.4.** Daemon, CLI, and library are implemented and
 gate-verified against the pinned upstream commit and the live game,
 with dated per-run evidence in `docs/measurements/`. The verification
 suite is G0–G10 (G8, G9 and G10 are manual and live); every run writes
@@ -141,6 +141,27 @@ its own dated record, and the record — not this paragraph — is what a
 given release rests on. The contract registry is [SPEC.md](SPEC.md);
 per-surface coverage — what is served, what is deferred, what is out
 of scope — is [docs/coverage.md](docs/coverage.md).
+
+### What changed in 1.0.4, for the things that read this daemon
+
+Documentation only. The upstream game client this daemon ports is now
+read at its public mirror,
+[Asphodel-OS/kamigotchi-open](https://github.com/Asphodel-OS/kamigotchi-open):
+on 2026-10-14 the game's developers made their development repository
+private, and they mirror its main branch there on every push with the
+same history and the same commit hashes. The pin (`ffda3963`) is
+unchanged; the `UPSTREAM` file, every ported file's provenance banner
+and `--version` now name the mirror. The mirror carries no pull
+requests, so a pull request is now cited by its merge commit. Five
+statements that had gone stale are corrected against the measured
+record: the stream server's ~40-second hang-ups are described as what
+they were (they stopped in September); the live world registers 99
+components, not the 95 in the pinned source; the state CDN answers 403,
+not 404, for a missing object; the clock's offset is described the way
+1.0.2 found it; and the CDN cold-boot threshold spans about 60 days at
+the chain's real ~2-second block time. No query, field or answer
+changes, `version` reads `1.0.4`, and `--version` names the mirror.
+Nothing to do but upgrade, or not.
 
 ### What changed in 1.0.3, for the things that read this daemon
 
