@@ -133,7 +133,7 @@ so a machine that can do the first start can always restart.
 
 ## Status
 
-**1.0.4.** Daemon, CLI, and library are implemented and
+**1.0.5.** Daemon, CLI, and library are implemented and
 gate-verified against the pinned upstream commit and the live game,
 with dated per-run evidence in `docs/measurements/`. The verification
 suite is G0–G10 (G8, G9 and G10 are manual and live); every run writes
@@ -141,6 +141,47 @@ its own dated record, and the record — not this paragraph — is what a
 given release rests on. The contract registry is [SPEC.md](SPEC.md);
 per-surface coverage — what is served, what is deferred, what is out
 of scope — is [docs/coverage.md](docs/coverage.md).
+
+### What changed in 1.0.5, for the things that read this daemon
+
+One value changes, and the log says more.
+
+**`cooldownSec` now rounds up.** It is the whole number of seconds until
+the chain will accept the kami's next standard action, and it reads 0
+only once the cooldown has ended. Until now it was rounded down, so in
+the last second of a cooldown it already read 0 while the chain still
+answered "kami on cooldown" — and on a node read the same answer's
+`attacker.blocked` already said `ATTACKER_COOLDOWN`. If you wait for
+`cooldownSec` to reach 0, you now wait up to one second longer: the
+second in which the chain was refusing anyway. Where you used to see 0
+you may now see 1. It applies everywhere the field appears: `kami`,
+`party` rows, and a node read's occupant rows and attacker. The daemon's
+clock can still be off by a few seconds (see "What changed in 1.0.2");
+`cooldownUntil`, the raw end time from the chain, is unchanged and is
+still what to compare against a block time you trust. The schemas now
+say the field is never negative and what it means.
+
+**A write the daemon declines is now a log line.** The daemon refuses a
+write that is older than what it already holds for the same thing, and
+until now it only counted those (`status.sync.olderWritesSkipped`). When
+a production daemon had to repair a write it had missed, its log could
+not say whether one of those refusals was the cause. Each refusal is now
+one INFO line naming what was refused, where it came from (the live
+stream, or a read from the chain) and what the daemon held instead — at
+most 20 such lines a minute, with one summary line counting the rest.
+Refusals are normal on a healthy daemon — one measured daemon made about
+one and a half a minute — so expect a line or two a minute in the log
+and nothing new in any answer. The counter counts exactly what it did
+before.
+
+Also: the `status` schema's description of `reconnects` no longer says
+the stream server hangs up every 30–40 seconds; it says, as the rest of
+the documents already do, that it did until mid-September 2026 and
+rarely does now. A description only.
+
+No other field or answer changes. `version` reads `1.0.5`. Upgrade; if
+something waits on `cooldownSec` reaching 0, it now waits up to one
+second longer.
 
 ### What changed in 1.0.4, for the things that read this daemon
 
