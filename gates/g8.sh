@@ -4,9 +4,12 @@
 # network is severed. Not part of any other gate script for that reason.
 #
 #   G8.b [live]  0.6.0 (DESIGN §3.17, field report 2026-09-06). THREE severs of ~20 s on a live
-#                daemon — the FREQUENT gap the production server itself opens
-#                every ~35 s, which is where the 2026-09-06 phantom-harvest
-#                loss happened — recording per sever the reconnect time, the
+#                daemon — the FREQUENT gap the production server itself opened
+#                every ~35 s until mid-September 2026 (since 2026-09-15 it
+#                closes 0-3 times a day and the 10.5 s no-frame timeout fires
+#                0-67 times a day; re-measured 2026-10-03, A6), which is
+#                where the 2026-09-06 phantom-harvest loss happened —
+#                recording per sever the reconnect time, the
 #                heal path, every healed range with its log count and
 #                duration, any deferral, and the `status.sync` block. Then the
 #                question the 0.5.3 daemon could not answer about itself:

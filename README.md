@@ -542,7 +542,7 @@ seventh a minute later. Nothing was wrong with the chain and nothing was
 wrong with the query — the mirror itself had a hole in it, and it had no
 way to know. The stream server closed its connection every half minute or
 so until mid-September 2026 (since 2026-09-15 it closes 0-3 times a day,
-and the client's 10.5-second no-frame timeout fires 1-67 times a day;
+and the client's 10.5-second no-frame timeout fires 0-67 times a day;
 re-measured 2026-10-03 for 1.0.0), and every time it reconnects the client
 asks "what did I miss?". The service that answers is filling its own
 store at the same moment, so the answer was reliably missing the newest

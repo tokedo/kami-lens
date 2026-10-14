@@ -188,7 +188,7 @@ reload. A daemon has no reload. Measured over the 2026-08-26 → 09-06 daemon
 log: 17,369 reconnects in eleven days, about one every 55 s, because the
 production server closed the subscription every ~30-40 s until mid-September
 2026 (since 2026-09-15 it closes 0-3 times a day and the 10.5 s no-frame
-timeout fires 1-67 times a day; re-measured 2026-10-03, A6). So from
+timeout fires 0-67 times a day; re-measured 2026-10-03, A6). So from
 the sixth reconnect of the process onward, every single reconnect paid the
 capped 10 s, forever. `retry({ resetOnSuccess: true })` makes the ladder mean
 what it reads as.
@@ -1284,8 +1284,10 @@ scripts and raw outputs in the 2026-09-06 investigation's evidence):
    block's first log returned 49 of that block's 60 writes, and the count
    kept climbing for seconds afterwards. The `latestBlock` it reports names a
    block that may still be half-ingested.
-2. The stream is ONE CHUNK PER LOG, and the server closes the subscription
-   every ~30-40 s by design. The 2026-08-26 → 09-06 daemon log holds 17,369
+2. The stream is ONE CHUNK PER LOG, and the server closed the subscription
+   every ~30-40 s until mid-September 2026 (since 2026-09-15 it closes 0-3
+   times a day and the 10.5 s no-frame timeout fires 0-67 times a day;
+   re-measured 2026-10-03, A6). The 2026-08-26 → 09-06 daemon log holds 17,369
    gap-fills. **Every one of them was a read of (1) at the worst possible
    moment** — the instant after a reconnect, when the diff's head is exactly
    the part still being ingested.

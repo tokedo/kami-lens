@@ -26,7 +26,9 @@
 //   - both-layer chat exclusion: a topic-filter probe first RECORDS the
 //     server's vocabulary (measured 2026-07-21: NO topic string is
 //     recognized at this pin — every non-empty list yields zero frames,
-//     "empty = all" flows, and the server closes streams every ~40 s), so
+//     "empty = all" flows, and the server closed streams every ~40 s — it
+//     did so until late September 2026: 300 closes on 09-30, 207 on 10-01,
+//     none on 10-02 and 10-03, re-measured 2026-10-03, A6), so
 //     a Messages-excluding filter is inexpressible without killing the
 //     feeds; the daemon subscribes upstream-style (empty list) and the
 //     exclusion holds entirely at the ingestion drop: after the window,
@@ -416,8 +418,9 @@ try {
       supersededUnseen <= verifiedMoves + chainVerifiedMoves.length,
   });
 
-  // the server closes streams every ~40 s (measured), so 'retrying' is a
-  // routine transient — the stream is healthy iff frames flowed
+  // the server closed streams roughly every 40 s from July to late September
+  // 2026 (measured; none on 10-02 and 10-03, re-measured 2026-10-03, A6), so
+  // 'retrying' is a routine transient — the stream is healthy iff frames flowed
   if (kamiden.stream.feedFrames === 0 || !['live', 'retrying', 'connecting'].includes(kamiden.stream.state)) {
     fail('G4.b', {
       reason: `stream unhealthy at window end (state=${kamiden.stream.state}, feedFrames=${kamiden.stream.feedFrames})`,

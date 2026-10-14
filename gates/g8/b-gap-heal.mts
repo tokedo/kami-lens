@@ -5,7 +5,9 @@
 // WHY THIS GATE EXISTS, AND WHY IT IS NOT G8.a. G8.a measures ONE ten-minute
 // outage: does the daemon come back, and does the healed mirror agree with a
 // cold one. That is not the 2026-09-06 failure. That one was the FREQUENT SHORT gap —
-// the production server closes the subscription every ~30-40 s by design, and
+// the production server closed the subscription every ~30-40 s until
+// mid-September 2026 (since 2026-09-15 it closes 0-3 times a day and the 10.5 s
+// no-frame timeout fires 0-67 times a day; re-measured 2026-10-03, A6), and
 // the 2026-08-26..09-06 daemon log holds 17,369 gap-fills, one per ~55 s. The
 // loss happened in one of those, silently, and the only way anyone found it
 // was a human noticing a kami that should not have been harvesting. So this

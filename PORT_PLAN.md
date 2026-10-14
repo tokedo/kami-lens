@@ -372,7 +372,7 @@ has one home.
   is a different subject from G8.a's outage. The production stream
   server closed its subscription every ~30-40 s until mid-September 2026
   (since 2026-09-15 it closes 0-3 times a day and the 10.5 s no-frame
-  timeout fires 1-67 times a day; re-measured 2026-10-03, A6), and the
+  timeout fires 0-67 times a day; re-measured 2026-10-03, A6), and the
   2026-09-06 phantom-harvest loss (field report 2026-09-06) happened inside one of those
   reconnects — 17,369 of them in eleven days. G8.b severs three times
   for ~20 s each on a live daemon at DEBUG, recording per sever the
