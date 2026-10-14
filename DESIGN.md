@@ -1367,7 +1367,8 @@ current cursor" was the ordering invariant here because nothing else could
 order a re-read against what was applied. 1.0.0 gives every event its real
 block and the apply path a per-key guard (whose rule 1.0.1 corrects — §3.18,
 "A2, corrected"), proves every chain read on the answer itself, and moves the
-reconcile out of the subscription.
+reconcile out of the subscription. From 1.0.5 every write that guard skips is
+also a capped INFO line in the daemon log (§3.18, "1.0.5: a skip is a line").
 
 ### 3.18 Correctness in 1.0.0: complete answers, proven reads, exact freshness
 
@@ -1504,6 +1505,21 @@ stays 0: the stream has already applied every write of every block it moved
 past. Each repair is one WARN line; it never sets `degraded` — the write it
 counts is the mirror being put right, and a counter a reader can watch is the
 point.
+
+**1.0.5: a skip is a line, not only a count.** Each write the guard skips is
+also one INFO line naming the key (component, entity), the write's block, log
+index, transaction index, final flag and tx hash, its source as far as the
+fields reaching the apply path tell it (a `stream` frame, a raw `range` read,
+the stamped `reconcile`, or any other proven `chain-read` — a gap heal, a
+catch-up or the boot window), the place the key held (block, final) and
+whether its value equals the mirror's — so that when the tripwire above counts
+a repair, the log says whether the stream path's own write of that key was
+skipped or never arrived (a production daemon's repair on 2026-10-08, of an
+`EntityType` write at block 34,185,948, stood beside 565 skips nobody could
+read). At most 20 such lines are written per 60 s wall-clock window, opened by
+the first skip; the skips over that cap are counted per source and reported in
+one summary line at the end of the first apply batch after the window closes,
+and `olderWritesSkipped` counts exactly what it counted before.
 
 A 1.0.0 daemon's SAVED world is not affected: the file is written only from
 the state export and the snapshot service (§3.5), never from the live mirror,
