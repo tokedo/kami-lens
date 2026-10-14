@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi @ ffda396330af1bc33238b6c37188772152b45439
+ * upstream: Asphodel-OS/kamigotchi-open @ ffda396330af1bc33238b6c37188772152b45439
  * path:     packages/client/src/workers/sync/stream/transform.ts
  * changes:  1.0.0 (A2(c)): a one-event frame's event carries the frame's
  *           logIndex — the chain log's own index (see the call site).

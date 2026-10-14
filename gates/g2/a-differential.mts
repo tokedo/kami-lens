@@ -61,7 +61,7 @@ const PIN = pinLine!.split(/\s+/)[1];
 if (!existsSync(UPSTREAM_DIR)) {
   fail('G2.a', {
     reason: 'pinned upstream clone missing',
-    expected: `git clone https://github.com/Asphodel-OS/kamigotchi ${UPSTREAM_DIR} && git -C ${UPSTREAM_DIR} checkout ${PIN}`,
+    expected: `git clone https://github.com/Asphodel-OS/kamigotchi-open ${UPSTREAM_DIR} && git -C ${UPSTREAM_DIR} checkout ${PIN}`,
   });
 }
 const head = await new Promise<string>((resolve, reject) => {

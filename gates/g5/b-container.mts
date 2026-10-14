@@ -102,7 +102,7 @@ try {
     ).version as string;
     const reported = run('docker', ['run', '--rm', '--entrypoint', 'kami-lens', IMAGE, '--version'])
       .trim();
-    // `kami-lens <version> (upstream Asphodel-OS/kamigotchi @ <pin>)`
+    // `kami-lens <version> (upstream Asphodel-OS/kamigotchi-open @ <pin>)`
     const installed = reported.split(/\s+/)[1] ?? '';
     const installedPkg = run('docker', [
       'run', '--rm', '--entrypoint', 'node', IMAGE,

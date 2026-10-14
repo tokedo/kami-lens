@@ -347,7 +347,7 @@ async function main(): Promise<void> {
 
   if (argv[0] === '--version' || argv[0] === '-v') {
     const { version, upstreamPin } = getVersionInfo();
-    console.log(`kami-lens ${version} (upstream Asphodel-OS/kamigotchi @ ${upstreamPin})`);
+    console.log(`kami-lens ${version} (upstream Asphodel-OS/kamigotchi-open @ ${upstreamPin})`);
     return;
   }
 

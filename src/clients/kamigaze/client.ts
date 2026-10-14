@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi @ ffda396330af1bc33238b6c37188772152b45439
+ * upstream: Asphodel-OS/kamigotchi-open @ ffda396330af1bc33238b6c37188772152b45439
  * path:     packages/client/src/clients/kamigaze/client.ts
  * changes:  swap point 1 (DESIGN §4.1) — the getClient() singleton read
  *           import.meta.env.VITE_KAMIGAZE_URL; kami-lens configuration flows

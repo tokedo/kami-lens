@@ -1,4 +1,4 @@
-// The CDN-to-live bridge. Ported from Asphodel-OS/kamigotchi @ 21f419e6
+// The CDN-to-live bridge. Ported from Asphodel-OS/kamigotchi-open @ 21f419e6
 // (upstream path: packages/client/src/workers/sync/bridge.test.ts) and then
 // REWRITTEN for divergence 12, because the lens's bridge is delta-first where
 // upstream's is streamer-first.

@@ -1,6 +1,6 @@
 # kami-lens
 
-A headless [Kamigotchi](https://github.com/Asphodel-OS/kamigotchi)
+A headless [Kamigotchi](https://github.com/Asphodel-OS/kamigotchi-open)
 client: it keeps a live local mirror of the game's on-chain world state
 and projects it — through the game's own rules — into what a player
 actually sees. Any agent, bot, or terminal user gets the same view of

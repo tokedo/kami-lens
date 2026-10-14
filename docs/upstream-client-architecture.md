@@ -1,7 +1,7 @@
 # Upstream client architecture
 
 How the official Kamigotchi web client syncs and projects world state.
-Source: `Asphodel-OS/kamigotchi` @ `ef898fc9` (2026-07-16). All paths
+Source: `Asphodel-OS/kamigotchi-open` @ `ef898fc9` (2026-07-16). All paths
 are relative to that repo. Kamigotchi uses **MUD classic** (vendored
 solecs), not MUD v2 — this shapes everything below.
 

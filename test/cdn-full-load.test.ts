@@ -1,5 +1,5 @@
 // Ported upstream suite (kami-lens 0.6.2 forward-port of
-// Asphodel-OS/kamigotchi @ 21f419e6 — the state-CDN cold boot).
+// Asphodel-OS/kamigotchi-open @ 21f419e6 — the state-CDN cold boot).
 // upstream path: packages/client/src/workers/sync/snapshot/fetchFromCdn.test.ts
 // changes: imports re-pointed at the tsconfig aliases (the lens keeps tests
 // under test/**, upstream colocates them); the lens divergence-8 block at the

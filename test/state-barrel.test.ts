@@ -1,5 +1,5 @@
 // Ported upstream suite (kami-lens 0.6.2 forward-port of
-// Asphodel-OS/kamigotchi @ 21f419e6).
+// Asphodel-OS/kamigotchi-open @ 21f419e6).
 // upstream path: packages/client/src/workers/sync/state/index.test.ts
 // changes: none — it already imports through the alias.
 //

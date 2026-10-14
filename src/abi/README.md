@@ -8,4 +8,4 @@ JSON cannot carry the provenance header comment used by every ported
 | `World.json` | `packages/client/abi/World.json` | none (byte-identical) |
 
 License: AGPL-3.0 (see repository LICENSE); upstream is
-Asphodel-OS/kamigotchi.
+Asphodel-OS/kamigotchi-open, the public mirror of the studio's development repo.

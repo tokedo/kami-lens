@@ -1,10 +1,10 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi @ ffda396330af1bc33238b6c37188772152b45439
+ * upstream: Asphodel-OS/kamigotchi-open @ ffda396330af1bc33238b6c37188772152b45439
  * path:     packages/client/src/workers/sync/bridge.ts
  * history:  forward-ported in 0.6.2 from @ 21f419e63e0a7f6b642c255efeb89dd1c288de1c
  *           while that commit was ahead of the pin; the pin now includes it;
- *           the file arrived whole with Asphodel-OS/kamigotchi#2475.
+ *           the file arrived whole with Asphodel-OS/kamigotchi-open @ 21f419e6 (upstream PR #2475).
  * changes:  divergence 12 (0.6.2 ruling) — THE BRIDGE IS DELTA-FIRST HERE,
  *           where upstream's is streamer-first. Upstream asks the streamer
  *           over the whole window with the RPC fallback off and reads an

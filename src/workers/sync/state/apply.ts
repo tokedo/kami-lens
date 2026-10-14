@@ -6,7 +6,7 @@
 // values chunk in one loop. When this module was written that loop did
 // `value = await decode(...)` per row, and `decode` was an `async function`
 // that never awaited anything, so every one of those awaits resolved on the
-// MICROTASK queue; since upstream ffda3963 (Asphodel-OS/kamigotchi#2478)
+// MICROTASK queue; since upstream ffda3963 (Asphodel-OS/kamigotchi-open @ 17ba04f7 (upstream PR #2478))
 // `decode` is synchronous and the loop holds the thread outright. Either way
 // the loop never yields to the macrotask queue, and the macrotask queue is
 // where socket reads and timers live. On a 2-vCPU box one values chunk takes ~11 s to

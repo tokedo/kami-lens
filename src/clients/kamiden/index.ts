@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi @ ffda396330af1bc33238b6c37188772152b45439
+ * upstream: Asphodel-OS/kamigotchi-open @ ffda396330af1bc33238b6c37188772152b45439
  * path:     packages/client/src/clients/kamiden/index.ts
  * changes:  (M4 — this file replaces the M2 shim that pinned getKamidenClient
  *           to null.) Upstream additionally exports logTxErrorToDB from

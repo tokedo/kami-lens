@@ -1,10 +1,10 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi @ ffda396330af1bc33238b6c37188772152b45439
+ * upstream: Asphodel-OS/kamigotchi-open @ ffda396330af1bc33238b6c37188772152b45439
  * path:     packages/client/src/workers/sync/snapshot/fetchFromCdn.ts
  * history:  forward-ported in 0.6.2 from @ 21f419e63e0a7f6b642c255efeb89dd1c288de1c
  *           while that commit was ahead of the pin; the pin now includes it;
- *           the file arrived whole with Asphodel-OS/kamigotchi#2475.
+ *           the file arrived whole with Asphodel-OS/kamigotchi-open @ 21f419e6 (upstream PR #2475).
  * changes:  THREE divergences as of 0.6.3 (field report 2026-09-18), and until then none — the
  *           0.6.2 banner said "every byte of the body is upstream's" and
  *           that is no longer true, so it is restated rather than amended.

@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi @ ffda396330af1bc33238b6c37188772152b45439
+ * upstream: Asphodel-OS/kamigotchi-open @ ffda396330af1bc33238b6c37188772152b45439
  * path:     packages/client/src/network/shapes/Score/vip.ts
  * changes:  Date.now() → clock.now() at 1 call site plus the
  *           clock import (§3.8: offset-corrected stream clock, not naive

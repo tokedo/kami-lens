@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi @ ffda396330af1bc33238b6c37188772152b45439
+ * upstream: Asphodel-OS/kamigotchi-open @ ffda396330af1bc33238b6c37188772152b45439
  * path:     packages/client/src/workers/sync/stream/stream.ts
  * changes:  §3.8 clock tap — one import and one line in the stream chunk
  *           handler feed each chunk's blockTimestamp to the offset-corrected

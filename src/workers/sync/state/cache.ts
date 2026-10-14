@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi @ ffda396330af1bc33238b6c37188772152b45439
+ * upstream: Asphodel-OS/kamigotchi-open @ ffda396330af1bc33238b6c37188772152b45439
  * path:     packages/client/src/workers/sync/state/cache.ts
  * changes:  hygiene divergence (DESIGN §4.1, decision 2026-07-20): an
  *           undecodable state row is skipped, counted

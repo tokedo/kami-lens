@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi @ ffda396330af1bc33238b6c37188772152b45439
+ * upstream: Asphodel-OS/kamigotchi-open @ ffda396330af1bc33238b6c37188772152b45439
  * path:     packages/client/src/app/cache/npc/base.ts
  * changes:  Date.now() → clock.monotonicMs() at 1 call site plus the
  *           clock import. The value only ever stamps and ages CACHE

@@ -1,5 +1,5 @@
 // Ported upstream equivalence suite (kami-lens 0.6.2 forward-port of
-// Asphodel-OS/kamigotchi @ 21f419e6 — the decode.ts hot-loop rework).
+// Asphodel-OS/kamigotchi-open @ 21f419e6 — the decode.ts hot-loop rework).
 // upstream path: packages/client/src/engine/encoders/decode.test.ts
 // changes: imports re-pointed at the tsconfig aliases (the lens keeps tests
 // under test/**, upstream colocates them); the body is verbatim.
