@@ -29,6 +29,15 @@
 // reported at `status.lastFullLoad`, NOT inside the `status.sync` block, so
 // the §3.17 block keeps meaning only what it has always meant.
 
+// 1.0.5 adds the LOG LINE for `olderWritesSkipped` (recordOlderWriteSkip,
+// below): until then a skipped write was a counter and nothing else, so when a
+// production daemon's reconcile repaired a write the stream path had left
+// unapplied (2026-10-08, an `EntityType` write at block 34,185,948) its log
+// could not say whether any of the 565 skips counted so far was that write.
+// The counter is unchanged; each skip is now also one INFO line, capped.
+
+import { log } from 'utils/logger';
+
 /** A block range [from, to] that recovery could not apply. */
 export type UnhealedRange = [number, number];
 
@@ -64,7 +73,9 @@ export type SyncHealth = {
   shortReads: number;
   /** 1.0.0 (A2(c)), rule corrected in 1.0.1: updates the apply path
    * refused because the key already held a write of a LATER block, or the
-   * FINAL write of the update's own block (network/setup/utils.ts) */
+   * FINAL write of the update's own block (network/setup/utils.ts). 1.0.5:
+   * each one is also an INFO line, at most SKIP_LOG_CAP per window
+   * (recordOlderWriteSkip). */
   olderWritesSkipped: number;
   /** 1.0.0 (A2): when reconciledThrough last ADVANCED (ISO), or null. Read
    * by the `reconcile-stalled:<sec>` marker in `degraded`. */
@@ -129,6 +140,110 @@ export function syncHealthReport(): SyncHealth {
 export function recordRepair(repair: Omit<RepairRecord, 'at'>, now: Date = new Date()): void {
   syncHealth.reconcileRepairs++;
   syncHealth.lastRepair = { ...repair, at: now.toISOString() };
+}
+
+// ------------------------------------------ 1.0.5: the older-write skip line
+
+/** Where a skipped write came from, as far as the fields that reach the apply
+ * path can tell (1.0.5):
+ * - `stream` — a stream frame: a log index, no transaction index, not final;
+ * - `range` — a RAW chain range read (the no-stream RPC mode): a transaction
+ *   index, not final;
+ * - `reconcile` — the periodic reconcile above the boot frontier (its writes
+ *   carry the stream cursor, `reconcileCursor`);
+ * - `chain-read` — any other PROVEN chain read's final write: a gap heal, a
+ *   catch-up, or the boot-window reconcile, which the apply path cannot tell
+ *   apart. */
+export type SkipSource = 'stream' | 'range' | 'reconcile' | 'chain-read';
+
+const SKIP_SOURCES: readonly SkipSource[] = ['stream', 'range', 'reconcile', 'chain-read'];
+
+/** One skipped write, as the apply path saw it (network/setup/utils.ts). */
+export type OlderWriteSkip = {
+  /** the component's registry name */
+  component: string;
+  /** the entity id, as the repair line prints it */
+  entity: string;
+  /** the write's block, its log index (within its transaction), its
+   * transaction index (chain reads only) and whether it was block-final */
+  block: number;
+  logIndex: number;
+  txIndex?: number;
+  final: boolean;
+  tx: string;
+  source: SkipSource;
+  /** the position the mirror held for the key: the block of the last write
+   * applied, and whether that write was block-final */
+  heldBlock: number;
+  heldFinal: boolean;
+  /** whether the skipped value equals the one the mirror holds — `same` is a
+   * re-delivery, `differs` is a write the mirror declined */
+  sameValue: boolean;
+};
+
+/** At most this many skip lines per window... */
+export const SKIP_LOG_CAP = 20;
+/** ...of this many wall-clock ms, opened by the first skip after the last
+ * window closed. */
+export const SKIP_LOG_WINDOW_MS = 60_000;
+
+let skipWindow: {
+  openedAt: number;
+  logged: number;
+  suppressed: Record<SkipSource, number>;
+} | null = null;
+
+/** Count one skipped write (the counter exactly as before) and log it: one
+ * INFO line per skip, at most SKIP_LOG_CAP per window; the skips over the
+ * cap are counted per source and reported in ONE summary line when the
+ * window closes (flushSkipSummary). A production daemon counts ~1.5 skips a
+ * minute on average (the Mac daemon, 2026-10-14: 141 in 91 min), so the cap
+ * binds only on a burst; it is there so that a burst cannot drown the log. */
+export function recordOlderWriteSkip(skip: OlderWriteSkip, now: number = Date.now()): void {
+  // a window that closed with no batch end since: its summary goes first,
+  // with the count as it stood when it closed
+  if (skipWindow !== null && now - skipWindow.openedAt >= SKIP_LOG_WINDOW_MS) {
+    flushSkipSummary(now);
+  }
+  syncHealth.olderWritesSkipped++;
+  if (skipWindow === null) {
+    skipWindow = {
+      openedAt: now,
+      logged: 0,
+      suppressed: { stream: 0, range: 0, reconcile: 0, 'chain-read': 0 },
+    };
+  }
+  if (skipWindow.logged >= SKIP_LOG_CAP) {
+    skipWindow.suppressed[skip.source]++;
+    return;
+  }
+  skipWindow.logged++;
+  log.info(
+    `[apply] older write skipped: ${skip.component} ${skip.entity} block=${skip.block} ` +
+      `logIndex=${skip.logIndex} txIndex=${skip.txIndex ?? '-'} final=${skip.final} ` +
+      `tx=${skip.tx} source=${skip.source} ` +
+      `held=${skip.heldBlock}/${skip.heldFinal ? 'final' : 'open'} ` +
+      `value=${skip.sameValue ? 'same' : 'differs'} ` +
+      `(olderWritesSkipped=${syncHealth.olderWritesSkipped})`
+  );
+}
+
+/** Called by the apply path at the end of every batch: once the window has
+ * closed, one INFO line for the skips the cap held back (none if there were
+ * none), and the next skip opens a new window. */
+export function flushSkipSummary(now: number = Date.now()): void {
+  if (skipWindow === null || now - skipWindow.openedAt < SKIP_LOG_WINDOW_MS) return;
+  const { openedAt, suppressed } = skipWindow;
+  skipWindow = null;
+  const more = SKIP_SOURCES.reduce((n, s) => n + suppressed[s], 0);
+  if (more === 0) return;
+  log.info(
+    `[apply] +${more} more older writes skipped, not logged ` +
+      `(cap ${SKIP_LOG_CAP} per ${SKIP_LOG_WINDOW_MS / 1000} s; window opened ` +
+      `${new Date(openedAt).toISOString()}): ` +
+      SKIP_SOURCES.map((s) => `${s}=${suppressed[s]}`).join(' ') +
+      ` (olderWritesSkipped=${syncHealth.olderWritesSkipped})`
+  );
 }
 
 /** How long the mirror has been known-incomplete, in ms; 0 when it is not. */
@@ -222,6 +337,7 @@ export function resetSyncHealth(): void {
   syncHealth.unhealedRanges.length = 0;
   unhealedSinceWallMs = null;
   lastFullLoad = null;
+  skipWindow = null;
 }
 
 // ------------------------------------------------ 1.0.0 (A5) applied marks

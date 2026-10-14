@@ -371,7 +371,7 @@
       "properties": {
         "reconnects": {
           "type": "number",
-          "description": "raw stream (re)subscriptions after the first. Its healthy resting state RISES: the server closes the subscription roughly every 30-40 s by design."
+          "description": "raw stream (re)subscriptions after the first. Its healthy resting state RISES: the production server closed the chain subscription every ~30-40 s until mid-September 2026, and since 2026-09-15 it closes it 0-3 times a day while the 10.5 s no-frame timeout fires 0-67 times a day (re-measured 2026-10-03, A6)."
         },
         "gapsHealed": {
           "type": "number",
@@ -435,7 +435,7 @@
         },
         "olderWritesSkipped": {
           "type": "number",
-          "description": "1.0.0 (A2(c)), rule corrected in 1.0.1: updates the apply path refused because the key already held a write of a LATER block, or the FINAL write of the update's own block (the last write of that block for that key, as a proven chain read says) \u2014 re-deliveries of a reconciled block included. Never decided by log index, which on Yominet restarts in every transaction. Normal and nonzero on a healthy daemon: a reconcile pass re-reads keys the stream has since written again in a later block, and a stream frame can arrive after a chain read already applied its block's final write. From 1.0.1 a chain read's final write over the SAME block the stream last wrote is applied (an identical value on a healthy stream), not skipped, so this reads lower than 1.0.0 did for the same traffic."
+          "description": "1.0.0 (A2(c)), rule corrected in 1.0.1: updates the apply path refused because the key already held a write of a LATER block, or the FINAL write of the update's own block (the last write of that block for that key, as a proven chain read says) \u2014 re-deliveries of a reconciled block included. Never decided by log index, which on Yominet restarts in every transaction. Normal and nonzero on a healthy daemon: a reconcile pass re-reads keys the stream has since written again in a later block, and a stream frame can arrive after a chain read already applied its block's final write. From 1.0.1 a chain read's final write over the SAME block the stream last wrote is applied (an identical value on a healthy stream), not skipped, so this reads lower than 1.0.0 did for the same traffic. 1.0.5: each one is also an INFO line in the daemon log (`[apply] older write skipped:` with the key, the write's block, logIndex, transaction index, final flag and tx hash, its source, the place the key held and whether the value equals the mirror's), at most 20 per 60 s window; the skips over that cap are counted per source in one summary line when the window closes. Never sets `degraded`."
         },
         "lastReconcileAdvanceAt": {
           "type": [

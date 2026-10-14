@@ -53,6 +53,16 @@
  *           1.0.0 (A5): after each update it acts on that update's
  *           AppliedMark, which is how appliedThrough and reconciledThrough
  *           move only once the writes they vouch for are in the mirror.
+ *           1.0.5, THE SKIP LINE: a write the guard skips was a counter and
+ *           nothing else, so a write the stream path left unapplied could
+ *           not be told from a skip in the log. The guard now hands each
+ *           skip to recordOlderWriteSkip (sync-health.ts) with the key
+ *           (component, entity), the write's block / logIndex / transaction
+ *           index / final flag / tx hash, the place the key held (block,
+ *           final), its source (skipSourceOf) and whether its value equals
+ *           the mirror's: one INFO line per skip, capped per minute, the
+ *           rest in one summary line flushed at the end of a batch. The
+ *           counter and the rule are unchanged.
  *           Everything else verbatim.
  */
 
@@ -76,7 +86,14 @@ import { log } from 'utils/logger';
 import { Ack, ack } from 'workers/sync';
 
 import { tripwires } from '../../tripwires';
-import { applyMark, recordRepair, syncHealth } from '../../sync-health';
+import {
+  applyMark,
+  flushSkipSummary,
+  recordOlderWriteSkip,
+  recordRepair,
+  syncHealth,
+  type SkipSource,
+} from '../../sync-health';
 import {
   isNetworkComponentUpdateEvent,
   isSystemCallEvent,
@@ -191,6 +208,22 @@ export function sameComponentValue(a: unknown, b: unknown): boolean {
   return true;
 }
 
+/** Where a write the guard skips came from (1.0.5), from the fields that
+ * reach this path and nothing else: the periodic reconcile stamps its writes
+ * with the stream cursor; every other PROVEN chain read (a gap heal, a
+ * catch-up, the boot window) marks its writes `final` and nothing more; a raw
+ * chain range read carries a transaction index and is never final; a stream
+ * frame carries neither. See SkipSource. */
+export function skipSourceOf(update: {
+  final?: boolean;
+  reconcileCursor?: number;
+  transactionIndex?: number;
+}): SkipSource {
+  if (update.reconcileCursor !== undefined) return 'reconcile';
+  if (update.final === true) return 'chain-read';
+  return update.transactionIndex !== undefined ? 'range' : 'stream';
+}
+
 /** A short, bigint-safe rendering of a value for the repair WARN line. */
 const preview = (v: unknown): string => {
   if (v === undefined) return 'absent';
@@ -286,7 +319,23 @@ export function applyNetworkUpdates<C extends Components>(
             last !== undefined &&
             (blockOf(last) > block || (blockOf(last) === block && isFinal(last)))
           ) {
-            syncHealth.olderWritesSkipped++;
+            // 1.0.5: counted exactly as before, and now also logged (capped)
+            recordOlderWriteSkip({
+              component: componentKey as string,
+              entity: update.entity,
+              block,
+              logIndex: update.logIndex,
+              txIndex: update.transactionIndex,
+              final: update.final === true,
+              tx: update.txHash,
+              source: skipSourceOf(update),
+              heldBlock: blockOf(last),
+              heldFinal: isFinal(last),
+              sameValue: sameComponentValue(
+                getComponentValue(component as Component<Schema>, entity),
+                update.value
+              ),
+            });
             if (update.appliedMark) settleMark(update.appliedMark);
             continue;
           }
@@ -330,6 +379,8 @@ export function applyNetworkUpdates<C extends Components>(
         decodeAndEmitSystemCall(update);
       }
     }
+    // 1.0.5: a closed skip-log window reports what its cap held back
+    flushSkipSummary();
     // Send "ack" after every processed batch of events to process faster than ever 100ms
     ack$.next(ack);
     processing = false;
