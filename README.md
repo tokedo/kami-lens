@@ -174,10 +174,11 @@ one and a half a minute — so expect a line or two a minute in the log
 and nothing new in any answer. The counter counts exactly what it did
 before.
 
-Also: the `status` schema's description of `reconnects` no longer says
-the stream server hangs up every 30–40 seconds; it says, as the rest of
-the documents already do, that it did until mid-September 2026 and
-rarely does now. A description only.
+Also: two descriptions in the `status` schema — the `sync` block's own
+and that of its `reconnects` count — no longer say the stream server
+hangs up every 30–40 seconds; they say, as the rest of the documents
+already do, that it did until mid-September 2026 and rarely does now.
+Descriptions only.
 
 No other field or answer changes. `version` reads `1.0.5`. Upgrade; if
 something waits on `cooldownSec` reaching 0, it now waits up to one

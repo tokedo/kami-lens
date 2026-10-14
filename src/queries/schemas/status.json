@@ -352,7 +352,7 @@
     "Sync": {
       "type": "object",
       "additionalProperties": false,
-      "description": "\u00a73.17 (0.6.0): health of the sync layer's own recovery, all counters since PROCESS START (a restart zeroes them). Deliberately not tripwires: `reconnects` is nonzero within a minute of every healthy start, because the production stream server closes the subscription every ~30-40 s by design, and a tripwire marks the daemon degraded. The one condition here that IS a chain-correctness fault reaches `degraded` as `unhealed-ranges:<N>`.",
+      "description": "\u00a73.17 (0.6.0): health of the sync layer's own recovery, all counters since PROCESS START (a restart zeroes them). Deliberately not tripwires: `reconnects` is nonzero within a minute of every healthy start, because the production server closed the chain subscription every ~30-40 s until mid-September 2026, and since 2026-09-15 it closes it 0-3 times a day while the 10.5 s no-frame timeout fires 0-67 times a day (re-measured 2026-10-03, A6), and a tripwire marks the daemon degraded. The one condition here that IS a chain-correctness fault reaches `degraded` as `unhealed-ranges:<N>`.",
       "required": [
         "reconnects",
         "gapsHealed",
