@@ -1562,6 +1562,87 @@ retries back off exponentially with jitter, a rate limit doubles the backoff,
 and the bootstrap's failure streak survives a supervisor restart; `status`
 reads a background head sample instead of a request-path RPC.
 
+### 3.19 What the mirror held and the queries did not serve (1.1.0)
+
+Settled 2026-10-23, at the advance of the upstream pin to `04cb25f8`.
+
+**The node read's three facts.** The vendored `Node` shape has read three
+facts about every node since the first port, and no query served them: the
+item the node's harvests pay (`drops[0]` — the node entity's `ItemIndex`, the
+contracts' `IndexItem` set by `LibNode.create`, resolved through the item
+registry; `LibHarvest.claim` pays in it and, from `04cb25f8`, so does a
+liquidated victim's salvage), the conditions on starting a harvest there (the
+CONDITION entities anchored at `hash("node.requirement", index)`), and the
+node's scavenge registry entry (its `Value` is `LibScavenge.create`'s cost
+per reward tier). They were missing for the reason the kami sheet was in
+0.5.1 (§3.16): computed on the path that answers, and dropped at the
+projection. They are appended LAST on every rung of `node`, so every 1.0.5
+key keeps its place and G3.g names them as additive leaves.
+
+The deploy writes a node's level limit as
+`requirement.add(index, 'LEVEL', 'CURR_MAX', 0, limit, 'KAMI')`, and
+`LibConditional` reads `CURR_MAX` as "current value ≤ target": the limit is a
+CAP — a kami above it cannot start a harvest there (`HarvestStartSystem`
+checks the node's conditions at start, and nowhere else). A node without a
+limit stores no condition at all. The raw conditions are served as the client
+shapes them (`logic`, `type`, and `index`, `value`, `for` exactly when stored;
+`value` verbatim as a string, the rule of every condition surface here,
+§1.2), and the convenience read is named for what it is, `levelCap` — the
+name the reference client's own map gives the same condition — never a
+"requirement" a reader would take for a minimum. With several such
+conditions (none at the pin) the lowest binds, because the chain requires
+every one. The read takes the conditions on the kami (`for` KAMI, or none);
+one on the account's level is a different fact and stays in the list only.
+
+Every node at the pin has a yield item and a scavenge entry, so a node read
+whose mirror lacks either is an incomplete projection and refuses
+`INCOMPLETE`, as a hollow kami has since 1.0.0 (§3.18 A1). A blank yield
+item would be the lie-shaped zero of §3.14.
+
+**The soulbind read.** `LibSoulbound` keeps a kami's lock as a timestamp in
+`ValueComponent` at `keccak256(abi.encode(kamiID, "SOULBOUND"))` — the
+non-packed encoding, which is easy to get wrong — written only by the newbie
+vendor's sale (three days). Six systems refuse a bound kami from `04cb25f8`.
+The client's `network/shapes/Kami/soulbound.ts` reads it and is ported at the
+new pin, with one §3.8 change (`isSoulbound` compares with `clock.now()`); the
+query serves the raw end time, as it serves `cooldownUntil`, and leaves the
+comparison with a trusted block time to the reader. It rides `kami` and every
+complete `party` row, not the node occupant rows, which are the vitals of a
+liquidation read.
+
+**Address keys.** An agent acting for a player starts from a wallet
+address. `account` resolved one (owner, then operator — §3.14); `inventory`
+and `party` did not. One function now holds the rule for all three, and it is
+the rule the contracts themselves adopted at `04cb25f8` for trades, item
+transfers, auction buys and gacha (`LibAccount.getByOwnerOrOperator`). The
+owner lookup goes through the `OwnerAddress` component, which agrees with the
+contracts' `uint256(uint160(owner))` account id because the owner never
+changes.
+
+**The parity test.** The calc modules are ported from the client, and the
+client computes in floats what the contracts compute in integers with
+precision slots. 1.0.5's cooldown fix (§3.18) was one such seam; the test
+looks for the rest systematically. For each formula of the studio's domain
+manifest (`Asphodel-OS/kami-atlas` `ac64364`, CC BY 4.0) the port runs beside
+a BigInt transcription of the Solidity — including the fixed-point libraries
+the contracts call (Solady `lnWad`/`expWad`/`powWad`, Solstat
+`Gaussian.cdf`, PRBMath `SD59x18` `pow`), checked against those libraries'
+own published vectors — at hand-picked boundary inputs and over seeded
+sweeps. An agreement is asserted to the unit; a divergence is asserted as
+itself, with its class and size, so the test fails if a port starts to
+diverge differently and also if one stops. The first list
+(`docs/measurements/formula-parity-2026-10-23.md`): float floors one unit
+low at a precision slot (fertility, intensity, and what inherits them);
+rounding (a NORMAL trait's halved fertility bonus, stat totals, SCALED sell
+prices); missing branches, clamps and reverts (spoils and salvage above a
+ratio of 1.0, where the chain pays more or refuses the liquidation; efficacy
+and stat totals below 0; an auction whose cost decays to zero);
+client-only approximations (karma kept unfloored, so recoil reads high by up
+to ⌈strain / 1000⌉); and one precision slot (the merchant deficit clamp in
+whole seconds). None is changed in 1.1.0: each served one is listed with its
+serving site for a ruling, because fixing a served value is a behavioural
+change with its own live check.
+
 ## 4. Architecture
 
 ### 4.1 Sync layer

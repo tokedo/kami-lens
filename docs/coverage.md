@@ -798,6 +798,31 @@ positions. **Changed default:** `feed` without a cursor serves the newest
 unchanged. Leg A's correctness work changes no row's status: it changes
 what an answer may claim about its own completeness (SPEC §1.2, §3).
 
+## 1.1.0 — node facts, the soulbind, address keys, pin `04cb25f8` (2026-10-23)
+
+**The pin advances** from `ffda3963` to `04cb25f8` (12 upstream commits;
+the classified diff is `docs/measurements/pin-advance-04cb25f8-2026-10-23.json`).
+Its coverage-affecting bucket: the map gains a level-gate and a yield view
+(per node, the `LEVEL`/`CURR_MAX` requirement as a level cap, and the yield
+item) — **now served** by `node` (`levelCap`, `requirements`, `yieldItem`);
+the send, reroll, sacrifice and marketplace (list, offer) pickers filter soulbound kamis
+— **now served** as `soulboundUntil` on `kami` and `party` rows; the
+battle log names the salvage item (the node's yield item since the upgrade
+the client dates at block 34,199,935) — `battles`/`feed` serve the salvage
+amount without an item, **recorded, unchanged**; a paused co-op reads
+"(paused)" — goals stay **not served** (the `goal` row above); the
+kamiswap listing filter gains a minimum level — a client-side filter over
+listing data `market` already serves. Every other modal, fixture and
+library edit in the range is presentation or flow.
+
+**Newly served on the node row above:** the yield item, the start
+requirements with the level cap, the scavenge tier cost (the "scavenge"
+part of that row's surface). **Newly accepted keys:** `inventory` and
+`party` take an owner address (owner first, then operator), as `account`
+did. **Test-only:** the contract-formula parity test and its divergence
+list (`docs/measurements/formula-parity-2026-10-23.md`) change no row's
+status.
+
 ## Maintenance
 
 Per release: resolve every `TBD` to `planned`/`deferred`/

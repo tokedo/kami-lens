@@ -133,7 +133,7 @@ so a machine that can do the first start can always restart.
 
 ## Status
 
-**1.0.5.** Daemon, CLI, and library are implemented and
+**1.1.0.** Daemon, CLI, and library are implemented and
 gate-verified against the pinned upstream commit and the live game,
 with dated per-run evidence in `docs/measurements/`. The verification
 suite is G0–G10 (G8, G9 and G10 are manual and live); every run writes
@@ -141,6 +141,75 @@ its own dated record, and the record — not this paragraph — is what a
 given release rests on. The contract registry is [SPEC.md](SPEC.md);
 per-surface coverage — what is served, what is deferred, what is out
 of scope — is [docs/coverage.md](docs/coverage.md).
+
+### What changed in 1.1.0, for the things that read this daemon
+
+Three answers gain facts the daemon already held, two queries take a new
+kind of key, and a test now checks the ported game formulas against the
+contracts' own arithmetic. Nothing that was served before changes.
+
+**A node read names what it pays, who may start there, and what
+scavenging costs.** Every `node` answer, with or without `--full`,
+`--with-vitals` or a selector, now ends with five fields:
+
+- `yieldItem` — `{index, name}`: the item this node's harvests pay. Most
+  nodes pay MUSU and some pay VIPP; the accrued amounts on the node's rows,
+  and a liquidation's spoils and salvage there, are amounts of this item.
+- `requirements` — every condition the game stores on starting a harvest
+  on the node, as stored: `logic` and `type`, plus `index`, `value` (a
+  string, exactly as stored) and `for` when they are stored. Empty for a
+  node with none, which is most of them.
+- `levelCap` — the highest level a kami may be to START a harvest here,
+  or `null` when there is no cap. It is a maximum, not a minimum: the
+  game's level limits keep stronger kamis out (on a node capped at 15, a
+  level-16 kami cannot start). The game checks it when a harvest starts.
+- `scavengeCost` — how many scavenge points one reward tier costs on this
+  node.
+- `scavengeAffinity` — the affinity stored on the node's scavenge entry (a
+  copy of the node's own, made when the entry was created).
+
+If the daemon's copy of the world is missing a node's yield item or its
+scavenge entry, the read is refused with `INCOMPLETE` instead of being
+answered with a blank, and `status.incompleteRows.refused` counts it.
+
+**A kami read says when its soulbind ends.** `kami`, and every complete
+row of `party`, carry `soulboundUntil`: the unix time, in chain seconds,
+at which the kami's soulbind ends, or 0 if it was never bound. A kami
+bought from the newbie vendor is bound for three days. While that time is
+in the future the chain refuses to send the kami, list it, sell it to an
+offer, reroll it, sacrifice it or unstake it. As with `cooldownUntil`,
+compare it with a block time you trust. A node read's occupant rows do
+not carry it.
+
+**`inventory` and `party` take an address.** Like `account`, they now
+accept an owner address — `0x` and 40 hex digits, any case — where they
+took an account index (or, for `inventory`, a name). The owner is tried
+first; an operator address also finds the account it operates, the same
+order the game itself now uses for trades and item transfers. An address
+that neither owns nor operates an account answers `NOT_FOUND`, naming the
+address. The answer is exactly what the same account's index gives.
+
+**A test, and nothing served changes.** A new test evaluates each game
+formula the daemon ports beside an exact copy of the contracts'
+arithmetic. Most agree to the unit. Where they do not, the difference is
+written down in `docs/measurements/formula-parity-2026-10-23.md` and left
+as it is in this release: a liquidation preview's recoil can read a few
+points high, its spoils too low for a strong attacker, and its salvage
+can describe a liquidation the chain would refuse; a merchant's price can
+be one unit low when its price floor applies, and a scaled sell price is
+not rounded down; a stat with a percentage boost is not rounded down; and
+a harvest's rates can be one millionth low at exact values.
+
+**The upstream pin moves** to `04cb25f8` (2026-10-21). Eleven ported
+client files are updated and one is new (the soulbind read above); the
+rest are unchanged. In the game at that pin, a liquidated kami's salvage
+is paid in the node's yield item, no longer always MUSU — the item
+`yieldItem` names. `version` reads `1.1.0`; `--version` reads
+`kami-lens 1.1.0 (upstream Asphodel-OS/kamigotchi-open @ 04cb25f8f3009ca9b89e62e20bd3d7afa12e98ad)`.
+
+Upgrade. If you validate answers with closed schemas, `node` gains five
+properties (`scavengeAffinity` optional) and `kami` and `party` rows gain
+`soulboundUntil`.
 
 ### What changed in 1.0.5, for the things that read this daemon
 
