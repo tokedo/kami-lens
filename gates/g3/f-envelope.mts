@@ -393,6 +393,15 @@ const BASE_PRESENCE: { query: string; args: string[]; paths: string[] }[] = [
   // first kami and this failed loudly, exactly as the 0.5.3 note here
   // predicted it would. See the selection above.
   { query: 'node', args: ['62', blockedAttacker, '--with-vitals'], paths: ['attacker.blocked'] },
+  // 1.1.0 (§3.19): the node facts. `yieldItem.name` is the one new STRING a
+  // node always carries — unclassified it would be deleted by the fail-safe.
+  // `requirements[].…` and `scavengeAffinity` are strings too but depend on
+  // the fixture's data (a node with no condition carries an empty list), so
+  // their classification is asserted by the unit suite
+  // (test/node-facts.test.ts), not here.
+  { query: 'node', args: ['62'], paths: ['yieldItem.index', 'yieldItem.name', 'scavengeCost'] },
+  { query: 'kami', args: [firstKami], paths: ['soulboundUntil'] },
+  { query: 'party', args: [String(anAccount)], paths: ['kamis[].soulboundUntil'] },
   // quests: the compact surface and the per-requirement detail
   {
     query: 'quests',

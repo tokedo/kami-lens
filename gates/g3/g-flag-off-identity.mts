@@ -248,6 +248,24 @@ const ADDITIVE_PATTERNS_100B = [/^(items\[\d+\]\.)?token\.(address|scale)$/];
  * so it is not listed. */
 const ADDITIVE_LEAVES_101 = ['reconcileRepairs'];
 
+/** 1.1.0 adds, to flag-off answers on this fixture's cases, on the same
+ * terms as every list above:
+ * - on `node` (every rung): `yieldItem.index`, `yieldItem.name`,
+ *   `requirements` (an empty array renders `requirements[]`; a stored
+ *   condition renders `requirements[0].logic` / `.type` / `.value` / `.for`),
+ *   `levelCap`, `scavengeCost` and `scavengeAffinity` (§3.19 — the node facts
+ *   the vendored shape always read). `yieldItem.*` and `requirements…` are
+ *   matched by PATTERN anchored at the answer root, because `index`, `name`,
+ *   `type` and `value` are leaf names elsewhere in the tree and a leaf-name
+ *   entry would mask them there; the other three are unique leaf names.
+ * - on `kami` and on `party` rows: `soulboundUntil` (§3.19), a unique leaf
+ *   name. Node occupant rows do not carry it. */
+const ADDITIVE_LEAVES_110 = ['levelCap', 'scavengeCost', 'scavengeAffinity', 'soulboundUntil'];
+const ADDITIVE_PATTERNS_110 = [
+  /^yieldItem\.(index|name)$/,
+  /^requirements(\[\d*\](\.(logic|type|index|value|for))?)?$/,
+];
+
 /** 1.0.0 leg B changes one VALUE on status: `upstreamPin`, ef898fc9 ->
  * ffda3963 (B7). Asserted against the built pin rather than masked blind,
  * the way `version` is. */
@@ -266,8 +284,10 @@ function isAdditive052(path: string): boolean {
     ADDITIVE_LEAVES_063.includes(leaf) ||
     ADDITIVE_LEAVES_100A.includes(leaf) ||
     ADDITIVE_LEAVES_101.includes(leaf) ||
+    ADDITIVE_LEAVES_110.includes(leaf) ||
     ADDITIVE_PREFIXES_100A.some((p) => path.startsWith(p)) ||
-    ADDITIVE_PATTERNS_100B.some((re) => re.test(path))
+    ADDITIVE_PATTERNS_100B.some((re) => re.test(path)) ||
+    ADDITIVE_PATTERNS_110.some((re) => re.test(path))
   );
 }
 
