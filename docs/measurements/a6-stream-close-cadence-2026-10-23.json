@@ -1,0 +1,231 @@
+{
+ "measurement": "production stream close cadence, re-measured for 1.1.0 (the A6 method of 2026-10-03, extended)",
+ "date": "2026-10-23",
+ "source": "one Mac daemon log, 2026-10-03..2026-10-23 (read-only); lines bucketed by the UTC day of the nearest preceding status line — the same bucketing as a6-stream-close-cadence-2026-10-03.json",
+ "method": "the counting script reproduces the 2026-10-03 record's chainStreamClosed / chainStreamTimeouts / chainStreamOther exactly for every day 2026-09-15..10-02 before it was run on the new window",
+ "notes": [
+  "2026-10-03 is a FULL day here (the 2026-10-03 record stopped at ~15:00 UTC and counted 1 close and 3 timeouts for it)",
+  "2026-10-23 is a partial day (to ~16:40 UTC) and is excluded from the summary ranges",
+  "chainStreamClosed = resubscribes after `Response closed without grpc-status`; chainStreamTimeouts = resubscribes after `Stream timeout - no data received`; chainStreamTimeoutEscalations = `N consecutive no-frame timeouts — treating the server as down`; chainStreamOther = every other resubscribe (mostly `Response closed without headers`, UNAVAILABLE and bare UNKNOWN — the shape of a network that went away, e.g. a sleeping host)",
+  "the daemon was restarted often in this window (sigterm column) and on 2026-10-19/20 sat in bootstrap-failure retries for long stretches (bootstrapFailureLines), so a day's count is of the hours it was connected, not of 24 h",
+  "the Kamiden feed's resubscribe lines changed shape in this window (`[kamiden] stream error: …`) and are not re-counted here"
+ ],
+ "summary": {
+  "chainStreamClosedPerDay_1003_1022": "0-3",
+  "chainStreamTimeoutsPerDay_1003_1022": "3-40",
+  "chainStreamClosed_1023_partial": 2,
+  "chainStreamTimeouts_1023_partial": 8
+ },
+ "perDay": {
+  "2026-10-03": {
+   "chainStreamClosed": 1,
+   "chainStreamTimeouts": 4,
+   "chainStreamTimeoutEscalations": 0,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 0,
+   "sigterm": 1,
+   "bootstrapFailureLines": 0,
+   "statusLines": 229
+  },
+  "2026-10-04": {
+   "chainStreamClosed": 0,
+   "chainStreamTimeouts": 4,
+   "chainStreamTimeoutEscalations": 0,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 7,
+   "sigterm": 7,
+   "bootstrapFailureLines": 0,
+   "statusLines": 653
+  },
+  "2026-10-05": {
+   "chainStreamClosed": 0,
+   "chainStreamTimeouts": 26,
+   "chainStreamTimeoutEscalations": 0,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 9,
+   "sigterm": 3,
+   "bootstrapFailureLines": 2,
+   "statusLines": 320
+  },
+  "2026-10-06": {
+   "chainStreamClosed": 0,
+   "chainStreamTimeouts": 40,
+   "chainStreamTimeoutEscalations": 0,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 46,
+   "sigterm": 16,
+   "bootstrapFailureLines": 1,
+   "statusLines": 1294
+  },
+  "2026-10-07": {
+   "chainStreamClosed": 0,
+   "chainStreamTimeouts": 24,
+   "chainStreamTimeoutEscalations": 0,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 25,
+   "sigterm": 6,
+   "bootstrapFailureLines": 2,
+   "statusLines": 476
+  },
+  "2026-10-08": {
+   "chainStreamClosed": 2,
+   "chainStreamTimeouts": 22,
+   "chainStreamTimeoutEscalations": 0,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 32,
+   "sigterm": 7,
+   "bootstrapFailureLines": 1,
+   "statusLines": 665
+  },
+  "2026-10-09": {
+   "chainStreamClosed": 0,
+   "chainStreamTimeouts": 9,
+   "chainStreamTimeoutEscalations": 0,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 15,
+   "sigterm": 5,
+   "bootstrapFailureLines": 0,
+   "statusLines": 487
+  },
+  "2026-10-10": {
+   "chainStreamClosed": 3,
+   "chainStreamTimeouts": 7,
+   "chainStreamTimeoutEscalations": 0,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 0,
+   "sigterm": 0,
+   "bootstrapFailureLines": 0,
+   "statusLines": 144
+  },
+  "2026-10-11": {
+   "chainStreamClosed": 0,
+   "chainStreamTimeouts": 15,
+   "chainStreamTimeoutEscalations": 0,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 15,
+   "sigterm": 4,
+   "bootstrapFailureLines": 0,
+   "statusLines": 406
+  },
+  "2026-10-12": {
+   "chainStreamClosed": 0,
+   "chainStreamTimeouts": 18,
+   "chainStreamTimeoutEscalations": 0,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 24,
+   "sigterm": 8,
+   "bootstrapFailureLines": 1,
+   "statusLines": 665
+  },
+  "2026-10-13": {
+   "chainStreamClosed": 1,
+   "chainStreamTimeouts": 20,
+   "chainStreamTimeoutEscalations": 3,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 21,
+   "sigterm": 12,
+   "bootstrapFailureLines": 2,
+   "statusLines": 1099
+  },
+  "2026-10-14": {
+   "chainStreamClosed": 0,
+   "chainStreamTimeouts": 13,
+   "chainStreamTimeoutEscalations": 0,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 37,
+   "sigterm": 8,
+   "bootstrapFailureLines": 0,
+   "statusLines": 832
+  },
+  "2026-10-15": {
+   "chainStreamClosed": 2,
+   "chainStreamTimeouts": 13,
+   "chainStreamTimeoutEscalations": 0,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 11,
+   "sigterm": 9,
+   "bootstrapFailureLines": 3,
+   "statusLines": 768
+  },
+  "2026-10-16": {
+   "chainStreamClosed": 1,
+   "chainStreamTimeouts": 13,
+   "chainStreamTimeoutEscalations": 0,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 31,
+   "sigterm": 9,
+   "bootstrapFailureLines": 1,
+   "statusLines": 750
+  },
+  "2026-10-17": {
+   "chainStreamClosed": 0,
+   "chainStreamTimeouts": 3,
+   "chainStreamTimeoutEscalations": 0,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 0,
+   "sigterm": 1,
+   "bootstrapFailureLines": 0,
+   "statusLines": 315
+  },
+  "2026-10-18": {
+   "chainStreamClosed": 2,
+   "chainStreamTimeouts": 20,
+   "chainStreamTimeoutEscalations": 1,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 35,
+   "sigterm": 6,
+   "bootstrapFailureLines": 2,
+   "statusLines": 748
+  },
+  "2026-10-19": {
+   "chainStreamClosed": 0,
+   "chainStreamTimeouts": 8,
+   "chainStreamTimeoutEscalations": 0,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 71,
+   "sigterm": 35,
+   "bootstrapFailureLines": 30,
+   "statusLines": 881
+  },
+  "2026-10-20": {
+   "chainStreamClosed": 1,
+   "chainStreamTimeouts": 39,
+   "chainStreamTimeoutEscalations": 2,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 44,
+   "sigterm": 51,
+   "bootstrapFailureLines": 37,
+   "statusLines": 2019
+  },
+  "2026-10-21": {
+   "chainStreamClosed": 0,
+   "chainStreamTimeouts": 18,
+   "chainStreamTimeoutEscalations": 0,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 14,
+   "sigterm": 10,
+   "bootstrapFailureLines": 0,
+   "statusLines": 924
+  },
+  "2026-10-22": {
+   "chainStreamClosed": 0,
+   "chainStreamTimeouts": 7,
+   "chainStreamTimeoutEscalations": 0,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 8,
+   "sigterm": 3,
+   "bootstrapFailureLines": 0,
+   "statusLines": 408
+  },
+  "2026-10-23": {
+   "chainStreamClosed": 2,
+   "chainStreamTimeouts": 8,
+   "chainStreamTimeoutEscalations": 1,
+   "chainStreamRateLimited": 0,
+   "chainStreamOther": 27,
+   "sigterm": 12,
+   "bootstrapFailureLines": 6,
+   "statusLines": 464
+  }
+ }
+}

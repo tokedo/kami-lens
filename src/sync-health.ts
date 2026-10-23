@@ -14,13 +14,15 @@
 // is nonzero on a healthy daemon — the production server closed the chain
 // subscription every ~35-40 s until mid-September 2026 (~1,800-2,400 closes a
 // day in the Mac daemon's log, 09-06..09-14) and still closes it, and times
-// it out, a few dozen times a day since (0-3 closes plus 1-67 timeouts per day,
-// 09-15..10-03; re-measured for 1.0.0) — so routing these through tripwires
-// would mark a healthy daemon degraded, at either rate, and a server that
-// resumes closing every half minute must not either. Exactly ONE
-// condition here is a real chain-correctness fault and does reach `degraded`:
-// an unhealed range that has outlived two reconcile intervals means the
-// mirror is known-incomplete and has not recovered on its own.
+// it out, a few dozen times a day since: 0-3 closes plus 1-67 timeouts per day
+// over 2026-09-15..10-03 (the 1.0.0 measurement), and 0-3 closes plus 3-40
+// timeouts per day over 2026-10-03..10-22 (re-measured for 1.1.0 —
+// docs/measurements/a6-stream-close-cadence-2026-10-23.json) — so routing
+// these through tripwires would mark a healthy daemon degraded, at either
+// rate, and a server that resumes closing every half minute must not either.
+// Exactly ONE condition here is a real chain-correctness fault and does reach
+// `degraded`: an unhealed range that has outlived two reconcile intervals
+// means the mirror is known-incomplete and has not recovered on its own.
 
 // 0.6.2 adds ONE more record here that is not a recovery counter:
 // `lastFullLoad`. It lives in this module for exactly the reason the counters

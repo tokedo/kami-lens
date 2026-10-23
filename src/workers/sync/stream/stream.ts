@@ -204,11 +204,13 @@ export const HEALTH_CHECK_BUFFER_MS = 2000;
 /** Default period of the reconcile tick (§3.17). Two minutes was chosen
  * against the reconnect cadence of its day — one subscription close every
  * ~55 s over the 2026-08-26..09-06 log, ~1,800-2,400 a day through 09-14.
- * RE-MEASURED FOR 1.0.0 (A6): since 2026-09-15 the server closes the chain
- * subscription 0-3 times a day and it times out 1-67 times a day, so most
- * passes now run on a connection that has been up for hours. The interval
- * stands on its own: it bounds how long a loss the stream never noticed can
- * live, and since 1.0.0 the reconcile no longer lives inside the
+ * RE-MEASURED FOR 1.0.0 (A6), over 2026-09-15..10-03: the server closed the
+ * chain subscription 0-3 times a day and it timed out 1-67 times a day.
+ * RE-MEASURED FOR 1.1.0, over 2026-10-03..10-22: 0-3 closes and 3-40
+ * timeouts a day (docs/measurements/a6-stream-close-cadence-2026-10-23.json).
+ * Either way most passes run on a connection that has been up for hours. The
+ * interval stands on its own: it bounds how long a loss the stream never
+ * noticed can live, and since 1.0.0 the reconcile no longer lives inside the
  * subscription at all (divergence 7), so a server that resumes closing every
  * half minute cannot starve it either. 0 disables it, and `status.sync` says
  * so. */
