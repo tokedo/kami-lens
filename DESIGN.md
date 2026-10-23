@@ -1639,9 +1639,36 @@ ratio of 1.0, where the chain pays more or refuses the liquidation; efficacy
 and stat totals below 0; an auction whose cost decays to zero);
 client-only approximations (karma kept unfloored, so recoil reads high by up
 to ⌈strain / 1000⌉); and one precision slot (the merchant deficit clamp in
-whole seconds). None is changed in 1.1.0: each served one is listed with its
-serving site for a ruling, because fixing a served value is a behavioural
-change with its own live check.
+whole seconds).
+
+**A served value that disagrees with the chain is a wrong reading** (ruled
+for 1.1.0), so every one the test found is fixed in the same release, and
+the principle this section adds to §3.3 is this: the port preserves the
+client's structure and its reads, but where the client's arithmetic and the
+contract's differ in a value this daemon SERVES, the contract's wins. The
+corrections are made in the ported calc modules themselves, where the port
+was wrong — not by re-deriving the value beside them — so every surface that
+reads a calc (the kami vitals, the node rows, the previews, the threshold
+inside `canLiquidate`) moves together; each file's header names the
+correction and the contract line it matches. The arithmetic is the chain's
+integers with their precision slots, the transcendental pieces the
+contracts' own libraries (a native `utils/fixed-point.ts`: Solady's
+lnWad/expWad/powWad and Solstat's Gaussian, held to those libraries'
+published vectors), and the values read back from the client's floats only
+where the shapes carry nothing else (a bonus at the precision getBonuses
+divides by; an efficacy shift at its target's precision). Two corrections are
+not arithmetic but meaning, and live at the serving site: a liquidation the
+chain would revert (the victim's salvage exceeds its bounty) is previewed as
+ineligible with the reason `SALVAGE_EXCEEDS_BOUNTY`, read off the row's own
+numbers so `--eligible-only` stays a filter over served values (§3.13); and an
+auction whose cost has decayed to nothing serves a null price with its
+reason rather than 1. The parity test's assertions flipped from "documented
+divergence" to "agreement", and the gates that compare with the CLIENT (G2.a)
+or with frozen baselines (G3.g) name the departures as counted chain
+corrections, nothing wider. G2.a found one class the first sweep had missed —
+a defender's threshold-shift bonus drives the client's threshold negative
+where the chain clamps at 0 — which is why the gate that runs over the whole
+snapshot stays beside the test that runs over chosen inputs.
 
 ## 4. Architecture
 

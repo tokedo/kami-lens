@@ -3,10 +3,16 @@
 `test/formula-parity.test.ts` evaluates each contract formula beside the
 lens's ported counterpart: a reference evaluation of the Solidity arithmetic,
 transcribed with its integer precision slots, truncating division and clamps,
-against the port the daemon runs, on the shapes it builds. Every case below is
-asserted by the test — an equal case as equal to the unit, a divergent one as
-the divergence documented here (its class and its size). Regenerate the tables
-with `FORMULA_PARITY_RECORD=<file> npx vitest run test/formula-parity.test.ts`.
+against the code the daemon runs, on the shapes it builds. Every case below is
+asserted by the test. Regenerate the tables with
+`FORMULA_PARITY_RECORD=<file> npx vitest run test/formula-parity.test.ts`.
+
+**Status: every divergence in a served value found here is RESOLVED in
+1.1.0** (release item 7: a served value that disagrees with the chain is a
+wrong reading). The test's assertions for them now require agreement; they
+fail on the ports as 1.1.0 found them (24 of 89 cases red at the commit
+before the fix, all green after), and every sweep requires zero divergent
+samples. What 1.0.5 served is kept below as the record.
 
 **Sources.** The formula list — `generated/formulas.yaml`, 40 keys (38 plain
 keys plus the two quoted overloads of `LibHarvest.calcEfficacy`) — is from the
@@ -15,13 +21,13 @@ Kami Atlas by Asphodel Studios, https://github.com/Asphodel-OS/kami-atlas
 CC BY 4.0. The transcriptions (`test/formula-parity.test.ts`,
 `test/support/solidity.ts`) are this repository's own code (AGPL-3.0-only),
 written against the contract source at Asphodel-OS/kamigotchi-open @
-`04cb25f8` (AGPL-3.0-only). The transcendental pieces are transcribed from the
-libraries the contracts use at that pin — Solady `FixedPointMathLib`
-(`lnWad`, `expWad`, `powWad`; the contracts' Solmate copy for the Gaussian),
-Solstat `Gaussian.cdf`/`erfc`, PRBMath 4.1.0 `SD59x18` (`pow`, `exp2`,
-`log2`) — and reproduce the libraries' own published test vectors exactly
-(asserted). Config: the live world's arrays (`test/support/mirror.ts`,
-read 2026-10-03). Clock pinned at chain second 1,790,000,000.
+`04cb25f8` (AGPL-3.0-only). The transcendental pieces follow the libraries the
+contracts use at that pin — Solady `FixedPointMathLib` (`lnWad`, `expWad`,
+`powWad`; the contracts' Solmate copy for the Gaussian), Solstat
+`Gaussian.cdf`/`erfc`, PRBMath 4.1.0 `SD59x18` (`pow`, `exp2`, `log2`) — and
+reproduce the libraries' own published test vectors exactly (asserted).
+Config: the live world's arrays (`test/support/mirror.ts`, read
+2026-10-03). Clock pinned at chain second 1,790,000,000.
 
 ## Summary
 
@@ -33,145 +39,154 @@ read 2026-10-03). Clock pinned at chain second 1,790,000,000.
   `LibPool.calcInitialLiquidity`, `LibTax.calcBill`,
   `LibTokenPortal.calcExportTax`, `LibTokenPortal.calcImportTax`,
   `NewbieVendorBuySystem.calcPrice` — none has a served counterpart).
-- **Equal everywhere tested:** stamina recovery and `calcSync`, the efficacy
-  shift table, the threshold (with animosity and threshold efficacy: 0 of
-  4,000 swept), recoil efficacy, strain (0 / 4,000), resting recovery
-  (0 / 4,000), level cost through level 118, the pool swap, bonus × level,
-  rarity weights (tiers ≤ 31), the withdrawal delay, unclamped merchant
-  prices and auction prices at prices up to 1e9 (0 / 3,543 and 0 / 3,617).
-- **Divergence classes found:** float floor at a precision slot (fertility,
-  intensity, max musu, and the bounty and spoils that inherit them — always
-  one unit LOW); rounding (an odd fertility bonus on a NORMAL trait; stat
-  totals; SCALED sell prices); missing branch / clamp / revert (spoils and
-  salvage above ratio 1.0; efficacy below 0; stat totals below 0; an auction
-  decayed to zero); client-only approximation (karma and metabolism kept
-  unfloored — recoil HIGH by up to ⌈strain / 1000⌉ HP); precision slot (the
-  merchant deficit clamp in whole seconds).
+- **At 1.1.0, every served value agrees with the chain** in every
+  hand-picked case and every swept sample. Three divergences stay documented
+  and none is served as a number: the metabolism rate (a display string),
+  an unset `LastTime` guard, and the trade-tax display helper.
+- **Gate G2.a** (the ported calcs against the pinned client, 22,222 kamis of
+  the snapshot) now names the 1.1.0 departures from the CLIENT on
+  `threshold` and counts them: 7,582 clamps to 0 where the client served a
+  negative threshold, 1 float floor (the chain's 8 for the client's 7).
+  Every other field is still equal to the client on that snapshot.
 
-## Divergences in SERVED values — for a ruling (fix in 1.1.x, or a register row)
+## The served divergences of 1.0.5 — each RESOLVED in 1.1.0
 
-Serving sites are at the 1.1.0 head, `src/queries/build.ts` unless named.
+Serving sites are `src/queries/build.ts` unless named; the correction is in
+the named module, whose header now says what changed and which chain line
+it matches.
 
-1. **`node … --with-vitals <attacker>` → `liquidation.recoil`**
-   (`build.ts:1533`, `calcLiqRecoil`). The port does not floor karma at
-   `KARMA_PREC` (1e-3): the served recoil is HIGH by 0–3 HP — 858 of 3,000
-   swept previews (1: 787, 2: 59, 3: 12). The bound is ⌈strain / 1000⌉.
-   Every preview on the live config is affected in proportion to its strain.
-2. **`liquidation.spoils`** (`build.ts:1531`, `calcLiqSpoils`). (a) The chain
-   tests `ratio / precision > 1` in INTEGER division, so a killer whose spoils
-   ratio is in (1.0, 2.0) — power 56–154 with no bonus on the live config
-   `[45, 2, 0, 3]` — is paid `amount × ratio`, up to 1.99 × what remains of
-   the bounty; the port caps at `min(1, ratio)` (killer power 60: chain 787,
-   port 750). (b) A float floor one unit low, 2 of 3,000 swept.
-3. **`liquidation.salvage`** (`build.ts:1532`, `calcLiqSalvage`). A victim
-   whose salvage ratio is in (1.0, 2.0) — power 101–199 with no bonus,
-   `[0, 2, 0, 3]` — makes the chain's `bounty - salvage` underflow: the
-   liquidation REVERTS, while the port serves a salvage above the bounty and
-   an eligible preview. From ratio 2.0 the chain pays the bounty and the port
-   `bounty × ratio`. (The port also hard-codes `power / 100` where the chain
-   scales by `10^(config[3] − config[1])`: equal on the live config.) Equal
-   in all 3,000 swept at ordinary power (5–50).
-4. **`hp.total`, `stats.*.total`** (`kami`, `party`, node vitals; `build.ts`
-   `vitalsOf` 793, node rows 1502, `statsOf` 640; `network/shapes/Stats`).
-   The chain's `LibStat.calcTotal` truncates `(1000 + boost)·(base + shift)
-   / 1000` to an int32 and floors at 0; the port serves the float (base 13,
-   boost 50: chain 13, port 13.65; base + shift −3: chain 0, port −3).
-   Latent while stat boosts are 0 — all 21 kamis of the 2026-10-03 G2.d
-   sample have boost 0.
-5. **`merchant <npc>` → `buyPrice`** (`build.ts:2480`). When the GDA deficit
-   clamp binds and `prevSold·period / rate` is not a whole number of seconds,
-   the chain's cap is floored to whole seconds and its price is a little
-   higher: the port is ONE unit low in 52 of 348 such cases (equal when
-   unclamped, 0 / 3,543).
-6. **`merchant <npc>` → `sellPrice`** (`build.ts:2489`). A SCALED sell price
-   is served as `scale × buyPrice` without the chain's floor of
-   `(price × scale_raw) / 1e9` (0.3 of 86: chain 25, port 25.8).
-7. **`musu.accrued` / `vitals.musuAccrued`** (`build.ts:813`, 1506) and the
-   musu rates (814–815). (a) Fertility and intensity are floored at 1e-6 in
-   floats: one unit LOW at exact integers (84 and 15 of 4,000 swept); over a
-   long harvest the unit becomes a MUSU (1,000,000 s on the fertility
-   boundary: chain 117,861, port 117,860; the bounty sweep found none in
-   4,000). (b) A NORMAL body or hand halves the fertility bonus: the chain
-   truncates `bonus / 2` toward zero, the port keeps the half (bonus 25:
-   efficacy 1387 vs 1387.5). (c) The chain floors the summed efficacy at 0,
-   the port does not (latent: needs a large negative bonus). The `hp.current`
-   of a HARVESTING kami inherits (a) through the strain of the bounty.
-8. **`auctions` → `price`** (`src/queries/feeds.ts:499`). Equal at realistic
-   prices; an auction decayed until its cost rounds to 0 makes the chain
-   REVERT ("LibAuction: negative GDA cost") while the port serves 1; an
-   exponent beyond PRBMath's range reverts on chain while the port serves a
-   float.
-9. **`xpRequired`** (`build.ts:300`). Equal through level 118; from level 119
-   (≥ 2.5e13 XP) `Math.pow` is one XP below Solady's `powWad`.
+1. **`liquidation.recoil`** — 1.0.5 did not floor karma at `KARMA_PREC`
+   (1e-3), so the recoil read HIGH by up to ⌈strain / 1000⌉ HP (858 of 3,000
+   swept previews, by 1–3). **Resolved:** `calcKarma` floors it, on the
+   contracts' own `Gaussian.cdf(lnWad(…))` (`src/utils/fixed-point.ts`), and
+   `calcRecoil` computes `((karma + efficacy) · strain · boost) /
+   10^(c1+c3+c7)` in integers (`app/cache/kami/calcs/liquidation.ts`).
+2. **`liquidation.spoils`** — the chain tests `ratio / precision > 1` in
+   INTEGER division, so a killer whose spoils ratio is in (1.0, 2.0) (power
+   56–154 with no bonus on the live config `[45, 2, 0, 3]`) is paid `amount
+   × ratio`, up to 1.99 × what the salvage leaves; 1.0.5 capped it at the
+   amount (killer power 60: chain 787, 1.0.5 750), and floored a float (2 of
+   3,000 one low). **Resolved:** `calcSpoils` = the chain's integer body.
+3. **`liquidation.salvage`** — for a victim whose salvage ratio is in
+   (1.0, 2.0) (power 101–199 with no bonus, `[0, 2, 0, 3]`) the chain's
+   salvage EXCEEDS the bounty and `bounty − salvage` underflows: the
+   liquidation REVERTS. 1.0.5 served such a target as eligible, and from a
+   ratio of 2.0 served `bounty × ratio` where the chain pays the bounty.
+   **Resolved:** `calcSalvage` is the chain's integer body; the preview marks
+   such a target `eligible: false`, reason `SALVAGE_EXCEEDS_BOUNTY` (after
+   the attacker's gates and the threshold, as the chain checks them), serves
+   spoils and recoil 0, and `--eligible-only` leaves it out — read off the
+   row's own `salvage > vitals.musuAccrued` (`build.ts` node preview; G7.c's
+   predicate carries the same term).
+4. **`hp.total`, `stats.*.total`** — 1.0.5 served the float `(1 + boost/1e3)
+   · (base + shift)`; the chain's `LibStat.calcTotal` truncates the int32
+   product and floors at 0 (base 13, boost 50: 13 not 13.65; −3 → 0).
+   **Resolved** in `network/shapes/Stats.ts`. Latent at the pin: no stat
+   boost is set in the sampled live data.
+5. **`merchant` → `buyPrice`** — the chain caps the GDA deficit in WHOLE
+   seconds, `prevSold·period/rate` (integer) + 3·period; 1.0.5 capped the
+   exponent at exactly 3 periods and read one unit LOW in 52 of 348 such
+   cases. **Resolved** in `app/cache/npc/calcs.ts` (on whole-second time, as
+   `block.timestamp` is).
+6. **`merchant` → `sellPrice`** — a SCALED sell price is `(buyPrice ·
+   scale) / 1e9` floored on chain; 1.0.5 served the product (25.8 for 25).
+   **Resolved** in `app/cache/npc/calcs.ts`.
+7. **`musu.accrued`, `vitals.musuAccrued` (and the musu rates)** — 1.0.5
+   floored float rates at 1e-6 and read one unit LOW at exact values
+   (fertility 84 and intensity 15 of 4,000; over 1,000,000 s a whole MUSU),
+   kept the half of an odd fertility bonus on a NORMAL trait (efficacy
+   1387.5 for the chain's 1387), did not floor a negative summed efficacy at
+   0, and floored max musu as a float (one low at an exact quotient).
+   **Resolved:** the harvest arithmetic is the chain's integers —
+   fertility, intensity, the bounty (`app/cache/harvest/calcs.ts`) and max
+   musu and the strain of an amount (`app/cache/kami/calcs/harvest.ts`).
+8. **`auctions` → `price`** — when an auction's cost has decayed below the
+   fixed point's resolution the chain REVERTS the buy ("LibAuction: negative
+   GDA cost"); 1.0.5 served 1. **Resolved** in `src/queries/feeds.ts`:
+   `price: null` with `priceUnavailable: COST_ROUNDS_TO_ZERO` (and
+   `BEYOND_FIXED_POINT_RANGE` where PRBMath's exp2 would revert). The ported
+   curve itself (the client's) is unchanged.
+9. **`xpRequired`** — 1.0.5 used `Math.pow` and read one XP low from level
+   119 (≥ 2.5e13 XP). **Resolved** in `network/shapes/Kami/progress.ts`:
+   `base · powWad(…) / 1e18` with Solady's powWad; equal through level 200.
+10. **`liquidation.threshold` (and `margin`)** — found by gate G2.a on the
+    snapshot, not by the first sweep (whose inputs carried no defense
+    bonuses): a defender's `DEF_THRESHOLD_SHIFT` bonus can push `base · ratio
+    + shift` below 0, and 1.0.5 then served a NEGATIVE threshold where the
+    chain returns 0 — 7,582 of 22,222 snapshot pairings — and floored one
+    exact product low (the chain's 8 for 7). Eligibility was unaffected (a
+    negative or zero threshold admits no target). **Resolved** in
+    `app/cache/kami/calcs/liquidation.ts` (the threshold in integers);
+    asserted in the parity test with defense bonuses (hand-picked and a
+    4,000-sample sweep).
 
-Not served, recorded for completeness: the metabolism rate (a display string;
-the port keeps the unfloored rate, the served `hp.current` is equal in all
-4,000 swept); karma itself (served only through recoil); the trade tax (a
-float floor: MUSU 100 at 29 % → chain 29, port 28); an unset `LastTime`
-(the port reads 0).
+## Not served, still documented
+
+The metabolism rate the port keeps unfloored feeds a display string
+(`hpRatePerHr`); the served `hp.current` of a resting kami is equal in all
+4,000 swept. An unset `LastTime` reads 0 in the port (the chain would
+compute `block.timestamp − 0`; no live harvest lacks it). The trade-tax
+helper (`app/cache/trade/functions.calcTax`) is not served and floors a float
+(MUSU 100 at 29 %: 28 for the chain's 29).
 
 ## Latent, not exercised by the live config
 
-- `calcThreshold`: the port adds `KAMI_LIQ_THRESHOLD[4]` (the shift slot),
-  which the chain never reads (`[4]` is 0 live).
 - `LibAffinity.getShifts` ignores an efficacy config's precision slot `[0]`;
-  the port divides by it — equal while it matches the target's precision
-  (3 live).
+  the ports read efficacy shifts back to raw at the target's precision — equal
+  while the two match (3 live).
+- `LibStat.get` adds a `STAT_<X>_BOOST` bonus to a stat's boost slot; the
+  client's stats read only `STAT_<X>_SHIFT`. No boost bonus exists in the game
+  data at the pin.
+- A negative salvage or spoils ratio bonus makes the chain revert (SafeCast);
+  no such bonus exists at the pin.
 - `calcCurrentStamina` falls back to 60 s when `ACCOUNT_STAMINA[1]` is 0; the
   chain would divide by zero.
 - Rarity tiers ≥ 32: JavaScript's 32-bit `<<` (tiers at the pin are ≤ 9).
 - A node with more than two affinities: the chain reverts, the port returns
   no shift.
 
-### Divergent cases (hand-picked; each asserted by the test)
+## What 1.0.5 served (the first run of this test, kept for the record)
+
+| Formula | 1.0.5 sweep: divergent of samples | Class |
+|---|---|---|
+| `LibHarvest.calcFertility` | 84 / 4,000 (−1) | float floor at RATE_PREC |
+| `LibHarvest.calcIntensity` | 15 / 4,000 (−1) | float floor at RATE_PREC |
+| `LibKill.calcSpoils` | 2 / 3,000 (−1) | float floor |
+| `LibKill.calcRecoil` | 858 / 3,000 (+1: 787, +2: 59, +3: 12) | unfloored karma |
+| `LibListing.calcBuyPrice` (clamped, not whole) | 52 / 348 (−1) | cap not in whole seconds |
+| `LibKill.calcThreshold` (snapshot, G2.a) | 7,582 + 1 / 22,222 | no clamp at 0; float floor |
+
+### Cases still documented as divergent (none served)
 
 | Formula | Inputs | Chain | Port | Class |
 |---|---|---|---|---|
-| `LibHarvest.calcEfficacy(string,string,Shifts,string)` | NORMAL body, EERIE hand on EERIE, bonus 25 | 1387 | 1387.5 | rounding: int256 bonus.up / 2 truncates; the port keeps .5 |
-| `LibHarvest.calcEfficacy(string,string,Shifts,string)` | NORMAL/NORMAL, bonus −25 | 976 | 975 | rounding: toward zero on chain; the port keeps −.5 per trait |
-| `LibHarvest.calcEfficacy(uint256,uint256,uint256)` | NORMAL/NORMAL, bonus −2500 | 0 | -1500 | missing clamp: efficacy < 0 → 0 on chain |
 | `LibHarvest.calcDuration` | no LastTime | 1790000000 | 0 | guard: an unset LastTime reads 0 in the port |
-| `LibHarvest.calcFertility` | power 78, INSECT/EERIE on SCRAP | 21125 | 21124 | float floor at RATE_PREC |
-| `LibHarvest.calcIntensity` | violence 57, reset 47750 s ago | 6250 | 6249 | float floor at RATE_PREC |
-| `LibHarvest.calcMaxMusu` | hp 1649, harmony 45, strain bonus −224 | 21250 | 21249 | float floor |
-| `LibHarvest.calcBounty` | power 78, INSECT/EERIE on SCRAP, 1,000,000 s | 117861 | 117860 | float floor (inherited from fertility) |
 | `LibKami.calcMetabolism` | harmony 15 | 5833333 | 5833333.333333334 | unfloored rate (display) |
-| `LibKill.calcKarma` | defender violence 25, attacker harmony 22 | 1101 | 1101.7191599332664 | unfloored at KARMA_PREC |
-| `LibKill.calcKarma` | defender violence 40, attacker harmony 30 | 1226 | 1226.4098857318056 | unfloored at KARMA_PREC |
-| `LibKill.calcRecoil` | defender violence 73, attacker harmony 9, strain 598 | 1771 | 1772 | unfloored karma (KARMA_PREC) |
-| `LibKill.calcSpoils` | killer power 60, victim power 25, bounty 1000 | 787 | 750 | missing branch: ratio / precision > 1 is integer division |
-| `LibKill.calcSalvage` | victim power 120 (the liquidation reverts on chain) | revert | 1200 | missing branch: bounty − salvage underflows on chain |
-| `LibKill.calcSalvage` | victim power 250 | 1000 | 2500 | missing branch: ratio / precision > 1 → amt |
-| `LibExperience.calcLevelCost` | level 119 | 25415352880253 | 25415352880252 | float power at ≥ 2.5e13 XP |
-| `LibStat.calcTotal` | base 13, boost 50 | 13 | 13.65 | rounding: int32 truncation |
-| `LibStat.calcTotal` | base 33, boost −100 | 29 | 29.7 | rounding: int32 truncation |
-| `LibStat.calcTotal` | base −5, shift 2 | 0 | -3 | missing clamp at 0 |
-| `LibListing.calcBuyPrice` | clamped, 20·3600 / 69 not whole | 12215 | 12214 | precision slot: cap = floor(prevSold·period/rate) s |
-| `LibListing.calcSellPrice` | SCALED 0.3 of a buy price of 86 | 25 | 25.8 | rounding: no floor on price × scale |
-| `LibAuction.calcBuy` | decayed 600 periods at 0.5 | revert | 1 | missing revert (the cost rounds to 0) |
+| `LibAuction.calcBuy` | decayed 600 periods at 0.5 (served) | revert | revert:COST_ROUNDS_TO_ZERO | resolved: served null with priceUnavailable |
 | `LibTrade.calcTax` | MUSU 100 at 29/100 | 29 | 28 | float floor (0.29 × 100 = 28.999…) |
 
-### Seeded sweeps
+### Seeded sweeps at 1.1.0
 
-Seed 20261023. A difference outside the stated set fails the test, and the divergent count is asserted, so the figures below are what the test checks.
+Seed 20261023. A difference outside the stated set fails the test and the divergent count is asserted; at 1.1.0 every sweep requires zero.
 
-| Formula | Samples | Divergent | port − chain: count | Class | First example |
-|---|---|---|---|---|---|
-| `LibHarvest.calcFertility` | 4000 | 84 | -1: 84, 0: 3916 | float floor at RATE_PREC | power 33, SCRAP/INSECT on SCRAP, +338: chain 25960, port 25959 |
-| `LibHarvest.calcIntensity` | 4000 | 15 | -1: 15, 0: 3985 | float floor at RATE_PREC | violence 81, reset 8150 s ago: chain 3125, port 3124 |
-| `LibHarvest.calcBounty` | 4000 | 0 | 0: 4000 | float floor (inherited) — none in this sample; see the hand-picked case | — |
-| `LibHarvest.calcMaxMusu` | 4000 | 0 | 0: 4000 | float floor — none in this sample; see the hand-picked case | — |
-| `LibKami.calcStrain` | 4000 | 0 | 0: 4000 | equal | — |
-| `LibKami.calcRecovery` | 4000 | 0 | 0: 4000 | equal | — |
-| `LibKill.calcThreshold` | 4000 | 0 | 0: 4000 | equal | — |
-| `LibKill.calcSalvage` | 3000 | 0 | 0: 3000 | equal | — |
-| `LibKill.calcSpoils` | 3000 | 2 | -1: 2, 0: 2998 | float floor | attacker 61/65/47 EERIE/EERIE, defender 29/65/19 EERIE/EERIE, bounty 9505, strain bonus 31: chain 7084, port 7083 |
-| `LibKill.calcRecoil` | 3000 | 858 | 0: 2142, 1: 787, 2: 59, 3: 12 | unfloored karma (KARMA_PREC): up to ⌈strain / 1000⌉ HP high | attacker 29/49/19 EERIE/EERIE, defender 45/33/37 EERIE/EERIE, bounty 15009, strain bonus 33: chain 1137, port 1138 |
-| `LibListing.calcBuyPrice` | 3543 | 0 | 0: 3543 | equal (unclamped) | — |
-| `LibListing.calcBuyPrice` | 348 | 52 | -1: 52, 0: 296 | precision slot: cap = floor(prevSold·period/rate) s (clamped, not whole) | 14849, period 3600, decay 811080, rate 33, sold 38, 17349 s: chain 7924, port 7923 |
-| `LibAuction.calcBuy` | 3617 | 0 | 0: 3617 | equal | — |
+| Formula | Samples | Divergent | port − chain: count | Class |
+|---|---|---|---|---|
+| `LibHarvest.calcFertility` | 4000 | 0 | 0: 4000 | equal (resolved in 1.1.0; 1.0.5: float floor at RATE_PREC, 84 low) |
+| `LibHarvest.calcIntensity` | 4000 | 0 | 0: 4000 | equal (resolved in 1.1.0; 1.0.5: float floor at RATE_PREC, 15 low) |
+| `LibHarvest.calcBounty` | 4000 | 0 | 0: 4000 | equal |
+| `LibHarvest.calcMaxMusu` | 4000 | 0 | 0: 4000 | equal |
+| `LibKami.calcStrain` | 4000 | 0 | 0: 4000 | equal |
+| `LibKami.calcRecovery` | 4000 | 0 | 0: 4000 | equal |
+| `LibKill.calcThreshold` | 4000 | 0 | 0: 4000 | equal with ratio/shift bonuses (resolved in 1.1.0: the clamp at 0 and the float floor) |
+| `LibKill.calcThreshold` | 4000 | 0 | 0: 4000 | equal |
+| `LibKill.calcSalvage` | 3000 | 0 | 0: 3000 | equal |
+| `LibKill.calcSpoils` | 3000 | 0 | 0: 3000 | equal (resolved in 1.1.0; 1.0.5: float floor, 2 low) |
+| `LibKill.calcRecoil` | 3000 | 0 | 0: 3000 | equal (resolved in 1.1.0; 1.0.5: unfloored karma, 858 high by 1–3) |
+| `LibListing.calcBuyPrice` | 3543 | 0 | 0: 3543 | equal (unclamped) |
+| `LibListing.calcBuyPrice` | 348 | 0 | 0: 348 | equal (clamped, not whole; resolved in 1.1.0 — 1.0.5: 52 one unit low) |
+| `LibAuction.calcBuy` | 3617 | 0 | 0: 3617 | equal |
 
-### Equal cases (hand-picked)
+### Equal cases (hand-picked), at 1.1.0
 
 | Formula | Inputs | Chain = port |
 |---|---|---|
@@ -191,16 +206,23 @@ Seed 20261023. A difference outside the stated set fails the test, and the diver
 | `LibHarvest.calcEfficacy(uint256,uint256,uint256)` | INSECT/INSECT on SCRAP-INSECT, bonus 40 | 1590 |
 | `LibHarvest.calcEfficacy(uint256,uint256,uint256)` | SCRAP/EERIE on EERIE-SCRAP (the favourable order) | 2000 |
 | `LibHarvest.calcEfficacy(string,string,Shifts,string)` | NORMAL body, EERIE hand on EERIE, bonus 40 | 1410 |
+| `LibHarvest.calcEfficacy(string,string,Shifts,string)` | NORMAL body, EERIE hand on EERIE, bonus 25 | 1387 |
+| `LibHarvest.calcEfficacy(string,string,Shifts,string)` | NORMAL/NORMAL, bonus −25 | 976 |
+| `LibHarvest.calcEfficacy(uint256,uint256,uint256)` | NORMAL/NORMAL, bonus −2500 (as the fertility it yields) | 0 |
 | `LibHarvest.calcDuration` | last 1234 s ago | 1234 |
 | `LibHarvest.calcIntensityDuration` | reset 98765 s ago | 98765 |
 | `LibHarvest.calcFertility` | power 20, EERIE/SCRAP on EERIE | 12916 |
 | `LibHarvest.calcFertility` | power 55, INSECT/INSECT on INSECT | 45833 |
 | `LibHarvest.calcFertility` | power 37, SCRAP/EERIE on EERIE-SCRAP | 30833 |
+| `LibHarvest.calcFertility` | power 78, INSECT/EERIE on SCRAP | 21125 |
 | `LibHarvest.calcIntensity` | violence 22, reset 9999 s ago | 1597 |
+| `LibHarvest.calcIntensity` | violence 57, reset 47750 s ago | 6250 |
 | `LibHarvest.calcMaxMusu` | hp 200, harmony 30 | 1538 |
+| `LibHarvest.calcMaxMusu` | hp 1649, harmony 45, strain bonus −224 | 21250 |
 | `LibHarvest.calcBounty` | an hour on a matching node | 50 |
 | `LibHarvest.calcBounty` | capped by max musu | 953 |
 | `LibHarvest.calcBounty` | a fresh harvest | 23 |
+| `LibHarvest.calcBounty` | power 78, INSECT/EERIE on SCRAP, 1,000,000 s | 117861 |
 | `LibKami.calcStrain` | an exact quotient | 13 |
 | `LibKami.calcStrain` | a remainder rounds up | 7 |
 | `LibKami.calcStrain` | with a −100 strain bonus | 117 |
@@ -214,6 +236,8 @@ Seed 20261023. A difference outside the stated set fails the test, and the diver
 | `LibKill.calcThreshold` | SCRAP hand on an EERIE body (Weak) | 15 |
 | `LibKill.calcThreshold` | a weak attacker (low animosity) | 0 |
 | `LibKill.calcThreshold` | ratio +120/−40, shift +15/−5 | 111 |
+| `LibKill.calcThreshold` | violence 10 vs harmony 40 behind a 300/200 defense bonus | 0 |
+| `LibKill.calcThreshold` | violence 18 vs harmony 18, SCRAP on INSECT, 300/200 defense bonus | 8 |
 | `LibKill.calcRecoilEfficacy` | EERIE hand vs EERIE body | 1000 |
 | `LibKill.calcRecoilEfficacy` | EERIE hand vs SCRAP body | 2000 |
 | `LibKill.calcRecoilEfficacy` | EERIE hand vs INSECT body | 0 |
@@ -231,20 +255,39 @@ Seed 20261023. A difference outside the stated set fails the test, and the diver
 | `LibKill.calcRecoilEfficacy` | NORMAL hand vs INSECT body | 1000 |
 | `LibKill.calcRecoilEfficacy` | NORMAL hand vs NORMAL body | 1400 |
 | `LibKill.calcKarma` | defender violence 15, attacker harmony 15 | 1000 |
+| `LibKill.calcKarma` | defender violence 25, attacker harmony 22 | 1101 |
+| `LibKill.calcKarma` | defender violence 40, attacker harmony 30 | 1226 |
+| `LibKill.calcKarma` | defender violence 73, attacker harmony 9 | 1963 |
+| `LibKill.calcRecoil` | defender violence 73, attacker harmony 9, bounty 1133 | 402 |
+| `LibKill.calcRecoil` | defender violence 73, attacker harmony 9, bounty 3000 | 1063 |
 | `LibKill.calcSalvage` | victim power 18, bounty 1000 | 180 |
 | `LibKill.calcSpoils` | killer power 20, victim power 18, bounty 1000 | 533 |
+| `LibKill.calcSpoils` | killer power 60, victim power 25, bounty 1000 | 787 |
+| `LibKill.calcSpoils` | killer power 154, victim power 25, bounty 1000 | 1492 |
+| `LibKill.calcSpoils` | killer power 155, victim power 25, bounty 1000 | 750 |
+| `LibKill.calcSalvage` | victim power 120 (the liquidation reverts on chain) | 1200 |
+| `LibKill.calcSpoils` | killer power 20 on that victim (the chain reverts first; 0 served) | 0 |
+| `LibKill.calcSalvage` | victim power 250 | 1000 |
 | `LibExperience.calcLevelCost` | level 1 | 40 |
 | `LibExperience.calcLevelCost` | level 2 | 50 |
 | `LibExperience.calcLevelCost` | level 10 | 317 |
 | `LibExperience.calcLevelCost` | level 30 | 31827 |
 | `LibExperience.calcLevelCost` | level 60 | 31884386 |
+| `LibExperience.calcLevelCost` | level 119 | 25415352880253 |
 | `LibStat.calcTotal` | base 70, shift 110, boost 0 | 180 |
 | `LibStat.calcTotal` | base 20, shift 5, boost 200 | 30 |
+| `LibStat.calcTotal` | base 13, boost 50 | 13 |
+| `LibStat.calcTotal` | base 33, boost −100 | 29 |
+| `LibStat.calcTotal` | base −7, boost 150 (toward zero) | 0 |
+| `LibStat.calcTotal` | base −5, shift 2 | 0 |
 | `LibListing.calcBuyPrice` | FIXED 37 × 3 | 111 |
 | `LibListing.calcSellPrice` | FIXED 37 × 3 | 111 |
 | `LibListing.calcBuyPrice` | two periods, below rate | 86 |
 | `LibListing.calcBuyPrice` | ahead of rate | 83 |
 | `LibListing.calcBuyPrice` | a multi-day decay, clamped (an exact cap) | 125 |
+| `LibListing.calcBuyPrice` | clamped, 20·3600 / 69 not whole | 12215 |
+| `LibListing.calcSellPrice` | SCALED 0.3 of a buy price of 86 | 25 |
+| `LibListing.calcSellPrice` | SCALED 0.123456789 of 86, amount 1 | 10 |
 | `LibAuction.calcBuy` | two periods, below rate | 86 |
 | `LibAuction.calcBuy` | a multi-day decay (no clamp on auctions) | 91 |
 | `LibAuction.calcBuy` | ahead of rate | 83 |

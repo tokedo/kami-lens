@@ -1,0 +1,18 @@
+{
+  "gate": "g2a-differential",
+  "measuredAt": "2026-10-23T17:50:06.869Z",
+  "pin": "04cb25f8f3009ca9b89e62e20bd3d7afa12e98ad",
+  "snapshotBlock": 33004688,
+  "mirrorEntries": 2990895,
+  "kamis": 22222,
+  "comparisonsPerKami": 6,
+  "comparisons": 133332,
+  "nowMs": 1792777802724,
+  "nonFiniteInputValues": 11110,
+  "mirrorMs": 2802,
+  "materializeMs": 12564,
+  "upstreamMs": 4033,
+  "mismatches": 0,
+  "mismatchSamples": [],
+  "match": true
+}

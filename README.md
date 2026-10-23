@@ -146,7 +146,8 @@ of scope — is [docs/coverage.md](docs/coverage.md).
 
 Three answers gain facts the daemon already held, two queries take a new
 kind of key, and a test now checks the ported game formulas against the
-contracts' own arithmetic. Nothing that was served before changes.
+contracts' own arithmetic — and the values it found reading differently
+from the chain now read as the chain computes them.
 
 **A node read names what it pays, who may start there, and what
 scavenging costs.** Every `node` answer, with or without `--full`,
@@ -189,16 +190,42 @@ order the game itself now uses for trades and item transfers. An address
 that neither owns nor operates an account answers `NOT_FOUND`, naming the
 address. The answer is exactly what the same account's index gives.
 
-**A test, and nothing served changes.** A new test evaluates each game
-formula the daemon ports beside an exact copy of the contracts'
-arithmetic. Most agree to the unit. Where they do not, the difference is
-written down in `docs/measurements/formula-parity-2026-10-23.md` and left
-as it is in this release: a liquidation preview's recoil can read a few
-points high, its spoils too low for a strong attacker, and its salvage
-can describe a liquidation the chain would refuse; a merchant's price can
-be one unit low when its price floor applies, and a scaled sell price is
-not rounded down; a stat with a percentage boost is not rounded down; and
-a harvest's rates can be one millionth low at exact values.
+**Values that now read exactly as the chain computes them.** A new test
+evaluates every game formula the daemon ports beside an exact copy of the
+contracts' integer arithmetic. Where a served value disagreed, it now
+agrees (the list, with what 1.0.5 served, is
+`docs/measurements/formula-parity-2026-10-23.md`):
+
+1. A liquidation preview's `recoil` no longer reads high: it was up to one
+   HP high per thousand points of strain (1–3 HP in practice).
+2. A preview's `spoils` for a strong attacker (power 56–154 with no bonus)
+   is now what the chain pays — up to 1.99 × what the salvage leaves, where
+   it read at most 1 × — and is no longer one unit low at exact values.
+3. A preview whose victim's salvage would exceed its bounty (power 101–199
+   with no bonus) now reads `eligible: false` with the new reason
+   `SALVAGE_EXCEEDS_BOUNTY`, spoils and recoil 0, and `--eligible-only`
+   leaves it out: the chain refuses that liquidation. From a salvage ratio
+   of 2, salvage is the whole bounty, not more.
+4. `hp.total` and the `--stats` totals are whole numbers floored at 0, as
+   the chain rounds them; this moves only a stat with a percentage boost,
+   which no kami in the sampled live data has.
+5. A merchant's `buyPrice` no longer reads one unit low when its price
+   floor applies.
+6. A merchant's scaled `sellPrice` is rounded down to a whole unit
+   (it could read 25.8 where the chain pays 25).
+7. A harvest's accrued amount (`musu.accrued`, `musuAccrued`) and its rates
+   no longer read one millionth per second low at exact values (a whole
+   unit over about eleven days), keep the chain's rounding of a NORMAL
+   trait's odd fertility bonus, and never go below zero on a large negative
+   bonus.
+8. An auction whose price has decayed to nothing now reads `price: null`
+   with `priceUnavailable: "COST_ROUNDS_TO_ZERO"` instead of 1 — the chain
+   refuses that buy (`BEYOND_FIXED_POINT_RANGE` names the opposite end).
+9. `xpRequired` no longer reads one experience point low from level 119.
+10. A liquidation `threshold` (and its `margin`) is never negative: behind
+    a defender's threshold-shift bonus it read below zero for about a third
+    of the pairings in a full-world sample, where the chain uses 0; which
+    targets are eligible does not change.
 
 **The upstream pin moves** to `04cb25f8` (2026-10-21). Eleven ported
 client files are updated and one is new (the soulbind read above); the
@@ -208,8 +235,9 @@ is paid in the node's yield item, no longer always MUSU — the item
 `kami-lens 1.1.0 (upstream Asphodel-OS/kamigotchi-open @ 04cb25f8f3009ca9b89e62e20bd3d7afa12e98ad)`.
 
 Upgrade. If you validate answers with closed schemas, `node` gains five
-properties (`scavengeAffinity` optional) and `kami` and `party` rows gain
-`soulboundUntil`.
+properties (`scavengeAffinity` optional) and the liquidation reason
+`SALVAGE_EXCEEDS_BOUNTY`, `kami` and `party` rows gain `soulboundUntil`, and
+an `auctions` row's `price` may be null beside a new `priceUnavailable`.
 
 ### What changed in 1.0.5, for the things that read this daemon
 
