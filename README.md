@@ -817,4 +817,6 @@ container registry yet. Build and run it from this repository.
 
 kami-lens is AGPL-3.0 — see [LICENSE](LICENSE).
 
+The game content named in fixtures and served answers — item, room, quest and skill names and descriptions — is Asphodel Studios' and is used under the Kamigotchi NOTICE's community-use allowance; see NOTICE.md.
+
 Copyright (C) 2026 Anatoly Zaytsev (tokedo).

@@ -1,0 +1,5 @@
+# NOTICE — game content and vendored code
+
+This repository is about Kamigotchi, a game by Asphodel Studios, and is not made or endorsed by Asphodel. Where it carries the game's content — the names and descriptions of Kami, items, NPCs, rooms, quests and skills that appear in test fixtures, gate records and served answers — that content is © 2023–2026 Asphodel Studios, Inc. and its licensors, all rights reserved, used here under the community-use allowance of the Kamigotchi repository's NOTICE (guides, wikis, research and tools about Kamigotchi: https://github.com/Asphodel-OS/kamigotchi-open/blob/main/NOTICE.md). The Kamigotchi and Asphodel names and logos belong to Asphodel.
+
+The game's client code that this repository vendors — every file whose header reads "kami-lens vendor port", naming its upstream path and commit — is © Asphodel Studios, Inc. and the Kamigotchi contributors, licensed AGPL-3.0-only, the same licence as this repository (see LICENSE); the port's changes, where any, are stated in each file's header.
