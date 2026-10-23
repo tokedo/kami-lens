@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi-open @ ffda396330af1bc33238b6c37188772152b45439
+ * upstream: Asphodel-OS/kamigotchi-open @ 04cb25f8f3009ca9b89e62e20bd3d7afa12e98ad
  * path:     packages/client/src/network/shapes/Goals/types.ts
  * changes:  none
  */
@@ -14,7 +14,7 @@ import { Condition, getCondition } from '../Conditional';
 import { getConditionsOf } from '../Conditional/queries';
 import { Score } from '../Score/types';
 import { getEntityByHash, hashArgs, queryChildrenOf, queryRefsWithParent } from '../utils';
-import { getValue } from '../utils/component';
+import { getIsDisabled, getValue } from '../utils/component';
 
 /////////////////
 // SHAPES
@@ -30,6 +30,7 @@ export interface Goal {
   requirements: Condition[];
   tiers: Tier[];
   complete: boolean;
+  disabled: boolean;
 }
 
 export interface Tier {
@@ -69,6 +70,7 @@ export const getGoal = (world: World, comps: Components, entity: EntityIndex): G
     requirements: getGoalRequirements(world, comps, goalIndex),
     tiers: getGoalTiers(world, comps, goalIndex),
     complete: hasComponent(IsComplete, entity) || (false as boolean),
+    disabled: getIsDisabled(comps, entity),
     room: (getComponentValue(RoomIndex, entity)?.value || (0 as number)) * 1,
   };
 };

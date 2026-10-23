@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi-open @ ffda396330af1bc33238b6c37188772152b45439
+ * upstream: Asphodel-OS/kamigotchi-open @ 04cb25f8f3009ca9b89e62e20bd3d7afa12e98ad
  * path:     packages/client/src/network/shapes/Kami/index.ts
  * changes:  none
  */
@@ -26,6 +26,10 @@ export {
   query as queryKamis,
   queryByState as queryKamisByState,
 } from './queries';
+export {
+  getSoulboundEnd as getKamiSoulboundEnd,
+  isSoulbound as isKamiSoulbound,
+} from './soulbound';
 export { getStats as getKamiStats } from './stats';
 export { getTimes as getKamiTimes } from './times';
 export { getTraits as getKamiTraits, queryTraits as queryKamiTraits } from './traits';

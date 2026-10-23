@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi-open @ ffda396330af1bc33238b6c37188772152b45439
+ * upstream: Asphodel-OS/kamigotchi-open @ 04cb25f8f3009ca9b89e62e20bd3d7afa12e98ad
  * path:     packages/client/src/network/shapes/Room/functions.ts
  * changes:  none
  */
@@ -22,6 +22,20 @@ export const getAllRooms = (
   options?: RoomOptions
 ): Room[] => {
   return getRoomsX(world, components, {}, options);
+};
+
+// room index by display name (case-insensitive); built once, room names are static registry data
+let roomIndexByName: Map<string, number> | undefined;
+export const getRoomIndexByName = (
+  world: World,
+  components: Components,
+  name: string
+): number | undefined => {
+  if (!roomIndexByName?.size) {
+    const rooms = getAllRooms(world, components);
+    roomIndexByName = new Map(rooms.map((r) => [(r.name ?? '').toLowerCase(), r.index]));
+  }
+  return roomIndexByName.get(name.trim().toLowerCase());
 };
 
 export const getRoomByIndex = (

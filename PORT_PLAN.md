@@ -2,8 +2,10 @@
 
 Executes [DESIGN.md](DESIGN.md) (v1, 2026-07-20). Upstream pin:
 `Asphodel-OS/kamigotchi-open` @ `ef898fc9` (recorded in the `UPSTREAM`
-file from M0 onward; advanced to `ffda3963` in 1.0.0 — the classified
-diff is `docs/measurements/pin-advance-ffda3963-2026-10-03.json`).
+file from M0 onward; advanced to `ffda3963` in 1.0.0 and to `04cb25f8`
+in 1.1.0 — the classified diffs are
+`docs/measurements/pin-advance-ffda3963-2026-10-03.json` and
+`docs/measurements/pin-advance-04cb25f8-2026-10-23.json`).
 
 ## Gate philosophy
 

@@ -3,7 +3,7 @@
  * package:   @mud-classic/utils@0.0.3 — the exact artifact the upstream
  *            client resolves (pnpm-lock.yaml integrity sha512-VEZyguw9MD6JEDO
  *            nmgmA+t6Q8sAu6aIvyYl/ZdLgdAvB1n0w3xTwTUAgbBoLc4MLd3FOGYOywnDlK0K
- *            smaAQNQ== at pin ffda396330af1bc33238b6c37188772152b45439,
+ *            smaAQNQ== at pin 04cb25f8f3009ca9b89e62e20bd3d7afa12e98ad,
  *            unchanged since ef898fc9350a6085fb080419b12af96c2254e8f3).
  * source:    src/pack.ts, recovered verbatim from the published artifact's
  *            dist/pack.js.map sourcesContent.

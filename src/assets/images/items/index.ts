@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi-open @ ffda396330af1bc33238b6c37188772152b45439
+ * upstream: Asphodel-OS/kamigotchi-open @ 04cb25f8f3009ca9b89e62e20bd3d7afa12e98ad
  * path:     packages/client/src/assets/images/items/index.ts
  * changes:  image imports replaced by same-named consts holding the upstream
  *           asset path as a stable string token (headless port: no bundler
@@ -86,6 +86,7 @@ const heirloom_ledger = 'assets/images/items/heirloom_ledger.png';
 const heirloom_tape = 'assets/images/items/heirloom_tape.png';
 const holy_dust = 'assets/images/items/holy_dust.png';
 const holy_syrup = 'assets/images/items/holy_syrup.png';
+const homecoming_data_chip = 'assets/images/items/homecoming_data_chip.png';
 const honeydew_scale = 'assets/images/items/honeydew_scale.png';
 const hostility_potion = 'assets/images/items/hostility_potion.png';
 const ice_cream = 'assets/images/items/ice_cream.png';
@@ -269,6 +270,7 @@ export const ItemImages = {
   heirloom_tape: heirloom_tape,
   holy_dust: holy_dust,
   holy_syrup: holy_syrup,
+  homecoming_data_chip: homecoming_data_chip,
   honeydew_scale: honeydew_scale,
   hostility_potion: hostility_potion,
   ice_cream: ice_cream,

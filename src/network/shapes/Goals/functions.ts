@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi-open @ ffda396330af1bc33238b6c37188772152b45439
+ * upstream: Asphodel-OS/kamigotchi-open @ 04cb25f8f3009ca9b89e62e20bd3d7afa12e98ad
  * path:     packages/client/src/network/shapes/Goals/functions.ts
  * changes:  one @ts-expect-error — upstream type defect at the pin (vite
  *           never typechecks): canClaim reads `contribution.score`, a field
@@ -22,6 +22,7 @@ export const canContribute = (
   goal: Goal,
   account: Account
 ): [boolean, string] => {
+  if (goal.disabled) return [false, 'This co-op is paused'];
   if (goal.complete) return [false, 'Goal already completed'];
 
   if (!passesConditions(world, components, goal.requirements, account))
@@ -31,6 +32,7 @@ export const canContribute = (
 };
 
 export const canClaim = (goal: Goal, contribution: Contribution | undefined): [boolean, string] => {
+  if (goal.disabled) return [false, 'This co-op is paused'];
   if (!goal.complete) return [false, 'Goal still in progress (be patient!)'];
 
   // @ts-expect-error upstream defect at the pin: `score` undeclared on Contribution

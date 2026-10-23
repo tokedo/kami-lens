@@ -1,0 +1,82 @@
+{
+  "record": "upstream pin advance — classified diff (DESIGN §7, PORT_PLAN 'Order and pin advances')",
+  "date": "2026-10-23",
+  "from": "ffda396330af1bc33238b6c37188772152b45439",
+  "to": "04cb25f8f3009ca9b89e62e20bd3d7afa12e98ad",
+  "toCommitDate": "2026-10-21",
+  "repo": "https://github.com/Asphodel-OS/kamigotchi-open (main only; commits cited by hash)",
+  "commits": 12,
+  "commitList": [
+    "04cb25f8 owner or operator for trades, item transfers, auction buys and gacha (#2497)",
+    "4f5c74c2 kamiswap: filter listings by minimum kami level (#2504)",
+    "db4b3f83 ci: give the client build a 4 GB heap (#2500)",
+    "38085c24 license: agpl-3.0-only for code, game content reserved (#2496)",
+    "157ad472 ci: mirror main to the public kamigotchi-open repo (#2495)",
+    "50198c68 client: drop deprecated baseUrl from tsconfig (#2493)",
+    "eac26a9d rooms: key clickboxes by room and position (#2492)",
+    "85b64ee0 tremors: shipped rows to in game (#2491)",
+    "628b7656 tremors: cave collapse phase a (world data, co-op, daily, client) (#2489)",
+    "2b4dc4cc goals: check the disabled flag on the goal id (#2490)",
+    "1828dbff salvage: pay in the node's yield item, not musu (#2488)",
+    "cfbd4aae onyx portal no tooltip, adding new expandableiconbutton (#2486)"
+  ],
+  "portedFilesChangedUpstream": 12,
+  "portedFilesUnchangedUpstream": 386,
+  "bannerRule": "Every ported banner names the new pin, as at the ffda3963 advance. The 386 ported files whose upstream path is byte-identical at ffda3963 and 04cb25f8 (checked file by file with `git diff --quiet ffda3963 04cb25f8 -- <path>`; 384 with a `path:` banner line plus the two `//` banners network/index.ts, identical, and network/comps.ts, still absent upstream) change only their banner line; the 12 that changed upstream are forward-ported below. G5.d requires the pin on every vendor banner.",
+  "buckets": {
+    "formula-affecting": {
+      "client": {
+        "app/cache/account/base.ts": "TAKEN (04cb25f8). getMediaURI(components, entity, false): the pfp refresh no longer warns on an account without a MediaURI. Log-only; no formula. The lens never passes the `pfp` option, so the line is unreached here."
+      },
+      "contracts/libraries": {
+        "LibAccount.sol": "Adds getByOwnerOrOperator: the account whose id is uint256(uint160(addr)) if it is an ACCOUNT, else the account the CacheOperator component maps addr to; reverts 'Account: no account detected'. Now the caller rule of AuctionBuy, ItemTransfer, KamiGachaMint and the four Trade systems (04cb25f8). No formula. The lens's account-key rule (1.1.0, §3.19) follows the same order.",
+        "LibKill.sol": "sendSalvage takes the item index: the victim's salvage is paid in the node's yield item (HarvestLiquidateSystem passes LibNode.getItem), no longer always MUSU (1828dbff). calcSalvage / calcSpoils / calcRecoil arithmetic unchanged. Served: the node liquidation preview's `salvage` is an amount of the node's yield item from this contract version on; 1.1.0's `yieldItem` names that item. (The reference client's battle log dates the production upgrade at block 34,199,935.)",
+        "LibPool.sol": "Comment only."
+      }
+    },
+    "classification-affecting": {
+      "player-string write systems": "ChatSystem, AccountRegisterSystem, AccountSetNameSystem, AccountSetBioSystem, KamiNameSystem, KamiOnyxRenameSystem: unchanged.",
+      "clients/kamiden/proto.ts": "Unchanged. docs/string-classification.json is re-pinned to 04cb25f8 and gains only the 1.1.0 node fields (hand-reviewed with the change set)."
+    },
+    "state-affecting": {
+      "componentIDs.json / deploy.json": "Unchanged. No component added or removed.",
+      "systems": "AuctionBuy, ItemTransfer, KamiGachaMint and TradeCancel/Complete/Create/Execute resolve the caller with LibAccount.getByOwnerOrOperator (owner or operator may act); ItemTransfer also requires the target to be an account. KamiSend, KamiGachaReroll and KamiSacrificeCommit now call LibSoulbound.verify (beside KamiMarketList, KamiMarketAcceptOffer and Kami721Unstake, which already did). GoalClaim/GoalContribute check the disabled flag on the goal id (2b4dc4cc). HarvestLiquidate passes the node's item to sendSalvage. _PoolRegistrySystem: comment only. The soulbind expiry is a ValueComponent value at keccak256(abi.encode(kamiID, 'SOULBOUND')) — already in the mirror; 1.1.0 serves it as `soulboundUntil`."
+    },
+    "sync-affecting": {
+      "client workers / clients / engine": "No file changed.",
+      "network/setup/setupMUDNetwork.ts": "Not ported (browser network setup, swap point 1)."
+    },
+    "coverage-affecting": {
+      "modals/map (Grid, GridFilter, GridTooltip, Map)": "New map views: per node the level cap (the node's LEVEL / CURR_MAX requirement) and the yield item — SERVED from 1.1.0 by `node` (`levelCap`, `requirements`, `yieldItem`); an activity view (kamis per node and operators per room over 30 days) — the occupancy half is `node`/`room`, the 30-day activity grading is a display aggregate, not served.",
+      "modals/kamiSend, modals/gacha/display/reroll, modals/templeOfTheWheel, modals/marketplace": "Soulbound kamis are filtered out of send, reroll and sacrifice pickers — the fact is SERVED from 1.1.0 as `soulboundUntil` on `kami` and `party` rows. Kamiswap listings gain a minimum-level filter (4f5c74c2) over listing data the lens already serves (`market`); a client-side filter, no new chain fact.",
+      "modals/kami/battles/EventColumn": "The battle log names the salvage item (the node's item after block 34,199,935, MUSU before). The lens's `battles`/`feed` rows serve salvage as an amount without naming an item; recorded, not changed in 1.1.0.",
+      "modals/goals": "A paused co-op shows '(paused)'; goals are not served (docs/coverage.md 'goal' row) — the forward-ported Goals shape carries `disabled`.",
+      "other modal/fixture/library edits (quests, questDetails, inventory, tokenPortal, trading, chat feed, onyx menu button, room canvas clickboxes, pastel/button library components)": "Presentation or flow changes; no chain-derived fact a player sees that the lens does not already serve or list as a coverage row."
+    }
+  },
+  "forwardPorted": {
+    "app/cache/account/base.ts": "getMediaURI(..., false) taken; the lens's clock.monotonicMs change kept.",
+    "network/shapes/utils/component.ts": "getMediaURI and getSourceID gain a `debug` parameter (default true) — warning suppression only.",
+    "network/shapes/Allo/types.ts, network/shapes/Bonus/types.ts": "getSourceID(..., false): no warning for allos / bonus registries created before SourceID existed.",
+    "network/shapes/Goals/{types,getters,functions}.ts": "Goal.disabled (IsDisabled on the goal entity); canContribute/canClaim refuse a paused co-op. The lens serves no goal surface; taken verbatim so the vendored tree stays at one pin (the existing @ts-expect-error in functions.ts is still needed).",
+    "network/shapes/Room/{functions,index}.ts": "getRoomIndexByName (a lazily built name → index map). Unused by the lens; taken verbatim.",
+    "network/shapes/Kami/index.ts": "Exports getKamiSoulboundEnd / isKamiSoulbound.",
+    "assets/images/items/index.ts": "Regenerated by the existing transform (png import → same-named path const): adds homecoming_data_chip."
+  },
+  "newlyPorted": [
+    "network/shapes/Kami/soulbound.ts (new upstream at 04cb25f8). One lens change: isSoulbound's Date.now() → clock.now() (§3.8) — the pin-advance tripwire in test/clock.test.ts refuses a naive wall-clock read in the projection trees. getSoulboundEnd, the function the lens serves through, is verbatim."
+  ],
+  "licence": "38085c24 adds LICENSE (AGPL-3.0-only) and NOTICE.md: code AGPL-3.0-only (unchanged for the ported files, which this repository already distributes under AGPL-3.0-only with their changes marked); game content — art, sound, writing including the names and descriptions of kami, items, NPCs, rooms, quests and skills, and the world data — is reserved, with a community-use grant that names 'tools about Kamigotchi'. The lens ships no art or sound (asset modules are path strings); what it serves of game writing is read from the chain at runtime. Recorded for the maintainers' review; nothing changed in 1.1.0 on its account.",
+  "gatesToRerun": [
+    "G2.a",
+    "G2.b (where runnable)",
+    "G1.b",
+    "G3.f"
+  ],
+  "gateResults": "hermetic parts recorded in their own dated records (G5.d, and the unit suite); the live gates are the release audit's",
+  "forwardPortedCommits": {
+    "04cb25f8": "network/shapes/Kami/soulbound.ts (new), Kami/index.ts, utils/component.ts, Allo/types.ts, Bonus/types.ts, app/cache/account/base.ts",
+    "2b4dc4cc": "network/shapes/Goals/{types,getters,functions}.ts",
+    "628b7656": "network/shapes/Room/{functions,index}.ts, assets/images/items/index.ts"
+  }
+}

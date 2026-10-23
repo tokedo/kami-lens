@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi-open @ ffda396330af1bc33238b6c37188772152b45439
+ * upstream: Asphodel-OS/kamigotchi-open @ 04cb25f8f3009ca9b89e62e20bd3d7afa12e98ad
  * path:     packages/client/src/network/shapes/utils/component.ts
  * changes:  none
  */
@@ -91,10 +91,10 @@ export const getMax = (comps: Components, entity: EntityIndex): number => {
   return (result ?? 0) * 1;
 };
 
-export const getMediaURI = (comps: Components, entity: EntityIndex): string => {
+export const getMediaURI = (comps: Components, entity: EntityIndex, debug = true): string => {
   const { MediaURI } = comps;
   const result = getComponentValue(MediaURI, entity)?.value;
-  if (result === undefined) console.warn('getMediaURI(): undefined for entity', entity);
+  if (debug && result === undefined) console.warn('getMediaURI(): undefined for entity', entity);
   return result ?? '';
 };
 
@@ -334,10 +334,10 @@ export const getOwnsWithdwalID = (comps: Components, entity: EntityIndex): Entit
   return formatEntityID(result ?? '');
 };
 
-export const getSourceID = (comps: Components, entity: EntityIndex): EntityID => {
+export const getSourceID = (comps: Components, entity: EntityIndex, debug = true): EntityID => {
   const { SourceID } = comps;
   const result = getComponentValue(SourceID, entity)?.value;
-  if (result === undefined) console.warn('getSourceID(): undefined for entity', entity);
+  if (debug && result === undefined) console.warn('getSourceID(): undefined for entity', entity);
   return formatEntityID(result ?? '');
 };
 
