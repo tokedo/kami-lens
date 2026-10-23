@@ -85,6 +85,11 @@
           "type": "integer",
           "description": "§3.8 (0.5.2): the RAW on-chain cooldown end time, in CHAIN SECONDS — the value cooldownSec is projected from. 0 means the mirror holds no NextTime for this kami (it has never acted, or the component has not synced yet); treat 0 as unknown, never as 'ready'."
         },
+        "soulboundUntil": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "1.1.0 (§3.19): the unix time (chain seconds) the kami's soulbind ends; 0 when it was never bound. The chain refuses send, market list, accepting an offer for it, gacha reroll, sacrifice and 721 unstake while it is in the future (LibSoulbound.verify: block.timestamp >= this value). Only the newbie vendor's sale writes it (purchase time + 3 days). Read from ValueComponent at keccak256(abi.encode(kamiId, \"SOULBOUND\")), not a packed hash — the client's own getter (network/shapes/Kami/soulbound.ts); a mirror without that entity reads 0, the client's rule."
+        },
         "node": {
           "$ref": "#/$defs/NodeRef"
         },

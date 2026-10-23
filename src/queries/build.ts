@@ -74,7 +74,7 @@ import { getConfigFieldValue, getConfigFieldValueArray } from 'network/shapes/Co
 import { getHarvest, getHarvestKami } from 'network/shapes/Harvest';
 import { getAllItems, getItemBalance, getItemByIndex } from 'network/shapes/Item';
 import type { Item as ShapeItem } from 'network/shapes/Item';
-import { getKami as getShapeKami } from 'network/shapes/Kami';
+import { getKami as getShapeKami, getKamiSoulboundEnd } from 'network/shapes/Kami';
 import { calcExperienceRequirement } from 'network/shapes/Kami/progress';
 import { queryByIndex as queryKamiByIndex } from 'network/shapes/Kami/queries';
 import { Listing } from 'network/shapes/Listing';
@@ -700,6 +700,18 @@ export type KamiVitals = {
   affinities?: string[];
   /** 1.0.0 (B3): `kami --equipment` only. LAST on the object. */
   equipment?: EquipmentOut;
+  /** 1.1.0 (§3.19): the unix time (chain seconds) the kami's soulbind ends;
+   * 0 when it was never bound. The contracts keep it in ValueComponent at
+   * keccak256(abi.encode(kamiID, "SOULBOUND")) — LibSoulbound, read through
+   * the client's own getter (network/shapes/Kami/soulbound.ts). Only
+   * NewbieVendorBuySystem writes it (now + 3 days); KamiSend,
+   * KamiMarketList, KamiMarketAcceptOffer, KamiGachaReroll,
+   * KamiSacrificeCommit and Kami721Unstake revert while it is in the
+   * future. Set on every complete projection (kami, party rows), placed after
+   * the 1.0.5 unconditional keys and before the flag-gated ones, so a
+   * flag-off answer gains exactly one key, last. Typed optional only because
+   * the object is assembled in steps. */
+  soulboundUntil?: number;
 };
 
 export type EquipmentOut = {
@@ -804,6 +816,9 @@ function vitalsOf(
     const node = kami.harvest.node;
     if (node) vitals.node = { index: node.index, name: node.name };
   }
+  // 1.1.0 (§3.19): the soulbind end — after every 1.0.5 unconditional key,
+  // before the flag-gated blocks below
+  vitals.soulboundUntil = getKamiSoulboundEnd(world, components, kami.id as EntityID);
   // §3.16: LAST, and only behind the flag — a flag-off answer keeps its exact
   // 0.5.0 key set and key ORDER (G3.g compares both)
   if (withStats) {
