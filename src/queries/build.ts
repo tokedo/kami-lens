@@ -1133,7 +1133,13 @@ export type LiquidationBlocker =
   | 'ATTACKER_STARVING'
   | 'ATTACKER_COOLDOWN'
   | 'TARGET_HP_ABOVE_THRESHOLD'
-  | 'THRESHOLD_ZERO';
+  | 'THRESHOLD_ZERO'
+  /** 1.1.0 (§3.19): the chain reverts the liquidation — the target's salvage
+   * exceeds its bounty, and HarvestLiquidateSystem's `bounty - salvage`
+   * underflows (a salvage ratio in (1.0, 2.0): victim power 101–199 with no
+   * bonus on the live config). Last in precedence, as on chain: the
+   * attacker's gates and the threshold are checked before the salvage. */
+  | 'SALVAGE_EXCEEDS_BOUNTY';
 
 export type LiquidationPreview = {
   /** canLiquidate(attacker, occupant) — cooldown/starving gates included.
@@ -1519,17 +1525,28 @@ export function nodeQuery(
         }
       }
       if (attackerKami && occupant.id !== attackerKami.id) {
-        const eligible = canLiquidate(attackerKami, occupant);
+        const mog = canLiquidate(attackerKami, occupant);
         const threshold = calcLiqThreshold(attackerKami, occupant);
+        const salvage = nonNegativeAmount(calcLiqSalvage(occupant));
+        // 1.1.0 (§3.19): a salvage above the bounty makes the chain's
+        // `bounty - salvage` underflow — the liquidation REVERTS. Read off
+        // the two numbers this row serves (salvage, vitals.musuAccrued), so
+        // a reader can check it; never an eligible row with such a salvage.
+        const reverts = salvage > row.vitals.musuAccrued;
+        const eligible = mog && !reverts;
         row.liquidation = {
           eligible,
-          ...(eligible ? {} : { reason: liquidationBlocker(attackerKami, threshold) }),
+          ...(eligible
+            ? {}
+            : { reason: mog ? 'SALVAGE_EXCEEDS_BOUNTY' : liquidationBlocker(attackerKami, threshold) }),
           threshold,
           margin: threshold - hp,
           // 1.0.2 (B4): shares of the occupant's accrual, and the strain of
-          // the spoils — floored at 0 with it (see nonNegativeAmount)
+          // the spoils — floored at 0 with it (see nonNegativeAmount). 1.1.0:
+          // all three are the chain's integers (app/cache/kami/calcs/
+          // liquidation.ts); on a reverting target spoils and recoil are 0
           spoils: nonNegativeAmount(calcLiqSpoils(attackerKami, occupant)),
-          salvage: nonNegativeAmount(calcLiqSalvage(occupant)),
+          salvage,
           recoil: nonNegativeAmount(calcLiqRecoil(attackerKami, occupant)),
         };
       }
@@ -1554,9 +1571,15 @@ export function nodeQuery(
   // boundary; filtering on the served pair removes that drift rather than
   // adding one. (`threshold > 0` is implied by `margin > 0` since hp >= 0 —
   // it is kept because it states the THRESHOLD_ZERO case explicitly.)
+  // 1.1.0 (§3.19): and a target whose liquidation the chain would revert
+  // (salvage above the bounty) is not in reach — also read off served numbers
   const selected = eligibleOnly
     ? rows.filter(
-        (r) => r.liquidation !== undefined && r.liquidation.threshold > 0 && r.liquidation.margin > 0
+        (r) =>
+          r.liquidation !== undefined &&
+          r.liquidation.threshold > 0 &&
+          r.liquidation.margin > 0 &&
+          !(r.vitals !== undefined && r.liquidation.salvage > r.vitals.musuAccrued)
       )
     : rows;
   const { served } = capRows(selected, full);

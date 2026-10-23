@@ -290,9 +290,11 @@ async function worker(): Promise<void> {
           problems.push({ index, band, stat: name, part, served: s[part], chain: c[part] });
         }
       }
-      // the client's own formula, on the CHAIN's parts — this is the
-      // assertion that the effective value is not a re-derivation
-      const expectedTotal = (1 + c.boost / 1e3) * (c.base + c.shift);
+      // the CHAIN's own formula on the chain's parts — LibStat.calcTotal,
+      // int32 ((1e3 + boost) · (base + shift)) / 1e3 truncated, floored at 0
+      // (1.1.0, §3.19: until 1.0.5 this was the client's float formula, which
+      // the served total then was; the two agree whenever boost is 0)
+      const expectedTotal = Math.max(0, Math.trunc(((1000 + c.boost) * (c.base + c.shift)) / 1000));
       if (s.total !== expectedTotal) {
         problems.push({
           index,

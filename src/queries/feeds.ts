@@ -442,9 +442,43 @@ export type AuctionOut = {
   params: { value: number; period: number; decay: number; rate: number };
   supply: { sold: number; total: number };
   startTime: number;
-  /** current price on the ported GDA curve (clock-corrected, §3.8) */
-  price: number;
+  /** current price on the ported GDA curve (clock-corrected, §3.8). 1.1.0
+   * (§3.19): null exactly when the chain would refuse the buy, with the
+   * reason in `priceUnavailable` (see auctionPriceOut). */
+  price: number | null;
+  priceUnavailable?: AuctionPriceUnavailable;
 };
+
+export type AuctionPriceUnavailable = 'COST_ROUNDS_TO_ZERO' | 'BEYOND_FIXED_POINT_RANGE';
+
+/** PRBMath SD59x18 exp2 returns 0 below this exponent and reverts at or above
+ * 192 (Constants.sol uEXP2_MIN_THRESHOLD, uEXP2_MAX_INPUT) */
+const PRB_EXP2_MIN = -59_794705707972522261n; // SD59x18 (×1e18)
+const PRB_EXP2_MAX = 192;
+
+/** 1.1.0 (§3.19): an auction's price for ONE unit, or the reason the chain
+ * would refuse the buy. LibAuction.calcBuy prices through LibGDA.calc,
+ * `decay.pow(tDelta − sold/rate).mul(value)` in PRBMath SD59x18, whose pow is
+ * `exp2(log2(decay) · exponent)`: below 2^−59.79 that is 0, the cost is 0 and
+ * calcBuy reverts "LibAuction: negative GDA cost" (COST_ROUNDS_TO_ZERO); at
+ * 2^192 exp2 itself reverts (BEYOND_FIXED_POINT_RANGE). Until 1.1.0 the first
+ * case served a price of 1 (the client's ceil of a vanishing float) and the
+ * second a float the chain cannot reach. Otherwise — and for an auction that
+ * has not started — the ported curve's price, unchanged. */
+export function auctionPriceOut(
+  a: Parameters<typeof calcPrice>[0],
+  nowSec: number
+): { price: number | null; priceUnavailable?: AuctionPriceUnavailable } {
+  const { value, period, decay, rate } = a.params;
+  // a started auction only: before its start the chain's `block.timestamp −
+  // startTs` underflows instead — a different condition, served as before
+  if (nowSec >= a.time.start && value > 0 && period > 0 && decay > 0 && decay !== 1 && rate > 0) {
+    const exponent = ((nowSec - a.time.start) / period - a.supply.sold / rate) * Math.log2(decay);
+    if (exponent >= PRB_EXP2_MAX) return { price: null, priceUnavailable: 'BEYOND_FIXED_POINT_RANGE' };
+    if (exponent < Number(PRB_EXP2_MIN) / 1e18) return { price: null, priceUnavailable: 'COST_ROUNDS_TO_ZERO' };
+  }
+  return { price: calcPrice(a, nowSec, a.supply.sold) };
+}
 
 export type AuctionBuyOut = {
   accountIndex: string;
@@ -496,7 +530,8 @@ export async function auctionsQuery(
       params: a.params,
       supply: a.supply,
       startTime: a.time.start,
-      price: calcPrice(a, clock.now() / 1000, a.supply.sold),
+      // 1.1.0 (§3.19): null, with the reason, where the chain refuses the buy
+      ...auctionPriceOut(a, clock.now() / 1000),
     }));
 
   const out: AuctionsOut = { auctions: rows };

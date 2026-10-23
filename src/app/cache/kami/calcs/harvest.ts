@@ -2,7 +2,16 @@
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
  * upstream: Asphodel-OS/kamigotchi-open @ 04cb25f8f3009ca9b89e62e20bd3d7afa12e98ad
  * path:     packages/client/src/app/cache/kami/calcs/harvest.ts
- * changes:  none
+ * changes:  1.1.0 (§3.19) — two calcs compute the chain's integers, not
+ *           floats: calcMaxMusu = LibHarvest.calcMaxMusu, `(hp · 10^(c3+c7)
+ *           · (harmony + config[0])) / (c2 · boost)` (the float read one
+ *           unit low at exact quotients), and calcStrainFromBalance on an
+ *           integer amount with roundUp = LibKami.calcStrain, `(amt · c2 ·
+ *           boost + divisor − 1) / divisor` with divisor `10^(c3+c7) ·
+ *           (harmony + config[0])`. Both read config[0] RAW, as the chain
+ *           does (the client divided it by its precision slot, 0 live). A
+ *           rate (roundUp false) and a negative boost (the chain reverts)
+ *           keep the client's float. Body otherwise verbatim.
  */
 
 import { calcHarvestIdleTime, calcHarvestNetBounty, calcHarvestRawNetBounty, updateHarvestRates } from 'app/cache/harvest';
@@ -70,6 +79,18 @@ export const calcOutput = (kami: Kami): number => {
 export const calcStrainFromBalance = (kami: Kami, balance: number, roundUp = true): number => {
   const config = kami.config?.harvest.strain;
   if (!config) return 0;
+  // kami-lens (1.1.0): an amount (not a rate) is strained in the chain's
+  // integers — LibKami.calcStrain, ⌈(amt · c2 · boost) / (10^(c3+c7) ·
+  // (harmony + c0))⌉ with c0 RAW
+  if (roundUp && Number.isInteger(balance)) {
+    const boost = config.boost.raw + Math.round((kami.bonuses?.harvest.strain.boost ?? 0) * 1e3);
+    const harmony = Math.trunc(kami.stats?.harmony.total ?? 0);
+    const divisor = 10n ** BigInt(config.ratio.precision + config.boost.precision) * BigInt(harmony + config.nudge.raw);
+    if (divisor > 0n) {
+      const n = BigInt(balance) * BigInt(config.ratio.raw) * BigInt(boost);
+      return Number(n >= 0n ? (n + divisor - 1n) / divisor : n / divisor);
+    }
+  }
 
   const ratio = config.ratio.value;
   const harmony = kami.stats?.harmony.total ?? 0;
@@ -88,6 +109,19 @@ export const calcMaxMusu = (kami: Kami): number => {
 
   const config = kami.config?.harvest.strain;
   if (!config) return Infinity;
+
+  // kami-lens (1.1.0): LibHarvest.calcMaxMusu in the chain's integers —
+  // (hp · 10^(c3+c7) · (harmony + c0)) / (c2 · boost), c0 RAW, floored
+  {
+    const boost = config.boost.raw + Math.round((kami.bonuses?.harvest.strain.boost ?? 0) * 1e3);
+    const denom = BigInt(config.ratio.raw) * BigInt(boost);
+    if (denom === 0n) return Infinity; // no strain = no cap
+    if (denom > 0n) {
+      const harmony = Math.trunc(kami.stats?.harmony.total ?? 0);
+      const divisor = 10n ** BigInt(config.ratio.precision + config.boost.precision) * BigInt(harmony + config.nudge.raw);
+      return Number((BigInt(Math.trunc(hp)) * divisor) / denom);
+    }
+  }
 
   const ratio = config.ratio.value;
   const harmony = kami.stats?.harmony.total ?? 0;

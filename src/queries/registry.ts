@@ -239,7 +239,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
   node: {
     name: 'node',
     summary:
-      'node with its ACTIVE harvests; --with-vitals [attackerKamiIndex] adds occupant vitals + liquidation preview, plus attacker.blocked (the attacker\'s own gate: null, ATTACKER_STARVING or ATTACKER_COOLDOWN) (--full lifts the row cap, --stats adds the stat block, --eligible-only serves the rows whose target is in reach — threshold > 0 and margin > 0 — regardless of the attacker\'s own state, so an empty list means no target in reach and never "my kami is starving")',
+      'node with its ACTIVE harvests; --with-vitals [attackerKamiIndex] adds occupant vitals + liquidation preview, plus attacker.blocked (the attacker\'s own gate: null, ATTACKER_STARVING or ATTACKER_COOLDOWN) (--full lifts the row cap, --stats adds the stat block, --eligible-only serves the rows whose target is in reach — threshold > 0, margin > 0 and a salvage the chain can pay — regardless of the attacker\'s own state, so an empty list means no target in reach and never "my kami is starving")',
     args: ['--with-vitals', '--full', '--stats', '--eligible-only', '--targets', '--account'],
     valued: ['--targets', '--account'],
     parseArgs: (tokens) => {

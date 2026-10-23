@@ -2,7 +2,13 @@
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
  * upstream: Asphodel-OS/kamigotchi-open @ 04cb25f8f3009ca9b89e62e20bd3d7afa12e98ad
  * path:     packages/client/src/network/shapes/Stats.ts
- * changes:  none
+ * changes:  1.1.0 (§3.19) — getStatFromUint's `total` is the chain's
+ *           LibStat.calcTotal, `((1e3 + boost) * (base + shift)) / 1e3` in
+ *           int32 (truncating toward zero) floored at 0, not the float
+ *           `(1 + boost/1e3) * (base + shift)`: the client served 13.65 where
+ *           the chain computes 13, and −3 where it computes 0. Equal whenever
+ *           boost·(base + shift) is a multiple of 1000 and the sum is ≥ 0.
+ *           Body otherwise verbatim.
  */
 
 import { EntityID, EntityIndex, World, getComponentValue } from 'engine/recs';
@@ -99,6 +105,8 @@ export const getStatFromUint = (value: bigint, shiftBonus?: number): Stat => {
     boost: boost,
     sync: sync,
     rate: 0,
-    total: (1 + boost / 1e3) * (base + shift),
+    // kami-lens (1.1.0): LibStat.calcTotal — int32 arithmetic, truncating
+    // toward zero, floored at 0 — instead of the float (1 + boost/1e3)·(…)
+    total: Math.max(0, Math.trunc(((1000 + boost) * (base + shift)) / 1000)),
   };
 };

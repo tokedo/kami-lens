@@ -40,7 +40,15 @@
           }
         },
         "startTime": { "type": "number" },
-        "price": { "type": "number" }
+        "price": {
+          "type": ["number", "null"],
+          "description": "The price of ONE unit now, on the ported GDA curve. 1.1.0 (§3.19): null exactly when the chain would refuse the buy — priceUnavailable says why. Until 1.1.0 a cost that had decayed to zero was served as 1."
+        },
+        "priceUnavailable": {
+          "type": "string",
+          "enum": ["COST_ROUNDS_TO_ZERO", "BEYOND_FIXED_POINT_RANGE"],
+          "description": "1.1.0 (§3.19): present exactly when price is null. COST_ROUNDS_TO_ZERO: the chain reverts the buy, the decayed cost rounds to zero in its fixed point (LibAuction.calcBuy: \"negative GDA cost\"). BEYOND_FIXED_POINT_RANGE: the chain reverts, the price exceeds its fixed-point range (PRBMath exp2)."
+        }
       }
     },
     "AuctionBuy": {

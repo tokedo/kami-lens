@@ -60,8 +60,8 @@ const problems: Record<string, unknown>[] = [];
 const WANTED_NODES = [9, 86, 10, 62, 1, 2, 3, 4, 5, 6, 7, 8];
 
 // ---- the row shapes this section reads -------------------------------------
-type Liq = { eligible?: boolean; reason?: string; threshold: number; margin: number };
-type Row = { liquidation?: Liq };
+type Liq = { eligible?: boolean; reason?: string; threshold: number; margin: number; salvage: number };
+type Row = { liquidation?: Liq; vitals?: { musuAccrued: number } };
 type NodeAnswer = {
   harvestsTotal: number;
   harvestsEligible?: number;
@@ -75,7 +75,15 @@ type NodeAnswer = {
  * prints, so this cannot disagree with the payload; `canMog` re-enters
  * `calcHealth` and can. */
 const targetSide = (rows: Row[]): Row[] =>
-  rows.filter((r) => r.liquidation !== undefined && r.liquidation.threshold > 0 && r.liquidation.margin > 0);
+  rows.filter(
+    (r) =>
+      r.liquidation !== undefined &&
+      r.liquidation.threshold > 0 &&
+      r.liquidation.margin > 0 &&
+      // 1.1.0 (§3.19): a target whose liquidation the chain reverts (salvage
+      // above the bounty) is not in reach — read off the served numbers
+      !(r.vitals !== undefined && r.liquidation.salvage > r.vitals.musuAccrued)
+  );
 
 /** THE 0.5.2 PREDICATE, kept as a comparison term rather than deleted: with a
  * healthy attacker the two must select the SAME rows, and that coincidence is

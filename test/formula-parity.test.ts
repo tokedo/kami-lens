@@ -8,8 +8,11 @@
 // port and the chain disagree, the test asserts the DOCUMENTED divergence
 // (its class and its size), never a tolerance that would hide it; the list is
 // docs/measurements/formula-parity-2026-10-23.md. Formulas with no port are
-// listed as unported. Nothing served changes in this release on account of
-// this file.
+// listed as unported. 1.1.0 item 7 resolved every divergence in a SERVED
+// value: those assertions now require agreement (they fail on the ports as
+// 1.1.0 found them), and the sweeps require zero divergent samples. The few
+// divergences left documented are not served (a display rate, an unset-
+// timestamp guard, a display-only tax helper) — each says so.
 //
 // SOURCES. The formula list (`generated/formulas.yaml`: 40 keys, the two
 // LibHarvest.calcEfficacy overloads among them) and the Solidity bodies it
@@ -67,6 +70,7 @@ import {
 import { calcBuyPrice, calcSellPrice } from 'app/cache/npc/calcs';
 import { calcTax as calcTradeTax } from 'app/cache/trade/functions';
 import { calcPrice as calcAuctionPrice } from 'network/explorer/auctions/pricing';
+import { auctionPriceOut } from '../src/queries/feeds';
 import { LIVE_KAMI_CONFIG, makeMirror, packArray32 } from './support/mirror';
 import { WAD, cdf, expWad, gdaCalc, lnWad, powWad, sdExp2, sdLog2, usub } from './support/solidity';
 
@@ -689,19 +693,23 @@ describe('LibHarvest.calcEfficacy (both overloads) ↔ calcEfficacyShifts', () =
     pair('LibHarvest.calcEfficacy(string,string,Shifts,string)', 'NORMAL body, EERIE hand on EERIE, bonus 40', refHarvestEfficacy(1000n, 'NORMAL', 'EERIE', 'EERIE', 40n), units(portEfficacy('NORMAL', 'EERIE', ['EERIE'], 40) / 1000, 3));
   });
 
-  it('DIVERGENCE (rounding): a NORMAL trait with an ODD bonus — the chain truncates bonus/2, the port keeps the half', () => {
-    // NORMAL body + EERIE hand on an EERIE node, bonus 25: chain 1000 + 12 + (350 + 25) = 1387
+  it('RESOLVED in 1.1.0 (was rounding): a NORMAL trait with an ODD bonus — bonus/2 truncated toward zero, as the chain', () => {
+    // NORMAL body + EERIE hand on an EERIE node, bonus 25: chain 1000 + 12 + (350 + 25) = 1387 (1.0.5: 1387.5)
     const chain = refHarvestEfficacy(1000n, 'NORMAL', 'EERIE', 'EERIE', 25n);
-    pair('LibHarvest.calcEfficacy(string,string,Shifts,string)', 'NORMAL body, EERIE hand on EERIE, bonus 25', chain, portEfficacy('NORMAL', 'EERIE', ['EERIE'], 25), { cls: 'rounding: int256 bonus.up / 2 truncates; the port keeps .5', port: Number(chain) + 0.5 });
-    // a NEGATIVE odd bonus truncates toward zero on chain: −25 / 2 = −12, twice
+    pair('LibHarvest.calcEfficacy(string,string,Shifts,string)', 'NORMAL body, EERIE hand on EERIE, bonus 25', chain, units(portEfficacy('NORMAL', 'EERIE', ['EERIE'], 25) / 1000, 3));
+    // a NEGATIVE odd bonus truncates toward zero: −25 / 2 = −12, twice (1.0.5: 975)
     const neg = refHarvestEfficacy(1000n, 'NORMAL', 'NORMAL', 'EERIE', -25n);
-    pair('LibHarvest.calcEfficacy(string,string,Shifts,string)', 'NORMAL/NORMAL, bonus −25', neg, portEfficacy('NORMAL', 'NORMAL', ['EERIE'], -25), { cls: 'rounding: toward zero on chain; the port keeps −.5 per trait', port: Number(neg) - 1 });
+    pair('LibHarvest.calcEfficacy(string,string,Shifts,string)', 'NORMAL/NORMAL, bonus −25', neg, units(portEfficacy('NORMAL', 'NORMAL', ['EERIE'], -25) / 1000, 3));
   });
 
-  it('DIVERGENCE (missing clamp): the chain floors the summed efficacy at 0, the port does not', () => {
-    // two NORMAL traits and a −2500 bonus: 1000 − 1250 − 1250 < 0
-    const chain = refHarvestEfficacy(1000n, 'NORMAL', 'NORMAL', 'EERIE', -2500n);
-    pair('LibHarvest.calcEfficacy(uint256,uint256,uint256)', 'NORMAL/NORMAL, bonus −2500', chain, portEfficacy('NORMAL', 'NORMAL', ['EERIE'], -2500), { cls: 'missing clamp: efficacy < 0 → 0 on chain', port: -1500 });
+  it('RESOLVED in 1.1.0 (was missing clamp): a negative summed efficacy is floored at 0 — the fertility it yields is 0', () => {
+    // two NORMAL traits and a −2500 bonus: 1000 − 1250 − 1250 < 0 → 0 on
+    // chain; the shift sum itself is the client's, the clamp lives in the
+    // fertility it feeds (1.0.5 served a NEGATIVE fertility here)
+    const chainEff = refHarvestEfficacy(1000n, 'NORMAL', 'NORMAL', 'EERIE', -2500n);
+    expect(chainEff).toBe(0n);
+    const k = kami({ power: 30, body: 'NORMAL', hand: 'NORMAL', bonus: { harvFertilityBoost: -2500 }, harvest: { last: 60, reset: 60, nodeAff: ['EERIE'] } });
+    pair('LibHarvest.calcEfficacy(uint256,uint256,uint256)', 'NORMAL/NORMAL, bonus −2500 (as the fertility it yields)', refFertility(30n, chainEff), units(calcFertility(k.harvest!, k), 6));
   });
 });
 
@@ -725,27 +733,25 @@ describe('LibHarvest.calcDuration, calcIntensityDuration, calcFertility, calcInt
     pair('LibHarvest.calcFertility', label, refFertility(B(power), refHarvestEfficacy(1000n, body, hand, node, 0n)), units(calcFertility(k.harvest!, k), 6));
   });
 
-  it('DIVERGENCE (float floor): fertility one unit (1e-6 MUSU/s) low where the exact rate is an integer', () => {
-    // power 78, INSECT/EERIE on SCRAP: exactly 21125e-6; the float product
-    // lands a hair below and Math.floor(x·1e6) drops the unit
+  it('RESOLVED in 1.1.0 (was float floor): fertility at an exact integer rate', () => {
+    // power 78, INSECT/EERIE on SCRAP: exactly 21125e-6 (1.0.5: 21124e-6)
     const k = kami({ power: 78, body: 'INSECT', hand: 'EERIE', harvest: { last: 600, reset: 600, nodeAff: ['SCRAP'] } });
     const chain = refFertility(78n, refHarvestEfficacy(1000n, 'INSECT', 'EERIE', 'SCRAP', 0n));
-    pair('LibHarvest.calcFertility', 'power 78, INSECT/EERIE on SCRAP', chain, units(calcFertility(k.harvest!, k), 6), { cls: 'float floor at RATE_PREC', port: Number(chain) - 1 });
+    pair('LibHarvest.calcFertility', 'power 78, INSECT/EERIE on SCRAP', chain, units(calcFertility(k.harvest!, k), 6));
   });
 
-  it('calcIntensity, and a float-floor boundary', () => {
+  it('calcIntensity, and the float-floor boundary RESOLVED in 1.1.0', () => {
     const k = kami({ violence: 22, harvest: { last: 60, reset: 9_999, nodeAff: ['EERIE'] } });
     pair('LibHarvest.calcIntensity', 'violence 22, reset 9999 s ago', refIntensity(22n, 9_999n), units(calcIntensity(k.harvest!, k).average, 6));
-    // violence 57, reset 47750 s ago: exactly 6250e-6
+    // violence 57, reset 47750 s ago: exactly 6250e-6 (1.0.5: 6249e-6)
     const k2 = kami({ violence: 57, harvest: { last: 60, reset: 47_750, nodeAff: ['EERIE'] } });
-    const chain = refIntensity(57n, 47_750n);
-    pair('LibHarvest.calcIntensity', 'violence 57, reset 47750 s ago', chain, units(calcIntensity(k2.harvest!, k2).average, 6), { cls: 'float floor at RATE_PREC', port: Number(chain) - 1 });
+    pair('LibHarvest.calcIntensity', 'violence 57, reset 47750 s ago', refIntensity(57n, 47_750n), units(calcIntensity(k2.harvest!, k2).average, 6));
   });
 
-  it('calcMaxMusu, and a float-floor boundary', () => {
+  it('calcMaxMusu, and the float-floor boundary RESOLVED in 1.1.0', () => {
     pair('LibHarvest.calcMaxMusu', 'hp 200, harmony 30', refMaxMusu(200n, 30n), calcMaxMusu(kami({ harmony: 30, hpSync: 200 })));
-    const chain = refMaxMusu(1649n, 45n, -224n);
-    pair('LibHarvest.calcMaxMusu', 'hp 1649, harmony 45, strain bonus −224', chain, calcMaxMusu(kami({ harmony: 45, hpTotal: 2000, hpSync: 1649, bonus: { strainBoost: -224 } })), { cls: 'float floor', port: Number(chain) - 1 });
+    // 1.0.5: 21249
+    pair('LibHarvest.calcMaxMusu', 'hp 1649, harmony 45, strain bonus −224', refMaxMusu(1649n, 45n, -224n), calcMaxMusu(kami({ harmony: 45, hpTotal: 2000, hpSync: 1649, bonus: { strainBoost: -224 } })));
   });
 
   it.each([
@@ -758,33 +764,32 @@ describe('LibHarvest.calcDuration, calcIntensityDuration, calcFertility, calcInt
     pair('LibHarvest.calcBounty', label, refBounty(fert, refIntensity(B(violence), B(reset)), B(last), refMaxMusu(200n, B(harmony))), calcOutput(k));
   });
 
-  it('DIVERGENCE (float floor, inherited): a long harvest on the fertility boundary above is one MUSU low', () => {
-    // power 78, INSECT/EERIE on SCRAP (fertility 21125e-6 on chain, one unit
-    // less in the port) harvesting 1,000,000 s: the unit becomes a MUSU
+  it('RESOLVED in 1.1.0 (was float floor, inherited): a long harvest on the fertility boundary above', () => {
+    // power 78, INSECT/EERIE on SCRAP harvesting 1,000,000 s (1.0.5: one MUSU low)
     const k = kami({ power: 78, violence: 10, harmony: 50, body: 'INSECT', hand: 'EERIE', hpTotal: 1_000_000, harvest: { last: 1_000_000, reset: 1_000_000, nodeAff: ['SCRAP'] } });
     const fert = refFertility(78n, refHarvestEfficacy(1000n, 'INSECT', 'EERIE', 'SCRAP', 0n));
     const chain = refBounty(fert, refIntensity(10n, 1_000_000n), 1_000_000n, refMaxMusu(1_000_000n, 50n));
-    pair('LibHarvest.calcBounty', 'power 78, INSECT/EERIE on SCRAP, 1,000,000 s', chain, calcOutput(k), { cls: 'float floor (inherited from fertility)', port: Number(chain) - 1 });
+    pair('LibHarvest.calcBounty', 'power 78, INSECT/EERIE on SCRAP, 1,000,000 s', chain, calcOutput(k));
   });
 
-  it('seeded sweep — fertility: at most one unit low, never high', () => {
-    sweep('LibHarvest.calcFertility', 'float floor at RATE_PREC', 4000, (rnd) => {
+  it('seeded sweep — fertility: equal in every sample (1.0.5: 84 one unit low)', () => {
+    sweep('LibHarvest.calcFertility', 'equal (resolved in 1.1.0; 1.0.5: float floor at RATE_PREC, 84 low)', 4000, (rnd) => {
       const power = rnd(5, 120), body = AFF[rnd(0, 2)]!, hand = AFF[rnd(0, 2)]!, node = AFF[rnd(0, 2)]!, bonus = rnd(0, 400);
       const k = kami({ power, body, hand, bonus: { harvFertilityBoost: bonus }, harvest: { last: 60, reset: 60, nodeAff: [node] } });
       return { label: `power ${power}, ${body}/${hand} on ${node}, +${bonus}`, chain: refFertility(B(power), refHarvestEfficacy(1000n, body, hand, node, B(bonus))), port: units(calcFertility(k.harvest!, k), 6) };
-    }, [0, -1], 84);
+    }, [0], 0);
   });
 
-  it('seeded sweep — intensity: at most one unit low', () => {
-    sweep('LibHarvest.calcIntensity', 'float floor at RATE_PREC', 4000, (rnd) => {
+  it('seeded sweep — intensity: equal in every sample (1.0.5: 15 one unit low)', () => {
+    sweep('LibHarvest.calcIntensity', 'equal (resolved in 1.1.0; 1.0.5: float floor at RATE_PREC, 15 low)', 4000, (rnd) => {
       const violence = rnd(5, 120), reset = rnd(60, 200_000);
       const k = kami({ violence, harvest: { last: 60, reset, nodeAff: ['EERIE'] } });
       return { label: `violence ${violence}, reset ${reset} s ago`, chain: refIntensity(B(violence), B(reset)), port: units(calcIntensity(k.harvest!, k).average, 6) };
-    }, [0, -1], 15);
+    }, [0], 0);
   });
 
-  it('seeded sweep — bounty: at most one MUSU low, inheriting the floors above', () => {
-    sweep('LibHarvest.calcBounty', 'float floor (inherited) — none in this sample; see the hand-picked case', 4000, (rnd) => {
+  it('seeded sweep — bounty: equal in every sample', () => {
+    sweep('LibHarvest.calcBounty', 'equal', 4000, (rnd) => {
       const power = rnd(5, 120), violence = rnd(5, 120), harmony = rnd(5, 80);
       const body = AFF[rnd(0, 2)]!, hand = AFF[rnd(0, 2)]!, node = AFF[rnd(0, 2)]!;
       const last = rnd(60, 100_000), reset = last + rnd(0, 100_000), bb = rnd(-100, 400);
@@ -792,15 +797,15 @@ describe('LibHarvest.calcDuration, calcIntensityDuration, calcFertility, calcInt
       const fert = refFertility(B(power), refHarvestEfficacy(1000n, body, hand, node, 0n));
       const chain = refBounty(fert, refIntensity(B(violence), B(reset)), B(last), refMaxMusu(1_000_000n, B(harmony)), B(bb));
       return { label: `${power}/${violence}/${harmony} ${body}/${hand} on ${node}, last ${last}, reset ${reset}, +${bb}`, chain, port: calcOutput(k) };
-    }, [0, -1], 0);
+    }, [0], 0);
   });
 
-  it('seeded sweep — max musu: at most one low', () => {
-    sweep('LibHarvest.calcMaxMusu', 'float floor — none in this sample; see the hand-picked case', 4000, (rnd) => {
+  it('seeded sweep — max musu: equal in every sample', () => {
+    sweep('LibHarvest.calcMaxMusu', 'equal', 4000, (rnd) => {
       const hp = rnd(1, 3000), harmony = rnd(5, 80), sb = rnd(-300, 300);
       const k = kami({ harmony, hpTotal: 5000, hpSync: hp, bonus: { strainBoost: sb } });
       return { label: `hp ${hp}, harmony ${harmony}, ${sb}`, chain: refMaxMusu(B(hp), B(harmony), B(sb)), port: calcMaxMusu(k) };
-    }, [0, -1], 0);
+    }, [0], 0);
   });
 });
 
@@ -821,7 +826,7 @@ describe('LibKami.calcStrain, calcMetabolism, calcRecovery', () => {
     }, [0], 0);
   });
 
-  it('DIVERGENCE (client-only approximation): calcMetabolism — the port rate is not floored at METABOLISM_PREC', () => {
+  it('DIVERGENCE, NOT SERVED as a number (client-only approximation): calcMetabolism — the display rate is not floored at METABOLISM_PREC', () => {
     // harmony 15: chain 5833333e-9 HP/s; the port keeps 5833333.33…e-9 (a display rate)
     const port = calcHealthRate(kami({ harmony: 15 })) * 1e9;
     const chain = refMetabolism(15n);
@@ -865,6 +870,29 @@ describe('LibKill: threshold (with animosity and threshold efficacy), recoil eff
     pair('LibKill.calcThreshold', 'ratio +120/−40, shift +15/−5', refThreshold(30n, 'EERIE', 25n, 'SCRAP', 300n, { atkRatio: 120n, defRatio: 40n, atkShift: 15n, defShift: 5n }), calcThreshold(att, def));
   });
 
+  it('RESOLVED in 1.1.0 (SERVED; found by G2.a on the 22,222-kami snapshot): a defender\'s threshold-shift bonus — the chain clamps at 0, and floors exactly', () => {
+    // DEF_THRESHOLD_RATIO 300 / DEF_THRESHOLD_SHIFT 200, a common skill pair.
+    // A weak attacker: base · ratio < shift → the chain returns 0 (LibKill:
+    // `if (postShiftVal < 0) return 0`); 1.0.5 served a NEGATIVE threshold
+    const weak = kami({ violence: 10, hand: 'EERIE' });
+    const shielded = (harmony: number, body: string, hpTotal: number) =>
+      kami({ harmony, body, hpTotal, bonus: { defThresholdRatio: 300, defThresholdShift: 200 } });
+    pair('LibKill.calcThreshold', 'violence 10 vs harmony 40 behind a 300/200 defense bonus', refThreshold(10n, 'EERIE', 40n, 'EERIE', 300n, { defRatio: 300n, defShift: 200n }), calcThreshold(weak, shielded(40, 'EERIE', 300)));
+    // equal stats, SCRAP on INSECT: (0.2 · 1.2 − 0.2) · 200 = 8 exactly on
+    // chain; 1.0.5's floats made it 7.9999… → 7
+    pair('LibKill.calcThreshold', 'violence 18 vs harmony 18, SCRAP on INSECT, 300/200 defense bonus', refThreshold(18n, 'SCRAP', 18n, 'INSECT', 200n, { defRatio: 300n, defShift: 200n }), calcThreshold(kami({ violence: 18, hand: 'SCRAP' }), shielded(18, 'INSECT', 200)));
+  });
+
+  it('seeded sweep — threshold with defense bonuses: equal in every sample', () => {
+    sweep('LibKill.calcThreshold', 'equal with ratio/shift bonuses (resolved in 1.1.0: the clamp at 0 and the float floor)', 4000, (rnd) => {
+      const aV = rnd(5, 120), dH = rnd(5, 120), hp = rnd(50, 2000), aHand = AFF4[rnd(0, 3)]!, dBody = AFF4[rnd(0, 3)]!;
+      const ar = rnd(0, 400), dr = rnd(0, 400), as = rnd(0, 300), ds = rnd(0, 300);
+      const att = kami({ violence: aV, hand: aHand, bonus: { atkThresholdRatio: ar, atkThresholdShift: as } });
+      const def = kami({ harmony: dH, body: dBody, hpTotal: hp, bonus: { defThresholdRatio: dr, defThresholdShift: ds } });
+      return { label: `${aV} ${aHand} vs ${dH} ${dBody}, hp ${hp}, ratio ${ar}/${dr}, shift ${as}/${ds}`, chain: refThreshold(B(aV), aHand, B(dH), dBody, B(hp), { atkRatio: B(ar), defRatio: B(dr), atkShift: B(as), defShift: B(ds) }), port: calcThreshold(att, def) };
+    }, [0], 0);
+  });
+
   it('seeded sweep — threshold: equal in every sample', () => {
     sweep('LibKill.calcThreshold', 'equal', 4000, (rnd) => {
       const aV = rnd(5, 120), dH = rnd(5, 120), hp = rnd(50, 2000), aHand = AFF4[rnd(0, 3)]!, dBody = AFF4[rnd(0, 3)]!;
@@ -879,26 +907,25 @@ describe('LibKill: threshold (with animosity and threshold efficacy), recoil eff
     }
   });
 
-  it('DIVERGENCE (client-only approximation): calcKarma is not floored at KARMA_PREC', () => {
-    for (const [dV, aH] of [[15, 15], [25, 22], [40, 30]] as const) {
-      const port = calcKarma(kami({ harmony: aH }), kami({ violence: dV })) * 1000;
-      const chain = refKarma(B(dV), B(aH));
-      // the floor of the port's value is the chain's: the Gaussian
-      // approximations agree at this precision; the port keeps the rest
-      expect(Math.floor(port + 1e-9)).toBe(Number(chain));
-      const exact = port === Number(chain); // cdf(0) = 1/2 lands on the grid
-      pair('LibKill.calcKarma', `defender violence ${dV}, attacker harmony ${aH}`, chain, port, exact ? undefined : { cls: 'unfloored at KARMA_PREC', port });
+  it('RESOLVED in 1.1.0 (was client-only approximation): calcKarma floored at KARMA_PREC, on the contracts\' own cdf', () => {
+    for (const [dV, aH] of [[15, 15], [25, 22], [40, 30], [73, 9]] as const) {
+      // 1.0.5: 1101.719…, 1226.409…, 1963.67… (unfloored)
+      const port = calcKarma(kami({ harmony: aH }), kami({ violence: dV }));
+      pair('LibKill.calcKarma', `defender violence ${dV}, attacker harmony ${aH}`, refKarma(B(dV), B(aH)), units(port, 3));
     }
   });
 
-  it('DIVERGENCE (SERVED, client-only approximation): calcRecoil — the port is high by up to ⌈strain / 1000⌉ HP', () => {
-    // defender violence 73 vs attacker harmony 9, neutral affinities, strain
-    // 598: karma 1963e-3 on chain, 1.96367… in the port; recoil 1771 vs 1772
-    const att = kami({ harmony: 9, body: 'SCRAP' });
-    const def = kami({ violence: 73, hand: 'SCRAP' });
-    const chain = refRecoil(73n, 'SCRAP', 9n, 'SCRAP', 598n);
-    const port = Math.floor((calcKarma(att, def) + calcRecoilEfficacy(att, def, LIVE.liquidation.recoil.nudge.value)) * 598 * LIVE.liquidation.recoil.boost.value);
-    pair('LibKill.calcRecoil', 'defender violence 73, attacker harmony 9, strain 598', chain, port, { cls: 'unfloored karma (KARMA_PREC)', port: Number(chain) + 1 });
+  it('RESOLVED in 1.1.0 (SERVED; was client-only approximation): calcRecoil on a floored karma', () => {
+    // defender violence 73 vs attacker harmony 9, neutral affinities: the
+    // attacker's strain comes from its spoils of the bounty. At a bounty of
+    // 1,133 the chain's recoil is 402; 1.0.5 served 403 (karma unfloored)
+    const att = kami({ harmony: 9, power: 20, body: 'SCRAP' });
+    for (const bounty of [1133, 3000]) {
+      const def = kami({ violence: 73, power: 18, hand: 'SCRAP', harvest: { balance: bounty, last: 0, reset: 0, nodeAff: ['NORMAL'] } });
+      const { spoils } = refLiquidationShares(18n, 20n, B(bounty));
+      const chain = refRecoil(73n, 'SCRAP', 9n, 'SCRAP', refStrain(spoils, 9n));
+      pair('LibKill.calcRecoil', `defender violence 73, attacker harmony 9, bounty ${bounty}`, chain, calcRecoil(att, def));
+    }
   });
 
   it('salvage and spoils: equal at ordinary power', () => {
@@ -924,31 +951,39 @@ describe('LibKill: threshold (with animosity and threshold efficacy), recoil eff
       return { label, chain: refRecoil(B(dV), dHand, B(aH), aBody, refStrain(spoils, B(aH), B(sb))), port: calcRecoil(att, def) };
     };
     sweep('LibKill.calcSalvage', 'equal', 3000, gen('salvage'), [0], 0);
-    sweep('LibKill.calcSpoils', 'float floor', 3000, gen('spoils'), [0, -1], 2);
-    sweep('LibKill.calcRecoil', 'unfloored karma (KARMA_PREC): up to ⌈strain / 1000⌉ HP high', 3000, gen('recoil'), [0, 1, 2, 3], 858);
+    sweep('LibKill.calcSpoils', 'equal (resolved in 1.1.0; 1.0.5: float floor, 2 low)', 3000, gen('spoils'), [0], 0);
+    sweep('LibKill.calcRecoil', 'equal (resolved in 1.1.0; 1.0.5: unfloored karma, 858 high by 1–3)', 3000, gen('recoil'), [0], 0);
   });
 
-  it('DIVERGENCE (SERVED, missing branch): spoils ratio in (1.0, 2.0) — the chain pays amt × ratio, the port caps at amt', () => {
+  it('RESOLVED in 1.1.0 (SERVED; was missing branch): spoils ratio in (1.0, 2.0) — amt × ratio, as the chain pays', () => {
     // killer power 60 on the live config [45, 2, 0, 3]: ratio (45 + 60)·10 =
     // 1050; 1050 / 1000 = 1, not > 1, so the chain pays 1.05 × what remains
+    // (1.0.5: 750, capped at what remains)
     const def = kami({ power: 25, harvest: { balance: 1000, last: 0, reset: 0, nodeAff: ['NORMAL'] } });
     const { spoils } = refLiquidationShares(25n, 60n, 1000n);
     expect(spoils).toBe(787n);
-    pair('LibKill.calcSpoils', 'killer power 60, victim power 25, bounty 1000', spoils, calcSpoils(kami({ power: 60 }), def), { cls: 'missing branch: ratio / precision > 1 is integer division', port: 750 });
+    pair('LibKill.calcSpoils', 'killer power 60, victim power 25, bounty 1000', spoils, calcSpoils(kami({ power: 60 }), def));
+    for (const power of [154, 155]) {
+      pair('LibKill.calcSpoils', `killer power ${power}, victim power 25, bounty 1000`, refLiquidationShares(25n, B(power), 1000n).spoils, calcSpoils(kami({ power }), def));
+    }
     // at power 154 the chain pays 1.99 ×; from 155 (ratio 2000) the full amount again
     expect(refShare('KAMI_LIQ_SPOILS', 154n, 1000n)).toBe(1990n);
     expect(refShare('KAMI_LIQ_SPOILS', 155n, 1000n)).toBe(1000n);
   });
 
-  it('DIVERGENCE (SERVED, missing branch): salvage ratio ≥ 1.0 — the chain reverts or pays amt; the port serves bounty × ratio', () => {
-    // victim power 120: ratio 1200, salvage 1.2 × the bounty, and the system's
-    // `bounty - salvage` underflows — the liquidation reverts on chain
+  it('RESOLVED in 1.1.0 (SERVED; was missing branch): salvage ratio ≥ 1.0 — the chain\'s salvage, and the revert it causes', () => {
+    // victim power 120: ratio 1200, salvage 1.2 × the bounty — the chain's
+    // calcSalvage value — and the system's `bounty - salvage` underflows: the
+    // liquidation reverts. The calc serves the chain's salvage; the preview
+    // marks the row ineligible (SALVAGE_EXCEEDS_BOUNTY) and its spoils are 0
+    // (test/liquidation-revert.test.ts asserts the served row)
     const def120 = kami({ power: 120, harvest: { balance: 1000, last: 0, reset: 0, nodeAff: ['NORMAL'] } });
     expect(() => refLiquidationShares(120n, 20n, 1000n)).toThrow(/underflow/);
-    pair('LibKill.calcSalvage', 'victim power 120 (the liquidation reverts on chain)', 'revert', calcSalvage(def120, 1000), { cls: 'missing branch: bounty − salvage underflows on chain', port: 1200 });
-    // victim power 250: ratio 2500, 2500 / 1000 = 2 > 1 → the chain pays amt
+    pair('LibKill.calcSalvage', 'victim power 120 (the liquidation reverts on chain)', refShare('KAMI_LIQ_SALVAGE', 120n, 1000n), calcSalvage(def120, 1000));
+    pair('LibKill.calcSpoils', 'killer power 20 on that victim (the chain reverts first; 0 served)', 0n, calcSpoils(kami({ power: 20 }), def120));
+    // victim power 250: ratio 2500, 2500 / 1000 = 2 > 1 → the whole bounty (1.0.5: 2500)
     const def250 = kami({ power: 250, harvest: { balance: 1000, last: 0, reset: 0, nodeAff: ['NORMAL'] } });
-    pair('LibKill.calcSalvage', 'victim power 250', refShare('KAMI_LIQ_SALVAGE', 250n, 1000n), calcSalvage(def250, 1000), { cls: 'missing branch: ratio / precision > 1 → amt', port: 2500 });
+    pair('LibKill.calcSalvage', 'victim power 250', refShare('KAMI_LIQ_SALVAGE', 250n, 1000n), calcSalvage(def250, 1000));
   });
 });
 
@@ -957,12 +992,11 @@ describe('LibExperience.calcLevelCost ↔ calcExperienceRequirement', () => {
   it.each([1, 2, 10, 30, 60])('level %i', (level) => {
     pair('LibExperience.calcLevelCost', `level ${level}`, refLevelCost(level), calcExperienceRequirement(m.world, m.components, level));
   });
-  it('equal through level 118; at 119 the float power is one XP low (Math.pow vs powWad, ≥ 2.5e13 XP)', () => {
-    for (let level = 1; level <= 118; level++) {
+  it('RESOLVED in 1.1.0: equal through level 200 (1.0.5: one XP low from level 119, Math.pow vs powWad)', () => {
+    for (let level = 1; level <= 200; level++) {
       expect(calcExperienceRequirement(m.world, m.components, level), `level ${level}`).toBe(Number(refLevelCost(level)));
     }
-    const chain = refLevelCost(119);
-    pair('LibExperience.calcLevelCost', 'level 119', chain, calcExperienceRequirement(m.world, m.components, 119), { cls: 'float power at ≥ 2.5e13 XP', port: Number(chain) - 1 });
+    pair('LibExperience.calcLevelCost', 'level 119', refLevelCost(119), calcExperienceRequirement(m.world, m.components, 119));
   });
 });
 
@@ -973,12 +1007,15 @@ describe('LibStat.calcTotal ↔ getStatFromUint().total', () => {
     pair('LibStat.calcTotal', 'base 70, shift 110, boost 0', refStatTotal(70n, 110n, 0n), getStatFromUint(packed(70, 110, 0)).total);
     pair('LibStat.calcTotal', 'base 20, shift 5, boost 200', refStatTotal(20n, 5n, 200n), getStatFromUint(packed(20, 5, 200)).total);
   });
-  it('DIVERGENCE (SERVED, rounding): a boost that leaves a fraction — the chain truncates (int32), the port does not', () => {
-    pair('LibStat.calcTotal', 'base 13, boost 50', refStatTotal(13n, 0n, 50n), getStatFromUint(packed(13, 0, 50)).total, { cls: 'rounding: int32 truncation', port: 13.65 });
-    pair('LibStat.calcTotal', 'base 33, boost −100', refStatTotal(33n, 0n, -100n), getStatFromUint(packed(33, 0, -100)).total, { cls: 'rounding: int32 truncation', port: 29.7 });
+  it('RESOLVED in 1.1.0 (SERVED; was rounding): a boost that leaves a fraction — truncated to whole points', () => {
+    // 1.0.5: 13.65 and 29.7
+    pair('LibStat.calcTotal', 'base 13, boost 50', refStatTotal(13n, 0n, 50n), getStatFromUint(packed(13, 0, 50)).total);
+    pair('LibStat.calcTotal', 'base 33, boost −100', refStatTotal(33n, 0n, -100n), getStatFromUint(packed(33, 0, -100)).total);
+    pair('LibStat.calcTotal', 'base −7, boost 150 (toward zero)', refStatTotal(-7n, 0n, 150n), getStatFromUint(packed(-7, 0, 150)).total);
   });
-  it('DIVERGENCE (SERVED, missing clamp): a negative base + shift — the chain floors the total at 0', () => {
-    pair('LibStat.calcTotal', 'base −5, shift 2', refStatTotal(-5n, 2n, 0n), getStatFromUint(packed(-5, 2, 0)).total, { cls: 'missing clamp at 0', port: -3 });
+  it('RESOLVED in 1.1.0 (SERVED; was missing clamp): a negative base + shift — floored at 0', () => {
+    // 1.0.5: −3
+    pair('LibStat.calcTotal', 'base −5, shift 2', refStatTotal(-5n, 2n, 0n), getStatFromUint(packed(-5, 2, 0)).total);
   });
 });
 
@@ -998,19 +1035,19 @@ describe('LibListing.calcBuyPrice / calcSellPrice, LibAuction.calcBuy (and LibGD
     pair('LibListing.calcBuyPrice', label, refListingBuy(p, 1), calcBuyPrice(listingOf(p), 1));
   });
 
-  it('DIVERGENCE (SERVED, precision slot): the deficit clamp — the chain caps in whole seconds, the port at exactly 3 periods', () => {
-    // prevSold·period/rate = 20·3600/69 = 1043.47… s, floored to 1043 on
-    // chain: its exponent stops 0.47 s short of 3 periods, so its price is a
-    // little higher and its ceil lands one unit above the port's
+  it('RESOLVED in 1.1.0 (SERVED; was precision slot): the deficit clamp counted in whole seconds', () => {
+    // prevSold·period/rate = 20·3600/69 = 1043.47… s, floored to 1043 as the
+    // chain floors it (1.0.5 clamped the exponent at exactly 3 periods: one unit low)
     const p = gda(13_985, 3_600, 955_868, 69, 20, 18_589);
-    const chain = refListingBuy(p, 1);
-    pair('LibListing.calcBuyPrice', 'clamped, 20·3600 / 69 not whole', chain, calcBuyPrice(listingOf(p), 1), { cls: 'precision slot: cap = floor(prevSold·period/rate) s', port: Number(chain) - 1 });
+    pair('LibListing.calcBuyPrice', 'clamped, 20·3600 / 69 not whole', refListingBuy(p, 1), calcBuyPrice(listingOf(p), 1));
   });
 
-  it('DIVERGENCE (SERVED, rounding): SCALED sell — the chain floors (buy × scale) / 1e9, the port serves the product', () => {
+  it('RESOLVED in 1.1.0 (SERVED; was rounding): SCALED sell — (buy × scale) / 1e9, floored', () => {
     const p = gda(100, 3_600, 900_000, 10, 5, 7_200);
     const buy = refListingBuy(p, 1);
-    pair('LibListing.calcSellPrice', 'SCALED 0.3 of a buy price of 86', (buy * 300_000_000n) / 1_000_000_000n, calcSellPrice(listingOf(p, { type: 'SCALED', scale: 0.3 }), 1), { cls: 'rounding: no floor on price × scale', port: 25.8 });
+    // 1.0.5: 25.8
+    pair('LibListing.calcSellPrice', 'SCALED 0.3 of a buy price of 86', (buy * 300_000_000n) / 1_000_000_000n, calcSellPrice(listingOf(p, { type: 'SCALED', scale: 0.3 }), 1));
+    pair('LibListing.calcSellPrice', 'SCALED 0.123456789 of 86, amount 1', (buy * 123_456_789n) / 1_000_000_000n, calcSellPrice(listingOf(p, { type: 'SCALED', scale: 0.123456789 }), 1));
   });
 
   it.each([
@@ -1022,11 +1059,18 @@ describe('LibListing.calcBuyPrice / calcSellPrice, LibAuction.calcBuy (and LibGD
     pair('LibAuction.calcBuy', label, refAuctionBuy(a, 1), calcAuctionPrice(auctionOf(a), NOW, sold, 1));
   });
 
-  it('DIVERGENCE (missing revert): an auction decayed below one unit — the chain reverts, the port serves 1', () => {
-    // 600 periods at 0.5: the cost underflows to 0 in SD59x18
+  it('RESOLVED in 1.1.0 (SERVED; was missing revert): an auction decayed below one unit — the chain reverts, the served price is null', () => {
+    // 600 periods at 0.5: the cost underflows to 0 in SD59x18 and calcBuy
+    // reverts. The ported curve (calcAuctionPrice, the client's) still says
+    // 1; the auctions answer (auctionPriceOut) serves null with the reason
     const a: AuctionIn = { value: 4_697, startTs: NOW - 36_000, period: 60, decay: 500_000, rate: 7, sold: 0 };
     expect(() => refAuctionBuy(a, 1)).toThrow(/negative GDA cost/);
-    pair('LibAuction.calcBuy', 'decayed 600 periods at 0.5', 'revert', calcAuctionPrice(auctionOf(a), NOW, 0, 1), { cls: 'missing revert (the cost rounds to 0)', port: 1 });
+    expect(calcAuctionPrice(auctionOf(a), NOW, 0, 1)).toBe(1);
+    const served = auctionPriceOut(auctionOf(a), NOW);
+    pair('LibAuction.calcBuy', 'decayed 600 periods at 0.5 (served)', 'revert', served.price === null ? `revert:${served.priceUnavailable}` : String(served.price), { cls: 'resolved: served null with priceUnavailable', port: 'revert:COST_ROUNDS_TO_ZERO' });
+    // an ordinary auction is served its price, unchanged
+    const ok: AuctionIn = { value: 100, startTs: NOW - 7_200, period: 3_600, decay: 900_000, rate: 10, sold: 5 };
+    expect(auctionPriceOut(auctionOf(ok), NOW)).toEqual({ price: Number(refAuctionBuy(ok, 1)) });
   });
 
   it('seeded sweeps — merchant buy price (amount 1) and auction price, at prices up to 1e9', () => {
@@ -1047,7 +1091,7 @@ describe('LibListing.calcBuyPrice / calcSellPrice, LibAuction.calcBuy (and LibGD
       return { label: `${value}, period ${period}, decay ${decay}, rate ${rate}, sold ${prevSold}, ${since} s`, chain, port: calcBuyPrice(listingOf(p), 1) };
     };
     sweep('LibListing.calcBuyPrice', 'equal (unclamped)', 4000, listingGen(false), [0], 0);
-    sweep('LibListing.calcBuyPrice', 'precision slot: cap = floor(prevSold·period/rate) s (clamped, not whole)', 20_000, listingGen(true), [0, -1], 52);
+    sweep('LibListing.calcBuyPrice', 'equal (clamped, not whole; resolved in 1.1.0 — 1.0.5: 52 one unit low)', 20_000, listingGen(true), [0], 0);
     sweep('LibAuction.calcBuy', 'equal', 4000, (rnd) => {
       const value = rnd(1, 20_000), period = [3_600, 86_400][rnd(0, 1)]!, decay = rnd(800_000, 999_000), rate = rnd(1, 100);
       const sold = rnd(0, 2_000), since = rnd(0, 6 * period);

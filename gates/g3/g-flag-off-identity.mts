@@ -264,7 +264,48 @@ const ADDITIVE_LEAVES_110 = ['levelCap', 'scavengeCost', 'scavengeAffinity', 'so
 const ADDITIVE_PATTERNS_110 = [
   /^yieldItem\.(index|name)$/,
   /^requirements(\[\d*\](\.(logic|type|index|value|for))?)?$/,
+  // item 7: an auction row's reason, present exactly when its price is null
+  // (the chain would refuse the buy) — never on this fixture at its pin
+  /^auctions\[\d+\]\.priceUnavailable$/,
 ];
+
+/** 1.1.0 item 7 (§3.19) changes VALUES on purpose, and names exactly which:
+ * a liquidation threshold the client served NEGATIVE (a defender's
+ * threshold-shift bonus) is the chain's 0 (LibKill.calcThreshold: `if
+ * (postShiftVal < 0) return 0`), and the row's margin moves by the same
+ * amount (margin = threshold − hp, hp unchanged). Allowed only on a node
+ * row's `liquidation.threshold` whose BASELINE value is negative and whose
+ * value now is 0, and on that same row's `margin` moving by exactly the
+ * threshold's change. And a `liquidation.recoil` may be LOWER by 1 to 3 HP:
+ * the client did not floor karma at KARMA_PREC (1e-3), so its recoil read
+ * high by up to ⌈strain / 1000⌉ (strains on this fixture stay under 3,000);
+ * an increase, or a drop of more, still fails. Exactness against the
+ * contract is test/formula-parity.test.ts's job (an independent
+ * transcription); this gate only bounds the departure from its frozen
+ * baselines. Any other value change still fails. */
+const THRESHOLD_LEAF_110 = /^(harvests\[\d+\]\.liquidation)\.threshold$/;
+const MARGIN_LEAF_110 = /^(harvests\[\d+\]\.liquidation)\.margin$/;
+const RECOIL_LEAF_110 = /^harvests\[\d+\]\.liquidation\.recoil$/;
+function isChainCorrection110(
+  path: string,
+  was: Record<string, unknown>,
+  now: Record<string, unknown>
+): boolean {
+  const t = THRESHOLD_LEAF_110.exec(path);
+  if (t) return typeof was[path] === 'number' && (was[path] as number) < 0 && now[path] === 0;
+  if (RECOIL_LEAF_110.test(path)) {
+    const drop = (was[path] as number) - (now[path] as number);
+    return typeof was[path] === 'number' && typeof now[path] === 'number' && drop >= 1 && drop <= 3;
+  }
+  const m = MARGIN_LEAF_110.exec(path);
+  if (!m) return false;
+  const tp = `${m[1]}.threshold`;
+  const [tw, tn, mw, mn] = [was[tp], now[tp], was[path], now[path]];
+  return (
+    typeof tw === 'number' && tw < 0 && tn === 0 &&
+    typeof mw === 'number' && typeof mn === 'number' && mn - mw === (tn as number) - tw
+  );
+}
 
 /** 1.0.0 leg B changes one VALUE on status: `upstreamPin`, ef898fc9 ->
  * ffda3963 (B7). Asserted against the built pin rather than masked blind,
@@ -623,10 +664,15 @@ for (const key of Object.keys(base1.cases)) {
 
   let mismatches = 0;
   const samples: Record<string, unknown>[] = [];
+  let corrected = 0;
   for (const p of b1Keys) {
     if (maskSet.has(p) || !nowKeys.has(p)) continue;
     comparedTotal++;
     if (JSON.stringify(b1[p]) !== JSON.stringify(n[p])) {
+      if (isChainCorrection110(p, b1, n)) {
+        corrected++;
+        continue;
+      }
       mismatches++;
       if (samples.length < 5) samples.push({ path: p, was: b1[p], now: n[p] });
     }
@@ -643,6 +689,7 @@ for (const key of Object.keys(base1.cases)) {
     additive052: allowedAdded.length,
     removed: removed.length,
     mismatches,
+    chainCorrected110: corrected,
   });
 }
 

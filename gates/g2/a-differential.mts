@@ -237,6 +237,29 @@ const FIELDS = ['health', 'healTime', 'cooldown', 'output', 'bounty', 'threshold
 let compared = 0;
 let mismatchCount = 0;
 const mismatches: Record<string, unknown>[] = [];
+
+/** 1.1.0 (§3.19) — THE NAMED ALLOWANCE. From 1.1.0 the liquidation calcs
+ * compute the chain's integers (LibKill), not the client's floats, so on
+ * `threshold` the port departs from the client in exactly two classes, each
+ * the CHAIN's value and each counted below:
+ *  - CLAMP: ours 0 where the client is negative. LibKill.calcThreshold
+ *    returns 0 when `base · ratio + shift` is negative (a defender's
+ *    DEF_THRESHOLD_SHIFT bonus); the client floors the negative product.
+ *  - FLOAT_FLOOR: ours exactly ONE above the client. The client floors a
+ *    float product that lands a hair below an exact integer (e.g. (0.2 · 1.2
+ *    − 0.2) · 200 = 7.9999… for the chain's 8).
+ * test/formula-parity.test.ts holds the port to an independent transcription
+ * of the contract; this gate only names the departures from the client.
+ * Every other field, and any other threshold difference, stays zero
+ * tolerance. */
+const chainCorrections = { thresholdClamp: 0, thresholdFloatFloor: 0 };
+const isChainCorrection = (f: string, ours: unknown, upstream: unknown): boolean => {
+  if (f !== 'threshold' || typeof ours !== 'number' || typeof upstream !== 'number') return false;
+  if (ours === 0 && upstream < 0) return ++chainCorrections.thresholdClamp > 0;
+  if (ours === upstream + 1) return ++chainCorrections.thresholdFloatFloor > 0;
+  return false;
+};
+
 for (const row of ours) {
   const other = theirs.get(row.i);
   if (!other) {
@@ -247,6 +270,7 @@ for (const row of ours) {
   for (const f of FIELDS) {
     compared++;
     if (!Object.is(row[f], other[f])) {
+      if (isChainCorrection(f, row[f], other[f])) continue;
       mismatchCount++;
       if (mismatches.length < 25) {
         mismatches.push({ i: row.i, field: f, ours: row[f], upstream: other[f] });
@@ -269,6 +293,7 @@ await writeMeasurement('g2a-differential', {
   upstreamMs,
   mismatches: mismatchCount,
   mismatchSamples: mismatches.slice(0, 25),
+  chainCorrections,
   match: mismatchCount === 0 && ours.length === theirs.size && ours.length > 0,
 });
 
@@ -286,5 +311,6 @@ pass('G2.a', {
   comparisons: compared,
   snapshotBlock: cache.blockNumber,
   pin: PIN,
+  chainCorrections,
 });
 process.exit(0);

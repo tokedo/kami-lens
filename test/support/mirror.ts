@@ -218,6 +218,9 @@ export type KamiSpec = {
   node?: number;
   /** HARVESTING only: false leaves the harvest entity out (the transient) */
   withHarvest?: boolean;
+  /** 1.1.0: stat bases other than the defaults (power 20, violence 15,
+   * harmony 15) */
+  stats?: { power?: number; violence?: number; harmony?: number };
 };
 
 export function addKami(m: SyntheticMirror, spec: KamiSpec): EntityIndex {
@@ -231,9 +234,9 @@ export function addKami(m: SyntheticMirror, spec: KamiSpec): EntityIndex {
   setComponent(c.State, e, { value: spec.state });
   const hp = spec.hp ?? { base: 100, sync: 80 };
   setComponent(c.Health, e, { value: packStat(hp.base, 0, 0, hp.sync) });
-  setComponent(c.Power, e, { value: packStat(20, 0, 0, 0) });
-  setComponent(c.Violence, e, { value: packStat(15, 0, 0, 0) });
-  setComponent(c.Harmony, e, { value: packStat(15, 0, 0, 0) });
+  setComponent(c.Power, e, { value: packStat(spec.stats?.power ?? 20, 0, 0, 0) });
+  setComponent(c.Violence, e, { value: packStat(spec.stats?.violence ?? 15, 0, 0, 0) });
+  setComponent(c.Harmony, e, { value: packStat(spec.stats?.harmony ?? 15, 0, 0, 0) });
   setComponent(c.Level, e, { value: spec.level ?? 12 });
   setComponent(c.Experience, e, { value: spec.experience ?? 5 });
   setComponent(c.LastTime, e, { value: spec.lastTime });

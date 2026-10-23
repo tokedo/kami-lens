@@ -57,7 +57,7 @@
         },
         "harvestsEligible": {
           "type": "integer",
-          "description": "§3.13 (0.5.2): `--eligible-only` ONLY, absent without the flag. Rows that passed the filter, out of harvestsTotal — which keeps reporting the WHOLE node. From 0.5.3 the filter is TARGET-SIDE (threshold > 0 and margin > 0), so this counts targets in reach; whether the attacker can act on them is attacker.blocked."
+          "description": "§3.13 (0.5.2): `--eligible-only` ONLY, absent without the flag. Rows that passed the filter, out of harvestsTotal — which keeps reporting the WHOLE node. From 0.5.3 the filter is TARGET-SIDE (threshold > 0 and margin > 0, and from 1.1.0 a salvage not above the bounty — a target the chain would refuse is not in reach), so this counts targets in reach; whether the attacker can act on them is attacker.blocked."
         },
         "harvestsServed": {
           "type": "number",
@@ -306,7 +306,7 @@
       "properties": {
         "eligible": {
           "type": "boolean",
-          "description": "canLiquidate(attacker, occupant) — the FULL pairing, attacker gates included. Unchanged at 0.5.3: --eligible-only no longer filters on this field, so a served row may read eligible: false with reason ATTACKER_STARVING."
+          "description": "canLiquidate(attacker, occupant) — the FULL pairing, attacker gates included — and, from 1.1.0 (§3.19), never true for a target whose liquidation the chain would revert (reason SALVAGE_EXCEEDS_BOUNTY). Unchanged at 0.5.3: --eligible-only no longer filters on this field, so a served row may read eligible: false with reason ATTACKER_STARVING."
         },
         "reason": {
           "type": "string",
@@ -314,9 +314,10 @@
             "ATTACKER_STARVING",
             "ATTACKER_COOLDOWN",
             "TARGET_HP_ABOVE_THRESHOLD",
-            "THRESHOLD_ZERO"
+            "THRESHOLD_ZERO",
+            "SALVAGE_EXCEEDS_BOUNTY"
           ],
-          "description": "§3.13 (0.5.0): present exactly when `eligible` is false. Upstream's own precedence, from the reference client's LiquidateButton tooltip: starving first, then cooldown, then the threshold comparison — with the degenerate no-threshold-at-all case called out separately, exactly as that tooltip does. The client's fifth branch (\"your kamis aren't on this node\") has no analogue here: the attacker is a general argument on this surface, never an own-only path (§3.6)."
+          "description": "1.1.0 (§3.19): SALVAGE_EXCEEDS_BOUNTY — the chain reverts the liquidation: the target's salvage exceeds its bounty (this row's salvage > vitals.musuAccrued), so HarvestLiquidateSystem's `bounty - salvage` underflows. Reported after every other reason, as the chain checks it last; on such a row spoils and recoil are 0. §3.13 (0.5.0): present exactly when `eligible` is false. Upstream's own precedence, from the reference client's LiquidateButton tooltip: starving first, then cooldown, then the threshold comparison — with the degenerate no-threshold-at-all case called out separately, exactly as that tooltip does. The client's fifth branch (\"your kamis aren't on this node\") has no analogue here: the attacker is a general argument on this surface, never an own-only path (§3.6)."
         },
         "threshold": {
           "type": "number"
@@ -327,15 +328,18 @@
         },
         "spoils": {
           "type": "number",
-          "minimum": 0
+          "minimum": 0,
+          "description": "1.1.0 (§3.19): the chain's LibKill.calcSpoils on what the salvage leaves — a spoils ratio in (1.0, 2.0) pays ratio × that amount (the chain's integer test `ratio / precision > 1`), from 2.0 the whole amount. An amount of the node's yield item."
         },
         "salvage": {
           "type": "number",
-          "minimum": 0
+          "minimum": 0,
+          "description": "1.1.0 (§3.19): the chain's LibKill.calcSalvage — ratio × the bounty below a ratio of 1.0; from 2.0 the whole bounty; in between it EXCEEDS the bounty and the chain reverts the liquidation (reason SALVAGE_EXCEEDS_BOUNTY). An amount of the node's yield item."
         },
         "recoil": {
           "type": "number",
-          "minimum": 0
+          "minimum": 0,
+          "description": "1.1.0 (§3.19): the chain's LibKill.calcRecoil, karma floored at 1e-3 as the chain floors it — until 1.1.0 it read up to ⌈strain/1000⌉ HP high."
         }
       }
     },
