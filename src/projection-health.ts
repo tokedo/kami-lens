@@ -19,7 +19,8 @@
 export type IncompleteRows = {
   /** every incomplete projection seen since process start */
   total: number;
-  /** single-entity reads refused with INCOMPLETE (kami, skills, an attacker) */
+  /** single-entity reads refused with INCOMPLETE (kami, skills, an attacker;
+   * from 1.1.0 a node whose yield item or scavenge entry is missing) */
   refused: number;
   /** list rows served with `incomplete: true` */
   flagged: number;

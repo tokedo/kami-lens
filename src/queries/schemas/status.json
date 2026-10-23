@@ -558,7 +558,7 @@
         "lastBlock",
         "lastAt"
       ],
-      "description": "1.0.0 (A1): kamis the mirror could not project completely, since process start. A single-entity read of one is REFUSED (INCOMPLETE); a list read keeps the row with `incomplete: true` and no vitals (FLAGGED). A status counter, deliberately NOT a tripwire: one case is legitimate (a HARVESTING kami between two logs of one transaction) and a tripwire would mark the daemon degraded for the rest of its life. Drives nothing.",
+      "description": "1.0.0 (A1): kamis the mirror could not project completely, since process start. A single-entity read of one is REFUSED (INCOMPLETE); a list read keeps the row with `incomplete: true` and no vitals (FLAGGED). A status counter, deliberately NOT a tripwire: one case is legitimate (a HARVESTING kami between two logs of one transaction) and a tripwire would mark the daemon degraded for the rest of its life. Drives nothing. 1.1.0 (§3.19): a `node` read refused because the mirror lacks the node's yield item or its scavenge registry entry is counted here too, as refused.",
       "properties": {
         "total": {
           "type": "number"

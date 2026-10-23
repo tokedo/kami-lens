@@ -87,8 +87,9 @@ import { getRoomByIndex } from 'network/shapes/Room';
 import { getExitsFor } from 'network/shapes/Room/exit';
 import { getRegistrySkills, getSkillByIndex } from 'network/shapes/Skill';
 import { parseBonusText } from 'network/shapes/Bonus';
+import { queryScavRegistry } from 'network/shapes/Scavenge';
 import { getScoresByFilter } from 'network/shapes/Score';
-import { getIsDisabled } from 'network/shapes/utils/component';
+import { getIsDisabled, getValue } from 'network/shapes/utils/component';
 import { getEntityByHash } from 'network/shapes/utils';
 import { getRateDisplay } from 'utils/numbers';
 import { getPhaseName, getPhaseOf } from 'utils/time';
@@ -1231,7 +1232,119 @@ export type NodeOut = {
      * block. LAST on the row, so a complete row's key order is unchanged. */
     incomplete?: true;
   }[];
+  /** 1.1.0 (§3.19): the item this node's harvests pay — the node entity's
+   * `ItemIndex` (the contracts' IndexItem, set by LibNode.create) resolved
+   * through the item registry, exactly the client's `drops[0]`. LAST on the
+   * object, after `harvests`, with the four fields below. */
+  yieldItem: { index: number; name: string };
+  /** 1.1.0 (§3.19): every CONDITION entity anchored at
+   * hash("node.requirement", index), as the client's getCondition shapes it
+   * (with `for`), ordered by condition entity id. HarvestStartSystem reverts
+   * "node reqs not met" unless the kami passes every one. Empty when the node
+   * has none. */
+  requirements: NodeRequirementOut[];
+  /** 1.1.0 (§3.19): the convenience read — the lowest value among the node's
+   * LEVEL / CURR_MAX conditions on the kami (for KAMI or no `for`): the
+   * HIGHEST level a kami may be to start a harvest here. The client's map
+   * reads the same condition as the node's level cap. null when the node has
+   * none. */
+  levelCap: number | null;
+  /** 1.1.0 (§3.19): the scavenge registry entity's `Value` —
+   * hash("registry.scavenge", "NODE", index), LibScavenge.create's tierCost:
+   * the scavenge points one reward tier costs on this node. */
+  scavengeCost: number;
+  /** 1.1.0 (§3.19): the scavenge registry entity's `Affinity`, verbatim —
+   * copied from the node's affinity when the scavenge bar was created
+   * (_NodeRegistrySystem.addScavenge). Absent when the mirror holds none. */
+  scavengeAffinity?: string;
 };
+
+/** 1.1.0 (§3.19): one node requirement, the client's `Condition` flattened.
+ * `index`, `value` and `for` are present exactly when the mirror holds the
+ * component — LibConditional.create stores none of them when it is zero or
+ * empty. `value` is VERBATIM as a string, the rule every condition surface
+ * here follows (a condition's value can be an entity id). */
+export type NodeRequirementOut = {
+  logic: string;
+  type: string;
+  index?: number;
+  value?: string;
+  for?: string;
+};
+
+/** The logic and target the contracts' node deploy writes for a level limit
+ * (deployment/world/state/rooms/nodes.ts addRequirement):
+ * `requirement.add(index, 'LEVEL', 'CURR_MAX', 0, limit, 'KAMI')` —
+ * LibConditional reads CURR_MAX as "current value <= target". */
+const LEVEL_CAP = { type: 'LEVEL', logic: 'CURR_MAX' } as const;
+
+/** 1.1.0 (§3.19): the node facts the vendored Node shape had always read and
+ * no query served. A node whose yield item or scavenge registry entry the
+ * mirror lacks is an INCOMPLETE projection (every node has both at the pin):
+ * refused, never served with a hollow field (the 1.0.0 A1 rule). */
+function nodeFactsOf(
+  mirror: Mirror,
+  node: ReturnType<typeof getNodeByIndex>,
+  nodeEntity: EntityIndex | undefined
+): Pick<NodeOut, 'yieldItem' | 'requirements' | 'levelCap' | 'scavengeCost' | 'scavengeAffinity'> {
+  const { world, components } = mirror;
+  const missing: string[] = [];
+  const storedItem =
+    nodeEntity !== undefined
+      ? (getComponentValue(components.ItemIndex, nodeEntity)?.value as number | undefined)
+      : undefined;
+  const item = node.drops?.[0];
+  if (storedItem === undefined || storedItem === null) missing.push('yield item index');
+  else if (!item?.entity || item.index !== Number(storedItem)) missing.push(`yield item ${storedItem} in the item registry`);
+  const scavEntity = queryScavRegistry(world, 'NODE', node.index);
+  if (scavEntity === undefined) missing.push('scavenge registry entry');
+  else if (!hasComponent(components.Value, scavEntity)) missing.push('scavenge tier cost');
+  if (missing.length > 0) refuseIncompleteNode(mirror, node.index, missing);
+
+  const requirements = [...(node.requirements ?? [])]
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+    .map(toNodeRequirementOut);
+  const caps = requirements
+    .filter(
+      (r) =>
+        r.type === LEVEL_CAP.type &&
+        r.logic === LEVEL_CAP.logic &&
+        (r.for === undefined || r.for === 'KAMI')
+    )
+    // LibConditional.safeGet reads an absent Value as 0
+    .map((r) => Number(BigInt(r.value ?? '0')));
+  const affinity = getComponentValue(components.Affinity, scavEntity!)?.value as string | undefined;
+  return {
+    yieldItem: { index: item!.index, name: item!.name },
+    requirements,
+    levelCap: caps.length > 0 ? Math.min(...caps) : null,
+    scavengeCost: getValue(components, scavEntity!),
+    ...(affinity !== undefined && affinity !== null ? { scavengeAffinity: affinity } : {}),
+  };
+}
+
+function toNodeRequirementOut(con: Condition): NodeRequirementOut {
+  const index = con.target?.index;
+  const value = con.target?.value;
+  return {
+    logic: con.logic ?? '',
+    type: con.target?.type ?? '',
+    ...(index !== undefined && index !== null ? { index: Number(index) } : {}),
+    ...(value !== undefined && value !== null ? { value: String(value) } : {}),
+    ...(con.for ? { for: con.for } : {}),
+  };
+}
+
+/** Refuse a node read the mirror cannot answer completely — the node-side
+ * twin of refuseIncomplete; the counter records it the same way. */
+function refuseIncompleteNode(mirror: Mirror, index: number, missing: string[]): never {
+  recordIncomplete('refused', mirror.blockNumber);
+  throw new QueryError(
+    'INCOMPLETE',
+    `node ${index} cannot be projected completely from the mirror at block ` +
+      `${mirror.blockNumber}: missing ${missing.join(', ')}. Refused rather than served with a hollow field.`
+  );
+}
 
 /** Node occupancy (identity-only by default — the 0.1.0 shape, unchanged).
  * withVitals adds per-occupant computed vitals through the same forced-
@@ -1292,6 +1405,8 @@ export function nodeQuery(
     throw new QueryError('NOT_FOUND', `node ${args.index} not in mirror`);
   }
   const nodeEntity = queryNodeEntityByIndex(world, args.index);
+  // 1.1.0 (§3.19): refuse before any row is projected
+  const facts = nodeFactsOf(mirror, node, nodeEntity);
   const harvestEntities = queryHarvests(world, components, nodeEntity);
   if (args.withVitals) KamiCache.clear();
 
@@ -1444,6 +1559,8 @@ export function nodeQuery(
     harvestsServed: served.length,
     ...(targetsAbsent !== undefined ? { targetsAbsent } : {}),
     harvests: served,
+    // 1.1.0 (§3.19): LAST, so every 1.0.5 key keeps its place
+    ...facts,
   };
 }
 

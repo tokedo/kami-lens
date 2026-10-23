@@ -14,7 +14,11 @@
         "roomIndex",
         "harvestsTotal",
         "harvestsServed",
-        "harvests"
+        "harvests",
+        "yieldItem",
+        "requirements",
+        "levelCap",
+        "scavengeCost"
       ],
       "properties": {
         "index": {
@@ -73,6 +77,81 @@
         "room": {
           "$ref": "#/$defs/RoomRef",
           "description": "§3.12 (enrich): roomIndex resolved. On roster, {index, name} only — the compact answer stays compact."
+        },
+        "yieldItem": {
+          "$ref": "#/$defs/YieldItem"
+        },
+        "requirements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/NodeRequirement"
+          },
+          "description": "1.1.0 (§3.19): every condition stored under the node's requirement anchor, hash(\"node.requirement\", index) — LibNode.addRequirement → LibConditional.createFor — in the client's own Condition shape, ordered by condition entity id. HarvestStartSystem reverts \"node reqs not met\" unless the kami passes every one; the check is made when a harvest STARTS. Empty when the node has none (at this pin the deploy writes one only for a node with a level limit)."
+        },
+        "levelCap": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "1.1.0 (§3.19): the highest level a kami may be to start a harvest here — the value of the node's LEVEL / CURR_MAX condition on the kami (LibConditional: current level <= value), the lowest if there were several. The deploy writes a level limit as requirement (LEVEL, CURR_MAX, value = the limit, for KAMI); the client's map reads the same condition as the node's level cap. null when the node has no such condition. It is a MAXIMUM, not a minimum."
+        },
+        "scavengeCost": {
+          "type": "number",
+          "minimum": 0,
+          "description": "1.1.0 (§3.19): the Value of the node's scavenge registry entity, hash(\"registry.scavenge\", \"NODE\", index) — LibScavenge.create's tierCost: the scavenge points one reward tier costs (LibScavenge.extractNumTiers: tiers = points / cost). The client's ScavBar.cost."
+        },
+        "scavengeAffinity": {
+          "type": "string",
+          "description": "1.1.0 (§3.19): the Affinity stored on the node's scavenge registry entity, verbatim — copied from the node's affinity when the scavenge bar was created (_NodeRegistrySystem.addScavenge); the contracts use it to name the per-affinity scavenge-claim counter. Absent when the mirror holds none."
+        }
+      }
+    },
+    "YieldItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "index",
+        "name"
+      ],
+      "description": "1.1.0 (§3.19): the item this node's harvests pay — the node entity's ItemIndex (the contracts' IndexItem, set by LibNode.create; LibHarvest.claim pays in LibNode.getItem) resolved through the item registry: the client's drops[0]. musuAccrued, spoils and salvage on this node's rows are amounts of this item. A node whose item the registry does not hold is refused as INCOMPLETE rather than served.",
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "NodeRequirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "logic",
+        "type"
+      ],
+      "description": "1.1.0 (§3.19): one node requirement, the client's Condition {logic, target {type, index?, value?}, for?} flattened. index, value and for are present exactly when the mirror holds them: LibConditional.create stores none of them when zero or empty.",
+      "properties": {
+        "logic": {
+          "type": "string",
+          "description": "LogicType verbatim, \"<HANDLER>_<OPERATOR>\" — e.g. CURR_MAX: the current value must be at most `value`."
+        },
+        "type": {
+          "type": "string",
+          "description": "The condition's target type verbatim, e.g. LEVEL."
+        },
+        "index": {
+          "type": "number"
+        },
+        "value": {
+          "type": "string",
+          "description": "VERBATIM, as a string (§1.2), as the mirror decodes the uint256 — the rule every condition surface here follows: a condition's value is not always a count."
+        },
+        "for": {
+          "type": "string",
+          "description": "The target shape the condition is checked on (KAMI, ACCOUNT, ROOM, GLOBAL); absent means the harvesting kami itself."
         }
       }
     },

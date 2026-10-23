@@ -91,16 +91,116 @@ export function makeMirror(
   return mirror;
 }
 
-export function addNode(m: SyntheticMirror, index: number, name = `node ${index}`): EntityIndex {
+/** An item registry entry, as LibItem registers one: the entity at
+ * hash("registry.item", index) with IsRegistry + ItemIndex + Name + Type.
+ * Idempotent — a second call for the same index returns the first entity. */
+export function addRegistryItem(
+  m: SyntheticMirror,
+  index: number,
+  name: string,
+  type = 'MISC'
+): EntityIndex {
+  const { world, components: c } = m;
+  const id = hashArgs(['registry.item', index], ['string', 'uint32']);
+  const existing = world.entityToIndex.get(id);
+  if (existing !== undefined) return existing;
+  const e = world.registerEntity({ id });
+  setComponent(c.EntityType, e, { value: 'ITEM' });
+  setComponent(c.IsRegistry, e, { value: true });
+  setComponent(c.ItemIndex, e, { value: index });
+  setComponent(c.Name, e, { value: name });
+  setComponent(c.Type, e, { value: type });
+  return e;
+}
+
+/** 1.1.0: what every node on the live world carries besides its identity —
+ * a yield item (ItemIndex, resolved through the item registry), a scavenge
+ * registry entry (Value = the tier cost, Affinity copied from the node), and,
+ * for a node with a level limit, the condition the deploy writes for it:
+ * (LEVEL, CURR_MAX, value = the limit, for KAMI) under the anchor
+ * hash("node.requirement", index). `null` leaves a fact OUT, to model a
+ * mirror that lacks it. */
+export type NodeFacts = {
+  /** yield item index (default 1); null = no ItemIndex on the node */
+  item?: number | null;
+  /** the registry name for `item` (default 'MUSU'); null = no registry entry */
+  itemName?: string | null;
+  /** scavenge tier cost (default 100); null = no scavenge registry entry */
+  scavCost?: number | null;
+  /** the node's affinity (default 'NORMAL'), copied onto the scavenge entry */
+  affinity?: string;
+  /** a level limit, written the way the deploy writes it */
+  levelLimit?: number;
+};
+
+export function addNode(
+  m: SyntheticMirror,
+  index: number,
+  name = `node ${index}`,
+  facts: NodeFacts = {}
+): EntityIndex {
   const { world, components } = m;
   const id = hashArgs(['node', index], ['string', 'uint32']);
   const e = world.registerEntity({ id });
+  const affinity = facts.affinity ?? 'NORMAL';
   setComponent(components.EntityType, e, { value: 'NODE' });
   setComponent(components.NodeIndex, e, { value: index });
   setComponent(components.Name, e, { value: name });
   setComponent(components.Type, e, { value: 'NORMAL' });
-  setComponent(components.Affinity, e, { value: 'NORMAL' });
+  setComponent(components.Affinity, e, { value: affinity });
   setComponent(components.RoomIndex, e, { value: index });
+  const item = facts.item === undefined ? 1 : facts.item;
+  if (item !== null) {
+    setComponent(components.ItemIndex, e, { value: item });
+    const itemName = facts.itemName === undefined ? 'MUSU' : facts.itemName;
+    if (itemName !== null) addRegistryItem(m, item, itemName);
+  }
+  const scavCost = facts.scavCost === undefined ? 100 : facts.scavCost;
+  if (scavCost !== null) {
+    const sid = hashArgs(['registry.scavenge', 'NODE', index], ['string', 'string', 'uint32']);
+    const se = world.registerEntity({ id: sid });
+    setComponent(components.EntityType, se, { value: 'SCAVENGE' });
+    setComponent(components.IsRegistry, se, { value: true });
+    setComponent(components.Type, se, { value: 'NODE' });
+    setComponent(components.Index, se, { value: index });
+    setComponent(components.Affinity, se, { value: affinity });
+    // the decoder renders a uint256 as '0x' + hex (engine/encoders/decode.ts)
+    setComponent(components.Value, se, { value: ('0x' + scavCost.toString(16)) as unknown as number });
+  }
+  if (facts.levelLimit !== undefined) {
+    addNodeCondition(m, index, {
+      type: 'LEVEL',
+      logic: 'CURR_MAX',
+      value: facts.levelLimit,
+      for: 'KAMI',
+    });
+  }
+  return e;
+}
+
+/** One CONDITION entity under a node's requirement anchor, as
+ * LibConditional.createFor writes it: Type + LogicType always; Index, Value
+ * and For only when non-zero / non-empty. */
+export function addNodeCondition(
+  m: SyntheticMirror,
+  nodeIndex: number,
+  con: { type: string; logic: string; index?: number; value?: number; for?: string },
+  salt = 0
+): EntityIndex {
+  const { world, components: c } = m;
+  const id = hashArgs(
+    ['test.condition', nodeIndex, con.type, con.logic, salt],
+    ['string', 'uint32', 'string', 'string', 'uint32']
+  );
+  const e = world.registerEntity({ id });
+  setComponent(c.Type, e, { value: con.type });
+  setComponent(c.LogicType, e, { value: con.logic });
+  if (con.index) setComponent(c.Index, e, { value: con.index });
+  if (con.value) setComponent(c.Value, e, { value: ('0x' + con.value.toString(16)) as unknown as number });
+  if (con.for) setComponent(c.For, e, { value: con.for });
+  setComponent(c.AnchorID, e, {
+    value: hashArgs(['node.requirement', nodeIndex], ['string', 'uint32']),
+  });
   return e;
 }
 
