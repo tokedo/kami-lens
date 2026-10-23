@@ -23,6 +23,9 @@
 // Client flags (every query): --prose (opt-in authored-prose fields, e.g.
 //   account bio), --no-authored (name-free mode: withhold authored-id with
 //   receipt), --stateless (kami only).
+// Account keys (1.1.0): account and inventory take an index, a name or an
+//   owner address; party an index or an owner address (an operator address
+//   also resolves, owner first — LibAccount.getByOwnerOrOperator's order).
 // Query ARGUMENTS are declared per query in the registry (REGISTRY[q].args)
 //   and are parsed by the query itself: --full (compact listings serve their
 //   whole shape and lift their row cap), --with-vitals (node), --stats (kami,
@@ -162,6 +165,9 @@ function usage(): never {
       '       kami-lens health [config flags]',
       '       kami-lens --version',
       `queries: status, ${QUERY_NAMES.join(', ')}`,
+      'account keys: account and inventory take an index, a name or an owner address;',
+      '  party takes an index or an owner address (0x + 40 hex, any case; an',
+      '  operator address also resolves, owner first)',
       "config flags: --config <path>, --chain-id, --world-address, --initial-block,",
       '  --rpc-url, --rpc-ws-url, --kamigaze-url, --kamiden-url,',
       '  --kamiden-buffer-capacity, --chat-enabled, --chat-max-bytes,',

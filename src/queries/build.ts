@@ -956,6 +956,40 @@ export type NativeBalanceReader = {
   nativeBalance: (address: string, blockTag: number) => Promise<bigint>;
 };
 
+/** 1.1.0 (§3.19): the ONE account-key rule, shared by `account`, `inventory`
+ * and `party`. An index, a name (account and inventory) or an ADDRESS. An
+ * address is tried as the account's OWNER first — the account entity whose id
+ * is uint256(uint160(owner)), found through its OwnerAddress — and then as its
+ * OPERATOR: the order of the contracts' LibAccount.getByOwnerOrOperator (from
+ * 04cb25f8 the rule of trades, item transfers, auction buys and gacha), and
+ * the order `account` has used for an address since §3.14. Lookups are
+ * case-insensitive for addresses (the mirror stores them normalised;
+ * queryByOwner / queryByOperator format first). Returns the client's
+ * NullAccount (index 0) when nothing matches. */
+export type AccountKey = { index?: number; name?: string; address?: string };
+
+export function accountByKey(
+  mirror: Mirror,
+  key: AccountKey,
+  options: Parameters<typeof getAccountByIndex>[3]
+): ReturnType<typeof getAccountByIndex> | undefined {
+  const { world, components } = mirror;
+  if (key.index !== undefined) return getAccountByIndex(world, components, key.index, options);
+  if (key.name !== undefined) return getAccountByName(world, components, key.name, options);
+  if (key.address !== undefined) {
+    const owned = getAccountByOwner(world, components, key.address, options);
+    if (owned.index) return owned;
+    const operated = getAccountByOperator(world, components, key.address, options);
+    return operated.index ? operated : owned;
+  }
+  return undefined;
+}
+
+/** The NOT_FOUND text every account-keyed read uses: the key as given. */
+function accountNotFound(key: AccountKey): QueryError {
+  return new QueryError('NOT_FOUND', `account ${key.index ?? key.name ?? key.address} not in mirror`);
+}
+
 /** `--slim` (0.5.2, §3.13): identity without the roster. The full answer
  * carries every kami the account owns, which is the right default for the
  * detail surface and the wrong shape for the one thing callers kept needing
@@ -976,7 +1010,6 @@ export async function accountQuery(
   enrich = false,
   rpc?: NativeBalanceReader
 ): Promise<AccountOut> {
-  const { world, components } = mirror;
   // config: calcCurrentStamina reads config.stamina.recovery (the Clock
   // fixture fetches the account the same way)
   const options = { kamis: true, config: true, ...(opts.prose ? { bio: true } : {}) };
@@ -984,28 +1017,11 @@ export async function accountQuery(
   // a caller rarely knows which it has, so both are tried — owner first, then
   // operator. Added because a real reader tried exactly this and got
   // NOT_FOUND: the address went down the NAME path, matched nothing, and the
-  // answer was indistinguishable from "no such account".
-  const byAddress = (): ReturnType<typeof getAccountByOwner> | undefined => {
-    const owned = getAccountByOwner(world, components, args.address!, options);
-    if (owned.index) return owned;
-    const operated = getAccountByOperator(world, components, args.address!, options);
-    return operated.index ? operated : owned;
-  };
-  const account =
-    args.index !== undefined
-      ? getAccountByIndex(world, components, args.index, options)
-      : args.name !== undefined
-        ? getAccountByName(world, components, args.name, options)
-        : args.address !== undefined
-          ? byAddress()
-          : undefined;
+  // answer was indistinguishable from "no such account". 1.1.0: the rule now
+  // lives in accountByKey, shared with inventory and party.
+  const account = accountByKey(mirror, args, options);
   if (!account) throw new QueryError('BAD_ARGS', 'account query needs an index, a name or an address');
-  if (!account.index) {
-    throw new QueryError(
-      'NOT_FOUND',
-      `account ${args.index ?? args.name ?? args.address} not in mirror`
-    );
-  }
+  if (!account.index) throw accountNotFound(args);
   // §3.13: slim answers before the chain read is even attempted
   if (args.slim === true) {
     const kamis = account.kamis ?? [];
@@ -1585,13 +1601,15 @@ export type PartyOut = {
  * answer and the `--full` answer agree about which rows come first. */
 export function partyQuery(
   mirror: Mirror,
-  args: { accountIndex: number; full?: boolean; stats?: boolean }
+  /** 1.1.0 (§3.19): `address` is the alternative to `accountIndex` — the
+   * accountByKey rule (owner, then operator) */
+  args: { accountIndex?: number; address?: string; full?: boolean; stats?: boolean }
 ): PartyOut {
-  const { world, components } = mirror;
-  const account = getAccountByIndex(world, components, args.accountIndex, { kamis: true });
-  if (!account.index) {
-    throw new QueryError('NOT_FOUND', `account ${args.accountIndex} not in mirror`);
-  }
+  const key: AccountKey =
+    args.accountIndex !== undefined ? { index: args.accountIndex } : { address: args.address };
+  const account = accountByKey(mirror, key, { kamis: true });
+  if (!account) throw new QueryError('BAD_ARGS', 'party needs an account index or an address');
+  if (!account.index) throw accountNotFound(key);
   const all = (account.kamis ?? [])
     .map((k) => kamiRow(mirror, k.entity, args.stats === true))
     .sort((a, b) => a.index - b.index);
@@ -2187,20 +2205,16 @@ export type InventoryOut = {
  * hides MUSU as UI layout, not as a data rule. */
 export function inventoryQuery(
   mirror: Mirror,
-  args: { index?: number; name?: string },
+  /** 1.1.0 (§3.19): `address` beside index and name — the accountByKey rule */
+  args: AccountKey,
   enrich = false
 ): InventoryOut {
-  const { world, components } = mirror;
-  const account =
-    args.index !== undefined
-      ? getAccountByIndex(world, components, args.index, { inventory: true })
-      : args.name !== undefined
-        ? getAccountByName(world, components, args.name, { inventory: true })
-        : undefined;
-  if (!account) throw new QueryError('BAD_ARGS', 'inventory query needs an account index or name');
-  if (!account.index) {
-    throw new QueryError('NOT_FOUND', `account ${args.index ?? args.name} not in mirror`);
+  const { components } = mirror;
+  const account = accountByKey(mirror, args, { inventory: true });
+  if (!account) {
+    throw new QueryError('BAD_ARGS', 'inventory query needs an account index, name or address');
   }
+  if (!account.index) throw accountNotFound(args);
   let unregistered = false;
   const items = cleanInventories(account.inventories ?? []).map((inv) => {
     const row: InventoryOut['items'][number] = {

@@ -127,6 +127,11 @@ const int = (s: string | undefined, what: string): number => {
 const optInt = (s: string | undefined, what: string): number | undefined =>
   s === undefined ? undefined : int(s, what);
 
+/** 1.1.0 (§3.19): an account ADDRESS as a lookup key — `0x` and 40 hex
+ * digits, any case (the §3.14 test `account` has used since 0.5.0). A shorter
+ * `0x…` string stays a name. */
+export const ACCOUNT_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+
 /** 1.0.0 (B2): `node --targets` — a comma-separated list of kami indices,
  * 1 to NODE_TARGETS_MAX of them (duplicates collapse). */
 export const NODE_TARGETS_MAX = 500;
@@ -199,7 +204,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     name: 'account',
     operatorArg: true,
     summary:
-      'account by index, name or 0x-address (bio only with --prose; gas balance when an RPC is configured; --slim serves identity with no roster and no chain read)',
+      'account by index, name or owner address (an operator address also resolves, owner first) (bio only with --prose; gas balance when an RPC is configured; --slim serves identity with no roster and no chain read)',
     args: ['--slim'],
     parseArgs: (positional) => {
       // FILTER THE FLAGS FIRST (0.5.2). This read `([key]) => …`, taking
@@ -217,7 +222,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
       // §3.14: an address is a third lookup key. Without this an address went
       // down the NAME path, matched nothing, and answered NOT_FOUND — which a
       // reader cannot tell from "this account does not exist".
-      if (/^0x[0-9a-fA-F]{40}$/.test(key)) return { address: key, slim };
+      if (ACCOUNT_ADDRESS.test(key)) return { address: key, slim };
       return /^\d+$/.test(key) ? { index: Number(key), slim } : { name: key, slim };
     },
     stateless: false,
@@ -306,20 +311,23 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     name: 'party',
     operatorArg: true,
     summary:
-      'account party report: kamis with full vitals (--full lifts the row cap, --stats adds the kami sheet\'s stat block + affinities)',
+      'account party report by account index or owner address (an operator address also resolves, owner first): kamis with full vitals (--full lifts the row cap, --stats adds the kami sheet\'s stat block + affinities)',
     args: ['--full', '--stats'],
     parseArgs: (positional) => {
-      const [accountIndex] = positional.filter((p) => !p.startsWith('--'));
-      return {
-        accountIndex: int(accountIndex, 'account index'),
-        full: positional.includes('--full'),
-        stats: positional.includes('--stats'),
-      };
+      const [key] = positional.filter((p) => !p.startsWith('--'));
+      const flags = { full: positional.includes('--full'), stats: positional.includes('--stats') };
+      // 1.1.0 (§3.19): an address is the second key; anything else must be
+      // an index, as before
+      if (key !== undefined && ACCOUNT_ADDRESS.test(key)) return { address: key, ...flags };
+      return { accountIndex: int(key, 'account index'), ...flags };
     },
     stateless: false,
     kamiden: false,
     build: (ctx, a) =>
-      partyQuery(ctx.mirror, a as { accountIndex: number; full?: boolean; stats?: boolean }),
+      partyQuery(
+        ctx.mirror,
+        a as { accountIndex?: number; address?: string; full?: boolean; stats?: boolean }
+      ),
   },
   roster: {
     name: 'roster',
@@ -446,15 +454,21 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
   inventory: {
     name: 'inventory',
     operatorArg: true,
-    summary: 'any-account item inventory by index or name',
+    summary:
+      'any-account item inventory by index, name or owner address (an operator address also resolves, owner first)',
     parseArgs: ([key]) => {
-      if (key === undefined) throw new QueryError('BAD_ARGS', 'inventory needs an account index or name');
+      if (key === undefined) {
+        throw new QueryError('BAD_ARGS', 'inventory needs an account index, name or address');
+      }
+      // 1.1.0 (§3.19): an address before the name path — without this an
+      // address went down the NAME path and answered NOT_FOUND (§3.14)
+      if (ACCOUNT_ADDRESS.test(key)) return { address: key };
       return /^\d+$/.test(key) ? { index: Number(key) } : { name: key };
     },
     stateless: false,
     kamiden: false,
     build: (ctx, a) =>
-      inventoryQuery(ctx.mirror, a as { index?: number; name?: string }, ctx.enrich),
+      inventoryQuery(ctx.mirror, a as { index?: number; name?: string; address?: string }, ctx.enrich),
   },
   room: {
     name: 'room',

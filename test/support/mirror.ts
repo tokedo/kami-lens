@@ -6,6 +6,7 @@
 // components.
 
 import { createWorld, EntityIndex, removeComponent, setComponent, World } from 'engine/recs';
+import { formatEntityID } from 'engine/utils';
 import { Components } from 'network/';
 import { createComponents } from 'network/components';
 import { hashArgs } from 'network/shapes/utils';
@@ -262,15 +263,29 @@ export function drop(m: SyntheticMirror, entity: EntityIndex, name: keyof Compon
 }
 
 /** An account owning the given (already added) kamis — OwnsKamiID is the
- * kami -> account join. */
-export function addAccount(m: SyntheticMirror, index: number, kamis: number[]): EntityIndex {
+ * kami -> account join. 1.1.0: with an `owner` address the account is keyed
+ * the way the contracts key it — entity id uint256(uint160(owner)) — and
+ * carries OwnerAddress (and OperatorAddress when given) in the mirror's
+ * normalised form (formatEntityID: lower-cased, leading zero nibble dropped). */
+export function addAccount(
+  m: SyntheticMirror,
+  index: number,
+  kamis: number[],
+  addresses: { owner?: string; operator?: string } = {}
+): EntityIndex {
   const { world, components: c } = m;
-  const id = hashArgs(['account', index], ['string', 'uint32']);
+  const id = addresses.owner
+    ? formatEntityID(addresses.owner)
+    : hashArgs(['account', index], ['string', 'uint32']);
   const e = world.registerEntity({ id });
   setComponent(c.EntityType, e, { value: 'ACCOUNT' });
   setComponent(c.AccountIndex, e, { value: index });
   setComponent(c.Name, e, { value: `account ${index}` });
   setComponent(c.RoomIndex, e, { value: 1 });
+  if (addresses.owner) setComponent(c.OwnerAddress, e, { value: formatEntityID(addresses.owner) });
+  if (addresses.operator) {
+    setComponent(c.OperatorAddress, e, { value: formatEntityID(addresses.operator) });
+  }
   for (const k of kamis) {
     const ke = world.entityToIndex.get(hashArgs(['kami.id', k], ['string', 'uint32']))!;
     setComponent(c.OwnsKamiID, ke, { value: id });
