@@ -147,7 +147,8 @@ of scope — is [docs/coverage.md](docs/coverage.md).
 Three answers gain facts the daemon already held, two queries take a new
 kind of key, and a test now checks the ported game formulas against the
 contracts' own arithmetic — and the values it found reading differently
-from the chain now read as the chain computes them.
+from the chain now read as the chain computes them. And an auction's price
+now skips the time the game paused it, as the chain's price does.
 
 **A node read names what it pays, who may start there, and what
 scavenging costs.** Every `node` answer, with or without `--full`,
@@ -227,17 +228,37 @@ agrees (the list, with what 1.0.5 served, is
     of the pairings in a full-world sample, where the chain uses 0; which
     targets are eligible does not change.
 
-**The upstream pin moves** to `04cb25f8` (2026-10-21). Eleven ported
-client files are updated and one is new (the soulbind read above); the
-rest are unchanged. In the game at that pin, a liquidated kami's salvage
-is paid in the node's yield item, no longer always MUSU — the item
-`yieldItem` names. `version` reads `1.1.0`; `--version` reads
-`kami-lens 1.1.0 (upstream Asphodel-OS/kamigotchi-open @ 04cb25f8f3009ca9b89e62e20bd3d7afa12e98ad)`.
+**An auction's price skips its pause window.** The chain halted for
+about nine days (2026-10-23 to 2026-11-02). So that the halt would not
+crash the gacha auctions' prices, the game gave each auction an optional
+pause window — set by the game's admin, at any time — and the chain's
+price now counts elapsed time from the auction's start pushed forward by
+the part of that window that has passed: nothing before the window, the
+clock standing still during it, the whole window skipped after it. The
+`auctions` answer prices the same way, so its `price` — and when a price
+is `null`, its `priceUnavailable` reason — is what a buy would be charged
+or refused. An auction with a window carries `pause: {start, end}` (unix
+seconds); an auction without one carries no such key. Whether an auction
+has STARTED still reads its `startTime`.
+
+**The upstream pin moves** to `04cb25f8` (2026-10-21) and then to
+`8fb6ea58` (2026-11-02). At `04cb25f8` eleven ported client files are
+updated and one is new (the soulbind read above); in the game at that pin,
+a liquidated kami's salvage is paid in the node's yield item, no longer
+always MUSU — the item `yieldItem` names. `8fb6ea58` brings the pause
+window (one new ported file, the price start; the new chain component is
+now mapped, so the daemon no longer logs it as unknown or reports
+`unknownComponentIds` in `status.degraded`), and a client type-cleanup
+commit whose few code changes sit in parts of the client this daemon
+never serves. The rest are unchanged. `version` reads `1.1.0`; `--version`
+reads
+`kami-lens 1.1.0 (upstream Asphodel-OS/kamigotchi-open @ 8fb6ea58be5f773909a4d6d8db32f4726512b8e0)`.
 
 Upgrade. If you validate answers with closed schemas, `node` gains five
 properties (`scavengeAffinity` optional) and the liquidation reason
 `SALVAGE_EXCEEDS_BOUNTY`, `kami` and `party` rows gain `soulboundUntil`, and
-an `auctions` row's `price` may be null beside a new `priceUnavailable`.
+an `auctions` row's `price` may be null beside a new `priceUnavailable`
+and gains an optional `pause`.
 
 ### What changed in 1.0.5, for the things that read this daemon
 

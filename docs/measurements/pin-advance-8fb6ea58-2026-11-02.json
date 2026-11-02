@@ -1,0 +1,301 @@
+{
+  "record": "upstream pin advance — classified diff (DESIGN §7, PORT_PLAN 'Order and pin advances')",
+  "date": "2026-11-02",
+  "from": "04cb25f8f3009ca9b89e62e20bd3d7afa12e98ad",
+  "to": "8fb6ea58be5f773909a4d6d8db32f4726512b8e0",
+  "toCommitDate": "2026-11-02",
+  "repo": "https://github.com/Asphodel-OS/kamigotchi-open (main only; commits cited by hash)",
+  "release": "1.1.0 item 8 (unreleased 1.1.0; branch lens-110)",
+  "commits": 3,
+  "commitList": [
+    "8fb6ea58 Per-auction pause window so a chain halt doesn't crash GDA prices (#2510)",
+    "42130a33 client: typecheck clean, ci checks types (#2508)",
+    "04ebfa6b Maintenance wall: per-deploy copy and a Discord link (#2506)"
+  ],
+  "headOfMain": "8fb6ea58 was the head of the mirror's main when the advance was taken (2026-11-02); nothing beyond it absorbed.",
+  "portedFilesChangedUpstream": 27,
+  "portedFilesUnchangedUpstream": 371,
+  "portedFilesDerivation": "From the banners, not from the previous record: every file under src/ whose banner names an upstream path — 398 (396 'vendor port' banners: 395 .ts + network/shapes/Trade/history.tsx; plus the `//` banners network/index.ts and network/comps.ts, the latter's phantom specifier still absent upstream). For each of the 397 real paths, `git diff --quiet 04cb25f8 8fb6ea58 -- <path>` in a blob-filtered clone of the mirror (every path present at both commits); src/abi/World.json (recorded in src/abi/README.md) is unchanged too.",
+  "portedFilesChanged": {
+    "src/app/cache/auction/base.ts": {
+      "upstream": "packages/client/src/app/cache/auction/base.ts",
+      "changedBy": [
+        "8fb6ea58"
+      ]
+    },
+    "src/app/cache/auction/functions.ts": {
+      "upstream": "packages/client/src/app/cache/auction/functions.ts",
+      "changedBy": [
+        "8fb6ea58"
+      ]
+    },
+    "src/app/cache/trade/history.ts": {
+      "upstream": "packages/client/src/app/cache/trade/history.ts",
+      "changedBy": [
+        "42130a33"
+      ]
+    },
+    "src/network/components/register.ts": {
+      "upstream": "packages/client/src/network/components/register.ts",
+      "changedBy": [
+        "8fb6ea58"
+      ]
+    },
+    "src/network/explorer/auctions/pricing.ts": {
+      "upstream": "packages/client/src/network/explorer/auctions/pricing.ts",
+      "changedBy": [
+        "8fb6ea58"
+      ]
+    },
+    "src/network/explorer/goals.ts": {
+      "upstream": "packages/client/src/network/explorer/goals.ts",
+      "changedBy": [
+        "42130a33"
+      ]
+    },
+    "src/network/shapes/Account/constants.ts": {
+      "upstream": "packages/client/src/network/shapes/Account/constants.ts",
+      "changedBy": [
+        "42130a33"
+      ]
+    },
+    "src/network/shapes/Allo/interpretation.ts": {
+      "upstream": "packages/client/src/network/shapes/Allo/interpretation.ts",
+      "changedBy": [
+        "42130a33"
+      ]
+    },
+    "src/network/shapes/Auction/constants.ts": {
+      "upstream": "packages/client/src/network/shapes/Auction/constants.ts",
+      "changedBy": [
+        "8fb6ea58",
+        "42130a33"
+      ]
+    },
+    "src/network/shapes/Auction/index.ts": {
+      "upstream": "packages/client/src/network/shapes/Auction/index.ts",
+      "changedBy": [
+        "8fb6ea58"
+      ]
+    },
+    "src/network/shapes/Auction/types.ts": {
+      "upstream": "packages/client/src/network/shapes/Auction/types.ts",
+      "changedBy": [
+        "8fb6ea58"
+      ]
+    },
+    "src/network/shapes/Goals/functions.ts": {
+      "upstream": "packages/client/src/network/shapes/Goals/functions.ts",
+      "changedBy": [
+        "42130a33"
+      ]
+    },
+    "src/network/shapes/Item/constants.ts": {
+      "upstream": "packages/client/src/network/shapes/Item/constants.ts",
+      "changedBy": [
+        "42130a33"
+      ]
+    },
+    "src/network/shapes/Kill/queries.ts": {
+      "upstream": "packages/client/src/network/shapes/Kill/queries.ts",
+      "changedBy": [
+        "42130a33"
+      ]
+    },
+    "src/network/shapes/Listing/constants.ts": {
+      "upstream": "packages/client/src/network/shapes/Listing/constants.ts",
+      "changedBy": [
+        "42130a33"
+      ]
+    },
+    "src/network/shapes/Npc/constants.ts": {
+      "upstream": "packages/client/src/network/shapes/Npc/constants.ts",
+      "changedBy": [
+        "42130a33"
+      ]
+    },
+    "src/network/shapes/Recipe/constants.ts": {
+      "upstream": "packages/client/src/network/shapes/Recipe/constants.ts",
+      "changedBy": [
+        "42130a33"
+      ]
+    },
+    "src/network/shapes/Skill/constants.ts": {
+      "upstream": "packages/client/src/network/shapes/Skill/constants.ts",
+      "changedBy": [
+        "42130a33"
+      ]
+    },
+    "src/network/shapes/Trade/index.ts": {
+      "upstream": "packages/client/src/network/shapes/Trade/index.ts",
+      "changedBy": [
+        "42130a33"
+      ]
+    },
+    "src/network/shapes/utils/addresses.ts": {
+      "upstream": "packages/client/src/network/shapes/utils/addresses.ts",
+      "changedBy": [
+        "42130a33"
+      ]
+    },
+    "src/network/shapes/utils/component.ts": {
+      "upstream": "packages/client/src/network/shapes/utils/component.ts",
+      "changedBy": [
+        "8fb6ea58"
+      ]
+    },
+    "src/types/ComponentsSchema.ts": {
+      "upstream": "packages/client/types/ComponentsSchema.ts",
+      "changedBy": [
+        "8fb6ea58"
+      ]
+    },
+    "src/types/ethers-contracts/index.ts": {
+      "upstream": "packages/client/types/ethers-contracts/index.ts",
+      "changedBy": [
+        "8fb6ea58",
+        "42130a33"
+      ]
+    },
+    "src/workers/sync/state/loaders.ts": {
+      "upstream": "packages/client/src/workers/sync/state/loaders.ts",
+      "changedBy": [
+        "42130a33"
+      ]
+    },
+    "src/workers/sync/stream/transform.ts": {
+      "upstream": "packages/client/src/workers/sync/stream/transform.ts",
+      "changedBy": [
+        "42130a33"
+      ]
+    },
+    "src/workers/sync/utils.ts": {
+      "upstream": "packages/client/src/workers/sync/utils.ts",
+      "changedBy": [
+        "42130a33"
+      ]
+    },
+    "src/workers/types.ts": {
+      "upstream": "packages/client/src/workers/types.ts",
+      "changedBy": [
+        "42130a33"
+      ]
+    }
+  },
+  "bannerRule": "Every ported banner names the new pin. The 371 ported files whose upstream path is byte-identical at 04cb25f8 and 8fb6ea58 (370 checked with `git diff --quiet`, plus network/comps.ts, still absent upstream) change only their banner line; the 27 that changed upstream are forward-ported below, and network/shapes/Auction/pricing.ts is newly ported. G5.d requires the pin on every vendor banner.",
+  "buckets": {
+    "formula-affecting": {
+      "client": {
+        "app/cache/auction/functions.ts": "TAKEN (8fb6ea58). calcPrice counts elapsed time from getPriceStart(auction, time) instead of auction.time.start. Same change in network/explorer/auctions/pricing.ts, the calc the daemon's `auctions` query serves.",
+        "app/cache/auction/base.ts": "TAKEN (8fb6ea58). get() re-reads the pause window on every read (one component read; an admin can set it at any time).",
+        "app/cache/trade/history.ts": "TAKEN (42130a33). Type-only: imports `Timestamps` (the type the Trade index now re-exports) instead of the phantom `Timestamp`."
+      },
+      "contracts/libraries": {
+        "LibAuction.sol": "calcBuy passes getPriceStart as the GDA start: StartTs pushed forward by the part of the pause window that has passed (elapsed(t) = t - startTs - clamp(t - pauseStart, 0, pauseEnd - pauseStart)). verifyRequirements (the not-started refusal) still reads StartTs.",
+        "LibAuctionRegistry.sol": "setPause (0,0 clears; one window per auction), getPause, packPause / unpackPause (uint64 start << 64 | uint64 end), getStartTs; remove() also removes TimePause."
+      }
+    },
+    "classification-affecting": {
+      "player-string write systems": "ChatSystem, AccountRegisterSystem, AccountSetNameSystem, AccountSetBioSystem, KamiNameSystem, KamiOnyxRenameSystem: unchanged.",
+      "clients/kamiden/proto.ts": "Unchanged. docs/string-classification.json is re-pinned to 8fb6ea58 and gains nothing: the new served `pause` block carries numbers only."
+    },
+    "state-affecting": {
+      "componentIDs.json / deploy.json": "One component added: TimePause, component.time.pause, keccak256 = 0x9ff2cdae496c6e761000b25def7fa234d4db19540d7fcf339e66ff95afdd1fc0 (computed independently with ethers), uint256 (Uint256BareComponent). MAPPED: network/components/register.ts (between LastTime and ResetTime, upstream's order) and types/ComponentsSchema.ts ({ keys: ['value'], values: [13] }).",
+      "systems": "_AuctionRegistrySystem gains setPause(itemIndex, pauseStart, pauseEnd), admin only: the auction must exist; a non-zero window must end after it starts, must have ended (pauseEnd <= block.timestamp) and must start at or after the auction's StartTs; (0, 0) clears it. create() returns LibAuctionRegistry.create's id. The admin set the window on auctions 10 and 11 at 2026-11-02 01:28:57Z (the lab's chain evidence; 2026-10-23T15:49:50Z → 2026-11-02T01:28:41Z).",
+      "runtime tripwire": "Before the mapping, every daemon boot logged `Unknown component: 0x9ff2cdae…fdd1fc0` once per windowed auction (two per boot) and status.degraded carried `unknownComponentIds:2` for the life of the process (the Mac daemon, 1.0.5, 2026-11-02T03:03:31Z boot). Mapping the component retires both; the live 10-minute check is the lab's gate."
+    },
+    "sync-affecting": {
+      "workers/sync/state/loaders.ts": "42130a33: fromStore returns lastStateValuesBlock/lastStateRemovalsBlock: 0 — the fix the port already carried as its own; the body now equals upstream's and its 'changes:' note is dropped.",
+      "workers/sync/stream/transform.ts": "42130a33: `decode(component, ecsEvent.value!)` — the non-null assertion the port already carried; the lens's hygiene try/catch and logIndex are unchanged.",
+      "workers/sync/utils.ts": "42130a33: the ethers Contract/JsonRpcProvider imports and createWorldTopics' { World: World & Contract } (both already in the port); createFetchWorldEventsInBlockRange's provider typed JsonRpcProvider (taken; every caller hands one).",
+      "workers/types.ts": "42130a33 retypes ContractConfig.abi as ethers' InterfaceAbi. NOT taken — the recorded type-only divergence below.",
+      "engine/queue/**, workers/recover/threads.d.ts, network/setup/setupMUDNetwork.ts": "Not ported (transaction queue, recover worker, browser network setup — swap point 1). setupMUDNetwork stops passing initialBlockNumber to the worker; the port's Worker.ts still reads it (workers/types.ts banner)."
+    },
+    "coverage-affecting": {
+      "modals/gacha/display/auctions (Chart, chartOptions), kami/hardcore/Stats, kamiPortal/Controls, party/kamis, pool/chartOptions": "Type-only (`as const` literals, optional props).",
+      "modals/trading/{management,history}, modals/marketplace/tabs/orders/History, fixtures/menu/buttons/Crafting, modals/map/RoomInfo, modals/studio/AnimationStudio": "Client display fixes 42130a33 lists (offers-table item tooltips, the order history's 'specific' bid filter, the crafting menu's portal button, the room owner line, a localhost-only studio). Presentation; no chain fact the daemon does not serve or list as a coverage row.",
+      "components/boot/MaintenanceScreen.tsx, vite-env.d.ts (04ebfa6b)": "The maintenance wall's per-deploy copy and Discord link — boot UI, not ported.",
+      "the auction surface": "SERVED from this advance: `auctions` prices on the chain's elapsed time (the window skipped) and carries `pause` when a window is set."
+    },
+    "runtime change, unreachable in the lens": {
+      "network/shapes/Kill/queries.ts": "42130a33: queryForKiller / queryForVictim return [] (kills are world events; IsKill no longer exists). Not referenced outside shapes/Kill: their only callers are Kill/getters.ts, whose getForKiller/getForVictim are reached only from network/shapes/Kami/battle.ts getBattles (exported as getKamiBattles, uncalled; its call in Kami/types.ts is commented out), and app/cache/kami/getters.ts getKamiBattles (exported, uncalled). The served `battles` history uses the Kamiden client, not these queries. At 04cb25f8 the same calls would have thrown on Has(undefined).",
+      "network/shapes/Goals/functions.ts + network/explorer/goals.ts": "42130a33: canClaim reads contribution.value (it read a missing `score`); goals.contributions passes (components, goalID) in the right order. Unreferenced in src (goals are not served — docs/coverage.md 'goal' row); test/clock.test.ts reads the explorer tree only as a static wall-clock guard.",
+      "workers/sync/state/loaders.ts": "42130a33: caches loaded from the store start their value and removal cursors at 0. The lens already carried lastStateValuesBlock/lastStateRemovalsBlock: 0 as its own documented fix; after the port the body equals upstream's, and the lens's 'changes:' note is dropped."
+    },
+    "null objects (42130a33: the Null* constants match their shapes)": {
+      "Item/constants.ts NullItem": "gains rarity: 0, effects.equip: [], is.disabled: false. Served defaults unchanged: toItemOut / toInventoryItemOut serve `rarity: item.rarity ?? 0` and `disabled` only when true, itemEnrichment serves `effects.equip ?? []`, itemRegistryEnrichment `is.disabled ?? false`; `item <index>` refuses NOT_FOUND for an unregistered index.",
+      "Account/constants.ts NullAccount": "reputation gains mina: 0, nursery: 0. Never served: `account` refuses NOT_FOUND on index 0 before projecting `reputation`; kami/node owner rows serve only index and name, and only when the index is non-zero.",
+      "Listing/constants.ts NullListing": "gains payItem: NullItem, loses buy.currency. Returned only by getListingBy (network/explorer/listings, unserved); build.ts's merchant rows read `listing.payItem`, never `buy.currency`.",
+      "Npc/constants.ts NullNPC": "gains listings: []. `merchant <index>` refuses NOT_FOUND on a missing NPC before reading `listings`.",
+      "Recipe/constants.ts NullRecipe": "gains type: ''. Recipes are not served (app/cache/recipes and network/explorer/recipes are unreferenced by src/queries).",
+      "Skill/constants.ts NullSkill": "gains entity: 0. The served skill enrichment reads only description and bonuses.",
+      "Auction/constants.ts NullAuction": "loses the undeclared items block (42130a33) and gains pause: { start: 0, end: 0 } (8fb6ea58). `auctions` serves only rows with an auctionItem index, which NullAuction lacks.",
+      "Allo/interpretation.ts": "the synthesized BONUS, DROPTABLE and STAT entries gain entity: 0. Served allo text is projected to {name, description} only (toAlloOut)."
+    },
+    "type-only (42130a33)": {
+      "network/shapes/Trade/index.ts": "re-exports the Timestamps type.",
+      "network/shapes/utils/addresses.ts": "`world.entities[...] as Hex` into viem's pad (the port's two @ts-expect-error dropped).",
+      "network/explorer/goals.ts, Account/Item/Listing/Npc/Recipe/Skill/Auction constants, Goals/functions.ts, Kill/queries.ts, trade/history.ts, Allo/interpretation.ts": "the port's @ts-expect-error directives for these upstream type defects are dropped with the fix; Allo/interpretation.ts keeps two, narrowed to the placeholder png namespace used as `image` (a type error against the port's asset shim).",
+      "types/ethers-contracts/index.ts": "upstream drops the factory re-exports (42130a33) and adds the TimePauseComponent type (8fb6ea58); the port keeps only the World type line, unchanged."
+    }
+  },
+  "typeOnlyDivergence": {
+    "workers/types.ts ContractConfig.abi": "Upstream (42130a33) types it as ethers' InterfaceAbi, its setup handing the raw ABI. The port keeps `abi: Interface` and the Interface import: src/daemon.ts, gates/g1/lib.mts and the test readers hand a constructed Interface, and the range reader (workers/sync/utils.ts iface()) accepts either. No runtime difference. Recorded in the file's banner (lab ruling, 2026-11-02, option a)."
+  },
+  "forwardPorted": {
+    "network/components/register.ts": "TimePause: defineNumberComponent(world, 'TimePause', 'component.time.pause'). Verbatim.",
+    "types/ComponentsSchema.ts": "the 0x9ff2cdae… key → { keys: ['value'], values: [13] }. Verbatim.",
+    "network/shapes/utils/component.ts": "getTimePause (the raw packed value, or undefined). Verbatim.",
+    "network/shapes/Auction/{types,constants,index}.ts": "Auction.time.pause (PauseWindow), read in get(); NullAuction.time.pause; getAuctionPriceStart export. Verbatim (constants.ts also loses `items`, 42130a33).",
+    "app/cache/auction/{base,functions}.ts, network/explorer/auctions/pricing.ts": "upstream's change taken; the lens's clock changes kept (§3.8: clock.monotonicMs in base.ts, clock.now in the two price calcs).",
+    "the 19 files 42130a33 touched": "taken as upstream has them at 8fb6ea58, one pin for the vendored tree; per-file notes in the buckets above."
+  },
+  "newlyPorted": [
+    "network/shapes/Auction/pricing.ts (new upstream at 8fb6ea58): PauseWindow, unpackPause (uint64 start << 64 | uint64 end; bigint, number or the decoder's hex string; {0,0} when unset), getPriceStart (mirrors LibAuction.getPriceStart). Verbatim. G5.d vendor 395 → 396."
+  ],
+  "lensChanges": {
+    "src/queries/feeds.ts auctionPriceOut": "the exponent counts elapsed time from getPriceStart(a, nowSec) (the ported calcPrice already does); the STARTED check stays on a.time.start (LibAuction.verifyRequirements reads StartTs) — lab ruling, 2026-11-02.",
+    "src/queries/feeds.ts AuctionOut / auctionsQuery": "optional `pause: {start, end}` (unix seconds) after startTime, present only when start < end.",
+    "src/queries/schemas/auctions.json": "`pause`: closed object, start and end required numbers, description stating the rule; `price` description names the price start.",
+    "src/queries/registry.ts": "the auctions summary names the window."
+  },
+  "tests": {
+    "test/auction-pause.test.ts": "upstream app/cache/auction/functions.test.ts @ 8fb6ea58, 8 cases, verbatim but for calcPrice's import path. At 7131a52: 7 red, 1 green (upstream's history-unchanged guard).",
+    "test/auctions-pause-served.test.ts": "3 lens cases through the served auctions row (synthetic START = 1_700_000_000, a 3-day window). At 7131a52: 3 red.",
+    "test/formula-parity.test.ts": "refAuctionBuy gains getPriceStart (+ packPause / unpackPause, block.timestamp = NOW); 6 windowed it.each cases (each asserted with and without the window), 1 served case, 1 windowed 4,000-draw sweep (3,621 samples, 0 divergent). 86 → 93 cases; the manifest map is unchanged (40 keys: 30 direct, 3 composite, 7 unported). At 7131a52: 12 red (the 7 new, and the 5 existing auction cases whose shared fixture now reads the window through the port's unpackPause).",
+    "test/clock.test.ts": "308 → 309: its static wall-clock guard picks up the new network/shapes/Auction/pricing.ts.",
+    "suite": "1,022 tests in 55 files → 1,041 in 57 (+19)."
+  },
+  "g5dCounts": {
+    "before": {
+      "files": 442,
+      "vendor": 395,
+      "native": 47
+    },
+    "after": {
+      "files": 443,
+      "vendor": 396,
+      "native": 47
+    }
+  },
+  "gatesToRerun": [
+    "G5.d",
+    "G5.c",
+    "G3.a",
+    "G3.f",
+    "G3.g",
+    "the parity test",
+    "G2.a (needs gates/.artifacts/upstream-8fb6ea58 — the lab's)",
+    "G2.b (where runnable)",
+    "G1.b",
+    "G2.d",
+    "G5.a / G5.b (docker)",
+    "status.tripwires.unknownComponentIds = 0 after 10 minutes LIVE"
+  ],
+  "gateResults": "hermetic, 2026-11-02, at the item-8 head: typecheck 0, lint 0, build 0, npm test 0 (1,041 / 57); G5.d PASS (443 / 396 / 47; --version names 8fb6ea58), G5.c PASS (records -110-item8); G3.a PASS (1,418 validated, 188 enriched), G3.f PASS (43 cases), G3.g PASS against the 100a baselines (40 cases, 34,753 compared, 460 masked, auctions 22 compared / 0 added / 0 mismatched; no allowance needed — record -110-item8-100a). The live gates are the lab's.",
+  "forwardPortedCommits": {
+    "8fb6ea58": "network/shapes/Auction/pricing.ts (new), Auction/{types,constants,index}.ts, utils/component.ts, network/components/register.ts, types/ComponentsSchema.ts, app/cache/auction/{base,functions}.ts, network/explorer/auctions/pricing.ts, types/ethers-contracts/index.ts (banner only)",
+    "42130a33": "app/cache/trade/history.ts, network/explorer/goals.ts, network/shapes/{Account,Auction,Item,Listing,Npc,Recipe,Skill}/constants.ts, Allo/interpretation.ts, Goals/functions.ts, Kill/queries.ts, Trade/index.ts, utils/addresses.ts, workers/sync/state/loaders.ts, workers/sync/stream/transform.ts, workers/sync/utils.ts, workers/types.ts (banner + recorded divergence), types/ethers-contracts/index.ts (banner only)",
+    "04ebfa6b": "none"
+  }
+}

@@ -1670,6 +1670,34 @@ a defender's threshold-shift bonus drives the client's threshold negative
 where the chain clamps at 0 — which is why the gate that runs over the whole
 snapshot stays beside the test that runs over chosen inputs.
 
+**The auction pause window (the pin advanced again, to `8fb6ea58`, settled
+2026-11-02).** The chain halted for nine days (2026-10-23 to 2026-11-02),
+and a gradual Dutch auction decays with wall time, so the returning chain
+would have priced the gacha auctions as if nine days of decay had passed.
+The studio's answer, shipped with the return: each auction may carry ONE
+pause window — `TimePause`, a uint256 packing `uint64 start << 64 | uint64
+end`, set by the admin (`_AuctionRegistrySystem.setPause`; the window must
+have ended and start at or after the auction's start; `(0, 0)` clears it)
+— and `LibAuction.calcBuy` counts elapsed time from `getPriceStart`: the
+auction's start pushed forward by the part of the window that has passed,
+nothing before the window, time standing still during it, the whole window
+after it. The port takes it whole: the shape reads the window
+(`network/shapes/Auction/pricing.ts`, ported verbatim), both ported price
+calcs count from `getPriceStart`, and the auction cache re-reads the window
+on EVERY get rather than at its usual refresh cadence — upstream's own
+comment says why: an admin can set it at any time, right after a halt, and
+a cached window would quote a price the next buy does not charge. The
+serving site's null-price decision (§3.19 above, `auctionPriceOut`) reads
+the same elapsed time, but its STARTED test stays on the auction's own
+start, because the chain's not-started refusal reads `StartTs` and not the
+price start. The row serves the window as `pause` only when one is set, so
+no earlier answer moves. What found it was the §7 runtime tripwire, not a
+diff: the first boot after the return logged `Unknown component: 0x9ff2…`
+once per windowed auction and carried `unknownComponentIds` in
+`status.degraded` for the life of the process — contract-side drift
+announcing itself before anyone had read the commit. Mapping the component
+retires both.
+
 ## 4. Architecture
 
 ### 4.1 Sync layer

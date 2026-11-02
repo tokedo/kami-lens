@@ -1,8 +1,8 @@
 # Coverage — per-release conformance checklist
 
 Perception parity is defined against the pinned upstream commit
-(`UPSTREAM` file; currently `04cb25f8`, advanced from `ffda3963` in
-1.1.0 and from `ef898fc9` in 1.0.0). This table is the release
+(`UPSTREAM` file; currently `8fb6ea58`, advanced from `ffda3963` to
+`04cb25f8` and then `8fb6ea58` in 1.1.0, and from `ef898fc9` in 1.0.0). This table is the release
 artifact behind README principle 1: each release states, per
 player-visible surface, whether kami-lens serves it — and a gap is
 only ever a documented row, never an omission. Seeded from the
@@ -822,6 +822,19 @@ part of that row's surface). **Newly accepted keys:** `inventory` and
 did. **Test-only:** the contract-formula parity test and its divergence
 list (`docs/measurements/formula-parity-2026-10-23.md`) change no row's
 status.
+
+**The pin advances again**, from `04cb25f8` to `8fb6ea58` (3 commits; the
+classified diff is `docs/measurements/pin-advance-8fb6ea58-2026-11-02.json`).
+Its state-affecting bucket adds one component, `TimePause` — **mapped**
+(the auction pause window). Its coverage-affecting bucket: the modal and
+fixture edits of `42130a33` are type fixes plus client display fixes (the
+trading tabs' item tooltips, the marketplace order history's bid filter,
+the crafting menu's portal button, the room info's owner line) —
+presentation, no chain fact this daemon does not already serve or list —
+and `04ebfa6b`'s maintenance wall is boot UI. **Newly served on the `auctions` surface:** the price
+counts elapsed time from the chain's price start (the pause window
+skipped), and a row with a window carries it as `pause`. No row's status
+changes.
 
 ## Maintenance
 
