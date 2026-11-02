@@ -37,6 +37,7 @@ import { EntityID, EntityIndex } from 'engine/recs';
 import { formatEntityID } from 'engine/utils';
 import { auctions as explorerAuctions } from 'network/explorer/auctions';
 import { calcPrice } from 'network/explorer/auctions/pricing';
+import { getPriceStart } from 'network/shapes/Auction/pricing';
 import { quests as explorerQuests } from 'network/explorer/quests';
 // upstream quirk: network/explorer/trades/index.ts is EMPTY (no exports);
 // the explorer assembly imports ./trades/trades directly — so do we
@@ -464,7 +465,16 @@ const PRB_EXP2_MAX = 192;
  * 2^192 exp2 itself reverts (BEYOND_FIXED_POINT_RANGE). Until 1.1.0 the first
  * case served a price of 1 (the client's ceil of a vanishing float) and the
  * second a float the chain cannot reach. Otherwise — and for an auction that
- * has not started — the ported curve's price, unchanged. */
+ * has not started — the ported curve's price, unchanged.
+ *
+ * 1.1.0 item 8 (pin 8fb6ea58): the elapsed time is the chain's — counted
+ * from LibAuction.getPriceStart, the start pushed forward by the part of the
+ * auction's pause window that has passed (none before it, time standing
+ * still during it, the whole window after it) — in the exponent here and in
+ * the ported calcPrice alike, so the reason and the price read the same
+ * clock as calcBuy. The STARTED check stays on `time.start`: the chain's
+ * not-started refusal (LibAuction.verifyRequirements) reads TimeStart, not
+ * the price start. */
 export function auctionPriceOut(
   a: Parameters<typeof calcPrice>[0],
   nowSec: number
@@ -473,7 +483,8 @@ export function auctionPriceOut(
   // a started auction only: before its start the chain's `block.timestamp −
   // startTs` underflows instead — a different condition, served as before
   if (nowSec >= a.time.start && value > 0 && period > 0 && decay > 0 && decay !== 1 && rate > 0) {
-    const exponent = ((nowSec - a.time.start) / period - a.supply.sold / rate) * Math.log2(decay);
+    const elapsed = nowSec - getPriceStart(a, nowSec);
+    const exponent = (elapsed / period - a.supply.sold / rate) * Math.log2(decay);
     if (exponent >= PRB_EXP2_MAX) return { price: null, priceUnavailable: 'BEYOND_FIXED_POINT_RANGE' };
     if (exponent < Number(PRB_EXP2_MIN) / 1e18) return { price: null, priceUnavailable: 'COST_ROUNDS_TO_ZERO' };
   }

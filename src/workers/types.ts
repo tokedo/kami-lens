@@ -1,13 +1,13 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi-open @ 04cb25f8f3009ca9b89e62e20bd3d7afa12e98ad
+ * upstream: Asphodel-OS/kamigotchi-open @ 8fb6ea58be5f773909a4d6d8db32f4726512b8e0
  * path:     packages/client/src/workers/types.ts
  * changes:  SyncWorkerConfig gains initialBlockNumber?: number and
- *           dataDir?: string. Upstream
- *           passes it at runtime (setupMUDNetwork startSync spreads it into
- *           the worker config) but the type omits it (vite-transpiled,
- *           never typechecked). The port's replay-floor hygiene fix in
- *           Worker.ts reads it, so the type now tells the truth. dataDir
+ *           dataDir?: string. Upstream passed initialBlockNumber at runtime
+ *           (setupMUDNetwork startSync spread it into the worker config)
+ *           while the type omitted it, and from 42130a33 drops it as unused;
+ *           the port's replay-floor hygiene fix in Worker.ts reads it, so the
+ *           type keeps it. dataDir
  *           is the storage-backend injection the browser never needed
  *           (IndexedDB is ambient; the file-snapshot store is not —
  *           swap point 3). 0.6.0 adds reconcileIntervalMs (DESIGN §3.17,
@@ -18,7 +18,13 @@
  *           logIndex and appliedMark (and AppliedMark, MARK_TXHASH); 1.0.1
  *           corrects what logIndex means (per transaction) and adds
  *           transactionIndex, final and reconcileCursor (DESIGN §3.18).
- *           Everything else verbatim.
+ *           Type-only divergence (1.1.0, pin 8fb6ea58): upstream 42130a33
+ *           retypes ContractConfig.abi as ethers' InterfaceAbi (its setup
+ *           hands the raw ABI); the port keeps `abi: Interface` and the
+ *           Interface import, because the daemon (src/daemon.ts), the gate
+ *           reader (gates/g1/lib.mts) and the test readers hand a constructed
+ *           Interface, and the range reader (workers/sync/utils.ts) accepts
+ *           either. No runtime difference. Everything else verbatim.
  * history:  forward-ported in 0.6.2 from @ 21f419e63e0a7f6b642c255efeb89dd1c288de1c
  *           while that commit was ahead of the pin; the pin now includes it:
  *           stateCdnUrl?: string.

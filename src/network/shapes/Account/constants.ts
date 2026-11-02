@@ -1,10 +1,8 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi-open @ 04cb25f8f3009ca9b89e62e20bd3d7afa12e98ad
+ * upstream: Asphodel-OS/kamigotchi-open @ 8fb6ea58be5f773909a4d6d8db32f4726512b8e0
  * path:     packages/client/src/network/shapes/Account/constants.ts
- * changes:  one @ts-expect-error — upstream type defect at the pin (vite
- *           never typechecks): NullAccount.reputation omits the mina/nursery
- *           fields its type requires. Body otherwise verbatim.
+ * changes:  none
  */
 
 import { EntityID, EntityIndex } from 'engine/recs';
@@ -22,9 +20,10 @@ export const NullAccount: Account = {
 
   coin: 0,
   roomIndex: 0,
-  // @ts-expect-error upstream defect at the pin: omits mina/nursery
   reputation: {
     agency: 0,
+    mina: 0,
+    nursery: 0,
   },
   stamina: { base: 0, shift: 0, boost: 0, sync: 0, rate: 0, total: 20 },
   time: {

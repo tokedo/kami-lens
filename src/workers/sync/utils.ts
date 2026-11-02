@@ -1,15 +1,15 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi-open @ 04cb25f8f3009ca9b89e62e20bd3d7afa12e98ad
+ * upstream: Asphodel-OS/kamigotchi-open @ 8fb6ea58be5f773909a4d6d8db32f4726512b8e0
  * path:     packages/client/src/workers/sync/utils.ts
- * changes:  type-hole fixes only (upstream is vite-transpiled and never
- *           typechecked; no behavior change):
- *           - createWorldTopics types its contract map as
- *             { World: World & Contract } — the bare typechain World does
- *             not satisfy the Contracts index-signature constraint;
- *           - (until 1.0.0) fetchEventsInBlockRange received `provider as
- *             JsonRpcProvider`; the 1.0.0 range reader below talks to the
- *             provider's raw `_send` instead and no longer calls it.
+ * changes:  The type-hole fixes this port carried until 8fb6ea58 —
+ *           createWorldTopics typed { World: World & Contract }, the ethers
+ *           Contract/JsonRpcProvider imports — are upstream's own from
+ *           42130a33, which also types the range reader's provider as a
+ *           JsonRpcProvider (taken). (Until 1.0.0 fetchEventsInBlockRange
+ *           received `provider as JsonRpcProvider`; the 1.0.0 range reader
+ *           below talks to the provider's raw `_send` instead and no longer
+ *           calls it.)
  *           Hygiene divergence (DESIGN §4.1, decision 2026-07-20): an
  *           undecodable state row is skipped, counted
  *           (tripwires.decodeFailures, incremented inside createDecode) and
@@ -297,7 +297,7 @@ let batchId = 0;
  * @returns Function to fetch World contract events in a given block range.
  */
 export function createFetchWorldEventsInBlockRange<C extends Components>(
-  provider: Provider,
+  provider: JsonRpcProvider,
   worldConfig: ContractConfig,
   batch: boolean | undefined,
   decode: ReturnType<typeof createDecode>

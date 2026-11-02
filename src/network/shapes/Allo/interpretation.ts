@@ -1,17 +1,19 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi-open @ 04cb25f8f3009ca9b89e62e20bd3d7afa12e98ad
+ * upstream: Asphodel-OS/kamigotchi-open @ 8fb6ea58be5f773909a4d6d8db32f4726512b8e0
  * path:     packages/client/src/network/shapes/Allo/interpretation.ts
- * changes:  three @ts-expect-error — upstream type defects at the pin (vite
- *           never typechecks): parseBonus and parseStat return DetailedEntity
- *           objects without the required `entity`, and parseBonus/parseDroptable
- *           use the placeholder png MODULE NAMESPACE (`{ default: url }`), not
- *           a string, as `image` (see assets placeholder shim). Body otherwise
- *           verbatim.
+ * changes:  two @ts-expect-error: parseBonus and parseDroptable use the
+ *           placeholder png MODULE NAMESPACE (`{ default: url }`), not a
+ *           string, as `image` — a type error against the port's asset shim
+ *           (assets/images/icons/placeholder.png.ts); upstream resolves the
+ *           specifier through vite's asset typings. (Until 8fb6ea58 a third
+ *           directive covered parseBonus/parseStat returning DetailedEntity
+ *           objects without `entity`; upstream 42130a33 adds `entity: 0`.)
+ *           Body otherwise verbatim.
  */
 
 import * as placeholder from 'assets/images/icons/placeholder.png';
-import { World } from 'engine/recs';
+import { EntityIndex, World } from 'engine/recs';
 import { Components } from 'network/components';
 import { Allo } from '.';
 import { getBonusesByParent, parseBonusText } from '../Bonus';
@@ -72,8 +74,9 @@ const parseBasic = (world: World, components: Components, allo: Allo): DetailedE
 
 const parseBonus = (world: World, components: Components, allo: Allo): DetailedEntity[] => {
   const bonuses = getBonusesByParent(world, components, allo.id);
-  // @ts-expect-error upstream defect at the pin: no `entity`, namespace as image
+  // @ts-expect-error placeholder png MODULE NAMESPACE as image (see the banner)
   return bonuses.map((bonus) => ({
+    entity: 0 as EntityIndex,
     ObjectType: 'BONUS',
     name: parseBonusText(bonus),
     description: parseBonusText(bonus),
@@ -87,8 +90,9 @@ const parseDroptable = (world: World, components: Components, allo: Allo): Detai
 
   // consolidate individual entries into one
   return {
+    entity: 0 as EntityIndex,
     ObjectType: 'DROPTABLE',
-    // @ts-expect-error upstream defect at the pin: namespace as image
+    // @ts-expect-error placeholder png MODULE NAMESPACE as image (see the banner)
     image: placeholder,
     name: 'Potential drops',
     description: all.map((entry) => `${entry.name} [${entry.description}]`).join('\n'),
@@ -110,8 +114,8 @@ const parseStat = (allo: Allo): DetailedEntity => {
   const name = capitalize(parseStatTypeFromIndex(allo.index));
   const quantity = '+' + parseQuantityStat(name, stat);
 
-  // @ts-expect-error upstream defect at the pin: no `entity` on DetailedEntity
   return {
+    entity: 0 as EntityIndex,
     ObjectType: 'STAT',
     image: getStatImage(name),
     name,

@@ -70,6 +70,7 @@ import {
 import { calcBuyPrice, calcSellPrice } from 'app/cache/npc/calcs';
 import { calcTax as calcTradeTax } from 'app/cache/trade/functions';
 import { calcPrice as calcAuctionPrice } from 'network/explorer/auctions/pricing';
+import { unpackPause } from 'network/shapes/Auction/pricing';
 import { auctionPriceOut } from '../src/queries/feeds';
 import { LIVE_KAMI_CONFIG, makeMirror, packArray32 } from './support/mirror';
 import { WAD, cdf, expWad, gdaCalc, lnWad, powWad, sdExp2, sdLog2, usub } from './support/solidity';
@@ -547,12 +548,38 @@ function refListingBuy(p: GdaIn, amt: number) {
   return price < B(amt) ? B(amt) : price;
 }
 
-type AuctionIn = { value: number; startTs: number; period: number; decay: number; rate: number; sold: number };
+type AuctionIn = {
+  value: number;
+  startTs: number;
+  period: number;
+  decay: number;
+  rate: number;
+  sold: number;
+  /** 1.1.0 item 8 (pin 8fb6ea58): the auction's TimePause window, if set */
+  pause?: { start: number; end: number };
+};
 
-/** LibAuction.calcBuy */
+/** LibAuctionRegistry.packPause: uint64 start << 64 | uint64 end (@ 8fb6ea58) */
+const packPause = (start: number, end: number) => (BigInt.asUintN(64, B(start)) << 64n) | BigInt.asUintN(64, B(end));
+
+/** LibAuction.getPriceStart (@ 8fb6ea58), integer seconds with
+ * block.timestamp = NOW: StartTs pushed forward by the part of the pause
+ * window that has passed; the window read back through
+ * LibAuctionRegistry.unpackPause (uint64(packed >> 64), uint64(packed)) */
+function refPriceStart(startTs: bigint, packed: bigint, now: bigint): bigint {
+  const pauseStart = BigInt.asUintN(64, packed >> 64n);
+  const pauseEnd = BigInt.asUintN(64, packed);
+  if (pauseEnd <= pauseStart || now <= pauseStart) return startTs;
+  const paused = now < pauseEnd ? now - pauseStart : pauseEnd - pauseStart;
+  return startTs + paused;
+}
+
+/** LibAuction.calcBuy — from 8fb6ea58 its GDA start is getPriceStart */
 function refAuctionBuy(p: AuctionIn, amt: number) {
+  const packed = p.pause ? packPause(p.pause.start, p.pause.end) : 0n;
+  const startTs = refPriceStart(B(p.startTs), packed, B(NOW));
   const cost = gdaCalc(
-    { targetPrice: B(p.value), startTs: B(p.startTs), period: B(p.period), decay: B(p.decay) * 10n ** 12n, rate: B(p.rate), prevSold: B(p.sold), quantity: B(amt) },
+    { targetPrice: B(p.value), startTs, period: B(p.period), decay: B(p.decay) * 10n ** 12n, rate: B(p.rate), prevSold: B(p.sold), quantity: B(amt) },
     B(NOW)
   );
   if (cost <= 0n) throw new Error('LibAuction: negative GDA cost');
@@ -568,11 +595,17 @@ const listingOf = (p: GdaIn, sell?: { type: string; scale?: number }) =>
     buy: p.type === 'FIXED' ? { type: 'FIXED' } : { type: 'GDA', period: p.period, decay: (p.decay ?? 0) / 1e6, rate: p.rate },
     ...(sell ? { sell } : {}),
   }) as never;
+/** the client's Auction shape; the window goes through the port's
+ * unpackPause from the decoder's hex form of the packed TimePause word, as
+ * network/shapes/Auction/types.ts reads it */
 const auctionOf = (p: AuctionIn) =>
   ({
     auctionItem: { index: 1 },
     params: { value: p.value, period: p.period, decay: p.decay / 1e6, rate: p.rate },
-    time: { start: p.startTs },
+    time: {
+      start: p.startTs,
+      pause: unpackPause(p.pause ? '0x' + packPause(p.pause.start, p.pause.end).toString(16) : undefined),
+    },
     supply: { sold: p.sold },
   }) as never;
 const gda = (value: number, period: number, decay: number, rate: number, prevSold: number, since: number): GdaIn => ({
@@ -1073,6 +1106,37 @@ describe('LibListing.calcBuyPrice / calcSellPrice, LibAuction.calcBuy (and LibGD
     expect(auctionPriceOut(auctionOf(ok), NOW)).toEqual({ price: Number(refAuctionBuy(ok, 1)) });
   });
 
+  // 1.1.0 item 8 (pin 8fb6ea58): LibAuction.calcBuy counts elapsed time from
+  // getPriceStart. The window is placed relative to NOW (synthetic seconds);
+  // each case is asserted equal to the transcription with the window AND, on
+  // the same curve, without it — the second is the pre-8fb6ea58 calcBuy.
+  it.each([
+    ['the window ahead of NOW: nothing skipped', 7_200, -600, 3_600],
+    ['NOW at the window start: nothing skipped', 7_200, 0, 3_600],
+    ['NOW inside the window: time stands still', 7_200, 3_600, 3_600],
+    ['NOW at the window end: the whole window skipped', 7_200, 3_600, 0],
+    ['NOW after the window: the whole window skipped', 86_400, 43_200, -7_200],
+    ['a 3-day window that ended a day ago', 5 * 86_400, 4 * 86_400, -86_400],
+  ] as const)('LibAuction.calcBuy ↔ auctions calcPrice across a pause window: %s', (label, since, pausedAgo, endsIn) => {
+    // the window starts `pausedAgo` seconds before NOW and ends `endsIn` after it
+    const base = { value: 32_000, startTs: NOW - since, period: 86_400, decay: 750_000, rate: 32, sold: 3 };
+    const windowed: AuctionIn = { ...base, pause: { start: NOW - pausedAgo, end: NOW + endsIn } };
+    pair('LibAuction.calcBuy', `${label} (window)`, refAuctionBuy(windowed, 1), calcAuctionPrice(auctionOf(windowed), NOW, base.sold, 1));
+    pair('LibAuction.calcBuy', `${label} (no window)`, refAuctionBuy(base, 1), calcAuctionPrice(auctionOf(base), NOW, base.sold, 1));
+    expect(auctionPriceOut(auctionOf(windowed), NOW)).toEqual({ price: Number(refAuctionBuy(windowed, 1)) });
+  });
+
+  it('a pause window keeps a steep auction inside the fixed point: the chain prices it, the served price equals it', () => {
+    // 0.5 per minute for 10 h would round to zero (the case above); a window
+    // covering all but the first 30 min leaves 2^-30 of the value — priced
+    const steep: AuctionIn = { value: 4_697, startTs: NOW - 36_000, period: 60, decay: 500_000, rate: 7, sold: 0 };
+    const windowed: AuctionIn = { ...steep, pause: { start: NOW - 34_200, end: NOW - 60 } };
+    expect(() => refAuctionBuy(steep, 1)).toThrow(/negative GDA cost/);
+    expect(auctionPriceOut(auctionOf(steep), NOW)).toEqual({ price: null, priceUnavailable: 'COST_ROUNDS_TO_ZERO' });
+    const chain = refAuctionBuy(windowed, 1);
+    pair('LibAuction.calcBuy', 'decayed 600 periods at 0.5, all but 31 min paused (served)', chain, String(auctionPriceOut(auctionOf(windowed), NOW).price));
+  });
+
   it('seeded sweeps — merchant buy price (amount 1) and auction price, at prices up to 1e9', () => {
     const listingGen = (clamped: boolean) => (rnd: (lo: number, hi: number) => number) => {
       const value = rnd(1, 20_000), period = [3_600, 86_400][rnd(0, 1)]!, decay = rnd(800_000, 999_000), rate = rnd(1, 100);
@@ -1104,6 +1168,22 @@ describe('LibListing.calcBuyPrice / calcSellPrice, LibAuction.calcBuy (and LibGD
       }
       if (chain > 1_000_000_000n) return null;
       return { label: `${value}, period ${period}, decay ${decay}, rate ${rate}, sold ${sold}, ${since} s`, chain, port: calcAuctionPrice(auctionOf(a), NOW, sold, 1) };
+    }, [0], 0);
+    // 1.1.0 item 8: the same sweep with a pause window inside [startTs, NOW + 2 periods]
+    // (setPause requires the window to start at or after StartTs)
+    sweep('LibAuction.calcBuy', 'equal (with a pause window)', 4000, (rnd) => {
+      const value = rnd(1, 20_000), period = [3_600, 86_400][rnd(0, 1)]!, decay = rnd(800_000, 999_000), rate = rnd(1, 100);
+      const sold = rnd(0, 2_000), since = rnd(1, 6 * period);
+      const pauseStart = NOW - since + rnd(0, since + 2 * period), pauseEnd = pauseStart + rnd(1, 3 * period);
+      const a: AuctionIn = { value, startTs: NOW - since, period, decay, rate, sold, pause: { start: pauseStart, end: pauseEnd } };
+      let chain: bigint;
+      try {
+        chain = refAuctionBuy(a, 1);
+      } catch {
+        return null;
+      }
+      if (chain > 1_000_000_000n) return null;
+      return { label: `${value}, period ${period}, decay ${decay}, rate ${rate}, sold ${sold}, ${since} s, window [${pauseStart - NOW}, ${pauseEnd - NOW}] s from NOW`, chain, port: calcAuctionPrice(auctionOf(a), NOW, sold, 1) };
     }, [0], 0);
   });
 });

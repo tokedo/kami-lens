@@ -3,7 +3,7 @@
 JSON cannot carry the provenance header comment used by every ported
 `.ts` file, so this directory's files are recorded here instead.
 
-| File | Upstream path @ `04cb25f8f3009ca9b89e62e20bd3d7afa12e98ad` | Changes |
+| File | Upstream path @ `8fb6ea58be5f773909a4d6d8db32f4726512b8e0` | Changes |
 |---|---|---|
 | `World.json` | `packages/client/abi/World.json` | none (byte-identical) |
 

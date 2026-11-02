@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi-open @ 04cb25f8f3009ca9b89e62e20bd3d7afa12e98ad
+ * upstream: Asphodel-OS/kamigotchi-open @ 8fb6ea58be5f773909a4d6d8db32f4726512b8e0
  * path:     packages/client/src/app/cache/auction/base.ts
  * changes:  Date.now() → clock.monotonicMs() at 1 call site plus the
  *           clock import. The value only ever stamps and ages CACHE
@@ -16,7 +16,8 @@ import { EntityIndex, World } from 'engine/recs';
 
 import { Components } from 'network/';
 import { Auction, getAuction, NullAuction } from 'network/shapes/Auction';
-import { getBalance, getCurrencyIndex, getItemIndex } from 'network/shapes/utils/component';
+import { unpackPause } from 'network/shapes/Auction/pricing';
+import { getBalance, getCurrencyIndex, getItemIndex, getTimePause } from 'network/shapes/utils/component';
 import { getItemByIndex } from '../item';
 import { queryOne } from './queries';
 
@@ -48,6 +49,10 @@ export const get = (
   if (!AuctionCache.has(entity)) process(world, components, entity);
   const auction = AuctionCache.get(entity);
   if (!auction) return NullAuction;
+
+  // one component read, and an admin can set it at any time (eg. right after a chain halt):
+  // refresh on every read so the quoted price matches what a buy charges
+  auction.time.pause = unpackPause(getTimePause(components, entity));
   if (!options) return auction;
 
   const now = clock.monotonicMs();

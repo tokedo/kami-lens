@@ -1,12 +1,8 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi-open @ 04cb25f8f3009ca9b89e62e20bd3d7afa12e98ad
+ * upstream: Asphodel-OS/kamigotchi-open @ 8fb6ea58be5f773909a4d6d8db32f4726512b8e0
  * path:     packages/client/src/app/cache/trade/history.ts
- * changes:  one @ts-expect-error — upstream defect at the pin (vite never
- *           typechecks): imports `Timestamp` from 'network/shapes/Trade',
- *           whose index never re-exports it (it lives in ./history.tsx).
- *           The binding is type-only and erased at build, so it is a
- *           phantom upstream, like 'network/comps'. Body otherwise verbatim.
+ * changes:  none
  */
 
 import { EntityID, World } from 'engine/recs';
@@ -18,8 +14,7 @@ import {
   getTradeHistory,
   getTradeHistoryState,
   State,
-  // @ts-expect-error upstream defect at the pin: never re-exported by the index
-  Timestamp,
+  Timestamps,
   Trade,
 } from 'network/shapes/Trade';
 import { HistoryUpdated, TradeCache } from './base';
@@ -36,7 +31,7 @@ export const processHistory = (
   if (TradeCache.has(id)) {
     trade = TradeCache.get(id)!;
     trade.state = getTradeHistoryState(comps, tradeHistory) as State;
-    trade.timestamps = getTradeHistoryState(comps, tradeHistory, true) as Timestamp;
+    trade.timestamps = getTradeHistoryState(comps, tradeHistory, true) as Timestamps;
     // if the trade is not in the cache, create a new one
   } else {
     trade = getTradeHistory(world, comps, tradeHistory, {

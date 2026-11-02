@@ -1,19 +1,16 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi-open @ 04cb25f8f3009ca9b89e62e20bd3d7afa12e98ad
+ * upstream: Asphodel-OS/kamigotchi-open @ 8fb6ea58be5f773909a4d6d8db32f4726512b8e0
  * path:     packages/client/src/network/shapes/Kill/queries.ts
- * changes:  two @ts-expect-error — upstream defect at the pin (vite never
- *           typechecks): both queries destructure `IsKill` from Components,
- *           but no IsKill component is registered anywhere upstream (phantom,
- *           like 'network/comps'). These ECS kill queries are dead code at
- *           the pin — the kill feed is served via Kamiden (app/cache/battles);
- *           calling them would throw on Has(undefined) upstream and here
- *           alike. Bodies otherwise verbatim.
+ * changes:  none
  */
 
-import { EntityIndex, Has, HasValue, runQuery, World } from 'engine/recs';
+import { EntityIndex, World } from 'engine/recs';
 
 import { Components } from 'network/';
+
+// kills are emitted as world events, not stored as entities, so no KillLog entities exist;
+// kill history is served by kamiden (see app/cache/battles)
 
 // query KillLog entities by a killer Kami entity
 export const queryForKiller = (
@@ -21,11 +18,7 @@ export const queryForKiller = (
   components: Components,
   entity: EntityIndex
 ): EntityIndex[] => {
-  if (!entity) return [];
-  // @ts-expect-error upstream defect at the pin: IsKill is never registered
-  const { IsKill, SourceID } = components;
-  const id = world.entities[entity];
-  return Array.from(runQuery([HasValue(SourceID, { value: id }), Has(IsKill)]));
+  return [];
 };
 
 // query KillLog entities by a victim Kami entity
@@ -34,9 +27,5 @@ export const queryForVictim = (
   components: Components,
   entity: EntityIndex
 ): EntityIndex[] => {
-  if (!entity) return [];
-  // @ts-expect-error upstream defect at the pin: IsKill is never registered
-  const { IsKill, TargetID } = components;
-  const id = world.entities[entity];
-  return Array.from(runQuery([HasValue(TargetID, { value: id }), Has(IsKill)]));
+  return [];
 };

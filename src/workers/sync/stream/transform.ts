@@ -1,14 +1,12 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi-open @ 04cb25f8f3009ca9b89e62e20bd3d7afa12e98ad
+ * upstream: Asphodel-OS/kamigotchi-open @ 8fb6ea58be5f773909a4d6d8db32f4726512b8e0
  * path:     packages/client/src/workers/sync/stream/transform.ts
  * changes:  1.0.0 (A2(c)): a one-event frame's event carries the frame's
  *           logIndex — the chain log's own index (see the call site).
- *           type-hole fix — `decode(component, ecsEvent.value)` gains
- *           the non-null assertion the sibling gapfill.ts already uses
- *           (value is proto-optional; the ComponentValueSet branch implies
- *           presence). Upstream is vite-transpiled and never typechecked,
- *           so the hole is invisible there.
+ *           (The non-null assertion on `decode(component, ecsEvent.value!)`
+ *           this port added as a type-hole fix is upstream's own from
+ *           42130a33.)
  *           Hygiene divergence (DESIGN §4.1, decision 2026-07-20): an
  *           undecodable state row is skipped, counted
  *           (tripwires.decodeFailures, incremented inside createDecode) and

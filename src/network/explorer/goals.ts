@@ -1,14 +1,8 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi-open @ 04cb25f8f3009ca9b89e62e20bd3d7afa12e98ad
+ * upstream: Asphodel-OS/kamigotchi-open @ 8fb6ea58be5f773909a4d6d8db32f4726512b8e0
  * path:     packages/client/src/network/explorer/goals.ts
- * changes:  one @ts-expect-error — upstream defect at the pin (vite never
- *           typechecks): `contributions` calls getContributions with three
- *           args against a two-arg (comps, goalID) signature, so every
- *           argument misaligns (comps receives the World) and the call
- *           throws upstream exactly as it would here — dead code behind an
- *           unchecked build, like the IsKill queries. Body otherwise
- *           verbatim.
+ * changes:  none
  */
 
 import { EntityIndex, World } from 'engine/recs';
@@ -22,7 +16,6 @@ export const goals = (world: World, components: Components) => {
     get: (entity: EntityIndex) => getGoal(world, components, entity),
     getByIndex: (index: number) => getGoalByIndex(world, components, index),
     contributions: (goalIndex: number) =>
-      // @ts-expect-error upstream defect at the pin: three args into (comps, goalID)
-      getContributions(world, components, getGoalByIndex(world, components, goalIndex).id),
+      getContributions(components, getGoalByIndex(world, components, goalIndex).id),
   };
 };

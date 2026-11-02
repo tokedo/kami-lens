@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi-open @ 04cb25f8f3009ca9b89e62e20bd3d7afa12e98ad
+ * upstream: Asphodel-OS/kamigotchi-open @ 8fb6ea58be5f773909a4d6d8db32f4726512b8e0
  * path:     packages/client/src/app/cache/auction/functions.ts
  * changes:  Date.now() → clock.now() at 1 call site plus the
  *           clock import (§3.8: offset-corrected stream clock, not naive
@@ -9,6 +9,7 @@
 
 import * as clock from 'clock';
 import { Auction } from 'network/shapes/Auction';
+import { getPriceStart } from 'network/shapes/Auction/pricing';
 
 // calculate the cost to buy N items from an auction Now
 export const calcCost = (auction: Auction, amt: number) => {
@@ -32,7 +33,7 @@ export const calcPrice = (auction: Auction, time: number, prevSold: number, amt 
   const decay = auction.params.decay;
   const rate = auction.params.rate;
 
-  const tDelta = (time - auction.time.start) / period;
+  const tDelta = (time - getPriceStart(auction, time)) / period;
 
   let price = value * decay ** (tDelta - prevSold / rate);
   if (amt > 1) {
