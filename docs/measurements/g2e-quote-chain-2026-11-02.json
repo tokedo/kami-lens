@@ -1,0 +1,726 @@
+{
+  "gate": "G2.e",
+  "measuredAt": "2026-11-02T03:47:14.399Z",
+  "snapshot": "c1-2026-11-02.v8snap",
+  "snapshotBlock": 34887347,
+  "pinnedBlock": 34887579,
+  "quoteViewOnChain": "none — LibPool.calcAmountOut/quote are internal pure and PoolSystem.swap moves items; compared against the swap formula (independent uint256 transcription) on on-chain reserves at pinnedBlock",
+  "pools": [
+    [
+      1,
+      103
+    ],
+    [
+      1,
+      2
+    ]
+  ],
+  "cases": [
+    {
+      "pool": [
+        1,
+        103
+      ],
+      "from": 1,
+      "to": 103,
+      "mode": "EXACT_IN",
+      "amount": "429",
+      "amountIn": 429,
+      "amountOut": 1,
+      "chainAmountOut": "1",
+      "feeAmountIn": 2
+    },
+    {
+      "pool": [
+        1,
+        103
+      ],
+      "from": 1,
+      "to": 103,
+      "mode": "EXACT_IN",
+      "amount": "3003",
+      "amountIn": 3003,
+      "amountOut": 7,
+      "chainAmountOut": "7",
+      "feeAmountIn": 10
+    },
+    {
+      "pool": [
+        1,
+        103
+      ],
+      "from": 1,
+      "to": 103,
+      "mode": "EXACT_IN",
+      "amount": "25201",
+      "amountIn": 25201,
+      "amountOut": 58,
+      "chainAmountOut": "58",
+      "feeAmountIn": 76
+    },
+    {
+      "pool": [
+        1,
+        103
+      ],
+      "from": 1,
+      "to": 103,
+      "mode": "EXACT_IN",
+      "amount": "252017",
+      "amountIn": 252017,
+      "amountOut": 582,
+      "chainAmountOut": "582",
+      "feeAmountIn": 757
+    },
+    {
+      "pool": [
+        1,
+        103
+      ],
+      "from": 1,
+      "to": 103,
+      "mode": "EXACT_IN",
+      "amount": "2520176",
+      "amountIn": 2520176,
+      "amountOut": 5345,
+      "chainAmountOut": "5345",
+      "feeAmountIn": 7561
+    },
+    {
+      "pool": [
+        1,
+        103
+      ],
+      "from": 1,
+      "to": 103,
+      "mode": "EXACT_IN",
+      "amount": "8400588",
+      "amountIn": 8400588,
+      "amountOut": 14708,
+      "chainAmountOut": "14708",
+      "feeAmountIn": 25202
+    },
+    {
+      "pool": [
+        1,
+        103
+      ],
+      "from": 1,
+      "to": 103,
+      "mode": "EXACT_OUT",
+      "amount": "1",
+      "amountIn": 429,
+      "amountOut": 1,
+      "chainAmountOut": "1",
+      "feeAmountIn": 2,
+      "minimal": true
+    },
+    {
+      "pool": [
+        1,
+        103
+      ],
+      "from": 1,
+      "to": 103,
+      "mode": "EXACT_OUT",
+      "amount": "58",
+      "amountIn": 24888,
+      "amountOut": 58,
+      "chainAmountOut": "58",
+      "feeAmountIn": 75,
+      "minimal": true
+    },
+    {
+      "pool": [
+        1,
+        103
+      ],
+      "from": 1,
+      "to": 103,
+      "mode": "EXACT_OUT",
+      "amount": "589",
+      "amountIn": 255041,
+      "amountOut": 589,
+      "chainAmountOut": "589",
+      "feeAmountIn": 766,
+      "minimal": true
+    },
+    {
+      "pool": [
+        1,
+        103
+      ],
+      "from": 1,
+      "to": 103,
+      "mode": "EXACT_OUT",
+      "amount": "5896",
+      "amountIn": 2808305,
+      "amountOut": 5896,
+      "chainAmountOut": "5896",
+      "feeAmountIn": 8425,
+      "minimal": true
+    },
+    {
+      "pool": [
+        1,
+        103
+      ],
+      "from": 1,
+      "to": 103,
+      "mode": "EXACT_OUT",
+      "amount": "29483",
+      "amountIn": 25277598,
+      "amountOut": 29483,
+      "chainAmountOut": "29483",
+      "feeAmountIn": 75833,
+      "minimal": true
+    },
+    {
+      "pool": [
+        1,
+        103
+      ],
+      "from": 1,
+      "to": 103,
+      "mode": "EXACT_OUT",
+      "amount": "58966",
+      "served": "NOT_QUOTABLE"
+    },
+    {
+      "pool": [
+        1,
+        103
+      ],
+      "from": 1,
+      "to": 103,
+      "mode": "EXACT_IN",
+      "amount": "428",
+      "served": "NOT_QUOTABLE"
+    },
+    {
+      "pool": [
+        1,
+        103
+      ],
+      "from": 103,
+      "to": 1,
+      "mode": "EXACT_IN",
+      "amount": "1",
+      "amountIn": 1,
+      "amountOut": 426,
+      "chainAmountOut": "426",
+      "feeAmountIn": 1
+    },
+    {
+      "pool": [
+        1,
+        103
+      ],
+      "from": 103,
+      "to": 1,
+      "mode": "EXACT_IN",
+      "amount": "7",
+      "amountIn": 7,
+      "amountOut": 2982,
+      "chainAmountOut": "2982",
+      "feeAmountIn": 1
+    },
+    {
+      "pool": [
+        1,
+        103
+      ],
+      "from": 103,
+      "to": 1,
+      "mode": "EXACT_IN",
+      "amount": "58",
+      "amountIn": 58,
+      "amountOut": 24690,
+      "chainAmountOut": "24690",
+      "feeAmountIn": 1
+    },
+    {
+      "pool": [
+        1,
+        103
+      ],
+      "from": 103,
+      "to": 1,
+      "mode": "EXACT_IN",
+      "amount": "589",
+      "amountIn": 589,
+      "amountOut": 248505,
+      "chainAmountOut": "248505",
+      "feeAmountIn": 2
+    },
+    {
+      "pool": [
+        1,
+        103
+      ],
+      "from": 103,
+      "to": 1,
+      "mode": "EXACT_IN",
+      "amount": "5896",
+      "amountIn": 5896,
+      "amountOut": 2284608,
+      "chainAmountOut": "2284608",
+      "feeAmountIn": 18
+    },
+    {
+      "pool": [
+        1,
+        103
+      ],
+      "from": 103,
+      "to": 1,
+      "mode": "EXACT_IN",
+      "amount": "19655",
+      "amountIn": 19655,
+      "amountOut": 6286174,
+      "chainAmountOut": "6286174",
+      "feeAmountIn": 59
+    },
+    {
+      "pool": [
+        1,
+        103
+      ],
+      "from": 103,
+      "to": 1,
+      "mode": "EXACT_OUT",
+      "amount": "1",
+      "amountIn": 1,
+      "amountOut": 426,
+      "chainAmountOut": "426",
+      "feeAmountIn": 1,
+      "minimal": true
+    },
+    {
+      "pool": [
+        1,
+        103
+      ],
+      "from": 103,
+      "to": 1,
+      "mode": "EXACT_OUT",
+      "amount": "25201",
+      "amountIn": 60,
+      "amountOut": 25540,
+      "chainAmountOut": "25540",
+      "feeAmountIn": 1,
+      "minimal": true
+    },
+    {
+      "pool": [
+        1,
+        103
+      ],
+      "from": 103,
+      "to": 1,
+      "mode": "EXACT_OUT",
+      "amount": "252017",
+      "amountIn": 598,
+      "amountOut": 252264,
+      "chainAmountOut": "252264",
+      "feeAmountIn": 2,
+      "minimal": true
+    },
+    {
+      "pool": [
+        1,
+        103
+      ],
+      "from": 103,
+      "to": 1,
+      "mode": "EXACT_OUT",
+      "amount": "2520176",
+      "amountIn": 6572,
+      "amountOut": 2520351,
+      "chainAmountOut": "2520351",
+      "feeAmountIn": 20,
+      "minimal": true
+    },
+    {
+      "pool": [
+        1,
+        103
+      ],
+      "from": 103,
+      "to": 1,
+      "mode": "EXACT_OUT",
+      "amount": "12600882",
+      "amountIn": 59144,
+      "amountOut": 12600943,
+      "chainAmountOut": "12600943",
+      "feeAmountIn": 178,
+      "minimal": true
+    },
+    {
+      "pool": [
+        1,
+        103
+      ],
+      "from": 103,
+      "to": 1,
+      "mode": "EXACT_OUT",
+      "amount": "25201765",
+      "served": "NOT_QUOTABLE"
+    },
+    {
+      "pool": [
+        1,
+        2
+      ],
+      "from": 1,
+      "to": 2,
+      "mode": "EXACT_IN",
+      "amount": "2",
+      "amountIn": 2,
+      "amountOut": 1,
+      "chainAmountOut": "1",
+      "feeAmountIn": 1
+    },
+    {
+      "pool": [
+        1,
+        2
+      ],
+      "from": 1,
+      "to": 2,
+      "mode": "EXACT_IN",
+      "amount": "14",
+      "amountIn": 14,
+      "amountOut": 12,
+      "chainAmountOut": "12",
+      "feeAmountIn": 1
+    },
+    {
+      "pool": [
+        1,
+        2
+      ],
+      "from": 1,
+      "to": 2,
+      "mode": "EXACT_IN",
+      "amount": "5630",
+      "amountIn": 5630,
+      "amountOut": 5166,
+      "chainAmountOut": "5166",
+      "feeAmountIn": 17
+    },
+    {
+      "pool": [
+        1,
+        2
+      ],
+      "from": 1,
+      "to": 2,
+      "mode": "EXACT_IN",
+      "amount": "56308",
+      "amountIn": 56308,
+      "amountOut": 51211,
+      "chainAmountOut": "51211",
+      "feeAmountIn": 169
+    },
+    {
+      "pool": [
+        1,
+        2
+      ],
+      "from": 1,
+      "to": 2,
+      "mode": "EXACT_IN",
+      "amount": "563086",
+      "amountIn": 563086,
+      "amountOut": 470332,
+      "chainAmountOut": "470332",
+      "feeAmountIn": 1690
+    },
+    {
+      "pool": [
+        1,
+        2
+      ],
+      "from": 1,
+      "to": 2,
+      "mode": "EXACT_IN",
+      "amount": "1876954",
+      "amountIn": 1876954,
+      "amountOut": 1294031,
+      "chainAmountOut": "1294031",
+      "feeAmountIn": 5631
+    },
+    {
+      "pool": [
+        1,
+        2
+      ],
+      "from": 1,
+      "to": 2,
+      "mode": "EXACT_OUT",
+      "amount": "1",
+      "amountIn": 2,
+      "amountOut": 1,
+      "chainAmountOut": "1",
+      "feeAmountIn": 1,
+      "minimal": true
+    },
+    {
+      "pool": [
+        1,
+        2
+      ],
+      "from": 1,
+      "to": 2,
+      "mode": "EXACT_OUT",
+      "amount": "5187",
+      "amountIn": 5653,
+      "amountOut": 5187,
+      "chainAmountOut": "5187",
+      "feeAmountIn": 17,
+      "minimal": true
+    },
+    {
+      "pool": [
+        1,
+        2
+      ],
+      "from": 1,
+      "to": 2,
+      "mode": "EXACT_OUT",
+      "amount": "51878",
+      "amountIn": 57049,
+      "amountOut": 51878,
+      "chainAmountOut": "51878",
+      "feeAmountIn": 172,
+      "minimal": true
+    },
+    {
+      "pool": [
+        1,
+        2
+      ],
+      "from": 1,
+      "to": 2,
+      "mode": "EXACT_OUT",
+      "amount": "518781",
+      "amountIn": 627535,
+      "amountOut": 518781,
+      "chainAmountOut": "518781",
+      "feeAmountIn": 1883,
+      "minimal": true
+    },
+    {
+      "pool": [
+        1,
+        2
+      ],
+      "from": 1,
+      "to": 2,
+      "mode": "EXACT_OUT",
+      "amount": "2593905",
+      "amountIn": 5647807,
+      "amountOut": 2593905,
+      "chainAmountOut": "2593905",
+      "feeAmountIn": 16944,
+      "minimal": true
+    },
+    {
+      "pool": [
+        1,
+        2
+      ],
+      "from": 1,
+      "to": 2,
+      "mode": "EXACT_OUT",
+      "amount": "5187810",
+      "served": "NOT_QUOTABLE"
+    },
+    {
+      "pool": [
+        1,
+        2
+      ],
+      "from": 1,
+      "to": 2,
+      "mode": "EXACT_IN",
+      "amount": "1",
+      "served": "NOT_QUOTABLE"
+    },
+    {
+      "pool": [
+        1,
+        2
+      ],
+      "from": 2,
+      "to": 1,
+      "mode": "EXACT_IN",
+      "amount": "1",
+      "amountIn": 1,
+      "amountOut": 1,
+      "chainAmountOut": "1",
+      "feeAmountIn": 1
+    },
+    {
+      "pool": [
+        1,
+        2
+      ],
+      "from": 2,
+      "to": 1,
+      "mode": "EXACT_IN",
+      "amount": "7",
+      "amountIn": 7,
+      "amountOut": 7,
+      "chainAmountOut": "7",
+      "feeAmountIn": 1
+    },
+    {
+      "pool": [
+        1,
+        2
+      ],
+      "from": 2,
+      "to": 1,
+      "mode": "EXACT_IN",
+      "amount": "5187",
+      "amountIn": 5187,
+      "amountOut": 5607,
+      "chainAmountOut": "5607",
+      "feeAmountIn": 16
+    },
+    {
+      "pool": [
+        1,
+        2
+      ],
+      "from": 2,
+      "to": 1,
+      "mode": "EXACT_IN",
+      "amount": "51878",
+      "amountIn": 51878,
+      "amountOut": 55585,
+      "chainAmountOut": "55585",
+      "feeAmountIn": 156
+    },
+    {
+      "pool": [
+        1,
+        2
+      ],
+      "from": 2,
+      "to": 1,
+      "mode": "EXACT_IN",
+      "amount": "518781",
+      "amountIn": 518781,
+      "amountOut": 510500,
+      "chainAmountOut": "510500",
+      "feeAmountIn": 1557
+    },
+    {
+      "pool": [
+        1,
+        2
+      ],
+      "from": 2,
+      "to": 1,
+      "mode": "EXACT_IN",
+      "amount": "1729270",
+      "amountIn": 1729270,
+      "amountOut": 1404546,
+      "chainAmountOut": "1404546",
+      "feeAmountIn": 5188
+    },
+    {
+      "pool": [
+        1,
+        2
+      ],
+      "from": 2,
+      "to": 1,
+      "mode": "EXACT_OUT",
+      "amount": "1",
+      "amountIn": 1,
+      "amountOut": 1,
+      "chainAmountOut": "1",
+      "feeAmountIn": 1,
+      "minimal": true
+    },
+    {
+      "pool": [
+        1,
+        2
+      ],
+      "from": 2,
+      "to": 1,
+      "mode": "EXACT_OUT",
+      "amount": "5630",
+      "amountIn": 5208,
+      "amountOut": 5630,
+      "chainAmountOut": "5630",
+      "feeAmountIn": 16,
+      "minimal": true
+    },
+    {
+      "pool": [
+        1,
+        2
+      ],
+      "from": 2,
+      "to": 1,
+      "mode": "EXACT_OUT",
+      "amount": "56308",
+      "amountIn": 52560,
+      "amountOut": 56308,
+      "chainAmountOut": "56308",
+      "feeAmountIn": 158,
+      "minimal": true
+    },
+    {
+      "pool": [
+        1,
+        2
+      ],
+      "from": 2,
+      "to": 1,
+      "mode": "EXACT_OUT",
+      "amount": "563086",
+      "amountIn": 578158,
+      "amountOut": 563086,
+      "chainAmountOut": "563086",
+      "feeAmountIn": 1735,
+      "minimal": true
+    },
+    {
+      "pool": [
+        1,
+        2
+      ],
+      "from": 2,
+      "to": 1,
+      "mode": "EXACT_OUT",
+      "amount": "2815431",
+      "amountIn": 5203419,
+      "amountOut": 2815431,
+      "chainAmountOut": "2815431",
+      "feeAmountIn": 15611,
+      "minimal": true
+    },
+    {
+      "pool": [
+        1,
+        2
+      ],
+      "from": 2,
+      "to": 1,
+      "mode": "EXACT_OUT",
+      "amount": "5630863",
+      "served": "NOT_QUOTABLE"
+    }
+  ],
+  "casesTotal": 50,
+  "problems": [],
+  "elapsedMs": 13339,
+  "match": true
+}

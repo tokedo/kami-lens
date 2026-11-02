@@ -1,0 +1,155 @@
+{
+  "gate": "g5a-cleanroom",
+  "measuredAt": "2026-11-02T03:42:33.650Z",
+  "tarball": "kami-lens-1.1.0.tgz",
+  "primaryImage": "node:22-slim",
+  "legacyImage": "node:20-slim",
+  "primaryNode": "v22.23.2",
+  "primaryVersionLine": "kami-lens 1.1.0 (upstream Asphodel-OS/kamigotchi-open @ 8fb6ea58be5f773909a4d6d8db32f4726512b8e0)",
+  "heapLimitBeforeMb": 2096,
+  "freshProcessHeapLimitMb": 2096,
+  "heap": {
+    "limitMb": 5989,
+    "source": "self-configured"
+  },
+  "checkpointCount": 1,
+  "bootstrapMode": "cold",
+  "legacyNode": "v20.20.2",
+  "legacyVersionLine": "kami-lens 1.1.0 (upstream Asphodel-OS/kamigotchi-open @ 8fb6ea58be5f773909a4d6d8db32f4726512b8e0)",
+  "legacyHeapLimitMb": 2096,
+  "legacyRefusalMs": 344,
+  "legacyExitCode": 6,
+  "legacyOutput": [
+    "[logger:node] initialized with level: INFO",
+    "[kami-lens] ERR_INSUFFICIENT_MEMORY: heap limit 2096 MB is below the 5120 MB cold-boot floor and this Node (v20.20.2) cannot raise it in place — process.execve arrived in 22.15. Start it with the cap instead:",
+    "    NODE_OPTIONS=--max-old-space-size=6144 kami-lens daemon"
+  ],
+  "timeToLiveSeconds": 72,
+  "healthPolls": [
+    {
+      "atSeconds": 5,
+      "state": "BACKFILL",
+      "rc": 1
+    },
+    {
+      "atSeconds": 11,
+      "state": "BACKFILL",
+      "rc": 1
+    },
+    {
+      "atSeconds": 16,
+      "state": "BACKFILL",
+      "rc": 1
+    },
+    {
+      "atSeconds": 22,
+      "state": "BACKFILL",
+      "rc": 1
+    },
+    {
+      "atSeconds": 27,
+      "state": "BACKFILL",
+      "rc": 1
+    },
+    {
+      "atSeconds": 33,
+      "state": "BACKFILL",
+      "rc": 1
+    },
+    {
+      "atSeconds": 39,
+      "state": "BACKFILL",
+      "rc": 1
+    },
+    {
+      "atSeconds": 45,
+      "state": "BACKFILL",
+      "rc": 1
+    },
+    {
+      "atSeconds": 50,
+      "state": "BACKFILL",
+      "rc": 1
+    },
+    {
+      "atSeconds": 56,
+      "state": "BACKFILL",
+      "rc": 1
+    },
+    {
+      "atSeconds": 61,
+      "state": "INITIALIZE",
+      "rc": 1
+    },
+    {
+      "atSeconds": 67,
+      "state": "INITIALIZE",
+      "rc": 1
+    },
+    {
+      "atSeconds": 72,
+      "state": "LIVE",
+      "rc": 0
+    }
+  ],
+  "oomInDaemonLog": false,
+  "daemonLogTail": [
+    "{\"at\":\"2026-11-02T03:42:12.547Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,222,691 state entries\",\"percentage\":62,\"liveBlockNumber\":34887322,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-11-02T03:42:12.648Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,222,691 state entries\",\"percentage\":63,\"liveBlockNumber\":34887322,\"checkpoint\":null,\"degraded\":[]}",
+    "[heal] reconcile 34887324..34887345 path=rpc logs=239 ms=1070 proven=34887345 batchHead=34887346 reads=1 short=0",
+    "{\"at\":\"2026-11-02T03:42:12.861Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,222,691 state entries\",\"percentage\":65,\"liveBlockNumber\":34887322,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-11-02T03:42:12.969Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,222,691 state entries\",\"percentage\":66,\"liveBlockNumber\":34887322,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-11-02T03:42:13.180Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,222,691 state entries\",\"percentage\":68,\"liveBlockNumber\":34887322,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-11-02T03:42:13.291Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,222,691 state entries\",\"percentage\":69,\"liveBlockNumber\":34887322,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-11-02T03:42:13.491Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,222,691 state entries\",\"percentage\":71,\"liveBlockNumber\":34887322,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-11-02T03:42:13.592Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,222,691 state entries\",\"percentage\":72,\"liveBlockNumber\":34887322,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-11-02T03:42:13.801Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,222,691 state entries\",\"percentage\":74,\"liveBlockNumber\":34887322,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-11-02T03:42:13.902Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,222,691 state entries\",\"percentage\":76,\"liveBlockNumber\":34887322,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-11-02T03:42:14.112Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,222,691 state entries\",\"percentage\":77,\"liveBlockNumber\":34887322,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-11-02T03:42:14.217Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,222,691 state entries\",\"percentage\":79,\"liveBlockNumber\":34887322,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-11-02T03:42:14.418Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,222,691 state entries\",\"percentage\":80,\"liveBlockNumber\":34887322,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-11-02T03:42:14.519Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,222,691 state entries\",\"percentage\":82,\"liveBlockNumber\":34887322,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-11-02T03:42:14.723Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,222,691 state entries\",\"percentage\":83,\"liveBlockNumber\":34887322,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-11-02T03:42:14.822Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,222,691 state entries\",\"percentage\":85,\"liveBlockNumber\":34887322,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-11-02T03:42:15.034Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,222,691 state entries\",\"percentage\":86,\"liveBlockNumber\":34887322,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-11-02T03:42:15.143Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,222,691 state entries\",\"percentage\":88,\"liveBlockNumber\":34887322,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-11-02T03:42:15.346Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,222,691 state entries\",\"percentage\":89,\"liveBlockNumber\":34887322,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-11-02T03:42:15.450Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,222,691 state entries\",\"percentage\":91,\"liveBlockNumber\":34887322,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-11-02T03:42:15.657Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,222,691 state entries\",\"percentage\":93,\"liveBlockNumber\":34887322,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-11-02T03:42:15.766Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,222,691 state entries\",\"percentage\":94,\"liveBlockNumber\":34887322,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-11-02T03:42:15.973Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,222,691 state entries\",\"percentage\":96,\"liveBlockNumber\":34887322,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-11-02T03:42:16.082Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,222,691 state entries\",\"percentage\":97,\"liveBlockNumber\":34887322,\"checkpoint\":null,\"degraded\":[]}",
+    "{\"at\":\"2026-11-02T03:42:16.291Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,222,691 state entries\",\"percentage\":99,\"liveBlockNumber\":34887322,\"checkpoint\":null,\"degraded\":[]}",
+    "[daemon] clock seeded at LIVE from the chain head (block 34887346, offset -6589 ms)",
+    "{\"at\":\"2026-11-02T03:42:16.589Z\",\"state\":\"LIVE\",\"msg\":\"Streaming Live Events\",\"percentage\":100,\"liveBlockNumber\":34887345,\"checkpoint\":null,\"degraded\":[]}",
+    "[kami-lens] LIVE",
+    ""
+  ],
+  "daemonLogSaved": "<repo>/gates/.artifacts/g5a-daemon.log",
+  "floors": {
+    "coldBootHeapFloorMb": 5120,
+    "daemonHeapTargetMb": 6144
+  },
+  "steps": {
+    "install": true,
+    "version": true,
+    "checkpointChildShipped": true,
+    "daemonStarted": true,
+    "live": true,
+    "heapSelfConfigured": true,
+    "heapAtOrAboveFloor": true,
+    "heapReported": true,
+    "checkpointCountServed": true,
+    "reexecLogged": true,
+    "queryOk": true,
+    "querySchemaValid": true,
+    "queryNonEmpty": true,
+    "legacyRefused": true,
+    "legacyRefusedFast": true,
+    "legacyNamedTheCode": true,
+    "legacyGaveTheRemedy": true,
+    "legacyNamedExecve": true,
+    "legacyLoadedNothing": true
+  },
+  "match": true
+}

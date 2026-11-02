@@ -1,0 +1,776 @@
+{
+  "gate": "g2d-stats-chain",
+  "measuredAt": "2026-11-02T03:47:00.442Z",
+  "pinnedBlock": 34887549,
+  "snapshotBase": "c1-2026-11-02.v8snap",
+  "snapshotBlock": 34887347,
+  "blocksReplayed": 202,
+  "headAfterVerify": 34887577,
+  "blocksBehindAtEnd": 28,
+  "elapsedMs": 27205,
+  "systemsRegistry": "0x3B9B1223d876968B8Ba319CDdD4B4B6739B462AA",
+  "getterAddress": "0x991db571eafa031624a0bb11bf48341b15b822a6",
+  "sampled": 21,
+  "perBand": {
+    "lt15000": 7,
+    "19000_19999": 7,
+    "gte20000": 7
+  },
+  "rows": [
+    {
+      "index": 2,
+      "band": "lt15000",
+      "health": {
+        "base": 70,
+        "shift": 110,
+        "boost": 0,
+        "total": 180
+      },
+      "power": {
+        "base": 21,
+        "shift": 8,
+        "boost": 0,
+        "total": 29
+      },
+      "harmony": {
+        "base": 14,
+        "shift": 10,
+        "boost": 0,
+        "total": 24
+      },
+      "violence": {
+        "base": 10,
+        "shift": 0,
+        "boost": 0,
+        "total": 10
+      },
+      "affinities": [
+        "EERIE",
+        "EERIE"
+      ]
+    },
+    {
+      "index": 2089,
+      "band": "lt15000",
+      "health": {
+        "base": 90,
+        "shift": 100,
+        "boost": 0,
+        "total": 190
+      },
+      "power": {
+        "base": 17,
+        "shift": 0,
+        "boost": 0,
+        "total": 17
+      },
+      "harmony": {
+        "base": 16,
+        "shift": 8,
+        "boost": 0,
+        "total": 24
+      },
+      "violence": {
+        "base": 11,
+        "shift": 0,
+        "boost": 0,
+        "total": 11
+      },
+      "affinities": [
+        "EERIE",
+        "INSECT"
+      ]
+    },
+    {
+      "index": 4157,
+      "band": "lt15000",
+      "health": {
+        "base": 140,
+        "shift": 0,
+        "boost": 0,
+        "total": 140
+      },
+      "power": {
+        "base": 14,
+        "shift": 8,
+        "boost": 0,
+        "total": 22
+      },
+      "harmony": {
+        "base": 14,
+        "shift": 5,
+        "boost": 0,
+        "total": 19
+      },
+      "violence": {
+        "base": 11,
+        "shift": 0,
+        "boost": 0,
+        "total": 11
+      },
+      "affinities": [
+        "SCRAP",
+        "NORMAL"
+      ]
+    },
+    {
+      "index": 6262,
+      "band": "lt15000",
+      "health": {
+        "base": 50,
+        "shift": 100,
+        "boost": 0,
+        "total": 150
+      },
+      "power": {
+        "base": 13,
+        "shift": 0,
+        "boost": 0,
+        "total": 13
+      },
+      "harmony": {
+        "base": 10,
+        "shift": 11,
+        "boost": 0,
+        "total": 21
+      },
+      "violence": {
+        "base": 25,
+        "shift": 8,
+        "boost": 0,
+        "total": 33
+      },
+      "affinities": [
+        "INSECT",
+        "INSECT"
+      ]
+    },
+    {
+      "index": 8367,
+      "band": "lt15000",
+      "health": {
+        "base": 130,
+        "shift": 150,
+        "boost": 0,
+        "total": 280
+      },
+      "power": {
+        "base": 20,
+        "shift": 0,
+        "boost": 0,
+        "total": 20
+      },
+      "harmony": {
+        "base": 13,
+        "shift": 8,
+        "boost": 0,
+        "total": 21
+      },
+      "violence": {
+        "base": 12,
+        "shift": 8,
+        "boost": 0,
+        "total": 20
+      },
+      "affinities": [
+        "SCRAP",
+        "SCRAP"
+      ]
+    },
+    {
+      "index": 10553,
+      "band": "lt15000",
+      "health": {
+        "base": 130,
+        "shift": 100,
+        "boost": 0,
+        "total": 230
+      },
+      "power": {
+        "base": 17,
+        "shift": 0,
+        "boost": 0,
+        "total": 17
+      },
+      "harmony": {
+        "base": 13,
+        "shift": 8,
+        "boost": 0,
+        "total": 21
+      },
+      "violence": {
+        "base": 10,
+        "shift": 0,
+        "boost": 0,
+        "total": 10
+      },
+      "affinities": [
+        "INSECT",
+        "EERIE"
+      ]
+    },
+    {
+      "index": 12760,
+      "band": "lt15000",
+      "health": {
+        "base": 90,
+        "shift": 130,
+        "boost": 0,
+        "total": 220
+      },
+      "power": {
+        "base": 13,
+        "shift": 0,
+        "boost": 0,
+        "total": 13
+      },
+      "harmony": {
+        "base": 17,
+        "shift": 8,
+        "boost": 0,
+        "total": 25
+      },
+      "violence": {
+        "base": 16,
+        "shift": 0,
+        "boost": 0,
+        "total": 16
+      },
+      "affinities": [
+        "NORMAL",
+        "NORMAL"
+      ]
+    },
+    {
+      "index": 19000,
+      "band": "19000_19999",
+      "health": {
+        "base": 80,
+        "shift": 100,
+        "boost": 0,
+        "total": 180
+      },
+      "power": {
+        "base": 20,
+        "shift": 0,
+        "boost": 0,
+        "total": 20
+      },
+      "harmony": {
+        "base": 13,
+        "shift": 8,
+        "boost": 0,
+        "total": 21
+      },
+      "violence": {
+        "base": 13,
+        "shift": 0,
+        "boost": 0,
+        "total": 13
+      },
+      "affinities": [
+        "EERIE",
+        "SCRAP"
+      ]
+    },
+    {
+      "index": 19138,
+      "band": "19000_19999",
+      "health": {
+        "base": 70,
+        "shift": 100,
+        "boost": 0,
+        "total": 170
+      },
+      "power": {
+        "base": 13,
+        "shift": 0,
+        "boost": 0,
+        "total": 13
+      },
+      "harmony": {
+        "base": 20,
+        "shift": 8,
+        "boost": 0,
+        "total": 28
+      },
+      "violence": {
+        "base": 11,
+        "shift": 0,
+        "boost": 0,
+        "total": 11
+      },
+      "affinities": [
+        "NORMAL",
+        "NORMAL"
+      ]
+    },
+    {
+      "index": 19274,
+      "band": "19000_19999",
+      "health": {
+        "base": 140,
+        "shift": 0,
+        "boost": 0,
+        "total": 140
+      },
+      "power": {
+        "base": 13,
+        "shift": 0,
+        "boost": 0,
+        "total": 13
+      },
+      "harmony": {
+        "base": 12,
+        "shift": 0,
+        "boost": 0,
+        "total": 12
+      },
+      "violence": {
+        "base": 17,
+        "shift": 0,
+        "boost": 0,
+        "total": 17
+      },
+      "affinities": [
+        "SCRAP",
+        "SCRAP"
+      ]
+    },
+    {
+      "index": 19421,
+      "band": "19000_19999",
+      "health": {
+        "base": 80,
+        "shift": 100,
+        "boost": 0,
+        "total": 180
+      },
+      "power": {
+        "base": 16,
+        "shift": 0,
+        "boost": 0,
+        "total": 16
+      },
+      "harmony": {
+        "base": 12,
+        "shift": 8,
+        "boost": 0,
+        "total": 20
+      },
+      "violence": {
+        "base": 15,
+        "shift": 0,
+        "boost": 0,
+        "total": 15
+      },
+      "affinities": [
+        "INSECT",
+        "INSECT"
+      ]
+    },
+    {
+      "index": 19567,
+      "band": "19000_19999",
+      "health": {
+        "base": 80,
+        "shift": 100,
+        "boost": 0,
+        "total": 180
+      },
+      "power": {
+        "base": 17,
+        "shift": 0,
+        "boost": 0,
+        "total": 17
+      },
+      "harmony": {
+        "base": 13,
+        "shift": 8,
+        "boost": 0,
+        "total": 21
+      },
+      "violence": {
+        "base": 14,
+        "shift": 0,
+        "boost": 0,
+        "total": 14
+      },
+      "affinities": [
+        "EERIE",
+        "NORMAL"
+      ]
+    },
+    {
+      "index": 19717,
+      "band": "19000_19999",
+      "health": {
+        "base": 110,
+        "shift": 100,
+        "boost": 0,
+        "total": 210
+      },
+      "power": {
+        "base": 16,
+        "shift": 0,
+        "boost": 0,
+        "total": 16
+      },
+      "harmony": {
+        "base": 15,
+        "shift": 8,
+        "boost": 0,
+        "total": 23
+      },
+      "violence": {
+        "base": 11,
+        "shift": 0,
+        "boost": 0,
+        "total": 11
+      },
+      "affinities": [
+        "SCRAP",
+        "NORMAL"
+      ]
+    },
+    {
+      "index": 19862,
+      "band": "19000_19999",
+      "health": {
+        "base": 80,
+        "shift": 0,
+        "boost": 0,
+        "total": 80
+      },
+      "power": {
+        "base": 16,
+        "shift": 0,
+        "boost": 0,
+        "total": 16
+      },
+      "harmony": {
+        "base": 17,
+        "shift": 0,
+        "boost": 0,
+        "total": 17
+      },
+      "violence": {
+        "base": 11,
+        "shift": 0,
+        "boost": 0,
+        "total": 11
+      },
+      "affinities": [
+        "SCRAP",
+        "EERIE"
+      ]
+    },
+    {
+      "index": 20000,
+      "band": "gte20000",
+      "health": {
+        "base": 50,
+        "shift": 210,
+        "boost": 0,
+        "total": 260
+      },
+      "power": {
+        "base": 16,
+        "shift": 0,
+        "boost": 0,
+        "total": 16
+      },
+      "harmony": {
+        "base": 15,
+        "shift": 8,
+        "boost": 0,
+        "total": 23
+      },
+      "violence": {
+        "base": 17,
+        "shift": 0,
+        "boost": 0,
+        "total": 17
+      },
+      "affinities": [
+        "SCRAP",
+        "NORMAL"
+      ]
+    },
+    {
+      "index": 20304,
+      "band": "gte20000",
+      "health": {
+        "base": 70,
+        "shift": 100,
+        "boost": 0,
+        "total": 170
+      },
+      "power": {
+        "base": 18,
+        "shift": 0,
+        "boost": 0,
+        "total": 18
+      },
+      "harmony": {
+        "base": 15,
+        "shift": 8,
+        "boost": 0,
+        "total": 23
+      },
+      "violence": {
+        "base": 11,
+        "shift": 0,
+        "boost": 0,
+        "total": 11
+      },
+      "affinities": [
+        "SCRAP",
+        "NORMAL"
+      ]
+    },
+    {
+      "index": 20608,
+      "band": "gte20000",
+      "health": {
+        "base": 70,
+        "shift": 100,
+        "boost": 0,
+        "total": 170
+      },
+      "power": {
+        "base": 17,
+        "shift": 0,
+        "boost": 0,
+        "total": 17
+      },
+      "harmony": {
+        "base": 14,
+        "shift": 8,
+        "boost": 0,
+        "total": 22
+      },
+      "violence": {
+        "base": 13,
+        "shift": 0,
+        "boost": 0,
+        "total": 13
+      },
+      "affinities": [
+        "SCRAP",
+        "EERIE"
+      ]
+    },
+    {
+      "index": 20914,
+      "band": "gte20000",
+      "health": {
+        "base": 80,
+        "shift": 100,
+        "boost": 0,
+        "total": 180
+      },
+      "power": {
+        "base": 19,
+        "shift": 0,
+        "boost": 0,
+        "total": 19
+      },
+      "harmony": {
+        "base": 13,
+        "shift": 8,
+        "boost": 0,
+        "total": 21
+      },
+      "violence": {
+        "base": 12,
+        "shift": 0,
+        "boost": 0,
+        "total": 12
+      },
+      "affinities": [
+        "SCRAP",
+        "EERIE"
+      ]
+    },
+    {
+      "index": 21234,
+      "band": "gte20000",
+      "health": {
+        "base": 70,
+        "shift": 100,
+        "boost": 0,
+        "total": 170
+      },
+      "power": {
+        "base": 17,
+        "shift": 0,
+        "boost": 0,
+        "total": 17
+      },
+      "harmony": {
+        "base": 10,
+        "shift": 8,
+        "boost": 0,
+        "total": 18
+      },
+      "violence": {
+        "base": 16,
+        "shift": 0,
+        "boost": 0,
+        "total": 16
+      },
+      "affinities": [
+        "INSECT",
+        "EERIE"
+      ]
+    },
+    {
+      "index": 21543,
+      "band": "gte20000",
+      "health": {
+        "base": 120,
+        "shift": 100,
+        "boost": 0,
+        "total": 220
+      },
+      "power": {
+        "base": 14,
+        "shift": 0,
+        "boost": 0,
+        "total": 14
+      },
+      "harmony": {
+        "base": 14,
+        "shift": 8,
+        "boost": 0,
+        "total": 22
+      },
+      "violence": {
+        "base": 11,
+        "shift": 0,
+        "boost": 0,
+        "total": 11
+      },
+      "affinities": [
+        "SCRAP",
+        "SCRAP"
+      ]
+    },
+    {
+      "index": 21868,
+      "band": "gte20000",
+      "health": {
+        "base": 170,
+        "shift": 0,
+        "boost": 0,
+        "total": 170
+      },
+      "power": {
+        "base": 14,
+        "shift": 0,
+        "boost": 0,
+        "total": 14
+      },
+      "harmony": {
+        "base": 15,
+        "shift": 0,
+        "boost": 0,
+        "total": 15
+      },
+      "violence": {
+        "base": 11,
+        "shift": 0,
+        "boost": 0,
+        "total": 11
+      },
+      "affinities": [
+        "EERIE",
+        "NORMAL"
+      ]
+    }
+  ],
+  "shiftDivergences": [],
+  "shiftNote": "the mirror serves a BONUS-INCLUSIVE shift (getStats withBonus=true); the chain returns the stored component value. An empty list means no sampled kami carries a STAT_*_SHIFT bonus. A non-empty list is a finding: add an explicit shiftBonus field and assert shift === chainShift + shiftBonus.",
+  "unownedProbe": [
+    {
+      "index": 1,
+      "state": "721_EXTERNAL",
+      "chain": "answered"
+    },
+    {
+      "index": 2093,
+      "state": "721_EXTERNAL",
+      "chain": "answered"
+    },
+    {
+      "index": 4296,
+      "state": "721_EXTERNAL",
+      "chain": "answered"
+    },
+    {
+      "index": 6340,
+      "state": "721_EXTERNAL",
+      "chain": "answered"
+    },
+    {
+      "index": 8329,
+      "state": "DEAD",
+      "chain": "REVERT"
+    },
+    {
+      "index": 9933,
+      "state": "RESTING",
+      "chain": "REVERT"
+    },
+    {
+      "index": 11549,
+      "state": "721_EXTERNAL",
+      "chain": "answered"
+    },
+    {
+      "index": 13090,
+      "state": "DEAD",
+      "chain": "REVERT"
+    },
+    {
+      "index": 14562,
+      "state": "DEAD",
+      "chain": "REVERT"
+    },
+    {
+      "index": 16490,
+      "state": "DEAD",
+      "chain": "REVERT"
+    },
+    {
+      "index": 19249,
+      "state": "DEAD",
+      "chain": "REVERT"
+    },
+    {
+      "index": 20992,
+      "state": "RESTING",
+      "chain": "REVERT"
+    }
+  ],
+  "unownedReverted": 7,
+  "unownedTotalInMirror": 3440,
+  "unownedByState": {
+    "721_EXTERNAL": {
+      "answered": 5,
+      "reverted": 0
+    },
+    "DEAD": {
+      "answered": 0,
+      "reverted": 5
+    },
+    "RESTING": {
+      "answered": 0,
+      "reverted": 2
+    }
+  },
+  "unownedNote": "7 of 12 probed account-less kamis reverted. The per-index rows and the unownedByState grouping ARE the finding; this sentence is not. Observed so far: an account-less kami in state 721_EXTERNAL (bridged out of the world) is still resolved by the getter, while an account-less kami still in-world reverts. Recorded, not asserted — the mirror is not wrong to serve a kami the getter declines to describe, and the owned-only sampling above is the consequence either way.",
+  "problems": [],
+  "match": true
+}
