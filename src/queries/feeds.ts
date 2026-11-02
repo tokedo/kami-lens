@@ -443,7 +443,14 @@ export type AuctionOut = {
   params: { value: number; period: number; decay: number; rate: number };
   supply: { sold: number; total: number };
   startTime: number;
-  /** current price on the ported GDA curve (clock-corrected, §3.8). 1.1.0
+  /** 1.1.0 (§3.19, pin 8fb6ea58): the auction's pause window, unix seconds —
+   * the span GDA pricing skips (LibAuctionRegistry.setPause, admin-set, eg.
+   * over a chain halt; TimePause packs start << 64 | end). Present ONLY when
+   * a window is set (start < end); an auction without one has no key. */
+  pause?: { start: number; end: number };
+  /** current price on the ported GDA curve (clock-corrected, §3.8), its
+   * elapsed time counted from getPriceStart — the start pushed forward by
+   * the part of the pause window that has passed (LibAuction.calcBuy). 1.1.0
    * (§3.19): null exactly when the chain would refuse the buy, with the
    * reason in `priceUnavailable` (see auctionPriceOut). */
   price: number | null;
@@ -541,6 +548,10 @@ export async function auctionsQuery(
       params: a.params,
       supply: a.supply,
       startTime: a.time.start,
+      // 1.1.0 item 8: the pause window, only when one is set
+      ...(a.time.pause.start < a.time.pause.end
+        ? { pause: { start: a.time.pause.start, end: a.time.pause.end } }
+        : {}),
       // 1.1.0 (§3.19): null, with the reason, where the chain refuses the buy
       ...auctionPriceOut(a, clock.now() / 1000),
     }));

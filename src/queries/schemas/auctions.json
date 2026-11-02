@@ -40,9 +40,19 @@
           }
         },
         "startTime": { "type": "number" },
+        "pause": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["start", "end"],
+          "properties": {
+            "start": { "type": "number" },
+            "end": { "type": "number" }
+          },
+          "description": "1.1.0 (§3.19, upstream pin 8fb6ea58): the auction's pause window in unix seconds — a span GDA pricing skips, set by the admin (LibAuctionRegistry.setPause, eg. over a chain halt) and stored packed in TimePause (start << 64 | end). Present only when a window is set (start < end). The contract rule (LibAuction.getPriceStart): elapsed time counts from the start pushed forward by the part of the window that has passed — nothing before the window, time standing still during it, the whole window after it — and `price` is computed from that price start, as calcBuy computes it. Whether the auction has STARTED still reads startTime."
+        },
         "price": {
           "type": ["number", "null"],
-          "description": "The price of ONE unit now, on the ported GDA curve. 1.1.0 (§3.19): null exactly when the chain would refuse the buy — priceUnavailable says why. Until 1.1.0 a cost that had decayed to zero was served as 1."
+          "description": "The price of ONE unit now, on the ported GDA curve, its elapsed time counted from the chain's price start (LibAuction.getPriceStart: startTime pushed forward past the part of any pause window that has passed — see pause). 1.1.0 (§3.19): null exactly when the chain would refuse the buy — priceUnavailable says why. Until 1.1.0 a cost that had decayed to zero was served as 1."
         },
         "priceUnavailable": {
           "type": "string",

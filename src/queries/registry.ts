@@ -563,7 +563,8 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
   },
   auctions: {
     name: 'auctions',
-    summary: 'chain auctions with current GDA price; with [itemIndex], kamiden buy history',
+    summary:
+      "chain auctions with current GDA price (on the chain's elapsed time: an auction's pause window, served as `pause` when set, is skipped); with [itemIndex], kamiden buy history",
     parseArgs: ([itemIndex]) => ({ itemIndex: optInt(itemIndex, 'item index') }),
     stateless: false,
     kamiden: false, // chain listing works without kamiden; buys need it
