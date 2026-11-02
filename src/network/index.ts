@@ -9,7 +9,7 @@
 // burner wallet, so connectedAddress.get() returns undefined and the
 // burner-account getters degrade exactly as upstream does with no wallet
 // connected (getFromBurner → NullAccount, queryFromEmbedded → entity 0).
-// upstream: Asphodel-OS/kamigotchi-open @ 04cb25f8f3009ca9b89e62e20bd3d7afa12e98ad
+// upstream: Asphodel-OS/kamigotchi-open @ 8fb6ea58be5f773909a4d6d8db32f4726512b8e0
 // path:     packages/client/src/network/index.ts
 
 import type { World } from 'engine/recs';
