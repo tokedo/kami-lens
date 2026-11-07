@@ -133,7 +133,7 @@ so a machine that can do the first start can always restart.
 
 ## Status
 
-**1.1.0.** Daemon, CLI, and library are implemented and
+**1.1.1.** Daemon, CLI, and library are implemented and
 gate-verified against the pinned upstream commit and the live game,
 with dated per-run evidence in `docs/measurements/`. The verification
 suite is G0–G10 (G8, G9 and G10 are manual and live); every run writes
@@ -141,6 +141,45 @@ its own dated record, and the record — not this paragraph — is what a
 given release rests on. The contract registry is [SPEC.md](SPEC.md);
 per-surface coverage — what is served, what is deferred, what is out
 of scope — is [docs/coverage.md](docs/coverage.md).
+
+### What changed in 1.1.1, for the things that read this daemon
+
+Two changes to what a reader is told. Nothing the daemon holds, and no
+answer's data, changes.
+
+**`meta.stale` means stale again.** Every answer's `meta.stale` now says
+`true` only when the daemon is not LIVE, when its live stream has stalled,
+or when it knows it is missing part of the chain it has not been able to
+recover. Until now it also said `true` whenever any of the daemon's
+tripwire counters had ever fired, or its periodic chain re-check was
+running behind — and the counters are never reset while the daemon runs.
+So a daemon that had once reloaded its image after a Kamigaze reindex,
+complete and one block behind, marked every answer stale for as long as it
+kept running; a reader saw `stale: true` on everything and learned to
+ignore it. The rule is now the same one kami-keeper uses to decide whether
+a lens is fit to act on. The `status` answer is unchanged: the counters
+and the re-check are still listed in `degraded` (and the counters in
+`tripwires`), where a watchdog reads them.
+
+**The CLI tells you how to call it.** `kami-lens help` (or `--help`, or
+`-h`) prints every query: its usage line, with the positional arguments in
+order and every option, what it answers, and the rules the line cannot
+show. `kami-lens <query> --help` prints one query's part. Neither needs a
+running daemon. For example:
+
+    usage: kami-lens node <nodeIndex> [attackerKamiIndex] [--with-vitals] ...
+        - attackerKamiIndex needs --with-vitals
+
+— the attacker is the second number, not an option. When a query refuses
+its arguments, the refusal now ends with that query's usage line: on the
+CLI as a second line, and over the socket at the end of the `BAD_ARGS`
+message, after ` — usage: `. The error code is unchanged, and so is the
+part of the message before it. An unknown query name still lists the
+queries there are, and now adds `try: kami-lens help`.
+
+No query, option, field or answer changes. `version` reads `1.1.1`. If
+you ignored `meta.stale` because it was always `true`, it is worth
+reading again; if you match a `BAD_ARGS` message exactly, match its start.
 
 ### What changed in 1.1.0, for the things that read this daemon
 
