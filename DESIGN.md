@@ -203,7 +203,8 @@ which is why none of this was visible while it was happening.
 
 **Kamiden feed health has its own gate (0.5.2).** `degraded` stays
 CHAIN-only — a Kamiden outage must never stamp a chain answer stale, which
-is the soft-dependency clause above — but nine reads are Kamiden-backed and
+is the soft-dependency clause above (and from 1.1.1 only `degraded`'s gating
+classes stamp anything, §3.15) — but nine reads are Kamiden-backed and
 a session protocol that opens on `status` and gates every later read on
 `degraded` alone was reading a healthy-looking daemon while the feed
 flapped (observed 2026-08-27: stream `retrying`, 16 reconnects in 13
@@ -1146,6 +1147,33 @@ healthy mirror — that is what "does not advance on an event-less block"
 means — so a threshold set before anyone has seen the distribution would
 stamp healthy answers stale. The lag is information; the release that
 measures a thing is not the release that acts on it.
+
+**Amendment (1.1.1): `stale` keys on the gating state, not on every
+`degraded` entry.** The 0.5.0 meaning was `state !== 'LIVE' ||
+degraded.length > 0`, and its second half grew wider than it reads: 0.6.0
+and 1.0.0 added `unhealed-ranges` and `reconcile-stalled` to `degraded`, and
+it has always carried the tripwire COUNTERS (§7), which count for the life
+of the process. A daemon that took two Kamigaze nonce bumps on 2026-11-04
+reloaded its image and sat LIVE one block behind, nothing unhealed, no
+incomplete row — a complete mirror — and every answer it served for the next
+day said `stale: true`. A reader that finds the flag always on stops reading
+it, and then a real stall is invisible too; and a flag that calls a complete
+mirror stale is a served value that is wrong, which §3.14 refuses wherever
+it appears. So `stale` is now `state !== 'LIVE'` or a `degraded` entry of
+the two classes that say rows may be missing or wrong: `stream-stalled`
+(nothing new is being applied) and `unhealed-ranges` (a range recovery could
+not apply has outlived two reconcile intervals). That is exactly the set
+kami-keeper 1.0.1 gates its lens reads on (`LENS_DEGRADED_GATING_PREFIXES`),
+and the constant that holds it (`STALE_GATING_PREFIXES`,
+`src/sync-health.ts`) names that on purpose — the lens's flag and the
+keeper's gate must agree on what stale is. `reconcile-stalled` does not set
+it: every row is still the stream's applied state, and gating on a slow
+chain re-read would stamp every answer stale for as long as an RPC is slow.
+Neither does a tripwire counter, which the local watchdog has always read as
+information, never as a reason to restart. **`status` is unchanged**: every
+entry stays in `degraded` and the counters stay in `tripwires`, which is
+where the watchdog and the keeper read them. Still not derived from
+`blockLag`.
 
 **What a heal moves, and what it does not (0.6.0).** `liveBlockNumber` is the
 block of the last event APPLIED, so it does not move across a block that

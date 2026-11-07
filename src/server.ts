@@ -9,8 +9,11 @@
 //
 // `status` is served by the daemon itself (schema-checked like every
 // query); everything else goes through the shared registry. Answers are
-// stamped stale whenever the daemon is not LIVE or any tripwire has fired
-// (G3.e: degraded honesty — serve last-synced state, say so).
+// stamped stale whenever the daemon is not LIVE or `degraded` carries a
+// GATING entry — the stream stalled, or a range left unhealed (G3.e:
+// degraded honesty — serve last-synced state, say so). 1.1.1: tripwire
+// counters and a slow reconcile no longer stamp a complete mirror stale
+// (sync-health.ts STALE_GATING_PREFIXES).
 
 import { createServer, Server, Socket } from 'node:net';
 import { mkdirSync, unlinkSync } from 'node:fs';
@@ -28,6 +31,7 @@ import {
   QueryName,
   takeFreshnessArgs,
 } from './queries/registry';
+import { STALE_GATING_PREFIXES } from './sync-health';
 import { getVersionInfo } from './version';
 
 export const SOCKET_NAME = 'kami-lens.sock';
@@ -216,9 +220,17 @@ export function buildStatusData(
   };
 }
 
+/** `meta.stale` (1.1.1, O-TS26): not LIVE, or a `degraded` entry of a
+ * GATING class (STALE_GATING_PREFIXES — the keeper's own set). Through 1.1.0
+ * this was `degraded.length > 0`, and `degraded` holds the tripwire counters
+ * for the life of the process: one Kamigaze nonce bump stamped every later
+ * answer of a complete, LIVE mirror stale. `status` itself is unchanged. */
 function isStale(daemon: KamiLensDaemon): boolean {
   const s = daemon.getStatus();
-  return s.state !== 'LIVE' || s.degraded.length > 0;
+  return (
+    s.state !== 'LIVE' ||
+    s.degraded.some((d) => STALE_GATING_PREFIXES.some((p) => d.startsWith(p)))
+  );
 }
 
 type Request = {

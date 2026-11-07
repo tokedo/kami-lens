@@ -10,7 +10,8 @@
 // handle on it.
 //
 // DELIBERATELY NOT TRIPWIRES. Every nonzero tripwire is pushed into
-// `degraded` (daemon.ts), which stamps every chain answer stale. `reconnects`
+// `degraded` (daemon.ts), which through 1.1.0 stamped every chain answer
+// stale (1.1.1: only the gating classes below do). `reconnects`
 // is nonzero on a healthy daemon — the production server closed the chain
 // subscription every ~35-40 s until mid-September 2026 (~1,800-2,400 closes a
 // day in the Mac daemon's log, 09-06..09-14) and still closes it, and times
@@ -97,6 +98,32 @@ export type SyncHealth = {
 /** One reconcile repair (1.0.1): the write's block, the component (its
  * registry name), the entity id, and when it was applied (ISO). */
 export type RepairRecord = { block: number; component: string; entity: string; at: string };
+
+/** 1.1.1 (O-TS26): the `degraded` classes that set `meta.stale` on a LIVE
+ * daemon — the two that say rows may be missing or wrong. The stream has
+ * stalled (`stream-stalled:<N>s`: nothing new is being applied), or a range
+ * recovery could not apply has outlived two reconcile intervals
+ * (`unhealed-ranges:<N>`: the mirror is known-incomplete).
+ *
+ * THE SAME SET AS kami-keeper 1.0.1 `keeper/status.py`
+ * `LENS_DEGRADED_GATING_PREFIXES`, on purpose: the lens's flag and the
+ * keeper's lens gate must agree on what "stale" is. Everything else in
+ * `degraded` is informational and does not set the flag:
+ *  - `reconcile-stalled:<N>` — the chain re-read is behind, but every row is
+ *    still the stream's applied state; gating on it would stamp every answer
+ *    stale for the length of a slow RPC;
+ *  - the tripwire COUNTERS (`<name>:<count>`, tripwires.ts) — counted for
+ *    the life of the process, so a counter that fired once would stamp every
+ *    later answer of a complete mirror stale. Through 1.1.0 it did: two
+ *    Kamigaze nonce bumps on 2026-11-04 (the image reloaded, the mirror
+ *    complete, one block behind) marked every answer `stale: true` for a
+ *    day. The local watchdog treats them the same way (never a restart
+ *    reason);
+ *  - `pre-live-stall:<N>s` — pre-LIVE only, where `state !== 'LIVE'`
+ *    already decides.
+ * `status` is unchanged: the counters stay in `status.degraded` and
+ * `status.tripwires`, which is where the watchdog and the keeper read them. */
+export const STALE_GATING_PREFIXES = ['stream-stalled', 'unhealed-ranges'] as const;
 
 /** Bound on the reported list. A daemon accumulating more than this many
  * distinct unhealed ranges is not going to be fixed by reporting all of
