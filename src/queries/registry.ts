@@ -111,11 +111,30 @@ export type QueryDef = {
    * written `--full=1` stays an unknown option rather than being silently
    * read as absent. */
   valued?: string[];
+  /** 1.1.1 (O-TS14, O-TS20): what the usage line says about this query's
+   * POSITIONALS — the one thing `args` cannot declare. Derived from
+   * `parseArgs` (and, for the notes, from the refusals its builder makes),
+   * never from the summary. Required, so a query added later cannot ship
+   * without one. */
+  usage: QueryUsage;
   build: (
     ctx: QueryCtx,
     args: Record<string, unknown>,
     opts: EnvelopeOptions & { oversize?: boolean }
   ) => unknown | Promise<unknown>;
+};
+
+/** 1.1.1: a query's usage, beside its `args` / `valued` declarations. */
+export type QueryUsage = {
+  /** the positional shape after the query name: `<required>`, `[optional]`,
+   * `a|b|c` for the key forms one position accepts; '' for none */
+  shape: string;
+  /** the placeholder each VALUED arg prints after its flag
+   * (`--targets <k1,k2,…>`) — every entry of `valued` has one */
+  values?: Readonly<Record<string, string>>;
+  /** the rules `parseArgs` (or the builder) enforces that the shape cannot
+   * show — one clause each */
+  notes?: readonly string[];
 };
 
 const int = (s: string | undefined, what: string): number => {
@@ -187,6 +206,12 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     summary:
       'single-kami vitals by on-chain index (--stats adds the kami sheet\'s stat block + affinities; --equipment adds the equipped items slot by slot and the capacity — not in stateless mode)',
     args: ['--stats', '--equipment'],
+    usage: {
+      shape: '<kamiIndex>',
+      notes: [
+        '--stateless (a client flag) reads the vitals from the chain with no daemon; it serves neither --stats nor --equipment',
+      ],
+    },
     parseArgs: (positional) => {
       const [index] = positional.filter((p) => !p.startsWith('--'));
       return {
@@ -206,6 +231,10 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     summary:
       'account by index, name or owner address (an operator address also resolves, owner first) (bio only with --prose; gas balance when an RPC is configured; --slim serves identity with no roster and no chain read)',
     args: ['--slim'],
+    usage: {
+      shape: '<accountIndex|name|0xaddr>',
+      notes: ['0xaddr is 0x and 40 hex digits, any case; the owner is tried first, then the operator'],
+    },
     parseArgs: (positional) => {
       // FILTER THE FLAGS FIRST (0.5.2). This read `([key]) => …`, taking
       // argv[0] verbatim — the one query-argument parser that did not, because
@@ -242,6 +271,16 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
       'node with its ACTIVE harvests; --with-vitals [attackerKamiIndex] adds occupant vitals + liquidation preview, plus attacker.blocked (the attacker\'s own gate: null, ATTACKER_STARVING or ATTACKER_COOLDOWN) (--full lifts the row cap, --stats adds the stat block, --eligible-only serves the rows whose target is in reach — threshold > 0, margin > 0 and a salvage the chain can pay — regardless of the attacker\'s own state, so an empty list means no target in reach and never "my kami is starving")',
     args: ['--with-vitals', '--full', '--stats', '--eligible-only', '--targets', '--account'],
     valued: ['--targets', '--account'],
+    usage: {
+      shape: '<nodeIndex> [attackerKamiIndex]',
+      values: { '--targets': 'k1,k2,…', '--account': 'accountIndex' },
+      notes: [
+        'attackerKamiIndex needs --with-vitals',
+        '--stats needs --with-vitals',
+        '--eligible-only needs --with-vitals and attackerKamiIndex',
+        `--targets keeps the named occupants (1 to ${NODE_TARGETS_MAX} kami indices) and --account the occupants that account owns; both select before the row cap`,
+      ],
+    },
     parseArgs: (tokens) => {
       // 1.0.0 (B2): the valued selectors come off FIRST — their values are
       // bare tokens and would otherwise be read as the index or attacker
@@ -313,6 +352,10 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     summary:
       'account party report by account index or owner address (an operator address also resolves, owner first): kamis with full vitals (--full lifts the row cap, --stats adds the kami sheet\'s stat block + affinities)',
     args: ['--full', '--stats'],
+    usage: {
+      shape: '<accountIndex|0xaddr>',
+      notes: ['an account index or an owner address; party takes no name (account and inventory do)'],
+    },
     parseArgs: (positional) => {
       const [key] = positional.filter((p) => !p.startsWith('--'));
       const flags = { full: positional.includes('--full'), stats: positional.includes('--stats') };
@@ -335,6 +378,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     summary:
       'compact roster: one line per kami (index, state, hp) + where the account is (--stats adds the stat block and CAPS the list; --full lifts that cap)',
     args: ['--stats', '--full'],
+    usage: { shape: '<accountIndex>' },
     parseArgs: (positional) => {
       const [accountIndex] = positional.filter((p) => !p.startsWith('--'));
       return {
@@ -355,6 +399,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
   item: {
     name: 'item',
     summary: 'item registry row by index',
+    usage: { shape: '<itemIndex>' },
     parseArgs: ([index]) => ({ index: int(index, 'item index') }),
     stateless: false,
     kamiden: false,
@@ -364,6 +409,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     name: 'items',
     summary: 'the item registry, compact ([type] filters; --full serves whole rows)',
     args: ['--full'],
+    usage: { shape: '[type]' },
     parseArgs: (positional) => {
       const [type] = positional.filter((p) => p !== '--full');
       return { type, full: positional.includes('--full') };
@@ -378,6 +424,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     operatorArg: true,
     summary:
       'the account\'s PENDING token-portal receipts (mirror): item, amounts, tax, end time, claimable-now, lane and payout route. Pending only — the portal deletes a receipt when it is claimed or cancelled, so an empty list means nothing is waiting, NOT that nothing was ever withdrawn (history: `portal`)',
+    usage: { shape: '<accountIndex|name|0xaddr>' },
     parseArgs: ([key]) => {
       if (key === undefined) {
         throw new QueryError('BAD_ARGS', 'receipts needs an account index, a name or an address');
@@ -394,6 +441,10 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     summary:
       'pool swap quote, chain-exact (the reference client\'s pool pricing over the mirror\'s reserves): <fromItem> <toItem> <amount> sells exactly <amount>; --exact-out buys exactly <amount> (amountIn rounds up). Fee included; NOT_QUOTABLE when the chain would refuse the swap',
     args: ['--exact-out'],
+    usage: {
+      shape: '<fromItemIndex> <toItemIndex> <amount>',
+      notes: ['amount is a positive integer in item units; the two items must differ'],
+    },
     parseArgs: (positional) => {
       const rest = positional.filter((p) => !p.startsWith('--'));
       if (rest.length !== 3) {
@@ -416,6 +467,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     name: 'pool-history',
     summary:
       'a pool\'s price history (kamiden GetPoolPriceHistory): <itemA> <itemB> [fromTs seconds] — points {bucketTs, price}, price in quote units per base unit',
+    usage: { shape: '<itemA> <itemB> [fromTs]', notes: ['itemA and itemB are item indices; fromTs is unix seconds'] },
     parseArgs: (positional) => {
       if (positional.length < 2 || positional.length > 3) {
         throw new QueryError('BAD_ARGS', 'pool-history needs <itemA> <itemB> [fromTs]');
@@ -434,6 +486,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
   skills: {
     name: 'skills',
     summary: 'skill registry; with [kamiIndex], that kami\'s unspent points + taken skills',
+    usage: { shape: '[kamiIndex]' },
     parseArgs: ([kamiIndex]) => ({ kamiIndex: optInt(kamiIndex, 'kami index') }),
     stateless: false,
     kamiden: false,
@@ -443,6 +496,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     name: 'config',
     summary: 'one is.config field value (--array for packed arrays)',
     args: ['--array'],
+    usage: { shape: '<fieldName>', notes: ['--array, when given, comes right after the field name'] },
     parseArgs: ([name, flag]) => {
       if (!name) throw new QueryError('BAD_ARGS', 'config needs a field name');
       return { name, array: flag === '--array' };
@@ -456,6 +510,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     operatorArg: true,
     summary:
       'any-account item inventory by index, name or owner address (an operator address also resolves, owner first)',
+    usage: { shape: '<accountIndex|name|0xaddr>' },
     parseArgs: ([key]) => {
       if (key === undefined) {
         throw new QueryError('BAD_ARGS', 'inventory needs an account index, name or address');
@@ -474,6 +529,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     name: 'room',
     summary: 'room: its exits, and the accounts currently in it (--full lifts the occupant cap)',
     args: ['--full'],
+    usage: { shape: '<roomIndex>' },
     parseArgs: (positional) => {
       const [index] = positional.filter((p) => p !== '--full');
       return { index: int(index, 'room index'), full: positional.includes('--full') };
@@ -486,6 +542,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     name: 'merchant',
     summary: 'NPC merchants; with [npcIndex], the listing catalog with prices (--full serves whole rows)',
     args: ['--full'],
+    usage: { shape: '[npcIndex]' },
     parseArgs: (positional) => {
       const [index] = positional.filter((p) => p !== '--full');
       return { index: optInt(index, 'npc index'), full: positional.includes('--full') };
@@ -498,6 +555,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
   phase: {
     name: 'phase',
     summary: 'world day/night phase (36-hour cycle) + seconds to the next flip',
+    usage: { shape: '' },
     parseArgs: () => ({}),
     stateless: false,
     kamiden: false,
@@ -508,6 +566,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     summary:
       'mirror Score leaderboard ([type] [epoch] [itemIndex]; defaults COLLECT 1 1; --full lifts the row cap)',
     args: ['--full'],
+    usage: { shape: '[type] [epoch] [itemIndex]' },
     parseArgs: (positional) => {
       const [type, epoch, itemIndex] = positional.filter((p) => p !== '--full');
       return {
@@ -528,6 +587,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
   killers: {
     name: 'killers',
     summary: 'killer rankings: kamis by kills, service order ([size], default 50; kamiden)',
+    usage: { shape: '[size]' },
     parseArgs: ([size]) => ({ size: optInt(size, 'size') }),
     stateless: false,
     kamiden: true,
@@ -536,6 +596,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
   battles: {
     name: 'battles',
     summary: 'kami battle history + stats (kamiden; [beforeMs] pages back)',
+    usage: { shape: '<kamiIndex> [beforeMs]' },
     parseArgs: ([index, before]) => ({
       index: int(index, 'kami index'),
       before: optInt(before, 'before (ms timestamp)'),
@@ -550,6 +611,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     summary:
       'open chain trades; with [accountIndex], kamiden history + open offers (--full lifts the row cap)',
     args: ['--full'],
+    usage: { shape: '[accountIndex]' },
     parseArgs: (positional) => {
       const [accountIndex] = positional.filter((p) => p !== '--full');
       return {
@@ -565,6 +627,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     name: 'auctions',
     summary:
       "chain auctions with current GDA price (on the chain's elapsed time: an auction's pause window, served as `pause` when set, is skipped); with [itemIndex], kamiden buy history",
+    usage: { shape: '[itemIndex]' },
     parseArgs: ([itemIndex]) => ({ itemIndex: optInt(itemIndex, 'item index') }),
     stateless: false,
     kamiden: false, // chain listing works without kamiden; buys need it
@@ -576,6 +639,13 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     summary:
       'quests, compact ([accountIndex] [questIndex] keys one; --open / --accepted narrow; --full serves the whole registry)',
     args: ['--full', '--open', '--accepted'],
+    usage: {
+      shape: '[accountIndex] [questIndex]',
+      notes: [
+        'questIndex, --open and --accepted need accountIndex',
+        '--open and --accepted are alternatives, not a pair',
+      ],
+    },
     parseArgs: (positional) => {
       const rest = positional.filter((p) => !p.startsWith('--'));
       const open = positional.includes('--open');
@@ -610,6 +680,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     summary:
       'KamiSwap listings + bids (kamiden); with [accountIndex], order history (--full lifts the row caps)',
     args: ['--full'],
+    usage: { shape: '[accountIndex]' },
     parseArgs: (positional) => {
       const [accountIndex] = positional.filter((p) => p !== '--full');
       return {
@@ -625,6 +696,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     name: 'portal',
     operatorArg: true,
     summary: 'token portal history for an account + open withdrawals (kamiden)',
+    usage: { shape: '<accountIndex>' },
     parseArgs: ([accountIndex]) => ({ accountIndex: int(accountIndex, 'account index') }),
     stateless: false,
     kamiden: true,
@@ -634,6 +706,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     name: 'transfers',
     operatorArg: true,
     summary: 'item transfer history for an account (kamiden)',
+    usage: { shape: '<accountIndex>' },
     parseArgs: ([accountIndex]) => ({ accountIndex: int(accountIndex, 'account index') }),
     stateless: false,
     kamiden: true,
@@ -645,6 +718,14 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
       'buffered stream feed events: without [sinceSeq] the NEWEST --limit (default 50, max 500) in ascending seq; with it, the events after it, oldest first, capped at --limit ([type] filters; --account <accountIndex> keeps events naming that account or a kami it owns now)',
     args: ['--limit', '--account'],
     valued: ['--limit', '--account'],
+    usage: {
+      shape: '[sinceSeq] [type]',
+      values: { '--limit': 'n', '--account': 'accountIndex' },
+      notes: [
+        `--limit is 1 to ${FEED_LIMIT_MAX} (default ${FEED_LIMIT_DEFAULT})`,
+        'at most one sinceSeq (a number) and one type; an unknown type is refused with the list',
+      ],
+    },
     parseArgs: (positional) => {
       const { value: limitRaw, rest: r1 } = takeValued(positional, '--limit');
       const { value: accountRaw, rest } = takeValued(r1, '--account');
@@ -688,6 +769,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
     name: 'chat',
     summary: 'room chat page (kamiden; [beforeMs] [size]; --oversize serves withheld bodies)',
     args: ['--oversize'],
+    usage: { shape: '<roomIndex> [beforeMs] [size]' },
     parseArgs: (positional) => {
       const rest = positional.filter((p) => p !== '--oversize');
       const oversize = rest.length !== positional.length;
@@ -852,6 +934,126 @@ export function routeCliArgs(
     else throw unknownOption(command, arg, [...declared, ...CLIENT_FLAGS]);
   }
   return { positional, flags };
+}
+
+// ------------------------------------------------ 1.1.1 usage lines
+//
+// O-TS14 / O-TS20 (an evaluation run, 2026-11): `kami-lens --help` answered
+// `unknown query '--help'`, `<query> --help` listed the options and nothing
+// about positionals, and a BAD_ARGS carried no usage at all — so a reader
+// that kept no notes re-derived the CLI's shape every session (one asked in
+// 16 of 23 sessions, and once drove the socket by hand and read this
+// module's source to find a flag), and `node <i> --with-vitals --attacker-kami-index <k>` (a
+// tool's parameter names) was refused every time without ever being told the
+// attacker is POSITIONAL. The text below is built from the registry's own
+// declarations — `args`, `valued`, `usage`, `summary`, `operatorArg` — so it
+// cannot drift from what `parseArgs` accepts. The CLI prints it (cli.ts
+// usage(), the one printer); the socket appends a query's line to its
+// BAD_ARGS message (server.ts). Nothing here changes a served answer.
+
+/** `status` is served by the daemon, not the registry, but it is a query a
+ * reader asks for by name, so it has a block like the rest. */
+const STATUS_USAGE = {
+  name: 'status',
+  summary:
+    "the daemon's own health: sync state, the mirror's block and its lag to the chain head, `degraded` (chain health; a stalled stream or an unhealed range stamps answers stale) and `feedsDegraded` (the Kamiden feed), tripwire and recovery counters, and its config with each value's source",
+  usage: { shape: '', notes: ['takes no arguments; --at-least / --max-wait do not apply'] } as QueryUsage,
+  args: [] as readonly string[],
+  operatorArg: false,
+};
+
+/** The note every `operatorArg` query carries — the daemon fills an omitted
+ * account (server.ts), so the shape alone would read stricter than it is. */
+const OPERATOR_NOTE = "an omitted account is the daemon's --default-operator, when it has one";
+
+function usageOf(
+  query: string
+): { name: string; summary: string; usage: QueryUsage; args: readonly string[]; operatorArg: boolean } | undefined {
+  if (query === 'status') return STATUS_USAGE;
+  // own keys only — `in` would also find Object.prototype's
+  if (typeof query !== 'string' || !Object.hasOwn(REGISTRY, query)) return undefined;
+  const def = REGISTRY[query as QueryName];
+  return {
+    name: def.name,
+    summary: def.summary,
+    usage: def.usage,
+    args: def.args ?? [],
+    operatorArg: def.operatorArg === true,
+  };
+}
+
+/** `kami-lens <query> <shape> [--flag] [--valued <v>] …` — one line, the
+ * same text the CLI prints after a usage error and the socket appends to a
+ * BAD_ARGS. undefined for a name that is not a query. */
+export function usageLine(query: string): string | undefined {
+  const u = usageOf(query);
+  if (!u) return undefined;
+  const flags = u.args.map((a) => {
+    const v = u.usage.values?.[a];
+    return v === undefined ? `[${a}]` : `[${a} <${v}>]`;
+  });
+  return ['kami-lens', u.name, ...(u.usage.shape ? [u.usage.shape] : []), ...flags].join(' ');
+}
+
+const HELP_WIDTH = 100;
+
+/** word-wrap one paragraph at HELP_WIDTH under a hanging indent */
+function wrap(text: string, indent: string, first = indent): string[] {
+  const out: string[] = [];
+  let line = first;
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    const fresh = line === first || line === indent;
+    if (!fresh && line.length + 1 + word.length > HELP_WIDTH) {
+      out.push(line);
+      line = indent + word;
+    } else {
+      line = fresh ? line + word : `${line} ${word}`;
+    }
+  }
+  out.push(line);
+  return out;
+}
+
+/** One query's block: its usage line, its summary, then each rule the shape
+ * cannot show. undefined for a name that is not a query. */
+export function queryHelp(query: string): string[] | undefined {
+  const u = usageOf(query);
+  if (!u) return undefined;
+  const notes = [...(u.usage.notes ?? []), ...(u.operatorArg ? [OPERATOR_NOTE] : [])];
+  return [
+    `usage: ${usageLine(query)}`,
+    ...wrap(u.summary, '    '),
+    ...notes.flatMap((n) => wrap(n, '      ', '    - ')),
+  ];
+}
+
+/** Every query's block — status first, then the registry in order — and the
+ * flags every query shares, once, at the end. */
+export function helpCatalog(): string[] {
+  const blocks = ['status', ...QUERY_NAMES].flatMap((q) => [...queryHelp(q)!, '']);
+  return [
+    ...blocks,
+    'client flags (the CLI\'s own, every query; on the socket, prose and noAuthored are request fields):',
+    '    --prose          serve the authored-prose fields (e.g. an account\'s bio)',
+    '    --no-authored    name-free mode: authored ids are withheld, with a receipt',
+    '    --stateless      kami only: vitals read from the chain, no daemon',
+    'every world read (not status) also takes:',
+    `    ${AT_LEAST} <block>   hold the read until the mirror has applied <block>; NOT_APPLIED,`,
+    '                         with appliedThrough, if it has not by --max-wait',
+    `    ${MAX_WAIT} <ms>      with ${AT_LEAST} only; default ${MAX_WAIT_DEFAULT_MS}, at most ${MAX_WAIT_CAP_MS}`,
+  ];
+}
+
+/** A BAD_ARGS message with the query's usage line after it (the socket's
+ * form); unchanged for a name that is not a query. */
+export function withUsage(query: string, message: string): string {
+  const line = usageLine(query);
+  return line === undefined ? message : `${message} — usage: ${line}`;
+}
+
+/** The `unknown query` refusal, one text for the socket and the CLI. */
+export function unknownQueryMessage(name: string): string {
+  return `unknown query '${name}' (have: ${QUERY_NAMES.join(', ')}); try: kami-lens help`;
 }
 
 const SCHEMA_DIR = path.resolve(import.meta.dirname, 'schemas');

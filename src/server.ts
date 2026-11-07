@@ -30,6 +30,7 @@ import {
   REGISTRY,
   QueryName,
   takeFreshnessArgs,
+  withUsage,
 } from './queries/registry';
 import { STALE_GATING_PREFIXES } from './sync-health';
 import { getVersionInfo } from './version';
@@ -351,10 +352,18 @@ async function handle(
       code === 'NOT_APPLIED'
         ? { appliedThrough: (e as { appliedThrough?: number | null }).appliedThrough ?? null }
         : {};
+    const message = e instanceof Error ? e.message : String(e);
     return {
       id,
       ok: false,
-      error: { code, message: e instanceof Error ? e.message : String(e), ...extra },
+      // 1.1.1 (O-TS14): a BAD_ARGS for a known query carries that query's
+      // usage line, whoever threw it (the router, parseArgs, the builder).
+      // Additive text; the code is unchanged.
+      error: {
+        code,
+        message: code === 'BAD_ARGS' && typeof req.query === 'string' ? withUsage(req.query, message) : message,
+        ...extra,
+      },
     };
   }
 }

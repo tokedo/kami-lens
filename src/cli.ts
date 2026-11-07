@@ -7,6 +7,9 @@
 //   kami-lens health [config flags]       exit 0 iff the daemon is LIVE
 //                                         (container healthcheck backend)
 //   kami-lens --version                   version + upstream pin
+//   kami-lens help [query]                every query's usage, or one query's
+//                                         (1.1.1; also --help / -h first, and
+//                                         <query> --help or -h anywhere)
 //
 // Config flags (every mode; precedence flag > env > file > default, §5):
 //   --config <path> --chain-id --world-address --initial-block --rpc-url
@@ -45,7 +48,15 @@
 import { connect } from 'node:net';
 
 import { buildEnvelope, QueryError } from './queries';
-import { loadSchema, QUERY_NAMES, routeCliArgs } from './queries/registry';
+import {
+  helpCatalog,
+  loadSchema,
+  QUERY_NAMES,
+  queryHelp,
+  routeCliArgs,
+  unknownQueryMessage,
+  usageLine,
+} from './queries/registry';
 import { KamiLensConfig, parseConfigFlags, resolveConfigDetailed } from './config';
 import { ERR_NO_SNAPSHOT_SOURCE, KamiLensDaemon } from './daemon';
 import {
@@ -156,29 +167,87 @@ function ensureDaemonHeap(): void {
   }
 }
 
-function usage(): never {
+const CLI_FORMS = [
+  'usage: kami-lens <query> [args...] [client flags] [config flags]',
+  '       kami-lens help [query]        every query\'s usage, or one query\'s (also --help, -h;',
+  '                                     <query> --help)',
+  '       kami-lens daemon [config flags]',
+  '       kami-lens kami <kamiIndex> --stateless',
+  '       kami-lens health [config flags]',
+  '       kami-lens --version',
+];
+
+const CONFIG_LINES = [
+  "config flags: --config <path>, --chain-id, --world-address, --initial-block,",
+  '  --rpc-url, --rpc-ws-url, --kamigaze-url, --kamiden-url,',
+  '  --kamiden-buffer-capacity, --chat-enabled, --chat-max-bytes,',
+  '  --enrich true|false (DAEMON-side payload enrichment, §3.12),',
+  '  --default-operator, --data-dir, --checkpoint-interval-ms,',
+  '  --reconcile-interval-ms (0 = off, §3.17),',
+  "  --state-cdn-url <url>|none|false|'' (state CDN cold boot, §3.1;",
+  '    default ON — switching it off takes the gRPC cold start)',
+];
+
+const EXIT_LINE =
+  'exit codes: 0 ok · 1 query error (the JSON says which) · 2 usage · 3 ERR_NO_SNAPSHOT_SOURCE · ' +
+  '4 no daemon · 5 REQUIRES_DAEMON · 6 insufficient memory';
+
+/**
+ * THE ONE PLACE usage text is printed (1.1.1, O-TS14). The per-query text —
+ * every usage line, summary and rule — is built in the registry from the
+ * queries' own declarations (queries/registry.ts helpCatalog / queryHelp);
+ * this adds the CLI's own forms and config flags around it.
+ *
+ * Two modes. A usage ERROR (no `asked`) goes to stderr and exits
+ * EXIT_USAGE here: with a query, that query's block; without, the CLI forms,
+ * the query list and config flags, pointing at `help`. ASKED FOR (`help`,
+ * `--help`, `-h`) goes to stdout with exit 0 at a NORMAL end — the caller
+ * returns — because the whole catalog is a long write, and process.exit
+ * straight after a long write to a pipe can cut it off.
+ */
+function usage(query?: string): never;
+function usage(query: string | undefined, asked: true): void;
+function usage(query?: string, asked = false): void {
+  const block = query !== undefined ? queryHelp(query) : undefined;
+  if (asked) {
+    console.log((block ?? [...CLI_FORMS, '', ...helpCatalog(), '', ...CONFIG_LINES, EXIT_LINE]).join('\n'));
+    process.exitCode = 0;
+    return;
+  }
   console.error(
-    [
-      'usage: kami-lens daemon [config flags]',
-      '       kami-lens <query> [args...] [--prose] [--no-authored] [config flags]',
-      '       kami-lens kami <index> --stateless',
-      '       kami-lens health [config flags]',
-      '       kami-lens --version',
-      `queries: status, ${QUERY_NAMES.join(', ')}`,
-      'account keys: account and inventory take an index, a name or an owner address;',
-      '  party takes an index or an owner address (0x + 40 hex, any case; an',
-      '  operator address also resolves, owner first)',
-      "config flags: --config <path>, --chain-id, --world-address, --initial-block,",
-      '  --rpc-url, --rpc-ws-url, --kamigaze-url, --kamiden-url,',
-      '  --kamiden-buffer-capacity, --chat-enabled, --chat-max-bytes,',
-      '  --enrich true|false (DAEMON-side payload enrichment, §3.12),',
-      '  --default-operator, --data-dir, --checkpoint-interval-ms,',
-      '  --reconcile-interval-ms (0 = off, §3.17),',
-      "  --state-cdn-url <url>|none|false|'' (state CDN cold boot, §3.1;",
-      '    default ON — switching it off takes the gRPC cold start)',
-    ].join('\n')
+    (
+      block ?? [
+        ...CLI_FORMS,
+        `queries: status, ${QUERY_NAMES.join(', ')}`,
+        "every query's usage: kami-lens help (one query's: kami-lens <query> --help)",
+        ...CONFIG_LINES,
+      ]
+    ).join('\n')
   );
   process.exit(EXIT_USAGE);
+}
+
+/** 1.1.1: the tokens that ask for usage text — `help`, `--help` or `-h` as
+ * the first token; `--help` or `-h` anywhere after a query name. */
+const HELP_FIRST = new Set(['help', '--help', '-h']);
+const HELP_FLAGS = new Set(['--help', '-h']);
+
+/** `help [query]`: the catalog, or one query's block. A name that is not a
+ * query is refused the way the daemon refuses it; more than one name is a
+ * usage error rather than a silently ignored token (§3.13). */
+function help(tokens: readonly string[]): void {
+  const names = tokens.filter((t) => !HELP_FLAGS.has(t));
+  if (names.length === 0) return usage(undefined, true);
+  if (names.length > 1) {
+    console.error(`[kami-lens] help takes at most one query name, got ${names.length}: ${names.join(' ')}`);
+    return usage();
+  }
+  const [name] = names as [string];
+  if (queryHelp(name) === undefined) {
+    console.error(`[kami-lens] ${unknownQueryMessage(name)}`);
+    process.exit(EXIT_USAGE);
+  }
+  return usage(name, true);
 }
 
 /** 1.0.0: refuse a socket path the OS would truncate, on BOTH sides — the
@@ -323,7 +392,7 @@ async function runStateless(
     process.exit(EXIT_REQUIRES_DAEMON);
   }
   const index = Number(positional[0]);
-  if (!Number.isInteger(index) || index < 0) usage();
+  if (!Number.isInteger(index) || index < 0) usage('kami');
   try {
     const data = await statelessKami(config, index);
     const envelope = buildEnvelope(
@@ -367,6 +436,15 @@ async function main(): Promise<void> {
   } catch (e) {
     console.error(`[kami-lens] ${e instanceof Error ? e.message : e}`);
     process.exit(EXIT_USAGE);
+  }
+
+  // 1.1.1 (O-TS14): usage text, before any mode runs and before any socket
+  // is touched — it needs no daemon. `<query> --help` prints that query's
+  // block; `daemon --help` / `health --help` the whole catalog.
+  if (HELP_FIRST.has(command)) return help(remaining);
+  if (remaining.some((t) => HELP_FLAGS.has(t))) {
+    if (command === 'daemon' || command === 'health') return usage(undefined, true);
+    return help([command]);
   }
 
   if (command === 'daemon') {
@@ -426,6 +504,10 @@ async function main(): Promise<void> {
     ({ positional, flags } = routeCliArgs(command, remaining));
   } catch (e) {
     console.error(`[kami-lens] ${e instanceof QueryError ? e.message : String(e)}`);
+    // 1.1.1 (O-TS14, O-TS20): the refusal, then the query's usage line —
+    // a reader told only "unknown option" still has to guess the shape
+    const line = usageLine(command);
+    if (line !== undefined) console.error(`usage: ${line}`);
     process.exit(EXIT_USAGE);
   }
   const resolved = resolveConfigDetailed({}, configFlags).config;

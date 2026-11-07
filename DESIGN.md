@@ -905,6 +905,24 @@ returning a *different answer*, silently. Queries now declare their own
 argument vocabulary and an undeclared option is a usage error. Fail loudly,
 never lie (§3.1) applies to the arguments as much as to the answers.
 
+**And a refusal that does not say what would be accepted is half an answer
+(1.1.1).** An evaluation run in November 2026 measured the other side of
+this rule. A reader that keeps no notes asked the CLI for its usage in 16
+of 23 sessions — `kami-lens --help` answered `unknown query '--help'`,
+`<query> --help` listed the option names and nothing about positionals, and
+a refusal from a query's parser carried no usage at all — and once it drove
+the socket by hand and read the lens's own source to find one flag. It also
+passed `node`'s attacker as `--attacker-kami-index` (a tool's parameter
+name) twenty-three times and was refused every time, correctly, without ever
+being told the attacker is a POSITIONAL. So every query now declares its positional shape
+beside its `args` (`usage`, a required field), and the text is BUILT from
+those declarations — never written beside them, which is how the two would
+drift: `kami-lens help` prints every query's block, `<query> --help` one,
+and every `BAD_ARGS` for a known query carries the query's usage line (on
+the CLI as a second line, on the socket as a suffix of the message, the
+code unchanged). It is client-side text: the query set and every served
+answer are as they were.
+
 **And the fix only reached one of the two entry points (0.5.2).** 0.5.0
 fixed the CLI and left the SOCKET exactly as it was — which is the path the
 harness and the agents actually use. Found the day 0.5.2's own flags were

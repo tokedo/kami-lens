@@ -9,7 +9,7 @@ import { Mirror, QueryError } from './build';
 import { buildEnvelope, Envelope, EnvelopeOptions } from './envelope';
 import { QueryCtx } from './feeds';
 import { syncHealth } from '../sync-health';
-import { loadSchema, QUERY_NAMES, QueryName, REGISTRY } from './registry';
+import { loadSchema, QueryName, REGISTRY, unknownQueryMessage } from './registry';
 
 export type { AsOf, Envelope, EnvelopeOptions } from './envelope';
 export { buildAsOf, buildEnvelope, classifyPaths, loadClassification } from './envelope';
@@ -31,7 +31,9 @@ export async function serveQuery(
 ): Promise<Envelope<unknown>> {
   const def = REGISTRY[name as QueryName];
   if (!def) {
-    throw new QueryError('BAD_ARGS', `unknown query '${name}' (have: ${QUERY_NAMES.join(', ')})`);
+    // 1.1.1: the have: list stays, and the refusal names the way to the
+    // usage text (`; try: kami-lens help`)
+    throw new QueryError('BAD_ARGS', unknownQueryMessage(name));
   }
   const ctx = toCtx(target);
   const args = def.parseArgs(positional);
