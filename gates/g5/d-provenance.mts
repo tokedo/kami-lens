@@ -9,6 +9,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { fail, pass, REPO_ROOT, writeMeasurement } from '../g1/lib.mts';
+import { checkPinDocs } from './pin-docs.mts';
 
 const checks: Record<string, boolean> = {};
 const detail: Record<string, unknown> = {};
@@ -73,6 +74,11 @@ for (const f of files) {
 checks.vendorHeadersComplete = badVendor.length === 0;
 checks.noUnmarkedFiles = unmarked.length === 0;
 detail.files = { total: files.length, vendor, native, badVendor: badVendor.slice(0, 10), unmarked: unmarked.slice(0, 10) };
+
+// 1.2.0: the documents that state the pin state this one
+const pinDocs = checkPinDocs(REPO_ROOT).checks;
+checks.pinDocuments = pinDocs.every((c) => c.ok);
+detail.pinDocuments = pinDocs.filter((c) => !c.ok).map((c) => `${c.file}: ${c.what}`);
 
 await writeMeasurement('g5d-provenance', { pin, checks, ...detail, match: Object.values(checks).every(Boolean) });
 if (!Object.values(checks).every(Boolean)) fail('G5.d', { checks, detail });

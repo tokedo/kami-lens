@@ -6,12 +6,10 @@
   "timeToLiveColdMs_parallel": 41536,
   "commonBlock": 31230681,
   "warmHash": {
-    "hash": "41a6795b7230b36b6d2964040a12586575178c605c50fed1faf2bba27e35b789",
     "entries": 2794207,
     "blockNumber": 31230681
   },
   "coldHash": {
-    "hash": "41a6795b7230b36b6d2964040a12586575178c605c50fed1faf2bba27e35b789",
     "entries": 2794207,
     "blockNumber": 31230681
   },

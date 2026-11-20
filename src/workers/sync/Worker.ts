@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi-open @ 8fb6ea58be5f773909a4d6d8db32f4726512b8e0
+ * upstream: Asphodel-OS/kamigotchi-open @ a99b4b64b505b722203b2337f76a5b604539c1e0
  * path:     packages/client/src/workers/sync/Worker.ts
  * history:  forward-ported in 0.6.2 from @ 21f419e63e0a7f6b642c255efeb89dd1c288de1c
  *           while that commit was ahead of the pin; the pin now includes it:
@@ -158,6 +158,11 @@
  *              that window cheap: a warm cache more than BOOT_REPLAY_MAX_BLOCKS
  *              behind the chain is released for a cold load, and a CDN image
  *              more than that behind is declined for the gRPC full load.
+ *              1.2.0: and the same two bounds apply when the window would
+ *              begin BELOW THE ENDPOINT'S FLOOR (probeFloor: its first block
+ *              answers null while the head is served) — the reconcile could
+ *              not read it (eth_getLogs answers empty there), so the boot
+ *              takes the path that needs no logs instead.
  *          19. THE BOOTSTRAP's APPLIED MARK (1.0.0, A5): just before LIVE a
  *              marker update says everything through the stream's start block
  *              is applied (the fill covered it); appliedThrough starts there.
@@ -236,6 +241,7 @@ import {
   createFetchSystemCallsFromEvents,
   createFetchWorldEventsInBlockRange,
   createLatestEventStreamRPC,
+  probeFloor,
 } from './utils';
 
 const debug = parentDebug.extend('SyncWorker');
@@ -506,6 +512,20 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
       });
       initialState = createStateCache();
     }
+    // 1.2.0: a warm cache whose replay window begins below the endpoint's
+    // floor cannot be verified by logs — load it cold, like one too far behind
+    if (
+      bootHead !== undefined &&
+      initialState.lastKamigazeBlock > 0 &&
+      (await probeFloor(provider, initialState.lastKamigazeBlock + 1)) === 'below'
+    ) {
+      log.warn("[boot] cached state ends below the endpoint's floor — its window cannot be read back; loading cold", {
+        cachedBlock: initialState.lastKamigazeBlock,
+        head: bootHead,
+      });
+      initialState = createStateCache();
+    }
+    if (this.stopped('floor probe')) return;
     // the block the loaded state may claim, BEFORE any delta (divergence 18)
     const preDeltaBlock = initialState.lastKamigazeBlock;
     const preDeltaNonce = initialState.kamigazeNonce;
@@ -537,6 +557,14 @@ export class SyncWorker<C extends Components> implements DoWork<Input, NetworkEv
             imageBlock: manifest.block,
             head: bootHead,
             limit: BOOT_REPLAY_MAX_BLOCKS,
+          });
+          manifest = undefined;
+        }
+        // 1.2.0: likewise an image whose window begins below the floor
+        if (manifest && (await probeFloor(provider, manifest.block + 1)) === 'below') {
+          log.warn("[cdn] image ends below the endpoint's floor — using the gRPC full load", {
+            imageBlock: manifest.block,
+            head: bootHead,
           });
           manifest = undefined;
         }

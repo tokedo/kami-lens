@@ -79,24 +79,10 @@
   "peakNodeRssKb": 3370796,
   "peakNodeRssGiB": 3.21,
   "peakNodeRssAt": "2026-09-18T16:58:39.519Z",
-  "peakNodeRssProcs": [
-    {
-      "pid": 1,
-      "rssKb": 3370796
-    }
-  ],
+  "peakNodeRssProcs": 1,
   "peakDuringCheckpointKb": 2891144,
   "peakDuringCheckpointGiB": 2.76,
-  "peakDuringCheckpointProcs": [
-    {
-      "pid": 462,
-      "rssKb": 1607092
-    },
-    {
-      "pid": 1,
-      "rssKb": 1284052
-    }
-  ],
+  "peakDuringCheckpointProcs": 2,
   "checkpointInFlightSamples": 7,
   "maxNodeProcsSeen": 3,
   "checkpointLineCount": 1,

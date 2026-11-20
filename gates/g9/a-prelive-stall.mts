@@ -26,6 +26,7 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { writeG9Record } from './record.mts';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -301,9 +302,7 @@ const record = {
   },
 };
 
-const stamp = new Date().toISOString().slice(0, 10);
-const out = path.join(ROOT, 'docs', 'measurements', `g9-prelive-stall-${stamp}.json`);
-writeFileSync(out, JSON.stringify(record, null, 2) + '\n');
+const out = writeG9Record(record);
 
 if (!fix.reachedLive) {
   fail({ reason: '0.5.2 did not reach LIVE after the network returned', record: out });

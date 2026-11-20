@@ -1,0 +1,46 @@
+{
+  "gate": "g2d-stats-chain",
+  "measuredAt": "2026-11-20T22:20:58.789Z",
+  "lens": {
+    "version": "1.2.0",
+    "upstream": "a99b4b64b505b722203b2337f76a5b604539c1e0"
+  },
+  "pinnedBlock": 35331743,
+  "snapshotBase": "base-live2.v8snap",
+  "snapshotBlock": 35329553,
+  "blocksReplayed": 2190,
+  "headAfterVerify": 35331754,
+  "blocksBehindAtEnd": 11,
+  "elapsedMs": 39157,
+  "systemsRegistry": "0x3B9B1223d876968B8Ba319CDdD4B4B6739B462AA",
+  "getterAddress": "0x991db571eafa031624a0bb11bf48341b15b822a6",
+  "sampled": 21,
+  "perBand": {
+    "lt15000": 7,
+    "19000_19999": 7,
+    "gte20000": 7
+  },
+  "rows": 21,
+  "shiftDivergences": [],
+  "shiftNote": "the mirror serves a BONUS-INCLUSIVE shift (getStats withBonus=true); the chain returns the stored component value. An empty list means no sampled kami carries a STAT_*_SHIFT bonus. A non-empty list is a finding: add an explicit shiftBonus field and assert shift === chainShift + shiftBonus.",
+  "unownedProbe": 12,
+  "unownedReverted": 8,
+  "unownedTotalInMirror": 3335,
+  "unownedByState": {
+    "721_EXTERNAL": {
+      "answered": 4,
+      "reverted": 0
+    },
+    "DEAD": {
+      "answered": 0,
+      "reverted": 6
+    },
+    "RESTING": {
+      "answered": 0,
+      "reverted": 2
+    }
+  },
+  "unownedNote": "8 of 12 probed account-less kamis reverted. The per-index rows and the unownedByState grouping ARE the finding; this sentence is not. Observed so far: an account-less kami in state 721_EXTERNAL (bridged out of the world) is still resolved by the getter, while an account-less kami still in-world reverts. Recorded, not asserted — the mirror is not wrong to serve a kami the getter declines to describe, and the owned-only sampling above is the consequence either way.",
+  "problems": [],
+  "match": true
+}

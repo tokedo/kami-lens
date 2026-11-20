@@ -7,7 +7,6 @@
   "verifyElapsedMs": 10064,
   "reads": 129,
   "concurrency": 8,
-  "accountIndex": 2160,
   "roomIndex": 25,
   "sampling": "inventory/room/room-exits/merchant exhaustive for the sampled entities; leaderboard top-10 + every 200th per board",
   "counts": {

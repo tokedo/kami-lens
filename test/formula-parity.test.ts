@@ -18,11 +18,14 @@
 // LibHarvest.calcEfficacy overloads among them) and the Solidity bodies it
 // quotes are from the Kami Atlas by Asphodel Studios,
 // https://github.com/Asphodel-OS/kami-atlas (commit ac64364), generated from
-// kamigotchi at 04cb25f8f300 — licensed CC BY 4.0. The transcriptions below,
-// and the math primitives in test/support/solidity.ts, are this repository's
-// own code (AGPL-3.0-only), written against the contract source at
-// Asphodel-OS/kamigotchi-open @ 04cb25f8 (AGPL-3.0-only), which is the
-// authority wherever the two differ. Config arrays are the live world's
+// kamigotchi at 04cb25f8f300 — licensed CC BY 4.0. 1.2.0: the same generator
+// run at a99b4b64 adds four keys (LibHarvest.calcCredit and the three
+// LibBallot formulas) and changes two bodies (LibKill.calcSalvage /
+// calcSpoils, the cap guard); the list here is that one, 44 keys. The
+// transcriptions below, and the math primitives in test/support/solidity.ts,
+// are this repository's own code (AGPL-3.0-only), written against the
+// contract source at Asphodel-OS/kamigotchi-open @ a99b4b64 (AGPL-3.0-only),
+// which is the authority wherever the two differ. Config arrays are the live world's
 // (test/support/mirror.ts LIVE_KAMI_CONFIG, read 2026-10-03).
 //
 // The port side runs exactly the code the daemon runs, on the shapes it
@@ -93,11 +96,15 @@ type Mapping = {
 const MAP: Mapping[] = [
   { formula: 'LibAccount.calcStaminaRecovery', port: 'app/cache/account/calcs.calcCurrentStamina', served: 'account stamina.current', how: 'direct' },
   { formula: 'LibAffinity.calcEfficacyShift', port: 'app/cache/harvest/calcs.calcEfficacyShift', served: 'via fertility → musu accrued', how: 'direct' },
+  { formula: 'LibBallot.calcBase', port: null, served: null, how: 'unported', why: 'the lens serves no ballot answer (the ballot systems are not perceived)' },
+  { formula: 'LibBallot.calcStreak', port: null, served: null, how: 'unported', why: 'as LibBallot.calcBase' },
+  { formula: 'LibBallot.calcWeight', port: null, served: null, how: 'unported', why: 'as LibBallot.calcBase' },
   { formula: 'LibAuction.calcBuy', port: 'network/explorer/auctions/pricing.calcPrice (app/cache/auction/functions.calcPrice is the same copy)', served: 'auctions price', how: 'direct' },
   { formula: 'LibBonus.calcSingle', port: 'network/shapes/Bonus/types.getValue', served: 'every bonus-dependent value', how: 'direct' },
   { formula: 'LibExperience.calcLevelCost', port: 'network/shapes/Kami/progress.calcExperienceRequirement', served: 'kami / party / node xpRequired', how: 'direct' },
   { formula: 'LibGDA.calc', port: 'inlined in app/cache/npc/calcs.calcBuyPriceGDA and the auctions calcPrice', served: 'merchant buyPrice, auctions price', how: 'through LibListing.calcBuyPrice and LibAuction.calcBuy' },
   { formula: 'LibHarvest.calcBounty', port: 'app/cache/kami/calcs/harvest.calcOutput (calcRawNetBounty capped by calcMaxMusu)', served: 'kami musu.accrued, node vitals.musuAccrued', how: 'direct' },
+  { formula: 'LibHarvest.calcCredit', port: 'app/cache/harvest/calcs.settleStretch (calcOutput credits the capped bounty through it)', served: 'kami musu.accrued, node vitals.musuAccrued, the liquidation shares', how: 'direct' },
   { formula: 'LibHarvest.calcDuration', port: 'app/cache/harvest/calcs.calcIdleTime', served: 'via the bounty', how: 'direct' },
   { formula: 'LibHarvest.calcEfficacy(string,string,Shifts,string)', port: 'app/cache/harvest/calcs.calcEfficacyShifts (one trait)', served: 'via fertility → musu accrued', how: 'direct' },
   { formula: 'LibHarvest.calcEfficacy(uint256,uint256,uint256)', port: 'app/cache/harvest/calcs.calcEfficacyShifts + the fertility boost', served: 'via fertility → musu accrued', how: 'direct' },
@@ -265,7 +272,7 @@ type KamiIn = {
   hand?: string;
   bonus?: BonusIn;
   /** times in seconds before NOW */
-  harvest?: { balance?: number; last: number; reset: number; nodeAff: string[] };
+  harvest?: { balance?: number; last: number; reset: number; nodeAff: string[]; k?: number };
   /** seconds before NOW */
   idle?: number;
 };
@@ -293,6 +300,8 @@ function kami(s: KamiIn): Kami {
       ? {
           state: 'ACTIVE',
           balance: s.harvest.balance ?? 0,
+          // the K the open stretch pays (per mille): 1000 on every live node
+          multiplier: s.harvest.k ?? 1000,
           time: { last: NOW - s.harvest.last, reset: NOW - s.harvest.reset, start: NOW - s.harvest.reset },
           node: { affinity: s.harvest.nodeAff },
           rates: { total: { average: 0, spot: 0 } },
@@ -411,6 +420,13 @@ function refBounty(fertility: bigint, intensity: bigint, duration: bigint, maxMu
   return raw < maxMusu ? raw : maxMusu;
 }
 
+/** LibHarvest.calcCredit (a99b4b64): the stretch's bounty × the copied K,
+ * rounded to the nearest unit — (bounty · k + HARV_MULT_PREC / 2) /
+ * HARV_MULT_PREC, HARV_MULT_PREC = 1000 (LibNode) */
+function refCredit(bounty: bigint, k: bigint) {
+  return (bounty * k + 1000n / 2n) / 1000n;
+}
+
 /** LibKami.calcStrain — rounds UP */
 function refStrain(amt: bigint, harmony: bigint, bonus = 0n) {
   const c = cfg('KAMI_HARV_STRAIN');
@@ -493,12 +509,25 @@ function refRecoil(dViolence: bigint, dHand: string, aHarmony: bigint, aBody: st
   return ((base + nudge) * strain * boost) / 10n ** (c[1]! + c[3]! + c[7]!);
 }
 
-/** LibKill.calcSalvage / calcSpoils (one body, two config keys) */
+/** LibKill.calcSalvage / calcSpoils (one body, two config keys), at
+ * a99b4b64: `if (ratio >= precision) return amt;` — the share is capped at
+ * 100%. (At 04cb25f8 / 8fb6ea58 the guard was `ratio / precision > 1`, which
+ * paid ratio × amt for a ratio in [1.0, 2.0); kept as refShareBefore for the
+ * cases that name the change.) */
 function refShare(key: 'KAMI_LIQ_SALVAGE' | 'KAMI_LIQ_SPOILS', power: bigint, amt: bigint, ratioBonus = 0n) {
   const c = cfg(key);
   if (ratioBonus < 0n) throw new Error('SafeCast toUint256');
   const powerTuning = (c[0]! + power) * 10n ** (c[3]! - c[1]!);
   const ratio = c[2]! + powerTuning + ratioBonus;
+  const precision = 10n ** c[3]!;
+  if (ratio >= precision) return amt;
+  return (amt * ratio) / precision;
+}
+
+/** the guard the chain ran until 2026-11-20 (8fb6ea58's LibKill) */
+function refShareBefore(key: 'KAMI_LIQ_SALVAGE' | 'KAMI_LIQ_SPOILS', power: bigint, amt: bigint) {
+  const c = cfg(key);
+  const ratio = c[2]! + (c[0]! + power) * 10n ** (c[3]! - c[1]!);
   const precision = 10n ** c[3]!;
   if (ratio / precision > 1n) return amt;
   return (amt * ratio) / precision;
@@ -624,10 +653,13 @@ const AFF4 = ['EERIE', 'SCRAP', 'INSECT', 'NORMAL'];
 // ================================================================ tests
 
 describe('the mapping table', () => {
-  it('names every formula of the manifest once: 33 compared (30 directly, 3 through a composite), 7 unported', () => {
-    expect(MAP).toHaveLength(40);
-    expect(new Set(MAP.map((m) => m.formula)).size).toBe(40);
+  it('names every formula of the manifest once: 34 compared (31 directly, 3 through a composite), 10 unported', () => {
+    expect(MAP).toHaveLength(44);
+    expect(new Set(MAP.map((m) => m.formula)).size).toBe(44);
     expect(MAP.filter((m) => m.how === 'unported').map((m) => m.formula)).toEqual([
+      'LibBallot.calcBase',
+      'LibBallot.calcStreak',
+      'LibBallot.calcWeight',
       'LibKamiMarket.calcFee',
       'LibKill.calculateHealthValues',
       'LibPool.calcInitialLiquidity',
@@ -636,7 +668,7 @@ describe('the mapping table', () => {
       'LibTokenPortal.calcImportTax',
       'NewbieVendorBuySystem.calcPrice',
     ]);
-    expect(MAP.filter((m) => m.how === 'direct')).toHaveLength(30);
+    expect(MAP.filter((m) => m.how === 'direct')).toHaveLength(31);
     expect(MAP.filter((m) => m.how.startsWith('through'))).toHaveLength(3);
   });
 });
@@ -833,6 +865,42 @@ describe('LibHarvest.calcDuration, calcIntensityDuration, calcFertility, calcInt
     }, [0], 0);
   });
 
+  // 1.2.0 (a99b4b64's LibHarvest.sync): the balance takes calcCredit of the
+  // capped bounty, through the harvest's copied K; the bounty itself (and the
+  // HP strain charged on it) is unchanged
+  it.each([
+    ['K 1.0 credits the bounty unchanged', 1000, 0],
+    ['K 1.5 rounds 0.5 up', 1500, 0],
+    ['K 0.1, the registry minimum', 100, 0],
+    ['K 60, the registry maximum', 60000, 0],
+    ['K 1.234 on a stored balance', 1234, 777],
+    ['K 0.999', 999, 5],
+  ] as const)('calcCredit ↔ calcOutput: %s', (label, k, balance) => {
+    const c = kami({ power: 20, violence: 15, harmony: 15, body: 'EERIE', hand: 'SCRAP', harvest: { last: 3_600, reset: 7_200, nodeAff: ['EERIE'], k, balance } });
+    const fert = refFertility(20n, refHarvestEfficacy(1000n, 'EERIE', 'SCRAP', 'EERIE', 0n));
+    const bounty = refBounty(fert, refIntensity(15n, 7_200n), 3_600n, refMaxMusu(200n, 15n));
+    pair('LibHarvest.calcCredit', label, B(balance) + refCredit(bounty, B(k)), calcOutput(c));
+  });
+
+  it('calcCredit: half a unit rounds UP, just under half rounds down (the contract\'s + 500)', () => {
+    // a bounty of 1 at K 1500 is 1.5 → 2; at K 1499 is 1.499 → 1
+    for (const [bounty, k, want] of [[1n, 1500n, 2n], [1n, 1499n, 1n], [3n, 1500n, 5n], [3n, 1100n, 3n], [9n, 1100n, 10n], [4n, 100n, 0n]] as const) {
+      expect(refCredit(bounty, k)).toBe(want);
+    }
+  });
+
+  it('seeded sweep — credit: equal in every sample, K across the registry\'s range', () => {
+    sweep('LibHarvest.calcCredit', 'equal (new in 1.2.0)', 4000, (rnd) => {
+      const power = rnd(5, 120), violence = rnd(5, 120), harmony = rnd(5, 80);
+      const body = AFF[rnd(0, 2)]!, hand = AFF[rnd(0, 2)]!, node = AFF[rnd(0, 2)]!;
+      const last = rnd(60, 100_000), reset = last + rnd(0, 100_000), k = rnd(100, 60_000), balance = rnd(0, 50_000);
+      const c = kami({ power, violence, harmony, body, hand, hpTotal: 1_000_000, harvest: { last, reset, nodeAff: [node], k, balance } });
+      const fert = refFertility(B(power), refHarvestEfficacy(1000n, body, hand, node, 0n));
+      const bounty = refBounty(fert, refIntensity(B(violence), B(reset)), B(last), refMaxMusu(1_000_000n, B(harmony)));
+      return { label: `${power}/${violence}/${harmony} ${body}/${hand} on ${node}, last ${last}, K ${k}, balance ${balance}`, chain: B(balance) + refCredit(bounty, B(k)), port: calcOutput(c) };
+    }, [0], 0);
+  });
+
   it('seeded sweep — max musu: equal in every sample', () => {
     sweep('LibHarvest.calcMaxMusu', 'equal', 4000, (rnd) => {
       const hp = rnd(1, 3000), harmony = rnd(5, 80), sb = rnd(-300, 300);
@@ -988,35 +1056,60 @@ describe('LibKill: threshold (with animosity and threshold efficacy), recoil eff
     sweep('LibKill.calcRecoil', 'equal (resolved in 1.1.0; 1.0.5: unfloored karma, 858 high by 1–3)', 3000, gen('recoil'), [0], 0);
   });
 
-  it('RESOLVED in 1.1.0 (SERVED; was missing branch): spoils ratio in (1.0, 2.0) — amt × ratio, as the chain pays', () => {
+  it('1.2.0 (a99b4b64, SERVED): a spoils ratio from 1.0 pays exactly what the salvage leaves — capped at 100%', () => {
     // killer power 60 on the live config [45, 2, 0, 3]: ratio (45 + 60)·10 =
-    // 1050; 1050 / 1000 = 1, not > 1, so the chain pays 1.05 × what remains
-    // (1.0.5: 750, capped at what remains)
+    // 1050 >= 1000, so the chain pays the whole remainder (1.1.1 served the
+    // earlier chain's 1.05 × it: 787)
     const def = kami({ power: 25, harvest: { balance: 1000, last: 0, reset: 0, nodeAff: ['NORMAL'] } });
-    const { spoils } = refLiquidationShares(25n, 60n, 1000n);
-    expect(spoils).toBe(787n);
+    const { salvage, spoils } = refLiquidationShares(25n, 60n, 1000n);
+    expect(salvage).toBe(250n);
+    expect(spoils).toBe(750n);
+    expect(refShareBefore('KAMI_LIQ_SPOILS', 60n, 750n)).toBe(787n);
     pair('LibKill.calcSpoils', 'killer power 60, victim power 25, bounty 1000', spoils, calcSpoils(kami({ power: 60 }), def));
-    for (const power of [154, 155]) {
+    // the band's edges: ratio 990 (power 54) is a share; 1000 (power 55) and
+    // 1990 (power 154, 1.1.1: 1.99 ×) are the whole remainder, as is 2000
+    for (const power of [54, 55, 154, 155]) {
       pair('LibKill.calcSpoils', `killer power ${power}, victim power 25, bounty 1000`, refLiquidationShares(25n, B(power), 1000n).spoils, calcSpoils(kami({ power }), def));
     }
-    // at power 154 the chain pays 1.99 ×; from 155 (ratio 2000) the full amount again
-    expect(refShare('KAMI_LIQ_SPOILS', 154n, 1000n)).toBe(1990n);
-    expect(refShare('KAMI_LIQ_SPOILS', 155n, 1000n)).toBe(1000n);
+    expect(refShare('KAMI_LIQ_SPOILS', 54n, 1000n)).toBe(990n);
+    expect(refShare('KAMI_LIQ_SPOILS', 55n, 1000n)).toBe(1000n);
+    expect(refShare('KAMI_LIQ_SPOILS', 154n, 1000n)).toBe(1000n);
+    expect(refShareBefore('KAMI_LIQ_SPOILS', 154n, 1000n)).toBe(1990n);
   });
 
-  it('RESOLVED in 1.1.0 (SERVED; was missing branch): salvage ratio ≥ 1.0 — the chain\'s salvage, and the revert it causes', () => {
-    // victim power 120: ratio 1200, salvage 1.2 × the bounty — the chain's
-    // calcSalvage value — and the system's `bounty - salvage` underflows: the
-    // liquidation reverts. The calc serves the chain's salvage; the preview
-    // marks the row ineligible (SALVAGE_EXCEEDS_BOUNTY) and its spoils are 0
-    // (test/liquidation-revert.test.ts asserts the served row)
+  it('1.2.0 (a99b4b64, SERVED): a salvage ratio from 1.0 is the whole bounty — no salvage exceeds it, no liquidation reverts on it', () => {
+    // victim power 120: ratio 1200 >= 1000 → salvage = the bounty, spoils of
+    // the empty remainder 0. Until 2026-11-20 the chain paid 1.2 × the bounty
+    // and the system's `bounty - salvage` underflowed (the liquidation
+    // reverted); 1.1.1 served that salvage and marked the row
+    // SALVAGE_EXCEEDS_BOUNTY (test/liquidation-revert.test.ts asserts the row)
     const def120 = kami({ power: 120, harvest: { balance: 1000, last: 0, reset: 0, nodeAff: ['NORMAL'] } });
-    expect(() => refLiquidationShares(120n, 20n, 1000n)).toThrow(/underflow/);
-    pair('LibKill.calcSalvage', 'victim power 120 (the liquidation reverts on chain)', refShare('KAMI_LIQ_SALVAGE', 120n, 1000n), calcSalvage(def120, 1000));
-    pair('LibKill.calcSpoils', 'killer power 20 on that victim (the chain reverts first; 0 served)', 0n, calcSpoils(kami({ power: 20 }), def120));
-    // victim power 250: ratio 2500, 2500 / 1000 = 2 > 1 → the whole bounty (1.0.5: 2500)
-    const def250 = kami({ power: 250, harvest: { balance: 1000, last: 0, reset: 0, nodeAff: ['NORMAL'] } });
-    pair('LibKill.calcSalvage', 'victim power 250', refShare('KAMI_LIQ_SALVAGE', 250n, 1000n), calcSalvage(def250, 1000));
+    expect(refLiquidationShares(120n, 20n, 1000n)).toEqual({ salvage: 1000n, spoils: 0n });
+    expect(refShareBefore('KAMI_LIQ_SALVAGE', 120n, 1000n)).toBe(1200n);
+    pair('LibKill.calcSalvage', 'victim power 120', refShare('KAMI_LIQ_SALVAGE', 120n, 1000n), calcSalvage(def120, 1000));
+    pair('LibKill.calcSpoils', 'killer power 20 on that victim', 0n, calcSpoils(kami({ power: 20 }), def120));
+    // the band's edges: power 99 (990) a share, 100 (1000) and 199 (1990) the
+    // whole bounty, as is 250
+    for (const power of [99, 100, 199, 250]) {
+      const d = kami({ power, harvest: { balance: 1000, last: 0, reset: 0, nodeAff: ['NORMAL'] } });
+      pair('LibKill.calcSalvage', `victim power ${power}`, refShare('KAMI_LIQ_SALVAGE', B(power), 1000n), calcSalvage(d, 1000));
+    }
+    expect(refShare('KAMI_LIQ_SALVAGE', 99n, 1000n)).toBe(990n);
+    expect(refShare('KAMI_LIQ_SALVAGE', 199n, 1000n)).toBe(1000n);
+  });
+
+  it('seeded sweep — salvage and spoils across the [1.0, 2.0) band and either side: equal in every sample', () => {
+    sweep('LibKill.calcSalvage', 'equal (1.2.0: the cap)', 4000, (rnd) => {
+      const power = rnd(0, 260), bounty = rnd(0, 100_000), bonus = rnd(0, 600);
+      const d = kami({ power, bonus: { defSalvageRatio: bonus }, harvest: { balance: bounty, last: 0, reset: 0, nodeAff: ['NORMAL'] } });
+      return { label: `victim power ${power}, +${bonus}, bounty ${bounty}`, chain: refShare('KAMI_LIQ_SALVAGE', B(power), B(bounty), B(bonus)), port: calcSalvage(d, bounty) };
+    }, [0], 0);
+    sweep('LibKill.calcSpoils', 'equal (1.2.0: the cap)', 4000, (rnd) => {
+      const vp = rnd(0, 99), kp = rnd(0, 260), bounty = rnd(1, 100_000), bonus = rnd(0, 600);
+      const d = kami({ power: vp, harvest: { balance: bounty, last: 0, reset: 0, nodeAff: ['NORMAL'] } });
+      const salvage = refShare('KAMI_LIQ_SALVAGE', B(vp), B(bounty));
+      return { label: `victim ${vp}, killer ${kp} +${bonus}, bounty ${bounty}`, chain: refShare('KAMI_LIQ_SPOILS', B(kp), B(bounty) - salvage, B(bonus)), port: calcSpoils(kami({ power: kp, bonus: { atkSpoilsRatio: bonus } }), d) };
+    }, [0], 0);
   });
 });
 

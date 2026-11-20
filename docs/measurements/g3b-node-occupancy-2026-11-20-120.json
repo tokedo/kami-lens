@@ -1,0 +1,20 @@
+{
+  "gate": "g3b-node-occupancy",
+  "measuredAt": "2026-11-20T22:21:57.268Z",
+  "lens": {
+    "version": "1.2.0",
+    "upstream": "a99b4b64b505b722203b2337f76a5b604539c1e0"
+  },
+  "snapshot": "<tmp>/…/base-live2.v8snap",
+  "pinnedBlock": 35331757,
+  "verifyElapsedMs": 10649,
+  "rpcStateDepthNote": "eth_call state served only ~50-120 blocks deep (measured 2026-07-21: ok@50, reverted@120)",
+  "nodeIndex": 53,
+  "nodeName": "Blooming Tree",
+  "activeHarvests": 57,
+  "verified": 57,
+  "violations": [],
+  "negativeSamples": 10,
+  "negativeViolations": [],
+  "match": true
+}

@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi-open @ 8fb6ea58be5f773909a4d6d8db32f4726512b8e0
+ * upstream: Asphodel-OS/kamigotchi-open @ a99b4b64b505b722203b2337f76a5b604539c1e0
  * path:     packages/client/src/assets/images/icons/menu/index.ts
  * changes:  png imports replaced by same-named consts holding the upstream
  *           asset path as a stable string token (headless port: no bundler
@@ -9,8 +9,8 @@
  */
 
 const ChatIcon = 'assets/images/icons/menu/chat.png';
-const ExclamIcon = 'assets/images/icons/menu/exclam.png';
 const ClockIcon = 'assets/images/icons/menu/clock.png';
+const ExclamIcon = 'assets/images/icons/menu/exclam.png';
 const HelpIcon = 'assets/images/icons/menu/help.png';
 const InventoryIcon = 'assets/images/icons/menu/inventory.png';
 const KamiIcon = 'assets/images/icons/menu/kami.png';
@@ -19,12 +19,15 @@ const KamiWikiIcon = 'assets/images/icons/menu/kamiwiki.png';
 const ExternalIcon = 'assets/images/icons/menu/link_to_external_apps.png';
 const LpFountainIcon = 'assets/images/icons/menu/lp_fountain.png';
 const MapIcon = 'assets/images/icons/menu/map.png';
+const MarketplaceIcon = 'assets/images/icons/menu/marketplace.png';
 const MoreIcon = 'assets/images/icons/menu/more.png';
 const ObolShopIcon = 'assets/images/icons/menu/obolshop_3.png';
 const OperatorIcon = 'assets/images/icons/menu/operator.png';
-const MarketplaceIcon = 'assets/images/icons/menu/marketplace.png';
+const QuestAvailableIcon = 'assets/images/icons/menu/quest_available.png';
+const QuestOngoingIcon = 'assets/images/icons/menu/quest_ongoing.png';
 const QuestsIcon = 'assets/images/icons/menu/quests.png';
 const ResetIcon = 'assets/images/icons/menu/reset.png';
+const RitualIcon = 'assets/images/icons/menu/ritual.png';
 const SettingsIcon = 'assets/images/icons/menu/settings.png';
 const SocialIcon = 'assets/images/icons/menu/social.png';
 const SudoIcon = 'assets/images/icons/menu/sudo.png';
@@ -33,8 +36,8 @@ const Whispo = 'assets/images/icons/menu/whispo.png';
 
 export {
   ChatIcon,
-  ExclamIcon,
   ClockIcon,
+  ExclamIcon,
   ExternalIcon,
   HelpIcon,
   InventoryIcon,
@@ -47,8 +50,11 @@ export {
   MoreIcon,
   ObolShopIcon,
   OperatorIcon,
+  QuestAvailableIcon,
+  QuestOngoingIcon,
   QuestsIcon,
   ResetIcon,
+  RitualIcon,
   SettingsIcon,
   SocialIcon,
   SudoIcon,

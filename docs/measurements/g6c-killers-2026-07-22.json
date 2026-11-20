@@ -7,7 +7,6 @@
   "joinRatio": 0.98,
   "phase": {
     "phase": 1,
-    "name": "DAYLIGHT",
     "cycleHour": 6,
     "secondsToNext": 19479,
     "next": "EVENFALL",

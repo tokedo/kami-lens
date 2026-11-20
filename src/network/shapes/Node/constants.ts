@@ -1,12 +1,13 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi-open @ 8fb6ea58be5f773909a4d6d8db32f4726512b8e0
+ * upstream: Asphodel-OS/kamigotchi-open @ a99b4b64b505b722203b2337f76a5b604539c1e0
  * path:     packages/client/src/network/shapes/Node/constants.ts
  * changes:  none
  */
 
 import { EntityID, EntityIndex } from 'engine/recs';
 
+import { MULT_PREC } from './multiplier';
 import { Node } from './types';
 
 export const NullNode: Node = {
@@ -22,4 +23,5 @@ export const NullNode: Node = {
   affinity: ['NORMAL'] as string[],
   drops: [],
   requirements: [],
+  multiplier: MULT_PREC,
 };

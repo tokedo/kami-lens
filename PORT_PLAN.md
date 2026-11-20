@@ -2,11 +2,12 @@
 
 Executes [DESIGN.md](DESIGN.md) (v1, 2026-07-20). Upstream pin:
 `Asphodel-OS/kamigotchi-open` @ `ef898fc9` (recorded in the `UPSTREAM`
-file from M0 onward; advanced to `ffda3963` in 1.0.0 and to `04cb25f8`
-then `8fb6ea58` in 1.1.0 — the classified diffs are
-`docs/measurements/pin-advance-ffda3963-2026-10-03.json`,
-`docs/measurements/pin-advance-04cb25f8-2026-10-23.json` and
-`docs/measurements/pin-advance-8fb6ea58-2026-11-02.json`).
+file from M0 onward; advanced to `ffda3963` in 1.0.0, to `04cb25f8`
+then `8fb6ea58` in 1.1.0, and to `a99b4b64` in 1.2.0 — the classified diffs
+are `docs/measurements/pin-advance-ffda3963-2026-10-03.json`,
+`docs/measurements/pin-advance-04cb25f8-2026-10-23.json`,
+`docs/measurements/pin-advance-8fb6ea58-2026-11-02.json` and
+`docs/measurements/pin-advance-a99b4b64-2026-11-20.json`).
 
 ## Gate philosophy
 

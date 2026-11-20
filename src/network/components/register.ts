@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi-open @ 8fb6ea58be5f773909a4d6d8db32f4726512b8e0
+ * upstream: Asphodel-OS/kamigotchi-open @ a99b4b64b505b722203b2337f76a5b604539c1e0
  * path:     packages/client/src/network/components/register.ts
  * changes:  none
  */
@@ -40,6 +40,7 @@ export function createComponents(world: World) {
     HasFlag: defineBoolComponent(world, 'HasFlag', 'component.has.flag'),
     Harmony: defineStatComponent(world, 'Harmony', 'component.stat.harmony'),
     Health: defineStatComponent(world, 'Health', 'component.stat.health'),
+    HarvestMultiplier: defineNumberComponent(world, 'HarvestMultiplier', 'component.harvest.multiplier'),
     FromID: defineStringComponent(world, 'FromID', 'component.id.from', true),
     HolderID: defineStringComponent(world, 'HolderID', 'component.id.holder', true),
     OwnsFlagID: defineStringComponent(world, 'OwnsFlagID', 'component.id.flag.owns', true),

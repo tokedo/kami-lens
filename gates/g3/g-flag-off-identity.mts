@@ -261,6 +261,15 @@ const ADDITIVE_LEAVES_101 = ['reconcileRepairs'];
  * - on `kami` and on `party` rows: `soulboundUntil` (§3.19), a unique leaf
  *   name. Node occupant rows do not carry it. */
 const ADDITIVE_LEAVES_110 = ['levelCap', 'scavengeCost', 'scavengeAffinity', 'soulboundUntil'];
+
+/** 1.2.0 adds ONE leaf, on `node` (every rung): `harvestMultiplier`, the
+ * node's K — a unique leaf name. The fixture predates K; the gate's loader
+ * applies the deploy's K = 1000 to every node (gates/g1/lib.mts
+ * withHarvestMultiplierDeploy), at which every credited amount equals
+ * 1.1.1's, so no value is allowed to move for K. The liquidation cap (a
+ * salvage or spoils ratio in [1.0, 2.0) is the whole amount) moves no value
+ * on this fixture's cases either; none is allowed. */
+const ADDITIVE_LEAVES_120 = ['harvestMultiplier'];
 const ADDITIVE_PATTERNS_110 = [
   /^yieldItem\.(index|name)$/,
   /^requirements(\[\d*\](\.(logic|type|index|value|for))?)?$/,
@@ -326,6 +335,7 @@ function isAdditive052(path: string): boolean {
     ADDITIVE_LEAVES_100A.includes(leaf) ||
     ADDITIVE_LEAVES_101.includes(leaf) ||
     ADDITIVE_LEAVES_110.includes(leaf) ||
+    ADDITIVE_LEAVES_120.includes(leaf) ||
     ADDITIVE_PREFIXES_100A.some((p) => path.startsWith(p)) ||
     ADDITIVE_PATTERNS_100B.some((re) => re.test(path)) ||
     ADDITIVE_PATTERNS_110.some((re) => re.test(path))

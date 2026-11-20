@@ -11,12 +11,10 @@
   "provisional": true,
   "replayMs": 8575,
   "rpcPathHash": {
-    "hash": "4b7e33bdf43b1df491337c184f872887244e5a7e2f5e4bab8045edddc654e652",
     "entries": 3089754,
     "blockNumber": 34013452
   },
   "kamigazePathHash": {
-    "hash": "4b7e33bdf43b1df491337c184f872887244e5a7e2f5e4bab8045edddc654e652",
     "entries": 3089754,
     "blockNumber": 34013452
   },

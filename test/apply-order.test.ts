@@ -137,6 +137,8 @@ function poolProvider(
       return calls.map((c) =>
         c.method === 'eth_blockNumber'
           ? { jsonrpc: '2.0', id: c.id, result: `0x${head.toString(16)}` }
+          : c.method === 'eth_getBlockByNumber' // 1.2.0: the reader's floor test
+            ? { jsonrpc: '2.0', id: c.id, result: chain_.blockFor(head, 0, c.params[0] as unknown as string) }
           : c.method === 'eth_getLogs'
             ? {
                 jsonrpc: '2.0',

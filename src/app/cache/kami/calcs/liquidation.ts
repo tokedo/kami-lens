@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi-open @ 8fb6ea58be5f773909a4d6d8db32f4726512b8e0
+ * upstream: Asphodel-OS/kamigotchi-open @ a99b4b64b505b722203b2337f76a5b604539c1e0
  * path:     packages/client/src/app/cache/kami/calcs/liquidation.ts
  * changes:  calcSalvage exported (upstream keeps it module-private; its UI
  *           previews only spoils/recoil). Visibility-only; the query surface
@@ -20,13 +20,14 @@
  *           - calcRecoil: `((karma + efficacy) · strain · boost) /
  *             10^(c1+c3+c7)`, boost floored at 0.
  *           - calcSalvage / calcSpoils (shareOf): ratio = c2 + (c0 + power) ·
- *             10^(c3−c1) + bonus; `ratio / 10^c3 > 1` in INTEGER division
- *             pays the whole amount, otherwise `amt · ratio / 10^c3`. The
- *             client capped spoils at min(1, ratio) (the chain pays up to
- *             1.99× for a ratio in (1, 2)) and never capped salvage; it
- *             hard-coded power/100 where the chain scales by 10^(c3−c1).
- *             Spoils of a negative remainder (salvage above the bounty: the
- *             chain's liquidation reverts) are 0.
+ *             10^(c3−c1) + bonus; a ratio at or above 10^c3 pays the whole
+ *             amount (a99b4b64's `ratio >= precision`; through 1.1.1 the
+ *             lens carried the earlier chain's `ratio / 10^c3 > 1`, which
+ *             paid up to 1.99× and let a salvage exceed the bounty),
+ *             otherwise `amt · ratio / 10^c3`. Upstream's client clamps
+ *             salvage at min(1, ratio) and spoils likewise, in floats, and
+ *             hard-codes power/100 where the chain scales by 10^(c3−c1); the
+ *             port keeps the integers. Spoils of a negative remainder are 0.
  *           Efficacy shifts and bonuses are read back to raw values at the
  *           target's precision (the chain adds raw slots); equal while the
  *           efficacy configs' precision slot equals it (3, live).
@@ -127,7 +128,11 @@ const shareOf = (
   const powerTuning = BigInt(config.nudge.raw + Math.trunc(power)) * 10n ** BigInt(tuneExp);
   const ratio = BigInt(config.ratio.raw) + powerTuning + BigInt(bonusRaw);
   const precision = 10n ** BigInt(config.ratio.precision);
-  if (ratio / precision > 1n) return amt;
+  // a99b4b64 (deployed 2026-11-20): `ratio >= precision` pays the whole
+  // amount — the share is capped at 100%. Until then the chain tested
+  // `ratio / precision > 1` in integer division and paid ratio × amt for a
+  // ratio in [1.0, 2.0)
+  if (ratio >= precision) return amt;
   return Number((BigInt(amt) * ratio) / precision);
 };
 

@@ -21,14 +21,15 @@ import path from 'node:path';
 import v8 from 'node:v8';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { commitSnapshotFile, FileStateStore, readSnapshot } from 'workers/sync/state/store';
+import { commitSnapshotFile, componentSchemaFingerprint, FileStateStore, readSnapshot } from 'workers/sync/state/store';
 
 let dir = '';
 const file = () => path.join(dir, 'ECSCache-test.v8snap');
 const header = { chainId: 1337, worldAddress: '0xabc', cacheVersion: 5 };
 const snap = (blockNumber: number) =>
   v8.serialize({
-    header: { ...header, kamigazeNonce: 1, blockNumber },
+    // 1.2.0: a snapshot this build wrote names its component schema
+    header: { ...header, kamigazeNonce: 1, blockNumber, componentSchema: componentSchemaFingerprint() },
     stores: new Map([['BlockNumber', new Map([['current', blockNumber]])]]),
   });
 

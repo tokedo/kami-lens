@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi-open @ 8fb6ea58be5f773909a4d6d8db32f4726512b8e0
+ * upstream: Asphodel-OS/kamigotchi-open @ a99b4b64b505b722203b2337f76a5b604539c1e0
  * path:     packages/client/src/network/shapes/Allo/interpretation.ts
  * changes:  two @ts-expect-error: parseBonus and parseDroptable use the
  *           placeholder png MODULE NAMESPACE (`{ default: url }`), not a
@@ -30,13 +30,17 @@ import {
   parseStatTypeFromIndex,
 } from '../utils';
 
+// counters that only feed a requirement check; not an effect worth listing
+const HIDDEN_ALLO_TYPES = ['MOCHI_USED'];
+
 export const parseAllos = (
   world: World,
   components: Components,
   allos: Allo[],
   flattenDT?: boolean
 ): DetailedEntity[] => {
-  const raw = allos.map((allo) => parseAllo(world, components, allo, flattenDT));
+  const shown = allos.filter((allo) => !HIDDEN_ALLO_TYPES.includes(allo.type));
+  const raw = shown.map((allo) => parseAllo(world, components, allo, flattenDT));
   return raw.flat();
 };
 

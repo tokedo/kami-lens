@@ -25,43 +25,7 @@
     "    NODE_OPTIONS=--max-old-space-size=6144 kami-lens daemon"
   ],
   "timeToLiveSeconds": 39,
-  "healthPolls": [
-    {
-      "atSeconds": 5,
-      "state": "BACKFILL",
-      "rc": 1
-    },
-    {
-      "atSeconds": 11,
-      "state": "BACKFILL",
-      "rc": 1
-    },
-    {
-      "atSeconds": 16,
-      "state": "BACKFILL",
-      "rc": 1
-    },
-    {
-      "atSeconds": 21,
-      "state": "BACKFILL",
-      "rc": 1
-    },
-    {
-      "atSeconds": 27,
-      "state": "INITIALIZE",
-      "rc": 1
-    },
-    {
-      "atSeconds": 32,
-      "state": "INITIALIZE",
-      "rc": 1
-    },
-    {
-      "atSeconds": 39,
-      "state": "LIVE",
-      "rc": 0
-    }
-  ],
+  "healthPolls": 7,
   "oomInDaemonLog": false,
   "daemonLogTail": [
     "{\"at\":\"2026-10-03T19:44:53.447Z\",\"state\":\"INITIALIZE\",\"msg\":\"Initializing with 3,089,718 state entries\",\"percentage\":56,\"liveBlockNumber\":34012389,\"checkpoint\":null,\"degraded\":[]}",

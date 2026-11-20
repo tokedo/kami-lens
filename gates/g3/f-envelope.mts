@@ -400,6 +400,8 @@ const BASE_PRESENCE: { query: string; args: string[]; paths: string[] }[] = [
   // their classification is asserted by the unit suite
   // (test/node-facts.test.ts), not here.
   { query: 'node', args: ['62'], paths: ['yieldItem.index', 'yieldItem.name', 'scavengeCost'] },
+  // 1.2.0: the node's K survives the envelope on every node answer
+  { query: 'node', args: ['62'], paths: ['harvestMultiplier'] },
   { query: 'kami', args: [firstKami], paths: ['soulboundUntil'] },
   { query: 'party', args: [String(anAccount)], paths: ['kamis[].soulboundUntil'] },
   // quests: the compact surface and the per-requirement detail

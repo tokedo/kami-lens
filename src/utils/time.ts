@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi-open @ 8fb6ea58be5f773909a4d6d8db32f4726512b8e0
+ * upstream: Asphodel-OS/kamigotchi-open @ a99b4b64b505b722203b2337f76a5b604539c1e0
  * path:     packages/client/src/utils/time.ts
  * changes:  Date.now() → clock.now() at 6 call sites plus the
  *           clock import (§3.8: offset-corrected stream clock, not naive
@@ -33,6 +33,15 @@ export const formatCountdown = (secs: number) => {
   const s = Math.floor(secs - h * 3600 - m * 60);
 
   return `${pad(h)}:${pad(m)}:${pad(s)}`;
+};
+
+// short countdown for long timers, minute precision: "3d 4h", "2h 5m", "7m"
+export const formatCountdownShort = (secs: number) => {
+  if (secs <= 0) return '0m';
+  const d = Math.floor(secs / SECONDS_PER_DAY);
+  const h = Math.floor((secs % SECONDS_PER_DAY) / SECONDS_PER_HOUR);
+  const m = Math.floor((secs % SECONDS_PER_HOUR) / SECONDS_PER_MINUTE);
+  return d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : `${m}m`;
 };
 
 // parse an epoch time into a date string

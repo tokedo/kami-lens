@@ -23,16 +23,7 @@
   },
   "killsChecked": 1,
   "killsOk": 1,
-  "killChecks": [
-    {
-      "victim": 17992,
-      "killer": 16899,
-      "isDeath": false,
-      "stateAfter": "DEAD",
-      "blockAtCheck": 31228124,
-      "ok": true
-    }
-  ],
+  "killChecks": 1,
   "movesObserved": 9,
   "verifiedMoves": 5,
   "chainVerifiedMoves": [],

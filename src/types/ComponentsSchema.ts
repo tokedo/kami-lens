@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi-open @ 8fb6ea58be5f773909a4d6d8db32f4726512b8e0
+ * upstream: Asphodel-OS/kamigotchi-open @ a99b4b64b505b722203b2337f76a5b604539c1e0
  * path:     packages/client/types/ComponentsSchema.ts
  * changes:  none
  */
@@ -25,6 +25,7 @@ export const ComponentsSchema = {
   '0xd426585847552196ce5fddb7f2e37e8aa38f62676728e7518835f8440cf91958': { keys: ['value'], values: [0] },
   '0x5b5054d7f0fe411d96cb1c9605f65b42805d28ce5bb4ce216455e888cdc5373c': { keys: ['value'], values: [13] },
   '0x7f11100822994501b15df98b1bd24b3eb0d73863f512da0bf8f165b0150c537d': { keys: ['value'], values: [13] },
+  '0x017545640be52d18b8419842ba4066eb26707a37978580d5a2c11caa5f5b1552': { keys: ['value'], values: [13] },
   '0xa95ad5d9865792db0c7d344e1ab96ff451848e8df32d75b494b0c861955ff49e': { keys: ['value'], values: [13] },
   '0x5bc28889d745caef68975e56a733199d93efb3f5ae8e4606262ab97c83f72648': { keys: ['value'], values: [13] },
   '0x3bfb44d3d96b02f0d98dd5bd3a2e75077ae5d876f198a438658ad9b9098b2989': { keys: ['value'], values: [13] },

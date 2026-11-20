@@ -589,7 +589,7 @@ try {
       phantomRows: phantoms,
       skewRows: skew.slice(0, 10),
       arbitration:
-        'the container is live, so a harvest can legitimately stop — or stop and RESTART, reusing the same harvest entity id — between the mirror answer and the pinned chain read. Every apparent divergence is therefore re-read on BOTH sides: the mirror from the container, and the chain at a fresh pin. A phantom is a row where the mirror still says ACTIVE and the fresh chain read still disagrees — the 2026-09-06 shape, which persisted for 3.5 hours when it happened. Mirror corrected, or chain now ACTIVE again, is skew. Re-reading only the mirror against the STALE pinned fact reported a false phantom on 2026-09-06 (kami 7799: INACTIVE at head-90, ACTIVE at head-30 and head-4, same harvest id) and that is why both sides are read.',
+        'the container is live, so a harvest can legitimately stop — or stop and RESTART, reusing the same harvest entity id — between the mirror answer and the pinned chain read. Every apparent divergence is therefore re-read on BOTH sides: the mirror from the container, and the chain at a fresh pin. A phantom is a row where the mirror still says ACTIVE and the fresh chain read still disagrees — the 2026-09-06 shape, which persisted for 3.5 hours when it happened. Mirror corrected, or chain now ACTIVE again, is skew. Re-reading only the mirror against the STALE pinned fact reported a false phantom on 2026-09-06 (one kami: INACTIVE at head-90, ACTIVE at head-30 and head-4, same harvest id) and that is why both sides are read.',
     },
     syncFinal: final.sync,
     timeline,

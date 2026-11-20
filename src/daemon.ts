@@ -193,6 +193,17 @@ export type DaemonStatus = {
   };
 };
 
+/** 1.2.0: the bootstrap marker is decided from the saved world before the
+ * worker runs (`warm` when it holds a block); a worker that then RELEASED it
+ * (too far behind, or its replay window below the endpoint's floor) loaded a
+ * whole image, which is a cold boot. */
+export function effectiveBootstrapMode(
+  decided: 'warm' | 'cold' | 'unknown',
+  fullLoad: { kind: 'full' | 'delta' } | null
+): 'warm' | 'cold' | 'unknown' {
+  return decided === 'warm' && fullLoad?.kind === 'full' ? 'cold' : decided;
+}
+
 export class KamiLensDaemon {
   readonly config: KamiLensConfig;
   /** which precedence level produced each config key (DESIGN §5; G5.c) */
@@ -1115,7 +1126,10 @@ export class KamiLensDaemon {
       percentage: this.syncStatus.percentage,
       liveBlockNumber: this.liveBlockNumber,
       streamSilentMs,
-      bootstrapMode: this.bootstrapMode,
+      // 1.2.0: the marker is decided from the saved world before the worker
+      // runs; a worker that then RELEASED it (too far behind, or its replay
+      // window below the endpoint's floor) loaded a whole image — cold
+      bootstrapMode: effectiveBootstrapMode(this.bootstrapMode, fullLoadReport()),
       resumeFromBlock: this.resumeFromBlock,
       // §3.5 (0.6.3): `inFlight` is additive and costs nothing to answer.
       // It is here because it is now ANSWERABLE — before divergence 16 a

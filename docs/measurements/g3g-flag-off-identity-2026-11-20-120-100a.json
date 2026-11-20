@@ -1,0 +1,55 @@
+{
+  "gate": "g3g-flag-off-identity",
+  "measuredAt": "2026-11-20T21:36:50.814Z",
+  "snapshotBlock": 33004688,
+  "clockPinSec": 1755000000,
+  "baselines": 2,
+  "comparedAgainst": "base1",
+  "statusExpectedChanged": {
+    "path": "version",
+    "to": "1.2.0"
+  },
+  "statusPinChanged": {
+    "path": "upstreamPin",
+    "to": "a99b4b64b505b722203b2337f76a5b604539c1e0"
+  },
+  "additivePatterns100B": [
+    "/^(items\\[\\d+\\]\\.)?token\\.(address|scale)$/"
+  ],
+  "cases": 40,
+  "leavesCompared": 34751,
+  "leavesMasked": 460,
+  "maskedSamples": [
+    "kami:cooldownSec",
+    "party:kamis[0].cooldownSec",
+    "party:kamis[10].cooldownSec",
+    "party:kamis[11].cooldownSec",
+    "party:kamis[12].cooldownSec",
+    "party:kamis[13].cooldownSec",
+    "party:kamis[14].cooldownSec",
+    "party:kamis[15].cooldownSec",
+    "party:kamis[16].cooldownSec",
+    "party:kamis[17].cooldownSec",
+    "party:kamis[18].cooldownSec",
+    "party:kamis[19].cooldownSec",
+    "party:kamis[1].cooldownSec",
+    "party:kamis[20].cooldownSec",
+    "party:kamis[21].cooldownSec",
+    "party:kamis[22].cooldownSec",
+    "party:kamis[23].cooldownSec",
+    "party:kamis[24].cooldownSec",
+    "party:kamis[25].cooldownSec",
+    "party:kamis[26].cooldownSec",
+    "party:kamis[27].cooldownSec",
+    "party:kamis[28].cooldownSec",
+    "party:kamis[29].cooldownSec",
+    "party:kamis[2].cooldownSec",
+    "party:kamis[30].cooldownSec"
+  ],
+  "statusFlagKeys": [
+    "config.enrich",
+    "configSources.enrich"
+  ],
+  "problems": [],
+  "match": true
+}

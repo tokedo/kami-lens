@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi-open @ 8fb6ea58be5f773909a4d6d8db32f4726512b8e0
+ * upstream: Asphodel-OS/kamigotchi-open @ a99b4b64b505b722203b2337f76a5b604539c1e0
  * path:     packages/client/src/app/cache/harvest/base.ts
  * changes:  Date.now() → clock.monotonicMs() at 1 call site plus the
  *           clock import. The value only stamps and ages CACHE FRESHNESS
@@ -20,7 +20,7 @@ import * as clock from 'clock';
 import { EntityIndex, World } from 'engine/recs';
 
 import { Components } from 'network/';
-import { Harvest, getHarvest } from 'network/shapes/Harvest';
+import { Harvest, getHarvest, getHarvestMultiplier } from 'network/shapes/Harvest';
 import {
   getLastTime,
   getResetTime,
@@ -59,6 +59,7 @@ export const get = (world: World, comps: Components, entity: EntityIndex, option
     if (updateDelta > options.live) {
       harvest.balance = getValue(comps, entity);
       harvest.state = getState(comps, entity);
+      harvest.multiplier = getHarvestMultiplier(world, comps, entity); // the copy moves with syncs
       harvest.time = {
         start: getStartTime(comps, entity),
         reset: getResetTime(comps, entity),

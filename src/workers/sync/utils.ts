@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi-open @ 8fb6ea58be5f773909a4d6d8db32f4726512b8e0
+ * upstream: Asphodel-OS/kamigotchi-open @ a99b4b64b505b722203b2337f76a5b604539c1e0
  * path:     packages/client/src/workers/sync/utils.ts
  * changes:  The type-hole fixes this port carried until 8fb6ea58 —
  *           createWorldTopics typed { World: World & Contract }, the ethers
@@ -60,6 +60,17 @@
  *           concatenates chunk answers without consulting the proof, so its
  *           output (the bootstrap fill's RPC path, gapfill.ts) is ordered,
  *           unproven and never marked final.
+ *           1.2.0: and it knows the endpoint's FLOOR. Since 2026-11-20 the
+ *           public endpoint serves no block, log or receipt below a floor
+ *           (block 35,299,823 then), and eth_getLogs over a range below it
+ *           answers an EMPTY list with no error — indistinguishable from a
+ *           range in which nothing happened; the `earliest` tag answers the
+ *           HEAD, so it says nothing about the floor. The batch now also
+ *           asks eth_getBlockByNumber for the range's FIRST block and for
+ *           `latest`: a first block that answers null while the same
+ *           backend serves a later head is below the floor, and the read is
+ *           marked `belowFloor` and proves nothing (provenThrough = from -
+ *           1), whatever its log list says.
  */
 
 import { awaitPromise, range, to256BitString } from '@mud-classic/utils';
@@ -270,7 +281,22 @@ export type ProvenEvents<C extends Components = Components> = NetworkComponentUp
   provenThrough?: number;
   /** the serving backend's own head, h1 */
   batchHead?: number;
+  /** 1.2.0: the range's first block is below the endpoint's floor — it
+   * answered null while the same backend served a later block — so an
+   * empty (or short) log list here is NOT "no events" */
+  belowFloor?: boolean;
 };
+
+/** 1.2.0: the floor test, on one backend's answers to
+ * eth_getBlockByNumber(from) and eth_getBlockByNumber('latest'): the first
+ * block is null while a LATER block is served. A null first block above the
+ * served head is a lagging backend (the head proof handles it), and a null
+ * head proves nothing either way. */
+export function isBelowFloor(from: number, first: unknown, latest: unknown): boolean {
+  if (first !== null) return false;
+  const n = (latest as { number?: string } | null)?.number;
+  return typeof n === 'string' && Number(BigInt(n)) > from;
+}
 
 type RpcLog = {
   address: string;
@@ -287,6 +313,36 @@ type RpcReply = { id: number; result?: unknown; error?: { code: number; message:
 const READ_ATTEMPTS = 3;
 const READ_RETRY_MS = 1_000;
 let batchId = 0;
+
+/**
+ * 1.2.0: whether the endpoint serves `block`, asked the way the range reader
+ * asks it — eth_getBlockByNumber(block) and eth_getBlockByNumber('latest') in
+ * one batch (one backend). 'below' when the block answers null while a later
+ * head is served (isBelowFloor); 'served' when it answers; 'unknown' when the
+ * provider cannot batch or the read fails — a caller then decides as if it
+ * had not asked. Never reads the `earliest` tag: it answers the head.
+ */
+export async function probeFloor(
+  provider: Pick<JsonRpcProvider, '_send'> | undefined,
+  block: number
+): Promise<'below' | 'served' | 'unknown'> {
+  const send = provider?._send?.bind(provider);
+  if (!send) return 'unknown';
+  try {
+    const ids = [++batchId, ++batchId];
+    const replies = (await send([
+      { jsonrpc: '2.0', id: ids[0], method: 'eth_getBlockByNumber', params: [`0x${block.toString(16)}`, false] },
+      { jsonrpc: '2.0', id: ids[1], method: 'eth_getBlockByNumber', params: ['latest', false] },
+    ] as never)) as unknown as RpcReply[];
+    const byId = new Map(replies.map((r) => [Number(r.id), r]));
+    const [a, b] = ids.map((id) => byId.get(id));
+    if (!a || !b || a.error || b.error || a.result === undefined || b.result === undefined) return 'unknown';
+    if (isBelowFloor(block, a.result, b.result)) return 'below';
+    return a.result === null ? 'unknown' : 'served';
+  } catch {
+    return 'unknown';
+  }
+}
 
 /**
  * Create a function to fetch World contract events in a given block range.
@@ -309,11 +365,15 @@ export function createFetchWorldEventsInBlockRange<C extends Components>(
       worldConfig.abi instanceof Interface ? worldConfig.abi : new Interface(worldConfig.abi as never));
   const send = (provider as JsonRpcProvider)._send?.bind(provider as JsonRpcProvider);
 
-  /** one proven read: [eth_blockNumber, eth_getLogs, eth_blockNumber] */
+  /** one proven read: [eth_blockNumber, eth_getBlockByNumber(from),
+   * eth_getBlockByNumber(latest), eth_getLogs, eth_blockNumber] */
   const provenRead = async (from: number, to: number) => {
-    const ids = [++batchId, ++batchId, ++batchId];
+    const ids = [++batchId, ++batchId, ++batchId, ++batchId, ++batchId];
     const payload = [
       { jsonrpc: '2.0', id: ids[0], method: 'eth_blockNumber', params: [] },
+      // 1.2.0: the floor test (isBelowFloor) — headers only
+      { jsonrpc: '2.0', id: ids[3], method: 'eth_getBlockByNumber', params: [`0x${from.toString(16)}`, false] },
+      { jsonrpc: '2.0', id: ids[4], method: 'eth_getBlockByNumber', params: ['latest', false] },
       {
         jsonrpc: '2.0',
         id: ids[1],
@@ -334,8 +394,10 @@ export function createFetchWorldEventsInBlockRange<C extends Components>(
       try {
         const replies = (await send!(payload as never)) as unknown as RpcReply[];
         const byId = new Map(replies.map((r) => [Number(r.id), r]));
-        const [r1, r2, r3] = ids.map((id) => byId.get(id));
-        for (const r of [r1, r2, r3]) {
+        const [r1, r2, r3, r4, r5] = ids.map((id) => byId.get(id));
+        for (const r of [r1, r2, r3, r4, r5]) {
+          // a block that is not served answers result: null — present, not
+          // missing; only an error or an absent reply fails the read
           if (!r || r.error || r.result === undefined) {
             throw new Error(`batch read ${from}..${to}: ${r?.error?.message ?? 'missing reply'}`);
           }
@@ -344,6 +406,7 @@ export function createFetchWorldEventsInBlockRange<C extends Components>(
           h1: Number(BigInt(r1!.result as string)),
           h2: Number(BigInt(r3!.result as string)),
           logs: r2!.result as RpcLog[],
+          belowFloor: isBelowFloor(from, r4!.result, r5!.result),
         };
       } catch (e) {
         lastError = e;
@@ -415,7 +478,7 @@ export function createFetchWorldEventsInBlockRange<C extends Components>(
       // has `_send`; one that cannot batch cannot prove a read
       throw new Error('range reader needs a JSON-RPC provider with a batch _send (1.0.0, A2(a))');
     }
-    const { h1, h2, logs } = await provenRead(from, to);
+    const { h1, h2, logs, belowFloor } = await provenRead(from, to);
     const positioned = logs.map((l) => ({
       log: l,
       block: Number(BigInt(l.blockNumber)),
@@ -425,9 +488,16 @@ export function createFetchWorldEventsInBlockRange<C extends Components>(
     const split = h1 > h2 || positioned.some((l) => l.block > h1);
     const events = (await toEvents(positioned)) as ProvenEvents<C>;
     events.batchHead = h1;
-    events.provenThrough = split ? from - 1 : Math.min(to, h1 - PROOF_MARGIN_BLOCKS);
+    events.provenThrough = split || belowFloor ? from - 1 : Math.min(to, h1 - PROOF_MARGIN_BLOCKS);
     if (split) {
       log.warn(`[rpc] batch ${from}..${to} looked split across backends (h1=${h1} h2=${h2}) — proves nothing`);
+    }
+    if (belowFloor) {
+      events.belowFloor = true;
+      log.warn(
+        `[rpc] batch ${from}..${to}: block ${from} is below the endpoint's floor (it answers null ` +
+          `while the head is served) — its ${logs.length} log(s) prove nothing`
+      );
     }
     return events;
   };

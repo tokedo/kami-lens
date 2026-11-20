@@ -91,13 +91,16 @@
           "properties": {
             "accrued": {
               "type": "number",
-              "minimum": 0
+              "minimum": 0,
+              "description": "1.2.0: the harvest's stored balance plus what a sync now would credit — today's bounty (LibHarvest.calcBounty, capped by the HP the kami has) times the K the open stretch copied, rounded to the nearest whole unit: (bounty × K + 500) / 1000 (LibHarvest.calcCredit; K is the harvest's copy, or its node's K when it has none). HP strain is charged on the whole base bounty, not on this."
             },
             "spotRatePerHr": {
-              "type": "string"
+              "type": "string",
+              "description": "1.2.0: the MUSU rate the balance takes — today's rate times the K the open stretch copied (a display figure, unrounded); HP strain is on today's rate."
             },
             "avgRatePerHr": {
-              "type": "string"
+              "type": "string",
+              "description": "1.2.0: the MUSU rate the balance takes — today's rate times the K the open stretch copied (a display figure, unrounded); HP strain is on today's rate."
             }
           }
         },

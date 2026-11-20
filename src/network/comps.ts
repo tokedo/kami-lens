@@ -5,7 +5,7 @@
 // import is type-only and esbuild erases it without resolving. Ported bodies
 // keep the specifier verbatim (§3.4: preserve tangles); this shim makes it
 // resolve to the real Components type.
-// upstream: Asphodel-OS/kamigotchi-open @ 8fb6ea58be5f773909a4d6d8db32f4726512b8e0
+// upstream: Asphodel-OS/kamigotchi-open @ a99b4b64b505b722203b2337f76a5b604539c1e0
 // path:     (absent upstream — phantom specifier)
 
 export type { Components } from './components';

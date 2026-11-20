@@ -1,8 +1,9 @@
 # Coverage — per-release conformance checklist
 
 Perception parity is defined against the pinned upstream commit
-(`UPSTREAM` file; currently `8fb6ea58`, advanced from `ffda3963` to
-`04cb25f8` and then `8fb6ea58` in 1.1.0, and from `ef898fc9` in 1.0.0). This table is the release
+(`UPSTREAM` file; currently `a99b4b64`, advanced from `8fb6ea58` in 1.2.0,
+from `ffda3963` to `04cb25f8` and then `8fb6ea58` in 1.1.0, and from
+`ef898fc9` in 1.0.0). This table is the release
 artifact behind README principle 1: each release states, per
 player-visible surface, whether kami-lens serves it — and a gap is
 only ever a documented row, never an omission. Seeded from the
@@ -835,6 +836,23 @@ and `04ebfa6b`'s maintenance wall is boot UI. **Newly served on the `auctions` s
 counts elapsed time from the chain's price start (the pause window
 skipped), and a row with a window carries it as `pause`. No row's status
 changes.
+
+## 1.2.0 — the harvest multiplier, the liquidation cap, pin `a99b4b64` (2026-11-20)
+
+**The pin advances** from `8fb6ea58` to `a99b4b64` (29 commits; the
+classified diff is `docs/measurements/pin-advance-a99b4b64-2026-11-20.json`).
+Its state-affecting bucket adds one component, `HarvestMultiplier` —
+**mapped** (the node's K, and a harvest's copy of it). The ballot systems
+(`BallotClaimSystem`, `BallotSettleSystem`) add no component (ballot state is
+`Value` data) and **no ballot surface is served** — deferred, a row for a
+later release. Its coverage-affecting bucket (107 modal / fixture files:
+the offering and Halloween dialogues, Alaina's shop, the ballot and voting
+modals, the gacha "???" tab, tutorial hints, the dialogue refactor) is
+presentation over facts this daemon serves (items, listings, quests) or the
+deferred ballots. **Newly served on the `node` surface:** `harvestMultiplier`.
+**Values that now follow the chain:** accrued amounts and the liquidation
+shares (through K), the musu rates (× K), and the salvage / spoils of a
+ratio from 1.0 (the whole amount; the row is eligible).
 
 ## Maintenance
 

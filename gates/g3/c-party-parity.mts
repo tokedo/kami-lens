@@ -62,6 +62,31 @@ const fixture = JSON.parse(readFileSync(FIXTURES, 'utf8')) as {
   replayBase?: { file: string; blockNumber: number };
   screenshots: Screenshot[];
 };
+// hygiene: G2.b's recorded rejections
+const g2bMeasurements = readFileSync(
+  path.join(REPO_ROOT, 'docs', 'measurements', 'g2b-display-parity-2026-07-21.json'),
+  'utf8'
+);
+const g2b = JSON.parse(g2bMeasurements) as {
+  observationBlocks: Record<string, number>;
+  rejections: { screenshot: string; kami: number | string }[];
+};
+// 1.2.0: committed records hold aggregates only, so a committed G2.b record
+// carries its rejections as a count, not the rows this gate skips by. Without
+// a capture that has its rows the gate is not runnable here: a SKIP (exit 2,
+// the gates' "not runnable here"), never a comparison that skips nothing.
+if (!Array.isArray(g2b.rejections)) {
+  console.log(
+    `SKIP G3.c ${JSON.stringify({
+      reason:
+        'G3.c needs a display-parity capture with its rows; the committed record holds aggregates only — run G2.b to capture, then G3.c',
+      record: 'docs/measurements/g2b-display-parity-2026-07-21.json',
+    })}`
+  );
+  process.exit(2);
+}
+const rejected = new Set(g2b.rejections.map((r) => `${r.screenshot}:${r.kami}`));
+
 if (!fixture.replayBase) {
   fail('G3.c', { reason: 'fixtures manifest lacks the replayBase pin — refusing to guess a base' });
 }
@@ -73,17 +98,6 @@ if (!existsSync(SNAPSHOT)) {
     pinnedBlock: fixture.replayBase!.blockNumber,
   });
 }
-
-// hygiene: G2.b's recorded rejections
-const g2bMeasurements = readFileSync(
-  path.join(REPO_ROOT, 'docs', 'measurements', 'g2b-display-parity-2026-07-21.json'),
-  'utf8'
-);
-const g2b = JSON.parse(g2bMeasurements) as {
-  observationBlocks: Record<string, number>;
-  rejections: { screenshot: string; kami: number | string }[];
-};
-const rejected = new Set(g2b.rejections.map((r) => `${r.screenshot}:${r.kami}`));
 
 const config = resolveConfig();
 const baseCache = await loadCacheFromSnapshotFile(SNAPSHOT, config);

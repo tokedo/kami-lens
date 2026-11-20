@@ -162,7 +162,7 @@ async function boot(
   removalsAt: number,
   head: () => number,
   passMax?: number,
-  opts: { frames?: StreamResponse[]; reconcileIntervalMs?: number } = {}
+  opts: { frames?: StreamResponse[]; reconcileIntervalMs?: number; floor?: number } = {}
 ) {
   resetSyncHealth();
   const loaded = await fetchSnapshot(
@@ -194,7 +194,7 @@ async function boot(
     );
 
   const reconcileFrom$ = new Subject<{ baseline: number; frontier: number }>();
-  const provider = poolProvider(CHAIN, { single: head, batch: head });
+  const provider = poolProvider(CHAIN, { single: head, batch: head }, opts.floor ?? 0);
   const stream$ = createStream({
     url: 'http://fake',
     worldAddress: WORLD,
@@ -318,5 +318,32 @@ describe('1.0.1: the boot window is not a repair', () => {
     expect(syncHealth.reconciledThrough).toBeGreaterThanOrEqual(1004);
     expect(syncHealth.reconcileRepairs).toBe(0);
     expect(syncHealth.lastRepair).toBeUndefined();
+  });
+});
+
+describe('1.2.0: a boot window that begins below the endpoint\'s floor is never reconciled on an empty answer', () => {
+  // The endpoint (2026-11-20) serves no block and no log below its floor, and
+  // answers eth_getLogs there with an EMPTY list. The window (900, 1007]
+  // begins below a floor at 960: the writes at 901, 905 and 950 are not
+  // readable. Until 1.2.0 the reconcile read them as "nothing happened",
+  // proved the window and marked it reconciled.
+  it('floor 960: no block of the window is counted reconciled, the window stays unhealed, nothing below the floor is applied', async () => {
+    const { read, stop } = await boot(1004, 960, () => 5_000, undefined, { floor: 960 });
+    const loadedView = read();
+    await settle(250);
+    stop();
+    expect(syncHealth.reconciledThrough ?? 0).toBeLessThan(901);
+    expect(syncHealth.unhealedRanges.some(([f, t]) => f <= 901 && t >= 1007)).toBe(true);
+    // the loaded values are not overwritten by a replay that could not read
+    expect(read()).toEqual(loadedView);
+  });
+
+  it('a window wholly above the floor reconciles as before', async () => {
+    const { read, stop } = await boot(1004, 960, () => 5_000, undefined, { floor: 800 });
+    await settle(250);
+    stop();
+    expect(read()).toEqual(truth);
+    expect(syncHealth.reconciledThrough).toBeGreaterThanOrEqual(1004);
+    expect(syncHealth.unhealedRanges).toEqual([]);
   });
 });

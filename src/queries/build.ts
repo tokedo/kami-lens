@@ -89,7 +89,8 @@ import { getRegistrySkills, getSkillByIndex } from 'network/shapes/Skill';
 import { parseBonusText } from 'network/shapes/Bonus';
 import { queryScavRegistry } from 'network/shapes/Scavenge';
 import { getScoresByFilter } from 'network/shapes/Score';
-import { getIsDisabled, getValue } from 'network/shapes/utils/component';
+import { getHarvestMultiplier, getIsDisabled, getValue } from 'network/shapes/utils/component';
+import { getStoredMultiplier } from 'network/shapes/Node/multiplier';
 import { getEntityByHash } from 'network/shapes/utils';
 import { getRateDisplay } from 'utils/numbers';
 import { getPhaseName, getPhaseOf } from 'utils/time';
@@ -501,7 +502,12 @@ const KAMI_REFRESH = {
 // having found the only cause.
 
 /** A join every vitals answer is computed from. */
-export type KamiJoin = 'stats' | 'progress' | 'time' | 'harvest' | 'node';
+/** 1.2.0: 'multiplier' — a HARVESTING kami whose harvest K cannot be
+ * resolved (no copy on the harvest and no K on its node): its accrual would
+ * be credited `(bounty · 0 + 500) / 1000 = 0`, a silent zero. The chain gives
+ * every node a K, so this is a hollow mirror and is refused / flagged like
+ * any other missing join — the same rule `node` applies to its own K. */
+export type KamiJoin = 'stats' | 'progress' | 'time' | 'harvest' | 'node' | 'multiplier';
 
 export type ProjectedKami = {
   kami: ReturnType<typeof getKami>;
@@ -535,6 +541,7 @@ export function projectKami(mirror: Mirror, entity: EntityIndex): ProjectedKami 
   if (kami.state === 'HARVESTING') {
     if (!kami.harvest || kami.harvest.state !== 'ACTIVE') missing.push('harvest');
     else if (!kami.harvest.node?.index) missing.push('node');
+    else if (!(kami.harvest.multiplier > 0)) missing.push('multiplier');
   }
   return { kami, missing, transient: missing.length === 1 && missing[0] === 'harvest' };
 }
@@ -811,8 +818,10 @@ function vitalsOf(
     vitals.musu = {
       // 1.0.2 (B4): floored at 0 — see nonNegativeAmount
       accrued: nonNegativeAmount(calcOutput(kami)),
-      spotRatePerHr: getRateDisplay(kami.harvest.rates.total.spot, 2),
-      avgRatePerHr: getRateDisplay(kami.harvest.rates.total.average, 2),
+      // 1.2.0: the MUSU rates the balance takes — today's rate × the K the
+      // open stretch copied (rates.output); HP strain stays on rates.total
+      spotRatePerHr: getRateDisplay(kami.harvest.rates.output.spot, 2),
+      avgRatePerHr: getRateDisplay(kami.harvest.rates.output.average, 2),
     };
     const node = kami.harvest.node;
     if (node) vitals.node = { index: node.index, name: node.name };
@@ -1136,9 +1145,11 @@ export type LiquidationBlocker =
   | 'THRESHOLD_ZERO'
   /** 1.1.0 (§3.19): the chain reverts the liquidation — the target's salvage
    * exceeds its bounty, and HarvestLiquidateSystem's `bounty - salvage`
-   * underflows (a salvage ratio in (1.0, 2.0): victim power 101–199 with no
-   * bonus on the live config). Last in precedence, as on chain: the
-   * attacker's gates and the threshold are checked before the salvage. */
+   * underflows. Last in precedence, as on chain: the attacker's gates and
+   * the threshold are checked before the salvage. 1.2.0: the chain caps the
+   * salvage at the bounty since 2026-11-20 (a99b4b64), so the lens no longer
+   * computes such a salvage and this reason is not produced; it stays in the
+   * enum, and the check stays, should a salvage ever exceed the bounty. */
   | 'SALVAGE_EXCEEDS_BOUNTY';
 
 export type LiquidationPreview = {
@@ -1279,6 +1290,12 @@ export type NodeOut = {
    * copied from the node's affinity when the scavenge bar was created
    * (_NodeRegistrySystem.addScavenge). Absent when the mirror holds none. */
   scavengeAffinity?: string;
+  /** 1.2.0: the node's harvest multiplier K, per mille, as the chain's
+   * integer — the node entity's HarvestMultiplier, low 16 bits
+   * (LibNode.getBaseMultiplier; 1000 = ×1.0). A harvest's stretch copies it
+   * when it opens and every sync credits `(bounty · K + 500) / 1000`
+   * (LibHarvest.calcCredit). LAST on the object. */
+  harvestMultiplier: number;
 };
 
 /** 1.1.0 (§3.19): one node requirement, the client's `Condition` flattened.
@@ -1308,7 +1325,10 @@ function nodeFactsOf(
   mirror: Mirror,
   node: ReturnType<typeof getNodeByIndex>,
   nodeEntity: EntityIndex | undefined
-): Pick<NodeOut, 'yieldItem' | 'requirements' | 'levelCap' | 'scavengeCost' | 'scavengeAffinity'> {
+): Pick<
+  NodeOut,
+  'yieldItem' | 'requirements' | 'levelCap' | 'scavengeCost' | 'scavengeAffinity' | 'harvestMultiplier'
+> {
   const { world, components } = mirror;
   const missing: string[] = [];
   const storedItem =
@@ -1321,6 +1341,11 @@ function nodeFactsOf(
   const scavEntity = queryScavRegistry(world, 'NODE', node.index);
   if (scavEntity === undefined) missing.push('scavenge registry entry');
   else if (!hasComponent(components.Value, scavEntity)) missing.push('scavenge tier cost');
+  // 1.2.0: every node carries its K since the multiplier's deploy (a node is
+  // created with it, and a stored K is never 0)
+  const multiplier =
+    nodeEntity !== undefined ? getStoredMultiplier(getHarvestMultiplier(components, nodeEntity)) : 0;
+  if (multiplier === 0) missing.push('harvest multiplier');
   if (missing.length > 0) refuseIncompleteNode(mirror, node.index, missing);
 
   const requirements = [...(node.requirements ?? [])]
@@ -1342,6 +1367,7 @@ function nodeFactsOf(
     levelCap: caps.length > 0 ? Math.min(...caps) : null,
     scavengeCost: getValue(components, scavEntity!),
     ...(affinity !== undefined && affinity !== null ? { scavengeAffinity: affinity } : {}),
+    harvestMultiplier: multiplier,
   };
 }
 
@@ -1529,7 +1555,9 @@ export function nodeQuery(
         const threshold = calcLiqThreshold(attackerKami, occupant);
         const salvage = nonNegativeAmount(calcLiqSalvage(occupant));
         // 1.1.0 (§3.19): a salvage above the bounty makes the chain's
-        // `bounty - salvage` underflow — the liquidation REVERTS. Read off
+        // `bounty - salvage` underflow — the liquidation REVERTS. 1.2.0: the
+        // capped salvage (a99b4b64) never exceeds the bounty, so this never
+        // fires on the deployed world; it is kept as the guard. Read off
         // the two numbers this row serves (salvage, vitals.musuAccrued), so
         // a reader can check it; never an eligible row with such a salvage.
         const reverts = salvage > row.vitals.musuAccrued;

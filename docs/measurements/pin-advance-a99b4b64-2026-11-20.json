@@ -1,0 +1,257 @@
+{
+  "record": "upstream pin advance — classified diff (DESIGN §7, PORT_PLAN 'Order and pin advances')",
+  "date": "2026-11-20",
+  "from": "8fb6ea58be5f773909a4d6d8db32f4726512b8e0",
+  "to": "a99b4b64b505b722203b2337f76a5b604539c1e0",
+  "toCommitDate": "2026-11-20",
+  "repo": "https://github.com/Asphodel-OS/kamigotchi-open (main only; commits cited by hash)",
+  "release": "1.2.0 (unreleased; branch lens-sync007)",
+  "commits": 29,
+  "commitList": [
+    "a99b4b64 liquidation: cap salvage and spoils ratios at 100% (#2546)",
+    "12b37a15 vip epoch 41 extension: voting close from l1, schedule anchors moved a week (#2552)",
+    "b2a049c1 contracts: build and test instructions for machines with 8 GB or less (#2555)",
+    "dea41474 Local deploy: 47 minutes to under 3 (#2549)",
+    "55cf2688 Solar trial scripts and gas breakdown tool (#2548)",
+    "8222ff27 harvest multiplier k: per-node base multiplier (#2530)",
+    "27525eb9 client: vitest resolves the function vite config (#2545)",
+    "0cbb9716 feat(client): gacha ??? tab and closed-auction states (#2544)",
+    "bfc9e9c1 feat: one-click free gas through Yominet's fee whitelist (#2539)",
+    "996fd440 feat(contracts): test-world event commands with rollbacks (#2540)",
+    "3e63a3f3 feat(client): guided tutorial hints for map, harvest and shop (#2541)",
+    "3b384de5 Make quest notifications stand out (#2536)",
+    "4f8f0b05 chore: have Greptile skip generated ABIs and typechain output (#2542)",
+    "9d8b90f8 fix(contracts): admin harvest stop pays the Kami's owner (#2543)",
+    "e5d0ada2 Auto-fund a default player wallet on local deploys (#2533)",
+    "337565ba Reliably clear the signup validator after account creation (#2534)",
+    "a13610bd Fix client crash from a negative VIP streak lookup (#2535)",
+    "880b9854 quests: test quests deploy only by index (#2532)",
+    "660dd0d0 ballots: settle job survives dropped connections and skips dust voters (#2528)",
+    "2efc77b6 Refactor Dialogues (#2526)",
+    "fb7b0f19 fix(client): hide the newbie vendor from accounts that already bought (#2525)",
+    "f0f44576 Personalized quest dropdown in the dialogue modal (#2524)",
+    "a53f2316 items: the ballots rows are in game (#2522)",
+    "e3bd3d3a ballots: soulbound rewards for voting yominet in the initia vip gauge (#2507)",
+    "904e06c5 items: the hostility potion is a potion (#2521)",
+    "b6bd190c items: the revised rows are in game (#2519)",
+    "d6ff096f items: mochi cap and sheet-driven item types (#2517)",
+    "0bce4c43 world: offerings and halloween rows in game (#2516)",
+    "487c6419 offerings patch and halloween questline (#2501)"
+  ],
+  "headOfMain": "a99b4b64 was the head of the mirror's main when the advance was taken (2026-11-20); linear history, 0 merge commits.",
+  "portedFilesChangedUpstream": 27,
+  "portedFilesUnchangedUpstream": 372,
+  "portedFilesDerivation": "From the banners: every file under src/ whose banner names an upstream path (397 `path:` banners plus the `//` banners of network/index.ts and network/comps.ts), `git diff --quiet 8fb6ea58 a99b4b64 -- <path>` per path in a blob-filtered clone of the mirror. src/abi/World.json is unchanged upstream; the vendored @mud-classic/utils lockfile entry is unchanged (pnpm-lock.yaml not in the range).",
+  "portedFilesChanged": {
+    "src/app/cache/harvest/base.ts": {
+      "upstream": "packages/client/src/app/cache/harvest/base.ts",
+      "changedBy": [
+        "8222ff27"
+      ],
+      "class": "changes a served value (the harvest copy of K re-read on refresh)"
+    },
+    "src/app/cache/harvest/calcs.ts": {
+      "upstream": "packages/client/src/app/cache/harvest/calcs.ts",
+      "changedBy": [
+        "8222ff27"
+      ],
+      "class": "changes a served value (settleStretch = LibHarvest.calcCredit, rates.output); floorRate not carried, the port keeps its integer rates"
+    },
+    "src/app/cache/harvest/index.ts": {
+      "upstream": "packages/client/src/app/cache/harvest/index.ts",
+      "changedBy": [
+        "8222ff27"
+      ],
+      "class": "changes a served value (exports settleStretch)"
+    },
+    "src/app/cache/kami/calcs/harvest.ts": {
+      "upstream": "packages/client/src/app/cache/kami/calcs/harvest.ts",
+      "changedBy": [
+        "8222ff27"
+      ],
+      "class": "changes a served value (calcOutput credits through K); calcMaxMusu float-fallback nudge taken (unreached on the integer path)"
+    },
+    "src/app/cache/kami/calcs/liquidation.ts": {
+      "upstream": "packages/client/src/app/cache/kami/calcs/liquidation.ts",
+      "changedBy": [
+        "a99b4b64"
+      ],
+      "class": "changes a served value (the cap; the port applies it in shareOf, its integer LibKill transcription, in a separate commit; upstream's float min(1, ratio) is not taken)"
+    },
+    "src/app/cache/node/base.ts": {
+      "upstream": "packages/client/src/app/cache/node/base.ts",
+      "changedBy": [
+        "8222ff27"
+      ],
+      "class": "changes a served value (the node's K re-read on every get)"
+    },
+    "src/assets/images/icons/factions/index.ts": {
+      "upstream": "packages/client/src/assets/images/icons/factions/index.ts",
+      "changedBy": [
+        "487c6419"
+      ],
+      "class": "cosmetic (asset path token)"
+    },
+    "src/assets/images/icons/menu/index.ts": {
+      "upstream": "packages/client/src/assets/images/icons/menu/index.ts",
+      "changedBy": [
+        "e3bd3d3a"
+      ],
+      "class": "cosmetic (asset path tokens)"
+    },
+    "src/assets/images/items/index.ts": {
+      "upstream": "packages/client/src/assets/images/items/index.ts",
+      "changedBy": [
+        "e3bd3d3a",
+        "d6ff096f",
+        "487c6419"
+      ],
+      "class": "cosmetic (asset path tokens: ballot, golden ballot/box, voter badges, Igor items, silt-caked box, jack-o-lantern)"
+    },
+    "src/constants/items.ts": {
+      "upstream": "packages/client/src/constants/items.ts",
+      "changedBy": [
+        "d6ff096f"
+      ],
+      "class": "not reached by a served path (MOCHI_INDICES, MOCHI_CAP_FALLBACK)"
+    },
+    "src/network/components/register.ts": {
+      "upstream": "packages/client/src/network/components/register.ts",
+      "changedBy": [
+        "8222ff27"
+      ],
+      "class": "changes a served value (maps HarvestMultiplier)"
+    },
+    "src/network/shapes/Allo/interpretation.ts": {
+      "upstream": "packages/client/src/network/shapes/Allo/interpretation.ts",
+      "changedBy": [
+        "d6ff096f"
+      ],
+      "class": "changes a served value under --enrich (MOCHI_USED hidden from interpreted effects)"
+    },
+    "src/network/shapes/Conditional/interpretation.ts": {
+      "upstream": "packages/client/src/network/shapes/Conditional/interpretation.ts",
+      "changedBy": [
+        "d6ff096f"
+      ],
+      "class": "changes a served value under --enrich (MOCHI_USED requirement text)"
+    },
+    "src/network/shapes/Faction.ts": {
+      "upstream": "packages/client/src/network/shapes/Faction.ts",
+      "changedBy": [
+        "487c6419"
+      ],
+      "class": "cosmetic for the lens (reputation name of faction 3; no served faction answer)"
+    },
+    "src/network/shapes/Harvest/constants.ts": {
+      "upstream": "packages/client/src/network/shapes/Harvest/constants.ts",
+      "changedBy": [
+        "8222ff27"
+      ],
+      "class": "changes a served value (NullHarvest multiplier, rates.output)"
+    },
+    "src/network/shapes/Harvest/index.ts": {
+      "upstream": "packages/client/src/network/shapes/Harvest/index.ts",
+      "changedBy": [
+        "8222ff27"
+      ],
+      "class": "changes a served value (exports getHarvestMultiplier)"
+    },
+    "src/network/shapes/Harvest/node.ts": {
+      "upstream": "packages/client/src/network/shapes/Harvest/node.ts",
+      "changedBy": [
+        "8222ff27"
+      ],
+      "class": "changes a served value (getMultiplier: the copy, else the node's K)"
+    },
+    "src/network/shapes/Harvest/types.ts": {
+      "upstream": "packages/client/src/network/shapes/Harvest/types.ts",
+      "changedBy": [
+        "8222ff27"
+      ],
+      "class": "changes a served value (Harvest.multiplier, rates.output)"
+    },
+    "src/network/shapes/Item/index.ts": {
+      "upstream": "packages/client/src/network/shapes/Item/index.ts",
+      "changedBy": [
+        "d6ff096f"
+      ],
+      "class": "not reached by a served path (exports getMochiCap/getMochiUsed; Item/mochi.ts newly ported)"
+    },
+    "src/network/shapes/Node/constants.ts": {
+      "upstream": "packages/client/src/network/shapes/Node/constants.ts",
+      "changedBy": [
+        "8222ff27"
+      ],
+      "class": "changes a served value (NullNode multiplier)"
+    },
+    "src/network/shapes/Node/types.ts": {
+      "upstream": "packages/client/src/network/shapes/Node/types.ts",
+      "changedBy": [
+        "8222ff27"
+      ],
+      "class": "changes a served value (Node.multiplier, served as harvestMultiplier)"
+    },
+    "src/network/shapes/Score/index.ts": {
+      "upstream": "packages/client/src/network/shapes/Score/index.ts",
+      "changedBy": [
+        "e3bd3d3a"
+      ],
+      "class": "not reached by a served path (exports getVIPEpochEnd)"
+    },
+    "src/network/shapes/Score/vip.ts": {
+      "upstream": "packages/client/src/network/shapes/Score/vip.ts",
+      "changedBy": [
+        "12b37a15",
+        "e3bd3d3a"
+      ],
+      "class": "not reached by a served path (getStageInfo / getEpochEnd; fallback anchor 1746086400; the clock change kept)"
+    },
+    "src/network/shapes/utils/component.ts": {
+      "upstream": "packages/client/src/network/shapes/utils/component.ts",
+      "changedBy": [
+        "8222ff27"
+      ],
+      "class": "changes a served value (getHarvestMultiplier)"
+    },
+    "src/utils/time.ts": {
+      "upstream": "packages/client/src/utils/time.ts",
+      "changedBy": [
+        "e3bd3d3a"
+      ],
+      "class": "cosmetic (formatCountdownShort)"
+    },
+    "src/types/ComponentsSchema.ts": {
+      "upstream": "packages/client/types/ComponentsSchema.ts",
+      "changedBy": [
+        "8222ff27"
+      ],
+      "class": "changes a served value (decodes HarvestMultiplier as uint256)"
+    },
+    "src/types/ethers-contracts/index.ts": {
+      "upstream": "packages/client/types/ethers-contracts/index.ts",
+      "changedBy": [
+        "8222ff27",
+        "e3bd3d3a"
+      ],
+      "class": "not ported (the partial port keeps the World type only; the new typechain lines are not carried; banner moved)"
+    }
+  },
+  "newlyPorted": {
+    "src/network/shapes/Node/multiplier.ts": "packages/client/src/network/shapes/Node/multiplier.ts (8222ff27), verbatim",
+    "src/network/shapes/Item/mochi.ts": "packages/client/src/network/shapes/Item/mochi.ts (d6ff096f), verbatim (Item/index.ts exports it)"
+  },
+  "buckets": {
+    "formula-affecting": "LibHarvest.sol (calcCredit, getCopy, setCopy; sync credits through K, still returns the base bounty), LibNode.sol (HARV_MULT_*, getBaseMultiplier, setMultiplierByIndex), LibKill.sol (calcSalvage/calcSpoils guard `ratio >= precision`), LibBallot.sol (new; no lens surface), LibVIP.sol (comment only); client app/cache: harvest/{base,calcs,index}, kami/calcs/{harvest,liquidation}, node/base — hand-reviewed, every served value checked by the parity test (LibHarvest.calcCredit, LibKill guard).",
+    "classification-affecting": "none — no player-string write system (ChatSystem, AccountRegisterSystem, AccountSetNameSystem, AccountSetBioSystem, KamiNameSystem, KamiOnyxRenameSystem) and no kamiden proto file changed; docs/string-classification.json re-pinned, nothing added (harvestMultiplier is a number).",
+    "state-affecting": "components: + HarvestMultiplier (MAPPED); systems: + BallotClaimSystem, BallotSettleSystem (no ballot answer served: deferred), _HarvestAdminSystem (id row; not deployed per the chain), _NodeRegistrySystem (create k, setMultiplier), SkillRespecSystem (kami-only, RESTING), AccountUseItemSystem (verifyEnabled), harvest family write HarvestMultiplier; deploy.json and componentIDs.json accordingly.",
+    "sync-affecting": "packages/client/src/engine/queue/{sponsoredGas,utils}.ts — the transaction queue's free-gas sponsor; not ported (the lens signs nothing).",
+    "coverage-affecting": "107 modal/fixture files (offering and Halloween dialogues, Alaina's shop, ballots and voting, gacha ??? tab and closed auctions, tutorial hints, the dialogue refactor) — presentation over served facts or the deferred ballots; docs/coverage.md 1.2.0 section."
+  },
+  "liveDeploymentEvidence": {
+    "harvestMultiplier": "component.harvest.multiplier registered at 0xC0F68a99ECD458E9d7fC162Ac5B1f8a21F1D2ac4; all 64 nodes read K = 1000 at block 35,325,474; of 8,186 active harvests 7,747 carry a copy (1000) and 439 none (2026-11-20).",
+    "liquidationCap": "the registered system.harvest.liquidate runtime bytecode (19,846 bytes) equals a99b4b64's compiled HarvestLiquidateSystem (forge 1.7.1, default profile: optimizer, 1,000,000 runs, solc 0.8.28) byte for byte including the CBOR metadata, library addresses filled from the deployed code; the build at 12b37a15 (a99b4b64^) is 19,857 bytes and differs."
+  },
+  "bannerRule": "a ported file's banner names a99b4b64 when its upstream path is byte-identical at both pins (372 files, banner line only) or it was forward-ported (27).",
+  "gates": "see the 1.2.0 records commit: G2.a, G3.a, G3.f, G3.g (100a baselines), G5.c, G5.d hermetic; the live proofs are the release's (a scratch daemon, cold boot)."
+}

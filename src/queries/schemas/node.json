@@ -18,7 +18,8 @@
         "yieldItem",
         "requirements",
         "levelCap",
-        "scavengeCost"
+        "scavengeCost",
+        "harvestMultiplier"
       ],
       "properties": {
         "index": {
@@ -104,6 +105,12 @@
         "scavengeAffinity": {
           "type": "string",
           "description": "1.1.0 (§3.19): the Affinity stored on the node's scavenge registry entity, verbatim — copied from the node's affinity when the scavenge bar was created (_NodeRegistrySystem.addScavenge); the contracts use it to name the per-affinity scavenge-claim counter. Absent when the mirror holds none."
+        },
+        "harvestMultiplier": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "1.2.0: the node's harvest multiplier K, per mille, the chain's integer — the node entity's HarvestMultiplier, low 16 bits (LibNode.getBaseMultiplier; 1000 = ×1.0; the registry writes 100..60000). A harvest copies it when its stretch opens and every sync credits (bounty × K + 500) / 1000 (LibHarvest.calcCredit) — the accrued amounts on this node's rows and a liquidation's salvage and spoils are on that credited balance; HP strain stays on the whole base bounty. A node the mirror holds no K for is refused INCOMPLETE."
         }
       }
     },
@@ -241,7 +248,8 @@
         },
         "musuAccrued": {
           "type": "number",
-          "minimum": 0
+          "minimum": 0,
+          "description": "1.2.0: the harvest's stored balance plus what a sync now would credit — today's bounty (LibHarvest.calcBounty, capped by the HP the kami has) times the K the open stretch copied, rounded to the nearest whole unit: (bounty × K + 500) / 1000 (LibHarvest.calcCredit; K is the harvest's copy, or its node's K when it has none). HP strain is charged on the whole base bounty, not on this."
         },
         "cooldownSec": {
           "type": "number",
@@ -306,7 +314,7 @@
       "properties": {
         "eligible": {
           "type": "boolean",
-          "description": "canLiquidate(attacker, occupant) — the FULL pairing, attacker gates included — and, from 1.1.0 (§3.19), never true for a target whose liquidation the chain would revert (reason SALVAGE_EXCEEDS_BOUNTY). Unchanged at 0.5.3: --eligible-only no longer filters on this field, so a served row may read eligible: false with reason ATTACKER_STARVING."
+          "description": "canLiquidate(attacker, occupant) — the FULL pairing, attacker gates included — and, from 1.1.0 (§3.19), never true for a target whose liquidation the chain would revert (reason SALVAGE_EXCEEDS_BOUNTY; from 1.2.0 the chain caps the salvage at the bounty, so the lens no longer produces that case). Unchanged at 0.5.3: --eligible-only no longer filters on this field, so a served row may read eligible: false with reason ATTACKER_STARVING."
         },
         "reason": {
           "type": "string",
@@ -317,7 +325,7 @@
             "THRESHOLD_ZERO",
             "SALVAGE_EXCEEDS_BOUNTY"
           ],
-          "description": "1.1.0 (§3.19): SALVAGE_EXCEEDS_BOUNTY — the chain reverts the liquidation: the target's salvage exceeds its bounty (this row's salvage > vitals.musuAccrued), so HarvestLiquidateSystem's `bounty - salvage` underflows. Reported after every other reason, as the chain checks it last; on such a row spoils and recoil are 0. §3.13 (0.5.0): present exactly when `eligible` is false. Upstream's own precedence, from the reference client's LiquidateButton tooltip: starving first, then cooldown, then the threshold comparison — with the degenerate no-threshold-at-all case called out separately, exactly as that tooltip does. The client's fifth branch (\"your kamis aren't on this node\") has no analogue here: the attacker is a general argument on this surface, never an own-only path (§3.6)."
+          "description": "1.1.0 (§3.19): SALVAGE_EXCEEDS_BOUNTY — the chain reverts the liquidation: the target's salvage exceeds its bounty (this row's salvage > vitals.musuAccrued), so HarvestLiquidateSystem's `bounty - salvage` underflows. Reported after every other reason, as the chain checks it last; on such a row spoils and recoil are 0. 1.2.0: the chain caps the salvage at the bounty (deployed 2026-11-20), so this value is no longer produced; it stays in the enum. §3.13 (0.5.0): present exactly when `eligible` is false. Upstream's own precedence, from the reference client's LiquidateButton tooltip: starving first, then cooldown, then the threshold comparison — with the degenerate no-threshold-at-all case called out separately, exactly as that tooltip does. The client's fifth branch (\"your kamis aren't on this node\") has no analogue here: the attacker is a general argument on this surface, never an own-only path (§3.6)."
         },
         "threshold": {
           "type": "number"
@@ -329,12 +337,12 @@
         "spoils": {
           "type": "number",
           "minimum": 0,
-          "description": "1.1.0 (§3.19): the chain's LibKill.calcSpoils on what the salvage leaves — a spoils ratio in (1.0, 2.0) pays ratio × that amount (the chain's integer test `ratio / precision > 1`), from 2.0 the whole amount. An amount of the node's yield item."
+          "description": "1.2.0: the chain's LibKill.calcSpoils on what the salvage leaves — ratio × that amount below a ratio of 1.0, the whole amount from 1.0 (`ratio >= precision`, deployed 2026-11-20; through 1.1.1 a ratio in [1.0, 2.0) paid ratio × the amount, as the chain then did). An amount of the node's yield item."
         },
         "salvage": {
           "type": "number",
           "minimum": 0,
-          "description": "1.1.0 (§3.19): the chain's LibKill.calcSalvage — ratio × the bounty below a ratio of 1.0; from 2.0 the whole bounty; in between it EXCEEDS the bounty and the chain reverts the liquidation (reason SALVAGE_EXCEEDS_BOUNTY). An amount of the node's yield item."
+          "description": "1.2.0: the chain's LibKill.calcSalvage — ratio × the bounty below a ratio of 1.0, the whole bounty from 1.0 (`ratio >= precision`, deployed 2026-11-20; through 1.1.1 a ratio in [1.0, 2.0) exceeded the bounty and the chain reverted the liquidation). The bounty is the harvest's balance as credited through its K (vitals.musuAccrued). An amount of the node's yield item."
         },
         "recoil": {
           "type": "number",

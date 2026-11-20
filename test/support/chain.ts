@@ -109,13 +109,17 @@ export function encodeLog(l: ChainLog) {
  * the requests it served. */
 export function poolProvider(
   chain: ChainLog[],
-  route: { single: () => number; batch: () => number }
+  route: { single: () => number; batch: () => number },
+  /** 1.2.0: the endpoint's FLOOR (measured 2026-11-20): no block below it is
+   * served (eth_getBlockByNumber answers null) and eth_getLogs answers no log
+   * below it — an EMPTY list, no error. Default: none. */
+  floor = 0
 ) {
   assertPerTransactionNumbering(chain);
   // a node answers in chain order (block, transaction, log)
   const logsFor = (head: number, from: number, to: number) =>
     chain
-      .filter((l) => l.block >= from && l.block <= Math.min(to, head))
+      .filter((l) => l.block >= Math.max(from, floor) && l.block <= Math.min(to, head))
       .sort(chainOrder)
       .map(encodeLog);
   const n = (x: unknown) => (typeof x === 'string' ? parseInt(x, 16) : Number(x));
@@ -142,6 +146,8 @@ export function poolProvider(
       return calls.map((c) =>
         c.method === 'eth_blockNumber'
           ? { jsonrpc: '2.0', id: c.id, result: `0x${head.toString(16)}` }
+          : c.method === 'eth_getBlockByNumber'
+            ? { jsonrpc: '2.0', id: c.id, result: blockFor(head, floor, c.params[0] as unknown as string) }
           : c.method === 'eth_getLogs'
             ? {
                 jsonrpc: '2.0',
@@ -281,7 +287,16 @@ export type RpcLogJson = {
 
 /** A batch-capable provider over REAL logs as `eth_getLogs` returned them,
  * every backend at `head()`. Answers in chain order. */
-export function rawLogProvider(logs: RpcLogJson[], head: () => number) {
+/** A block header as eth_getBlockByNumber(tag, false) answers it, on a
+ * backend at `head` behind a `floor`: null above the head and below the
+ * floor; `latest` is the head. (1.2.0) */
+export function blockFor(head: number, floor: number, tag: string) {
+  const n = tag === 'latest' ? head : parseInt(tag, 16);
+  if (n > head || n < floor) return null;
+  return { number: `0x${n.toString(16)}`, hash: `0x${n.toString(16).padStart(64, '0')}`, transactions: [] };
+}
+
+export function rawLogProvider(logs: RpcLogJson[], head: () => number, floor = 0) {
   const n = (x: string) => parseInt(x, 16);
   const ordered = [...logs].sort(
     (a, b) =>
@@ -304,13 +319,15 @@ export function rawLogProvider(logs: RpcLogJson[], head: () => number) {
       return calls.map((c) =>
         c.method === 'eth_blockNumber'
           ? { jsonrpc: '2.0', id: c.id, result: `0x${h.toString(16)}` }
+          : c.method === 'eth_getBlockByNumber'
+            ? { jsonrpc: '2.0', id: c.id, result: blockFor(h, floor, c.params[0] as unknown as string) }
           : c.method === 'eth_getLogs'
             ? {
                 jsonrpc: '2.0',
                 id: c.id,
                 result: ordered.filter((l) => {
                   const b = n(l.blockNumber);
-                  return b >= n(c.params[0]!.fromBlock) && b <= Math.min(n(c.params[0]!.toBlock), h);
+                  return b >= Math.max(n(c.params[0]!.fromBlock), floor) && b <= Math.min(n(c.params[0]!.toBlock), h);
                 }),
               }
             : { jsonrpc: '2.0', id: c.id, error: { code: -32601, message: 'unsupported' } }

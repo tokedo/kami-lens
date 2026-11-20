@@ -1,0 +1,20 @@
+{
+  "gate": "g3f-envelope",
+  "measuredAt": "2026-11-20T21:36:43.021Z",
+  "snapshotBlock": 33004688,
+  "cases": 43,
+  "mismatches": [],
+  "basePresenceChecked": 65,
+  "missingBase": [],
+  "nameFreeChecks": {
+    "authoredAbsent": true,
+    "receiptsPresent": true,
+    "stableIdsIntact": true,
+    "untrustedEmpty": true
+  },
+  "enrichedPresenceChecked": 19,
+  "enrichedPresenceProblems": [],
+  "metaChecked": 44,
+  "metaProblems": [],
+  "match": true
+}

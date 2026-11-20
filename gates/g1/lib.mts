@@ -8,7 +8,7 @@
 // recursively sorted object keys.
 
 import { createHash } from 'node:crypto';
-import { promises as fs } from 'node:fs';
+import { promises as fs, readFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -18,6 +18,8 @@ import { Interface, JsonRpcProvider } from 'ethers';
 import { abi as worldAbi } from 'abi/World.json';
 import { VERSION as CACHE_VERSION } from 'cache/db';
 import { createDecode } from 'engine/encoders';
+import { withHarvestMultiplierDeploy } from './fixture-deploy.mts';
+import { aggregatesOnly } from './record-rule.mts';
 import { KamiLensConfig } from '../../src/config';
 import {
   StateCache,
@@ -133,14 +135,21 @@ export async function loadCacheFromSnapshotFile(
   filePath: string,
   config: KamiLensConfig
 ): Promise<StateCache> {
-  const store = new FileStateStore(filePath, {
-    chainId: config.chainId,
-    worldAddress: config.worldAddress,
-    cacheVersion: CACHE_VERSION,
-  });
+  // 1.2.0: a gate fixture is a FROZEN snapshot, usually written before the
+  // header named its component schema; load it whatever schema it names (the
+  // daemon never does — workers/sync/state/store.ts). A fixture taken after
+  // a component was mapped upstream but before this repo mapped it holds that
+  // component's rows decoded as bools; none of the checked-in fixtures do.
+  const store = new FileStateStore(
+    filePath,
+    { chainId: config.chainId, worldAddress: config.worldAddress, cacheVersion: CACHE_VERSION },
+    null
+  );
   await store.load();
-  return loadStateCacheFromStore(store);
+  return withHarvestMultiplierDeploy(await loadStateCacheFromStore(store));
 }
+
+
 
 export function snapshotFileName(config: KamiLensConfig): string {
   return `${getID('ECSCache', config.chainId, config.worldAddress, CACHE_VERSION)}.v8snap`;
@@ -340,17 +349,34 @@ export async function replayOnto(
 
 // ---------------------------------------------------------- measurements
 
-export async function writeMeasurement(gate: string, data: Record<string, unknown>): Promise<string> {
-  await fs.mkdir(MEASUREMENTS_DIR, { recursive: true });
+/** 1.2.0: the build a record was taken with — the package version and the
+ * upstream pin. No commit of this checkout: a release is published as one
+ * commit, so a branch commit would name history that does not exist. */
+function recordProvenance(): { version: string; upstream: string | null } {
+  const pkg = JSON.parse(readFileSync(path.join(REPO_ROOT, 'package.json'), 'utf8')) as { version: string };
+  const pin = /^commit\s+([0-9a-f]{40})/m.exec(readFileSync(path.join(REPO_ROOT, 'UPSTREAM'), 'utf8'));
+  return { version: pkg.version, upstream: pin ? pin[1]! : null };
+}
+
+/** writes a dated gate record, through the record rule (record-rule.mts);
+ * `dir` is for tests — gates write to docs/measurements/ */
+export async function writeMeasurement(
+  gate: string,
+  data: Record<string, unknown>,
+  { dir = MEASUREMENTS_DIR }: { dir?: string } = {}
+): Promise<string> {
+  await fs.mkdir(dir, { recursive: true });
   const date = new Date().toISOString().slice(0, 10);
   // 1.0.0: MEASUREMENT_TAG keeps two same-day runs apart (a release whose
   // legs are gated on the same day would otherwise overwrite the first
   // leg's record with the second's)
   const tag = process.env.MEASUREMENT_TAG ? `-${process.env.MEASUREMENT_TAG}` : '';
-  const file = path.join(MEASUREMENTS_DIR, `${gate}-${date}${tag}.json`);
+  const file = path.join(dir, `${gate}-${date}${tag}.json`);
   await fs.writeFile(
     file,
-    redactLocalPaths(JSON.stringify({ gate, measuredAt: new Date().toISOString(), ...data }, null, 2)) + '\n'
+    redactLocalPaths(
+      JSON.stringify(aggregatesOnly({ gate, measuredAt: new Date().toISOString(), lens: recordProvenance(), ...data }), null, 2)
+    ) + '\n'
   );
   return file;
 }
@@ -368,6 +394,9 @@ export function redactLocalPaths(text: string): string {
   ];
   let out = text;
   for (const [from, to] of pairs) if (from && from.length > 1) out = out.split(from).join(to);
+  // 1.2.0: below <tmp> or <home> only the file's own name is kept — a
+  // session or scratch directory's name can carry a user or host name
+  out = out.replace(/(<tmp>|<home>)\/[^"\s]*\/([^"/\s]+)/g, '$1/…/$2');
   return out;
 }
 

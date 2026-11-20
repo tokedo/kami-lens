@@ -9,12 +9,10 @@
   "provisional": true,
   "replayMs": 4718,
   "rpcPathHash": {
-    "hash": "75dccfe55dff2124567050b17c33f0a0e0dfe610aa8c5dad1eb52f4bce828c02",
     "entries": 2789549,
     "blockNumber": 31161733
   },
   "kamigazePathHash": {
-    "hash": "75dccfe55dff2124567050b17c33f0a0e0dfe610aa8c5dad1eb52f4bce828c02",
     "entries": 2789549,
     "blockNumber": 31161733
   },

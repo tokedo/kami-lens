@@ -48,6 +48,16 @@
 // or B's final write already; a stream frame of B arriving after it is, by
 // definition, not newer. Nothing else in the process sets `final`.
 //
+// 1.2.0: BELOW THE FLOOR IS NEVER "NO EVENTS". The endpoint serves no block or
+// log below its floor and answers eth_getLogs there with an EMPTY list and no
+// error (measured 2026-11-20). The range reader marks such a chunk
+// `belowFloor` (its first block answers null while the head is served), and a
+// below-floor chunk is never healed, reconciled or proven on its answer: the
+// range from it to `to` is recorded unhealed (which gates meta.stale), a gap
+// heal defers (`below-floor`, no wait — a re-read cannot help), and a
+// reconcile or catch-up keeps only what it proved before that chunk. The way
+// across is the path that needs no logs: a cold boot from the state service.
+//
 // A DEFERRED RANGE IS NEVER PARTIALLY APPLIED. If the node is behind, or the
 // subscription is torn down mid-heal, the range is recorded as unhealed and
 // nothing is applied — the next reconcile tick (or the next gap heal, if it
@@ -116,7 +126,7 @@ export type HealResult =
     }
   | {
       ok: false;
-      deferred: 'rpc-head-behind' | 'torn-down' | 'proof-short' | 'rpc-error';
+      deferred: 'rpc-head-behind' | 'torn-down' | 'proof-short' | 'rpc-error' | 'below-floor';
       from: number;
       to: number;
       ms: number;
@@ -244,7 +254,7 @@ export async function healRange(options: HealRangeOptions): Promise<HealResult> 
   }
 
   const defer = (
-    deferred: 'rpc-head-behind' | 'torn-down' | 'proof-short' | 'rpc-error',
+    deferred: 'rpc-head-behind' | 'torn-down' | 'proof-short' | 'rpc-error' | 'below-floor',
     head: { blockNumber: number; source: 'ws' | 'http' } | null
   ): HealResult => {
     const ms = Date.now() - t0;
@@ -294,8 +304,20 @@ export async function healRange(options: HealRangeOptions): Promise<HealResult> 
         return defer('rpc-error', head);
       }
       read++;
-      const proven = (r as { provenThrough?: number }).provenThrough ?? f - 1;
       batchHead = (r as { batchHead?: number }).batchHead ?? batchHead;
+      // 1.2.0: a chunk below the endpoint's floor answers empty for a reason
+      // that is not "nothing happened" — never accepted, never retried
+      if ((r as { belowFloor?: boolean }).belowFloor) {
+        log.warn(
+          `[heal] ${reason} chunk ${f}..${t} begins below the endpoint's floor ` +
+            `(block ${f} is not served) — ${f}..${to} recorded unhealed, not healed on an empty answer`
+        );
+        if (!partial) return defer('below-floor', head);
+        recordUnhealed(f, to);
+        provenThrough = f - 1;
+        break;
+      }
+      const proven = (r as { provenThrough?: number }).provenThrough ?? f - 1;
       if (proven >= t) {
         events.push(...(r as Positioned[]));
         accepted = true;

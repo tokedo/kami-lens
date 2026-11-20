@@ -114,14 +114,14 @@ describe('1.1.0: node serves its yield item, requirements, level cap and scaveng
     expect(valid(d)).toBe(true);
   });
 
-  it('the five fields are LAST and ride every rung: --full, --with-vitals, the selectors', async () => {
+  it('the five fields are LAST (1.2.0: then harvestMultiplier) and ride every rung: --full, --with-vitals, the selectors', async () => {
     const m = makeMirror(7_000);
     addNode(m, 9, 'node 9', { levelLimit: 15 });
     addKami(m, { index: 601, state: 'HARVESTING', node: 9, lastTime: nowSec() - 600 });
-    const tail = ['yieldItem', 'requirements', 'levelCap', 'scavengeCost', 'scavengeAffinity'];
+    const tail = ['yieldItem', 'requirements', 'levelCap', 'scavengeCost', 'scavengeAffinity', 'harvestMultiplier'];
     for (const args of [['9'], ['9', '--full'], ['9', '--with-vitals'], ['9', '--targets', '601']]) {
       const d = (await serve(m, args)).data as Record<string, unknown>;
-      expect(Object.keys(d).slice(-5)).toEqual(tail);
+      expect(Object.keys(d).slice(-6)).toEqual(tail);
       expect(d.levelCap).toBe(15);
       expect(valid(d)).toBe(true);
     }

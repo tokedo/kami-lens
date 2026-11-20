@@ -1744,6 +1744,75 @@ once per windowed auction and carried `unknownComponentIds` in
 announcing itself before anyone had read the commit. Mapping the component
 retires both.
 
+### 3.20 The multiplier, the cap, and the endpoint's floor (1.2.0)
+
+Three things changed around the chain's second halt (2026-11-09 to
+2026-11-20), and the pin advanced to `a99b4b64` to follow them.
+
+**The harvest multiplier K** (upstream `8222ff27`, deployed 2026-11-09).
+Every node stores K, per mille, in the low 16 bits of `HarvestMultiplier`
+(LibNode; the registry writes 100..60000, so a stored K is never 0). A
+harvest copies its node's K when a stretch opens (LibHarvest.start, and again
+after every sync), and LibHarvest.sync credits `calcCredit(bounty) = (bounty ·
+K + 500) / 1000` of today's capped bounty through the COPY — or the node's
+current K for a harvest from before K, which has none (getCopy). `sync`
+still RETURNS today's bounty, so LibKami._sync strains HP on the whole base
+amount. The port takes upstream's client change (`settleStretch`,
+`rates.output`) and keeps its own integers: `settleStretch` is BigInt, and
+upstream's float `floorRate` is not carried. What the lens serves: every
+accrued amount and every liquidation share is on the credited balance; the
+MUSU rates are total × K; HP and its rate are on the base. The `node` answer
+names K (`harvestMultiplier`). A node with no K is INCOMPLETE — on the
+deployed world every node has one, so a missing K is a hollow mirror (the
+1.0.0 A1 rule), not a guess to make. The gates' fixtures all predate the
+deploy; their loader applies the deploy's own writes (K = 1000 on every
+node), at which every credited amount equals 1.1.1's.
+
+**The liquidation cap** (upstream `a99b4b64`, deployed 2026-11-20 03:34:35Z).
+LibKill.calcSalvage / calcSpoils pay the whole amount from `ratio >=
+precision` (it was `ratio / precision > 1` in integer division, which paid
+ratio × amount for a ratio in [1.0, 2.0)). "Deployed" is proven, not
+inferred: the liquidate system the world registered that day is
+`a99b4b64`'s compiled HarvestLiquidateSystem byte for byte, metadata hash
+included, once its linked library addresses are filled in; the build at
+the commit before differs (11 bytes longer). So §3.19's
+SALVAGE_EXCEEDS_BOUNTY cannot arise from the lens's arithmetic any more; the
+check stays as a guard. The same day the chain refused EVERY liquidation
+for an unrelated reason: the newly registered liquidate system held no
+write access on `component.Time.Last`, which the first harvest sync writes
+(every one of 26 calls 03:34Z → 18:00Z reverted `OwnableWritable__NotWriter`).
+The lens does not model write permissions; its preview is the chain's
+arithmetic. A simulation with that one permission granted (a state
+override) is how the cap was checked against the chain's own numbers.
+
+**The endpoint's floor.** Since the return the public endpoint serves no
+block, log, receipt or transaction below block 35,299,823; eth_getLogs over
+an earlier range answers an empty list, HTTP 200, no error — the answer a
+quiet range gives — and `eth_getBlockByNumber("earliest")` answers the head.
+Every recovery path reads the chain through one range reader (§3.17, §3.18
+A2), so the guard lives there: the batch also asks the range's first block
+and `latest`, and a null first block under a served head proves nothing.
+healRange never accepts such a chunk and records the rest of its range
+unhealed (which gates `meta.stale`); a gap heal defers at once, since a
+re-read cannot help. The way across is the path that needs no logs — a cold
+boot from the state service — and the boot takes it by itself when its warm
+cache or its CDN image would put the replay window below the floor
+(`probeFloor`, beside divergence 18's two bounds). A long outage on a
+running daemon that leaves a window below the floor stays stale until a
+restart takes that path; the daemon does not restart itself (that would
+change its timing under a keeper).
+
+**The upgrade.** The saved world holds DECODED values. 1.1.1 had no schema
+for HarvestMultiplier, decoded it with the "No schema found" bool fallback
+(`unknownComponentSchemas`; its live stream dropped the writes at ingest,
+`unknownComponentIds`), and its checkpoints keep `true` where K belongs.
+Resumed by 1.2.0, a node's K would read 1 — and never be corrected, because
+a warm start's incremental refresh re-sends only what changes. So the
+snapshot header names the component schema it was decoded under
+(`componentSchemaFingerprint`), and a snapshot under another one is
+discarded like a header mismatch: the first 1.2.0 start on a 1.1.1 machine is
+a cold boot, and from then on the mirror holds every K on chain.
+
 ## 4. Architecture
 
 ### 4.1 Sync layer

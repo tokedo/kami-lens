@@ -1,0 +1,18 @@
+{
+  "gate": "G2.e",
+  "measuredAt": "2026-11-20T22:21:22.083Z",
+  "lens": {
+    "version": "1.2.0",
+    "upstream": "a99b4b64b505b722203b2337f76a5b604539c1e0"
+  },
+  "snapshot": "base-live2.v8snap",
+  "snapshotBlock": 35329553,
+  "pinnedBlock": 35331750,
+  "quoteViewOnChain": "none — LibPool.calcAmountOut/quote are internal pure and PoolSystem.swap moves items; compared against the swap formula (independent uint256 transcription) on on-chain reserves at pinnedBlock",
+  "pools": 2,
+  "cases": 50,
+  "casesTotal": 50,
+  "problems": [],
+  "elapsedMs": 22691,
+  "match": true
+}

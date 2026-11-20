@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi-open @ 8fb6ea58be5f773909a4d6d8db32f4726512b8e0
+ * upstream: Asphodel-OS/kamigotchi-open @ a99b4b64b505b722203b2337f76a5b604539c1e0
  * path:     packages/client/src/network/shapes/Node/types.ts
  * changes:  none
  */
@@ -13,8 +13,10 @@ import { Condition } from '../Conditional';
 import { Item, getItemByIndex } from '../Item';
 import { ScavBar, getScavenge, queryScavRegistry } from '../Scavenge';
 import { DetailedEntity, hashArgs } from '../utils';
+import { getHarvestMultiplier } from '../utils/component';
 import { NullNode } from './constants';
 import { getRequirements } from './getters';
+import { getStoredMultiplier } from './multiplier';
 
 export interface BaseNode extends DetailedEntity {
   ObjectType: 'NODE';
@@ -29,6 +31,7 @@ export interface Node extends BaseNode {
   roomIndex: number;
   drops: Item[];
   requirements: Condition[];
+  multiplier: number; // harvest multiplier K, per mille, set at node creation
   scavenge?: ScavBar;
   bonuses?: Bonus[];
 }
@@ -72,6 +75,7 @@ export const getNode = (world: World, components: Components, entity: EntityInde
       getItemByIndex(world, components, getComponentValue(ItemIndex, entity)?.value as number),
     ],
     requirements: getRequirements(world, components, nodeIndex),
+    multiplier: getStoredMultiplier(getHarvestMultiplier(components, entity)),
     scavenge: scavEntity ? getScavenge(world, components, scavEntity) : undefined,
     bonuses: getBonusesByParent(world, components, getBonusAnchor(nodeIndex)),
   };

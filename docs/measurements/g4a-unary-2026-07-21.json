@@ -169,19 +169,13 @@
   "samples": {
     "auctionItem": 10,
     "marketAccounts": 12,
-    "accountsTried": [
-      2986
-    ],
     "battleKills": 14,
     "battleStats": true,
     "tradesSeen": 33,
     "offersSeen": 2,
     "transfersSeen": 6,
     "receiptsSeen": 4,
-    "openWithdrawalsSeen": 18,
-    "oldestTradeCreateRaw_unitUnverified": 1765907326,
-    "oldestReceiptRaw_unitUnverified": 1767406934,
-    "oldestAuctionBuyRaw_secondsMeasured": 1747400402
+    "openWithdrawalsSeen": 18
   },
   "match": true
 }

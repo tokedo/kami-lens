@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi-open @ 8fb6ea58be5f773909a4d6d8db32f4726512b8e0
+ * upstream: Asphodel-OS/kamigotchi-open @ a99b4b64b505b722203b2337f76a5b604539c1e0
  * path:     packages/client/src/network/shapes/Conditional/interpretation.ts
  * changes:  none
  */
@@ -37,7 +37,7 @@ export const parseConditionalUnits = (con: Condition): [string, string] => {
 
   return [tar, curr];
 };
-const HIDE_PROGRESS_TYPES = ['QUEST', 'ROOM', 'ITEM_BURN'];
+const HIDE_PROGRESS_TYPES = ['QUEST', 'ROOM', 'ITEM_BURN', 'MOCHI_USED'];
 export const parseConditionalTracking = (con: any): string => {
   const [tar, curr] = parseConditionalUnits(con);
 
@@ -82,6 +82,8 @@ export const parseConditionalText = (
   else if (con.target.type == 'PHASE') text = `During ${getPhaseName(con.target.index!)}`;
   else if (con.target.type == 'LEVEL') text = `Be ${deltaText} level ${targetVal}`;
   else if (con.target.type === 'KAMI_CAN_EAT') text = `${targetVal}`;
+  else if (con.target.type === 'MOCHI_USED')
+    text = `Under the Mochi cap (${parseMochiCap(con)} per Kami)`;
   else if (con.target.type === 'STATE') text = `Is ${deltaText} ${targetVal} `;
   else text = '???';
 
@@ -95,6 +97,9 @@ export const parseConditionalText = (
 
   return text;
 };
+
+// the cap check is CURR_MAX on mochi already eaten, so the cap itself is one more
+const parseMochiCap = (con: Condition): number => (con.target.value ?? 0) * 1 + 1;
 
 const parseDeltaText = (con: Condition): string => {
   if (con.logic.includes('MIN')) return `minimum`;

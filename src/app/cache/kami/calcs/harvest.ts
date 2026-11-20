@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi-open @ 8fb6ea58be5f773909a4d6d8db32f4726512b8e0
+ * upstream: Asphodel-OS/kamigotchi-open @ a99b4b64b505b722203b2337f76a5b604539c1e0
  * path:     packages/client/src/app/cache/kami/calcs/harvest.ts
  * changes:  1.1.0 (§3.19) — two calcs compute the chain's integers, not
  *           floats: calcMaxMusu = LibHarvest.calcMaxMusu, `(hp · 10^(c3+c7)
@@ -11,10 +11,20 @@
  *           (harmony + config[0])`. Both read config[0] RAW, as the chain
  *           does (the client divided it by its precision slot, 0 live). A
  *           rate (roundUp false) and a negative boost (the chain reverts)
- *           keep the client's float. Body otherwise verbatim.
+ *           keep the client's float. a99b4b64: calcOutput credits the
+ *           capped bounty through K (calcHarvestCredit → settleStretch, the
+ *           contract's LibHarvest.calcCredit) as upstream does; the strain
+ *           and the starve cap stay on the whole base bounty, as on chain.
+ *           Body otherwise verbatim.
  */
 
-import { calcHarvestIdleTime, calcHarvestNetBounty, calcHarvestRawNetBounty, updateHarvestRates } from 'app/cache/harvest';
+import {
+  calcHarvestIdleTime,
+  calcHarvestNetBounty,
+  calcHarvestRawNetBounty,
+  settleHarvestStretch,
+  updateHarvestRates,
+} from 'app/cache/harvest';
 import { Kami } from 'network/shapes/Kami/types';
 import { isHarvesting } from './base';
 
@@ -44,6 +54,7 @@ export const updateHarvestRate = (kami: Kami): number => {
   const maxMusu = calcMaxMusu(kami);
   if (maxMusu <= 0 || calcHarvestNetBounty(kami.harvest) >= maxMusu) {
     kami.harvest.rates.total = { average: 0, spot: 0 };
+    kami.harvest.rates.output = { average: 0, spot: 0 };
     return 0;
   }
 
@@ -69,7 +80,14 @@ export const calcOutput = (kami: Kami): number => {
   const netBounty = calcHarvestRawNetBounty(kami.harvest, kami);
   const maxMusu = calcMaxMusu(kami);
   const capped = netBounty < maxMusu ? netBounty : maxMusu;
-  return kami.harvest.balance + capped;
+  return kami.harvest.balance + calcHarvestCredit(kami, capped);
+};
+
+// what a sync credits for today's capped bounty, as LibHarvest.calcCredit: the bounty × the K the
+// open stretch copied, rounded to the nearest whole MUSU
+const calcHarvestCredit = (kami: Kami, bounty: number): number => {
+  if (!kami.harvest || bounty <= 0) return 0;
+  return settleHarvestStretch(kami.harvest.multiplier, bounty);
 };
 
 ////////////////////
@@ -131,6 +149,5 @@ export const calcMaxMusu = (kami: Kami): number => {
   const denom = ratio * boost;
   if (denom === 0) return Infinity;
 
-  return Math.floor((hp * (harmony + baseHarmony)) / denom);
+  return Math.floor((hp * (harmony + baseHarmony)) / denom + 1e-9); // float error, not a true fraction
 };
-

@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi-open @ 8fb6ea58be5f773909a4d6d8db32f4726512b8e0
+ * upstream: Asphodel-OS/kamigotchi-open @ a99b4b64b505b722203b2337f76a5b604539c1e0
  * path:     packages/client/src/workers/sync/state/store.ts
  * changes:  swap point 3 (DESIGN §4.1, §3.5) — the IndexedDB StateStore is
  *           replaced by a single-file binary snapshot with the same
@@ -40,15 +40,22 @@
  *           its next commit — that rotation replaced the only good copy
  *           with the broken one, and a kill between it and the final rename
  *           left neither. It overwrites the broken primary in place instead.
+ *           1.2.0: the header names the component schema the stored values
+ *           were decoded under (componentSchemaFingerprint); a snapshot
+ *           decoded under another one — every snapshot written before 1.2.0
+ *           among them — is discarded like a header mismatch, so the boot
+ *           loads cold rather than serve values an older build decoded
+ *           without the component's schema.
  */
 
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import v8 from 'node:v8';
 
 import { getDataDir } from '../../../config';
 import { ECSStateReply } from 'engine/types/ecs-snapshot';
+import { ComponentsSchema } from 'types/ComponentsSchema';
 import { log } from 'utils/logger';
 import { StateEntry } from './types';
 
@@ -70,7 +77,37 @@ type SnapshotHeader = {
   cacheVersion: number;
   kamigazeNonce: number;
   blockNumber: number;
+  /** 1.2.0: the component schema the stored values were DECODED under
+   * (componentSchemaFingerprint). Absent in every snapshot before 1.2.0. */
+  componentSchema?: string;
 };
+
+/**
+ * 1.2.0: a fingerprint of the component schema this build decodes with —
+ * every component id it knows and the value types it decodes it as.
+ *
+ * WHY. The snapshot stores DECODED values. A component the build has no
+ * schema for is decoded as a bool (engine/encoders/decode.ts: the "No schema
+ * found" fallback, counted as unknownComponentSchemas), and that bool is
+ * what the snapshot keeps. A later build that maps the component would load
+ * those bools as if they were its values — a node's harvest multiplier of
+ * 1000 stored as `true` reads as K = 1 — and the incremental refresh after a
+ * warm start re-sends only what CHANGED, so a value that never changes (a
+ * node's K) would stay wrong for the life of the snapshot. A snapshot decoded
+ * under a different schema is therefore discarded like a header mismatch,
+ * and the boot loads the world cold from the state service, which decodes
+ * every row under this build's schema.
+ */
+type SchemaTable = Record<string, { keys: readonly string[]; values: readonly number[] }>;
+
+export const componentSchemaFingerprint = (schema: SchemaTable = ComponentsSchema): string => {
+  const rows = Object.entries(schema)
+    .map(([id, { keys, values }]) => `${id.toLowerCase()}:${keys.join(',')}:${values.join(',')}`)
+    .sort();
+  return createHash('sha256').update(rows.join('\n')).digest('hex').slice(0, 16);
+};
+
+const COMPONENT_SCHEMA = componentSchemaFingerprint();
 
 type StoreMaps = Map<string, Map<string, unknown>>;
 
@@ -85,7 +122,12 @@ export class FileStateStore {
 
   constructor(
     readonly filePath: string,
-    private header: Omit<SnapshotHeader, 'kamigazeNonce' | 'blockNumber'>
+    private header: Omit<SnapshotHeader, 'kamigazeNonce' | 'blockNumber' | 'componentSchema'>,
+    /** the schema fingerprint this store reads and writes under (this
+     * build's; a test passes another to model a different build). null
+     * accepts a snapshot whatever schema it names — only for a reader of a
+     * FROZEN snapshot (the gates' fixtures), never for the daemon. */
+    private componentSchema: string | null = COMPONENT_SCHEMA
   ) {}
 
   async load(): Promise<void> {
@@ -103,6 +145,16 @@ export class FileStateStore {
         found: header,
         expected: this.header,
       });
+      return;
+    }
+    // 1.2.0: values decoded under another component schema (an older build
+    // that lacked a component this one maps) are not this build's values
+    if (this.componentSchema !== null && header.componentSchema !== this.componentSchema) {
+      log.warn(
+        '[StateStore] snapshot decoded under a different component schema — discarding cache; ' +
+          'the world is loaded cold from the state service',
+        { found: header.componentSchema ?? '(none: written before 1.2.0)', expected: this.componentSchema }
+      );
       return;
     }
     this.stores = stores;
@@ -150,6 +202,7 @@ export class FileStateStore {
   async flush(): Promise<void> {
     const header: SnapshotHeader = {
       ...this.header,
+      componentSchema: this.componentSchema ?? COMPONENT_SCHEMA,
       kamigazeNonce: (this.stores.get('KamigazeNonce')?.get('current') as number) ?? 0,
       blockNumber: (this.stores.get('BlockNumber')?.get('current') as number) ?? 0,
     };

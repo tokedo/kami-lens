@@ -133,7 +133,7 @@ so a machine that can do the first start can always restart.
 
 ## Status
 
-**1.1.1.** Daemon, CLI, and library are implemented and
+**1.2.0.** Daemon, CLI, and library are implemented and
 gate-verified against the pinned upstream commit and the live game,
 with dated per-run evidence in `docs/measurements/`. The verification
 suite is G0–G10 (G8, G9 and G10 are manual and live); every run writes
@@ -141,6 +141,75 @@ its own dated record, and the record — not this paragraph — is what a
 given release rests on. The contract registry is [SPEC.md](SPEC.md);
 per-surface coverage — what is served, what is deferred, what is out
 of scope — is [docs/coverage.md](docs/coverage.md).
+
+### What changed in 1.2.0, for the things that read this daemon
+
+The game changed two formulas around the chain's second halt, and the
+public endpoint came back with a shorter memory. 1.2.0 follows all three.
+The upstream pin moves to `a99b4b64` (2026-11-20).
+
+**A node names its harvest multiplier, and what a harvest has accrued is
+paid through it.** Every node now stores a multiplier K, per thousand
+(1000 = ×1.0). A harvest copies its node's K when a stretch begins, and
+every time the chain settles the harvest it pays the bounty earned since the
+last settlement times that K, rounded to the nearest whole unit:
+`(bounty × K + 500) / 1000`. A harvest started before K existed has no copy
+and pays its node's current K. The health a harvest costs is still charged
+on the whole bounty before K. Every `node` answer, at every option, now
+ends with `harvestMultiplier`: the node's K, the chain's integer. The field
+is always present (the schema marks it required); a node the mirror holds no
+K for is refused as incomplete rather than served with a guessed one, and so
+is a `kami` read — a `party` row is flagged `incomplete` — whose harvest's K
+cannot be resolved, rather than served with a credit of 0. `musu.accrued` (kami, party), `vitals.musuAccrued` (node rows),
+and a liquidation's salvage and spoils, which are shares of that balance,
+are now the credited amounts; `musu.spotRatePerHr` and `avgRatePerHr` are
+the rates times K. Hit points and their rate do not move. On 2026-11-20
+every node on the live world read K = 1000, so no number changes today;
+they change when a node's K does.
+
+**A liquidation's salvage and spoils are capped at the whole amount.** The
+chain's rule changed on 2026-11-20: a salvage or spoils ratio of 1.0 or more
+now pays exactly the whole amount. Until then a ratio between 1.0 and 2.0
+paid more than the whole — a salvage above the bounty made the liquidation
+revert, and spoils reached up to 1.99 times what the salvage left. So a
+victim whose salvage ratio is 1.0 or more is now an ordinary target: it
+loses its whole bounty to salvage, the attacker's spoils are 0, the row is
+`eligible`, and `--eligible-only` keeps it. `SALVAGE_EXCEEDS_BOUNTY` is no
+longer produced; it stays a valid `reason`. (On 2026-11-20 the chain also
+refused every liquidation for a reason unrelated to these numbers — the
+newly registered liquidate system could not write the harvest's last-update
+time. The lens does not model a system's write permissions; it previews what
+the chain's arithmetic pays.)
+
+**An empty answer below the endpoint's memory is not "nothing happened".**
+Since the return, the public endpoint serves no block, log or receipt
+before a fixed height, and a log query over an earlier range answers an
+empty list with no error — the same answer a quiet range gives. (Asking it
+for its `earliest` block returns the newest one.) Every range read now also
+asks whether the range's first block is served; one that is not, while the
+newest block is, proves nothing. A recovery read that begins there is never
+counted as healed or reconciled: the range stays in `unhealed-ranges`, so
+answers read `meta.stale: true`, and the daemon logs why. At start-up, saved
+state (or a state-service image) whose catch-up would have to begin there is
+loaded cold instead — the path that needs no logs.
+
+**Upgrading from 1.1.1 is a cold start.** 1.1.1 did not know the multiplier
+and saved it, wrongly, as a true/false value. 1.2.0 records in its saved
+state which components it decoded and how, and throws away saved state that
+another build wrote. The first start of 1.2.0 on a machine that ran 1.1.1
+logs `[StateStore] snapshot decoded under a different component schema —
+discarding cache; the world is loaded cold from the state service`, then
+loads the world from the state service as on a first start. Measured on a
+64 GB Mac: one cold boot of about 41 s, peaking at about 5 GB resident
+memory (see Memory, above). It then holds every node's K, and restarts after
+that are warm again. An operator whose watchdog restarts the daemon should
+expect one restart-length gap while that boot runs. On a 1.1.1 lens,
+`status.tripwires` counted the unknown component in `unknownComponentIds`
+and `unknownComponentSchemas`; on 1.2.0 both read 0.
+
+`version` reads `1.2.0`; `--version` names
+`a99b4b64b505b722203b2337f76a5b604539c1e0`. No field or query is removed or
+renamed.
 
 ### What changed in 1.1.1, for the things that read this daemon
 

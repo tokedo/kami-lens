@@ -132,6 +132,9 @@ export type NodeFacts = {
   affinity?: string;
   /** a level limit, written the way the deploy writes it */
   levelLimit?: number;
+  /** the node's harvest multiplier K, per mille (default 1000, as every node
+   * on the live world carries since 2026-11-09); null = none stored */
+  multiplier?: number | null;
 };
 
 export function addNode(
@@ -167,6 +170,11 @@ export function addNode(
     setComponent(components.Affinity, se, { value: affinity });
     // the decoder renders a uint256 as '0x' + hex (engine/encoders/decode.ts)
     setComponent(components.Value, se, { value: ('0x' + scavCost.toString(16)) as unknown as number });
+  }
+  const k = facts.multiplier === undefined ? 1000 : facts.multiplier;
+  if (k !== null) {
+    // a uint256 component: the decoder renders it '0x' + hex
+    setComponent(components.HarvestMultiplier, e, { value: ('0x' + k.toString(16)) as unknown as number });
   }
   if (facts.levelLimit !== undefined) {
     addNodeCondition(m, index, {
@@ -221,6 +229,11 @@ export type KamiSpec = {
   /** 1.1.0: stat bases other than the defaults (power 20, violence 15,
    * harmony 15) */
   stats?: { power?: number; violence?: number; harmony?: number };
+  /** HARVESTING only: the K the harvest's open stretch copied (per mille);
+   * absent = no copy (a harvest from before K, paying its node's K) */
+  harvestK?: number;
+  /** HARVESTING only: the stored balance (default 0) */
+  balance?: number;
 };
 
 export function addKami(m: SyntheticMirror, spec: KamiSpec): EntityIndex {
@@ -255,7 +268,15 @@ export function addKami(m: SyntheticMirror, spec: KamiSpec): EntityIndex {
     setComponent(c.LastTime, h, { value: spec.lastTime });
     setComponent(c.ResetTime, h, { value: spec.lastTime });
     setComponent(c.StartTime, h, { value: spec.lastTime });
-    setComponent(c.Balance, h, { value: 0 });
+    setComponent(c.Balance, h, { value: spec.balance ?? 0 });
+    // the chain's harvest balance is its ValueComponent (LibHarvest.incBounty);
+    // the projection's live refresh reads it there
+    if (spec.balance !== undefined) {
+      setComponent(c.Value, h, { value: ('0x' + spec.balance.toString(16)) as unknown as number });
+    }
+    if (spec.harvestK !== undefined) {
+      setComponent(c.HarvestMultiplier, h, { value: ('0x' + spec.harvestK.toString(16)) as unknown as number });
+    }
   }
   return e;
 }

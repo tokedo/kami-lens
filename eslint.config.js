@@ -22,6 +22,22 @@ export default tseslint.config(
     },
   },
   {
+    // 1.2.0: the daemon's code never reaches into the gates or the tests —
+    // in particular gates/g1/fixture-deploy.mts, which writes K = 1000 into a
+    // frozen gate fixture and must never touch a live mirror.
+    files: ['src/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            { group: ['**/gates/**', 'gates/**', '**/test/**', 'test/**', '**/fixture-deploy*'], message: 'src/ may not import gate or test code (1.2.0: the fixture K injection lives there).' },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // Plain-JS Node loader hooks (gates); js.configs.recommended has no
     // environment globals, so declare the ones they use.
     files: ['**/*.mjs'],

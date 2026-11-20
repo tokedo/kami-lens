@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi-open @ 8fb6ea58be5f773909a4d6d8db32f4726512b8e0
+ * upstream: Asphodel-OS/kamigotchi-open @ a99b4b64b505b722203b2337f76a5b604539c1e0
  * path:     packages/client/src/app/cache/harvest/calcs.ts
  * changes:  Date.now() → clock.now() at 4 call sites plus the
  *           clock import (§3.8: offset-corrected stream clock, not naive
@@ -20,7 +20,13 @@
  *           an odd NORMAL bonus. Bonuses are read back to their raw values at
  *           the precision getBonuses divides by. calcNetBounty / calcBounty
  *           (display) are unchanged; the float calcIntensityAt is removed
- *           (intensityUnits replaces it). Body otherwise verbatim.
+ *           (intensityUnits replaces it).
+ *           a99b4b64 (harvest multiplier K): settleStretch (LibHarvest
+ *           .calcCredit) is computed on BigInt — `(bounty · k + 500) /
+ *           1000` — where upstream rounds a float; upstream's floorRate
+ *           helper is not carried (the rates here are already the chain's
+ *           integers). `rates.output` (total × K) is taken as upstream has
+ *           it. Body otherwise verbatim.
  */
 
 import * as clock from 'clock';
@@ -28,6 +34,7 @@ import { Harvest, RateDetails } from 'network/shapes/Harvest/types';
 import type { AsphoAST } from 'network/shapes/Kami';
 import { Kami } from 'network/shapes/Kami';
 import { Efficacy } from 'network/shapes/Kami/configs';
+import { MULT_PREC, scaleByMultiplier } from 'network/shapes/Node/multiplier';
 import { getKamiBodyAffinity, getKamiHandAffinity } from '../kami';
 
 /////////////////
@@ -135,6 +142,19 @@ const intensityUnits = (kami: Kami, delta: number): number => {
   return Number((precision * BigInt(base + nudge) * BigInt(boost)) / (BigInt(config.ratio.raw) * 3600n));
 };
 
+// a stretch as LibHarvest.calcCredit credits it: today's bounty × the copied K, rounded to the nearest
+// whole MUSU
+// kami-lens: in the contract's integers — (bounty · k + MULT_PREC / 2) / MULT_PREC
+// — on BigInt, so no product is ever rounded by a float
+export const settleStretch = (k: number, bounty: number): number => {
+  const prec = BigInt(MULT_PREC);
+  return Number((BigInt(Math.trunc(bounty)) * BigInt(Math.trunc(k)) + prec / 2n) / prec);
+};
+
+// kami-lens: upstream's floorRate (a float rate floored at 1e-6 with a nudge)
+// is not carried — calcFertility / calcIntensity here are the chain's integer
+// rates (1.1.0), which have no float error to absorb.
+
 /////////////////
 // RATE CALCS
 
@@ -150,12 +170,17 @@ export const updateRates = (harvest: Harvest, kami: Kami) => {
   const fertility = calcFertility(harvest, kami);
   const intensity = calcIntensity(harvest, kami);
 
+  const total = {
+    average: boost * (fertility + intensity.average),
+    spot: boost * (fertility + intensity.spot),
+  };
   harvest.rates = {
     fertility,
     intensity,
-    total: {
-      average: boost * (fertility + intensity.average),
-      spot: boost * (fertility + intensity.spot),
+    total,
+    output: {
+      average: scaleByMultiplier(harvest.multiplier, total.average),
+      spot: scaleByMultiplier(harvest.multiplier, total.spot),
     },
   };
   return harvest.rates.total.average;

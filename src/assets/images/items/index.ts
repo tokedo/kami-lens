@@ -1,6 +1,6 @@
 /**
  * kami-lens vendor port (AGPL-3.0 — see LICENSE).
- * upstream: Asphodel-OS/kamigotchi-open @ 8fb6ea58be5f773909a4d6d8db32f4726512b8e0
+ * upstream: Asphodel-OS/kamigotchi-open @ a99b4b64b505b722203b2337f76a5b604539c1e0
  * path:     packages/client/src/assets/images/items/index.ts
  * changes:  image imports replaced by same-named consts holding the upstream
  *           asset path as a stable string token (headless port: no bundler
@@ -23,6 +23,7 @@ const ash_pearl = 'assets/images/items/ash_pearl.png';
 const ashlar = 'assets/images/items/ashlar.png';
 const astrolabe_disk = 'assets/images/items/astrolabe_disk.png';
 const atonement_box = 'assets/images/items/atonement_box.png';
+const ballot = 'assets/images/items/ballot.png';
 const berry_chalk = 'assets/images/items/berry_chalk.png';
 const best_ice_cream = 'assets/images/items/best_ice_cream.png';
 const better_ice_cream = 'assets/images/items/better_ice_cream.png';
@@ -59,11 +60,11 @@ const energy_drink = 'assets/images/items/energy_drink.png';
 const essence_of_daffodil = 'assets/images/items/essence_of_daffodil.png';
 const essence_of_hearing = 'assets/images/items/essence_of_hearing.png';
 const essence_of_sight = 'assets/images/items/essence_of_sight.png';
-const ether_shard = 'assets/images/items/ether_shard.png';
 const essence_of_smell = 'assets/images/items/essence_of_smell.png';
 const essence_of_taste = 'assets/images/items/essence_of_taste.png';
 const essence_of_thought = 'assets/images/items/essence_of_thought.png';
 const essence_of_touch = 'assets/images/items/essence_of_touch.png';
+const ether_shard = 'assets/images/items/ether_shard.png';
 const fast_travel_potion = 'assets/images/items/fast_travel_potion.png';
 const festival_chime = 'assets/images/items/festival_chime.png';
 const fetid_egg = 'assets/images/items/fetid_egg.png';
@@ -77,6 +78,8 @@ const gaokerena_mochi = 'assets/images/items/gaokerena_mochi.png';
 const gingerbread_cookie = 'assets/images/items/gingerbread_cookie.png';
 const glass_jar = 'assets/images/items/glass_jar.png';
 const golden_apple = 'assets/images/items/golden_apple.png';
+const golden_ballot = 'assets/images/items/golden_ballot.png';
+const golden_box = 'assets/images/items/golden_box.png';
 const grace_potion = 'assets/images/items/grace_potion.png';
 const great_heart_crystal = 'assets/images/items/great_heart_crystal.png';
 const greater_xp_potion = 'assets/images/items/greater_xp_potion.png';
@@ -90,9 +93,12 @@ const homecoming_data_chip = 'assets/images/items/homecoming_data_chip.png';
 const honeydew_scale = 'assets/images/items/honeydew_scale.png';
 const hostility_potion = 'assets/images/items/hostility_potion.png';
 const ice_cream = 'assets/images/items/ice_cream.png';
+const igors_amulet = 'assets/images/items/igors_amulet.png';
+const igors_candy = 'assets/images/items/igors_candy.png';
 const ingot = 'assets/images/items/ingot.png';
 const inverted_teardrop_jewel = 'assets/images/items/inverted_teardrop_jewel.png';
 const irradiated_root = 'assets/images/items/irradiated_root.png';
+const jack_o_lantern = 'assets/images/items/jack_o_lantern.png';
 const kami_mochi = 'assets/images/items/kami_mochi.png';
 const kamigotchi_world_citizen_giftbox = 'assets/images/items/kamigotchi_world_citizen_giftbox.png';
 const kamigotchi_world_passport = 'assets/images/items/kamigotchi_world_passport.png';
@@ -157,6 +163,7 @@ const sarcophagus_honey = 'assets/images/items/sarcophagus_honey.png';
 const scrap_metal = 'assets/images/items/scrap_metal.png';
 const screwdriver = 'assets/images/items/screwdriver.png';
 const shredded_mint = 'assets/images/items/shredded_mint.png';
+const silt_caked_box = 'assets/images/items/silt_caked_box.png';
 const spice_grinder = 'assets/images/items/spice_grinder.png';
 const spirit_glue = 'assets/images/items/spirit_glue.png';
 const stone = 'assets/images/items/stone.png';
@@ -180,6 +187,10 @@ const vipp = 'assets/images/items/vipp.png';
 const visage_of_avarice = 'assets/images/items/visage_of_avarice.png';
 const visage_of_contempt = 'assets/images/items/visage_of_contempt.png';
 const visage_of_mischief = 'assets/images/items/visage_of_mischief.png';
+const voter_badge_i = 'assets/images/items/voter_badge_i.png';
+const voter_badge_ii = 'assets/images/items/voter_badge_ii.png';
+const voter_badge_iii = 'assets/images/items/voter_badge_iii.png';
+const voter_badge_iv = 'assets/images/items/voter_badge_iv.png';
 const wise_critter = 'assets/images/items/wise_critter.png';
 const wise_gumdrop = 'assets/images/items/wise_gumdrop.png';
 const wise_leafling = 'assets/images/items/wise_leafling.png';
@@ -207,6 +218,7 @@ export const ItemImages = {
   ash_pearl: ash_pearl,
   ashlar: ashlar,
   astrolabe_disk: astrolabe_disk,
+  ballot: ballot,
   berry_chalk: berry_chalk,
   best_ice_cream: best_ice_cream,
   better_ice_cream: better_ice_cream,
@@ -261,6 +273,8 @@ export const ItemImages = {
   gingerbread_cookie: gingerbread_cookie,
   glass_jar: glass_jar,
   golden_apple: golden_apple,
+  golden_ballot: golden_ballot,
+  golden_box: golden_box,
   grace_potion: grace_potion,
   great_heart_crystal: great_heart_crystal,
   greater_xp_potion: greater_xp_potion,
@@ -274,9 +288,12 @@ export const ItemImages = {
   honeydew_scale: honeydew_scale,
   hostility_potion: hostility_potion,
   ice_cream: ice_cream,
+  igors_amulet: igors_amulet,
+  igors_candy: igors_candy,
   ingot: ingot,
   inverted_teardrop_jewel: inverted_teardrop_jewel,
   irradiated_root: irradiated_root,
+  jack_o_lantern: jack_o_lantern,
   kami_mochi: kami_mochi,
   kamigotchi_world_citizen_giftbox: kamigotchi_world_citizen_giftbox,
   kamigotchi_world_passport: kamigotchi_world_passport,
@@ -341,6 +358,7 @@ export const ItemImages = {
   scrap_metal: scrap_metal,
   screwdriver: screwdriver,
   shredded_mint: shredded_mint,
+  silt_caked_box: silt_caked_box,
   spice_grinder: spice_grinder,
   spirit_glue: spirit_glue,
   stone: stone,
@@ -364,6 +382,10 @@ export const ItemImages = {
   visage_of_avarice: visage_of_avarice,
   visage_of_contempt: visage_of_contempt,
   visage_of_mischief: visage_of_mischief,
+  voter_badge_i: voter_badge_i,
+  voter_badge_ii: voter_badge_ii,
+  voter_badge_iii: voter_badge_iii,
+  voter_badge_iv: voter_badge_iv,
   wise_critter: wise_critter,
   wise_gumdrop: wise_gumdrop,
   wise_leafling: wise_leafling,
