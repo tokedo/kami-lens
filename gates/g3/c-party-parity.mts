@@ -1,8 +1,10 @@
 // Gate G3.c [live] — party report parity. The own-operator report (the
 // party QUERY, through the full serve path) must match the official
 // client's party modal — fixtures-file protocol as in G2.b, reusing the
-// same screenshot transcription (gates/fixtures/g2b-observations.json) and
-// the same replay/frozen-clock method. What G2.b proved for the ported
+// same screenshot transcription (the local file gates/g2/observations.mts
+// locates; 1.2.1: not part of the public tree — without it this gate prints
+// SKIP and exits 2, not runnable here) and the same replay/frozen-clock
+// method. What G2.b proved for the ported
 // calc path, this gate proves for the SERVED QUERY: the query's rows carry
 // the same vitals the client displayed.
 //
@@ -43,6 +45,7 @@ import {
   writeMeasurement,
 } from '../g1/lib.mts';
 import { buildMirror } from '../g2/lib.mts';
+import { requireObservations } from '../g2/observations.mts';
 
 type PartyRow = {
   kamiIndex: number;
@@ -56,8 +59,7 @@ type PartyRow = {
 };
 type Screenshot = { file: string; capturedAtMs: number; views: { party?: PartyRow[] } };
 
-const FIXTURES = path.join(REPO_ROOT, 'gates', 'fixtures', 'g2b-observations.json');
-if (!existsSync(FIXTURES)) fail('G3.c', { reason: 'fixtures missing', expected: FIXTURES });
+const FIXTURES = requireObservations('G3.c');
 const fixture = JSON.parse(readFileSync(FIXTURES, 'utf8')) as {
   replayBase?: { file: string; blockNumber: number };
   screenshots: Screenshot[];

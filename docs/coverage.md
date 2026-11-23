@@ -1,8 +1,8 @@
 # Coverage — per-release conformance checklist
 
 Perception parity is defined against the pinned upstream commit
-(`UPSTREAM` file; currently `a99b4b64`, advanced from `8fb6ea58` in 1.2.0,
-from `ffda3963` to `04cb25f8` and then `8fb6ea58` in 1.1.0, and from
+(`UPSTREAM` file; currently `1b0b34e5`, advanced from `a99b4b64` in 1.2.1,
+from `8fb6ea58` in 1.2.0, from `ffda3963` to `04cb25f8` and then `8fb6ea58` in 1.1.0, and from
 `ef898fc9` in 1.0.0). This table is the release
 artifact behind README principle 1: each release states, per
 player-visible surface, whether kami-lens serves it — and a gap is
@@ -853,6 +853,18 @@ deferred ballots. **Newly served on the `node` surface:** `harvestMultiplier`.
 **Values that now follow the chain:** accrued amounts and the liquidation
 shares (through K), the musu rates (× K), and the salvage / spoils of a
 ratio from 1.0 (the whole amount; the row is eligible).
+
+## 1.2.1 — pin `1b0b34e5` (2026-11-21)
+
+**The pin advances** from `a99b4b64` to `1b0b34e5` (1 commit; the classified
+diff is `docs/measurements/pin-advance-1b0b34e5-2026-11-23.json`). No ported
+path changes. Its state-affecting bucket is one system,
+`HarvestStartSystem` (two new entry points that start a harvest and skip a
+kami that cannot start); it adds no component, and the lens reads state, not
+calls. Its coverage-affecting bucket is the party modal's batch control
+(`modals/party/Toolbar.tsx`, `constants.ts`: at most 8 kamis to add, 5 to
+collect, 5 to stop, 12 to stake) — a limit on write actions this daemon
+does not perform. No row's status changes.
 
 ## Maintenance
 

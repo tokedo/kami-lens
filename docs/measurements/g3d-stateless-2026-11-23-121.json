@@ -1,0 +1,20 @@
+{
+  "gate": "g3d-stateless",
+  "measuredAt": "2026-11-23T20:59:40.887Z",
+  "lens": {
+    "version": "1.2.1",
+    "upstream": "1b0b34e58537fca324c65237c1a056495c95892e"
+  },
+  "comparisons": 3,
+  "mismatches": 0,
+  "cli": {
+    "exit": 0,
+    "envelopeOk": true,
+    "schemaOk": true
+  },
+  "refusal": {
+    "exit": 5,
+    "ok": true
+  },
+  "match": true
+}

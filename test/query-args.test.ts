@@ -103,25 +103,25 @@ describe('declared query arguments (§3.13)', () => {
   });
 
   it('parses --stats in any position, and defaults it off', () => {
-    expect(REGISTRY.kami.parseArgs(['307'])).toMatchObject({ index: 307, stats: false });
-    expect(REGISTRY.kami.parseArgs(['307', '--stats'])).toMatchObject({ index: 307, stats: true });
-    expect(REGISTRY.kami.parseArgs(['--stats', '307'])).toMatchObject({ index: 307, stats: true });
-    expect(REGISTRY.roster.parseArgs(['2930'])).toMatchObject({ accountIndex: 2930, stats: false });
-    expect(REGISTRY.roster.parseArgs(['2930', '--stats'])).toMatchObject({
-      accountIndex: 2930,
+    expect(REGISTRY.kami.parseArgs(['701'])).toMatchObject({ index: 701, stats: false });
+    expect(REGISTRY.kami.parseArgs(['701', '--stats'])).toMatchObject({ index: 701, stats: true });
+    expect(REGISTRY.kami.parseArgs(['--stats', '701'])).toMatchObject({ index: 701, stats: true });
+    expect(REGISTRY.roster.parseArgs(['77'])).toMatchObject({ accountIndex: 77, stats: false });
+    expect(REGISTRY.roster.parseArgs(['77', '--stats'])).toMatchObject({
+      accountIndex: 77,
       stats: true,
     });
   });
 
   it('party takes --stats and --full together, in either order', () => {
-    expect(REGISTRY.party.parseArgs(['2930'])).toMatchObject({ full: false, stats: false });
-    expect(REGISTRY.party.parseArgs(['2930', '--stats'])).toMatchObject({
-      accountIndex: 2930,
+    expect(REGISTRY.party.parseArgs(['77'])).toMatchObject({ full: false, stats: false });
+    expect(REGISTRY.party.parseArgs(['77', '--stats'])).toMatchObject({
+      accountIndex: 77,
       full: false,
       stats: true,
     });
-    expect(REGISTRY.party.parseArgs(['--full', '2930', '--stats'])).toMatchObject({
-      accountIndex: 2930,
+    expect(REGISTRY.party.parseArgs(['--full', '77', '--stats'])).toMatchObject({
+      accountIndex: 77,
       full: true,
       stats: true,
     });
@@ -165,10 +165,10 @@ describe('declared query arguments (§3.13)', () => {
 
   it('node --eligible-only composes with --full and --stats', () => {
     expect(
-      REGISTRY.node.parseArgs(['86', '15671', '--with-vitals', '--full', '--stats', '--eligible-only'])
+      REGISTRY.node.parseArgs(['86', '701', '--with-vitals', '--full', '--stats', '--eligible-only'])
     ).toMatchObject({
       index: 86,
-      attacker: 15671,
+      attacker: 701,
       withVitals: true,
       full: true,
       stats: true,
@@ -216,7 +216,7 @@ describe('declared query arguments (§3.13)', () => {
 describe('both entry points refuse an undeclared option (§3.13, 0.5.2)', () => {
   // THE DEFECT THIS PINS. The CLI has refused undeclared `--flags` since
   // 0.5.0; the SOCKET — the path the harness and the agents actually use —
-  // silently ignored them. `account 3379 --slim` over the socket returned the
+  // silently ignored them. `account 77 --slim` over the socket returned the
   // whole roster with `ok: true`, and `node … --eligible-only` returned an
   // unfiltered answer with `ok: true`, while the identical tokens on the CLI
   // were refused outright. A wrong-but-plausible answer to a question the
@@ -266,10 +266,10 @@ describe('both entry points refuse an undeclared option (§3.13, 0.5.2)', () => 
 
   it('the two 0.5.2 flags are refused by the queries that do not declare them', () => {
     // the concrete pair from the field report
-    expect(() => assertSocketArgs('account', ['3379', '--eligible-only'])).toThrow(QueryError);
+    expect(() => assertSocketArgs('account', ['77', '--eligible-only'])).toThrow(QueryError);
     expect(() => assertSocketArgs('node', ['9', '--slim'])).toThrow(QueryError);
     // …and accepted by the ones that do
-    expect(() => assertSocketArgs('account', ['3379', '--slim'])).not.toThrow();
+    expect(() => assertSocketArgs('account', ['77', '--slim'])).not.toThrow();
     expect(() => assertSocketArgs('node', ['9', '219', '--with-vitals', '--eligible-only'])).not.toThrow();
   });
 

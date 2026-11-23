@@ -131,7 +131,7 @@ describe('feed argument parsing (B1)', () => {
   });
 
   it('--account takes a non-negative integer', () => {
-    expect(parse(['--account', '3379']).accountIndex).toBe(3379);
+    expect(parse(['--account', '77']).accountIndex).toBe(77);
     expect(bad(['--account', 'bob'])).toBe('BAD_ARGS');
   });
 

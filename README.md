@@ -133,7 +133,7 @@ so a machine that can do the first start can always restart.
 
 ## Status
 
-**1.2.0.** Daemon, CLI, and library are implemented and
+**1.2.1.** Daemon, CLI, and library are implemented and
 gate-verified against the pinned upstream commit and the live game,
 with dated per-run evidence in `docs/measurements/`. The verification
 suite is G0–G10 (G8, G9 and G10 are manual and live); every run writes
@@ -141,6 +141,30 @@ its own dated record, and the record — not this paragraph — is what a
 given release rests on. The contract registry is [SPEC.md](SPEC.md);
 per-surface coverage — what is served, what is deferred, what is out
 of scope — is [docs/coverage.md](docs/coverage.md).
+
+### What changed in 1.2.1, for the things that read this daemon
+
+Nothing a query answers. The upstream pin moves to `1b0b34e5` (2026-11-21):
+one commit, which adds two ways to start harvests that skip a kami unable to
+start and limits how many kamis the game's party screen puts in one
+transaction. The lens reads the world's state, not the calls that change it,
+and no file it ports changed, so every answer, field and schema is as in
+1.2.0. `status.version` reads `1.2.1` and `status.upstreamPin` the new pin;
+`--version` names `1b0b34e58537fca324c65237c1a056495c95892e`.
+
+**Upgrading from 1.2.0 is a warm restart.** A snapshot is discarded only
+when its chain, world, cache version or component schema differ from the
+build's; this release changes none of them, so the daemon resumes from its
+snapshot as on any restart.
+
+**For whoever runs the gates:** the hand-captured transcription behind the
+display-parity gates G2.b and G3.c is no longer part of the public tree.
+Both gates look it up at `gates/fixtures/g2b-observations.json` (ignored by
+git) or at the path `G2B_OBSERVATIONS` names; without it each prints one
+`SKIP` line and exits 2, and `gates/g2.sh` / `gates/g3.sh` go on to their
+next part and name the skipped one in their last line. The worked examples
+in this README, DESIGN, the source comments and the tests use the tests'
+own account 77 and kami 701.
 
 ### What changed in 1.2.0, for the things that read this daemon
 
@@ -939,7 +963,7 @@ byte-for-byte what 0.5.1 returned.
 **Unknown options are now refused, not ignored — and this one affects
 upgrade order.** Asking a 0.5.1 daemon for something it does not
 understand over its socket got you a plausible wrong answer rather than
-an error: `account 3379 --slim` came back with the whole roster and
+an error: `account 77 --slim` came back with the whole roster and
 `ok: true`, and `node ... --eligible-only` came back unfiltered and
 `ok: true`. The command-line tool refused both correctly; the socket,
 which is what programs actually talk to, did not. From 0.5.2 both

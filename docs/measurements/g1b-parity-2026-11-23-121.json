@@ -1,0 +1,26 @@
+{
+  "gate": "g1b-parity",
+  "measuredAt": "2026-11-23T20:37:44.554Z",
+  "lens": {
+    "version": "1.2.1",
+    "upstream": "1b0b34e58537fca324c65237c1a056495c95892e"
+  },
+  "pinnedBlock": 35459305,
+  "kamigazeBlock": 35459305,
+  "healedBlocks": 0,
+  "positiveSamples": 544,
+  "negativeSamples": 50,
+  "componentsCovered": 93,
+  "componentsInMirror": 93,
+  "hardFailures": 0,
+  "excusedKamigazeInherited": [],
+  "failureDetail": [],
+  "tripwires": {
+    "unknownComponentIds": 0,
+    "unknownComponentSchemas": 0,
+    "decodeFailures": 0,
+    "kamigazeNonceBumps": 0,
+    "nonFiniteValues": 0,
+    "configUnavailable": 0
+  }
+}

@@ -254,7 +254,7 @@ async function handle(
     // §3.13 (0.5.2): AN UNDECLARED OPTION IS AN ERROR ON THIS PATH TOO. The
     // CLI has refused undeclared `--flags` since 0.5.0; the socket — the path
     // the harness and the agents actually use — silently ignored them, so
-    // `account 3379 --slim` answered `ok: true` WITH the whole roster and
+    // `account 77 --slim` answered `ok: true` WITH the whole roster and
     // `node … --eligible-only` answered `ok: true` UNFILTERED. A caller got a
     // plausible answer to a question it did not ask, from the same daemon
     // that refused the identical tokens on the CLI. One rule now, in the

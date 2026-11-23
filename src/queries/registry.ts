@@ -798,7 +798,7 @@ export const REGISTRY: Record<QueryName, QueryDef> = {
 // disagreement was silent. 0.5.0 fixed the CLI: a query declares its argument
 // vocabulary and an undeclared option is a usage error rather than a
 // different answer. The SOCKET was never given the same treatment, and it is
-// the path the harness and the agents actually use — so `account 3379
+// the path the harness and the agents actually use — so `account 77
 // --slim` came back with the whole roster and `node … --eligible-only` came
 // back unfiltered, both with `ok: true` and no error at all, while the CLI
 // refused the same tokens outright. A wrong-but-plausible answer to a caller

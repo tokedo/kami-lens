@@ -1,7 +1,7 @@
 repo        https://github.com/Asphodel-OS/kamigotchi-open
-commit      a99b4b64b505b722203b2337f76a5b604539c1e0
-commit-date 2026-11-20
-pinned      2026-11-20
+commit      1b0b34e58537fca324c65237c1a056495c95892e
+commit-date 2026-11-21
+pinned      2026-11-23
 
 # Every ported file carries a provenance header naming its upstream path at
 # this commit. Advancing this pin is a scripted, classified diff plus gate

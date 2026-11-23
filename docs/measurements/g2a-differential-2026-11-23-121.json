@@ -1,0 +1,25 @@
+{
+  "gate": "g2a-differential",
+  "measuredAt": "2026-11-23T20:35:58.240Z",
+  "lens": {
+    "version": "1.2.1",
+    "upstream": "1b0b34e58537fca324c65237c1a056495c95892e"
+  },
+  "pin": "1b0b34e58537fca324c65237c1a056495c95892e",
+  "snapshotBlock": 33004688,
+  "mirrorEntries": 2990959,
+  "comparisonsPerKami": 6,
+  "comparisons": 133332,
+  "nowMs": 1795466153733,
+  "nonFiniteInputValues": 11110,
+  "mirrorMs": 2648,
+  "materializeMs": 12793,
+  "upstreamMs": 4335,
+  "mismatches": 0,
+  "mismatchSamples": [],
+  "chainCorrections": {
+    "thresholdClamp": 7582,
+    "thresholdFloatFloor": 1
+  },
+  "match": true
+}

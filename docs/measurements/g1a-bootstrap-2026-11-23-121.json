@@ -1,0 +1,28 @@
+{
+  "gate": "g1a-bootstrap",
+  "measuredAt": "2026-11-23T20:36:52.910Z",
+  "lens": {
+    "version": "1.2.1",
+    "upstream": "1b0b34e58537fca324c65237c1a056495c95892e"
+  },
+  "timeToLiveColdMs": 37423,
+  "checkpoint": {
+    "blockNumber": 35459093,
+    "kamigazeNonce": 98,
+    "stateEntries": 3285209,
+    "numComponents": 101,
+    "numEntities": 1384192,
+    "at": "2026-11-23T20:36:52.909Z",
+    "durationMs": 0,
+    "inFlight": false
+  },
+  "tripwires": {
+    "unknownComponentIds": 0,
+    "unknownComponentSchemas": 0,
+    "decodeFailures": 0,
+    "kamigazeNonceBumps": 0,
+    "nonFiniteValues": 0,
+    "configUnavailable": 0
+  },
+  "degraded": []
+}

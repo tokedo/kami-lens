@@ -1,9 +1,11 @@
 // Gate G2.b [live + hand-captured screenshots, session-transcribed] —
 // display parity vs the official web client (PORT_PLAN G2.b, decision
 // 2026-07-21). The operator drops original screenshots into
-// gates/fixtures/g2b-screenshots/; the transcription lives in
-// gates/fixtures/g2b-observations.json (schema v2); this script does
-// everything else machine-side:
+// gates/fixtures/g2b-screenshots/; the transcription (schema v2) is a local,
+// git-ignored file — gates/fixtures/g2b-observations.json, or the path
+// G2B_OBSERVATIONS names (gates/g2/observations.mts; 1.2.1: it is not part of
+// the public tree, and without it this gate prints SKIP and exits 2, not
+// runnable here); this script does everything else machine-side:
 //
 //   - capture instant per screenshot from the original filename/mtime;
 //     blockHeight derived by bisecting RPC block timestamps (no ticker in
@@ -39,7 +41,8 @@
 //     discrete action markers (state, time.last, time.cooldown,
 //     harvest.time.start/reset, progress.level) differ between the replay
 //     basis and the observation block (an on-chain action inside the
-//     window); operator-controlled kami indexes are skipped in third-party
+//     window); the kamis the observer controls (the transcription's
+//     optional excludedKamiIndexes) are skipped in third-party
 //     room views.
 //
 // The observations are data; the verdict is this script's exit code.
@@ -74,13 +77,9 @@ import {
   writeMeasurement,
 } from '../g1/lib.mts';
 import { buildMirror } from './lib.mts';
+import { excludedKamiIndexes, requireObservations } from './observations.mts';
 
-// Operator-controlled kamis: excluded from third-party room comparisons
-// (self-observation would compare the operator's own agents against
-// themselves).
-const EXCLUDED_KAMI_INDEXES = new Set([17379, 17992, 20042]);
-
-const FIXTURES = path.join(REPO_ROOT, 'gates', 'fixtures', 'g2b-observations.json');
+const FIXTURES = requireObservations('G2.b');
 // The replay base is the fixture set's OWN pinned snapshot (manifest
 // replayBase entry — 2026-07-22 audit finding), never the shared mutable
 // c2.v8snap, which later gate runs refresh past the observation blocks.
@@ -122,14 +121,22 @@ type Screenshot = {
   };
 };
 
-if (!existsSync(FIXTURES)) {
-  fail('G2.b', { reason: 'transcription fixture missing', expected: FIXTURES });
-}
 const fixture = JSON.parse(readFileSync(FIXTURES, 'utf8')) as {
   schema: string;
   replayBase?: { file: string; blockNumber: number };
+  excludedKamiIndexes?: number[];
   screenshots: Screenshot[];
 };
+// Kamis the observer controls: excluded from third-party room comparisons
+// (self-observation would compare the observer's own kamis against
+// themselves). 1.2.1: read from the local transcription's optional
+// top-level `excludedKamiIndexes` (absent = none excluded), never hard-coded.
+let EXCLUDED_KAMI_INDEXES = new Set<number>();
+try {
+  EXCLUDED_KAMI_INDEXES = excludedKamiIndexes(fixture);
+} catch (e) {
+  fail('G2.b', { reason: (e as Error).message });
+}
 if (fixture.schema !== 'g2b-screenshot-transcription-v2') {
   fail('G2.b', { reason: 'unexpected fixture schema', got: fixture.schema });
 }
@@ -301,7 +308,7 @@ function compareRowFrozen(
   const label = { screenshot: shot.file, kind, kami: row.kamiIndex ?? (row as EnemyRow).kamiName };
 
   if (kind === 'enemy' && row.kamiIndex !== undefined && EXCLUDED_KAMI_INDEXES.has(row.kamiIndex)) {
-    skips.push({ ...label, reason: 'operator-controlled kami excluded from third-party comparison' });
+    skips.push({ ...label, reason: 'a kami the observer controls, excluded from third-party comparison' });
     return;
   }
 

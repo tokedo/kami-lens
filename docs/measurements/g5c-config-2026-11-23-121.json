@@ -1,0 +1,24 @@
+{
+  "gate": "g5c-config",
+  "measuredAt": "2026-11-23T20:34:55.218Z",
+  "lens": {
+    "version": "1.2.1",
+    "upstream": "1b0b34e58537fca324c65237c1a056495c95892e"
+  },
+  "pairs": 6,
+  "enrichPairs": 14,
+  "statusIntegration": {
+    "ok": true,
+    "checkpointIntervalMs": 333000,
+    "source": "flag",
+    "configFile": "<repo>/gates/.artifacts/g5c-scratch/config-111000.toml",
+    "enrich": true,
+    "enrichSource": "flag"
+  },
+  "noneSemantics": {
+    "ok": true,
+    "kamidenUrl": null,
+    "source": "flag"
+  },
+  "match": true
+}

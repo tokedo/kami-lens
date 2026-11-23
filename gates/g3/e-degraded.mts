@@ -104,7 +104,7 @@ for (let i = 0; i < 95; i++) {
 }
 
 // --- 5. queries still serve, stamped stale ----------------------------------
-const kamiResp = (await socketQuery('kami', ['10016'])) as unknown as {
+const kamiResp = (await socketQuery('kami', ['701'])) as unknown as {
   ok: boolean;
   data: { index: number };
   meta: { stale: boolean };
@@ -118,7 +118,7 @@ const checks = {
   notDegradedBefore: !before.data.degraded.some((d) => d.startsWith('stream-stalled')),
   degradedWithinInterval: degradedAtMs !== null && degradedAtMs <= 90_000,
   statusStaleAfter: after?.meta.stale === true,
-  queryStillServes: kamiResp.ok && kamiResp.data.index === 10016,
+  queryStillServes: kamiResp.ok && kamiResp.data.index === 701,
   queryStampedStale: kamiResp.meta.stale === true,
 };
 const ok = Object.values(checks).every(Boolean);

@@ -11,8 +11,12 @@
     "displayed; displayedHP to the integer; displayedMusu to the floor;",
     "displayedCooldownSec remaining cooldown in whole seconds (0 if none).",
     "The observations are data; the verdict is b-display-parity.mts's exit",
-    "code."
+    "code.",
+    "excludedKamiIndexes (optional): the kamis the observer controls, skipped",
+    "in third-party room comparisons; absent = none excluded. The value below",
+    "is synthetic (no kami has index 0)."
   ],
+  "excludedKamiIndexes": [0],
   "recordedBy": "",
   "recordedAt": "",
   "observations": [

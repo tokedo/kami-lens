@@ -95,6 +95,7 @@ const PUBLIC_HEX = new Set<string>(
     '0x12c0989a259471d89d1ba1bb95043d64daf97c19', // GetterSystem (earlier deploy)
     '0xC0F68a99ECD458E9d7fC162Ac5B1f8a21F1D2ac4', // the HarvestMultiplier component
     // upstream commits the lens has been pinned to
+    '1b0b34e58537fca324c65237c1a056495c95892e',
     'a99b4b64b505b722203b2337f76a5b604539c1e0',
     '8fb6ea58be5f773909a4d6d8db32f4726512b8e0',
     'ffda396330af1bc33238b6c37188772152b45439',

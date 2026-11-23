@@ -496,7 +496,7 @@ const record = await writeMeasurement('g7c-payload-flags', {
     // against nearly every occupant — so the fixture's saving is SMALL and
     // says nothing about the flag's value. The saving is a function of how
     // many rows are eligible, not of the flag: measured live 2026-08-27 with
-    // a real attacker (kami 15671), node 9 went 500,709 B -> 3,489 B (6
+    // a real attacker, node 9 went 500,709 B -> 3,489 B (6
     // eligible of 835), node 86 1,300,288 B -> 15,900 B (28 of 2,165) and
     // node 10 46,696 B -> 1,731 B (3 of 77). What THIS gate proves is that
     // the rows served are exactly the right ones. On an empty node the

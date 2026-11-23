@@ -13,8 +13,9 @@
 #                    from two pre-change baseline captures; `status` is the
 #                    one named exception, by exactly two keys)
 #
-# Needs: gates/.artifacts/c2.v8snap (mirror snapshot), the g2b fixtures +
-# measurement (G3.c), and gates/.artifacts/overnight-data for the live
+# Needs: gates/.artifacts/c2.v8snap (mirror snapshot), the g2b transcription
+# + measurement (G3.c — the transcription is a local file, not part of the
+# public tree; without it G3.c SKIPs, exit 2, and the runner goes on), and gates/.artifacts/overnight-data for the live
 # daemon runs (G3.d/e run daemons sequentially on that data dir). G3.g
 # additionally needs its two baseline captures
 # (gates/.artifacts/kd-flagoff-base{1,2}.json), taken from the pre-change
@@ -22,6 +23,7 @@
 # are missing or were taken at a different snapshot block.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+source gates/lib.sh
 
 export NODE_OPTIONS="${NODE_OPTIONS:-} --max-old-space-size=8192"
 TSX="npx tsx --tsconfig tsconfig.json"
@@ -41,7 +43,7 @@ step "G3.b node occupancy cross-check (live)"
 $TSX gates/g3/b-node-occupancy.mts
 
 step "G3.c party report parity (fixtures)"
-$TSX gates/g3/c-party-parity.mts
+skippable G3.c $TSX gates/g3/c-party-parity.mts
 
 step "G3.d stateless equivalence (live daemon cycle)"
 $TSX gates/g3/d-stateless.mts
@@ -49,4 +51,4 @@ $TSX gates/g3/d-stateless.mts
 step "G3.e degraded-state honesty (live daemon + proxy kill)"
 $TSX gates/g3/e-degraded.mts
 
-printf '\nG3 PASS — all parts exited 0 (check docs/measurements/ for dated records)\n'
+summary G3

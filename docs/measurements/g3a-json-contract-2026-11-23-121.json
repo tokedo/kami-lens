@@ -1,0 +1,27 @@
+{
+  "gate": "g3a-json-contract",
+  "measuredAt": "2026-11-23T20:35:09.900Z",
+  "lens": {
+    "version": "1.2.1",
+    "upstream": "1b0b34e58537fca324c65237c1a056495c95892e"
+  },
+  "snapshotBlock": 33004688,
+  "validated": 1418,
+  "enrichedValidated": 188,
+  "kamisSampled": 300,
+  "accountsSampled": 40,
+  "nodesSampled": 64,
+  "failures": 0,
+  "failureSamples": [],
+  "flagOffEnrichmentHits": {},
+  "legB": {
+    "kami --equipment": 30,
+    "node selectors": 34,
+    "roster --full": 10,
+    "receipts": 23,
+    "receiptOwnersInFixture": 18,
+    "quote": 36,
+    "item ERC20": 1
+  },
+  "match": true
+}

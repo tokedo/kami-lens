@@ -1,0 +1,54 @@
+{
+  "record": "upstream pin advance — classified diff (DESIGN §7, PORT_PLAN 'Order and pin advances')",
+  "date": "2026-11-23",
+  "from": "a99b4b64b505b722203b2337f76a5b604539c1e0",
+  "to": "1b0b34e58537fca324c65237c1a056495c95892e",
+  "toCommitDate": "2026-11-21",
+  "repo": "https://github.com/Asphodel-OS/kamigotchi-open (main only; commits cited by hash)",
+  "release": "1.2.1",
+  "commits": 1,
+  "commitList": [
+    "1b0b34e5 harvest start that skips kamis unable to start, party batch limits per action (#2558)"
+  ],
+  "headOfMain": "1b0b34e5 was the head of the mirror's main when the advance was taken (2026-11-23); its parent is a99b4b64.",
+  "upstreamFilesChanged": 7,
+  "portedFilesChangedUpstream": 0,
+  "portedFilesUnchangedUpstream": 401,
+  "portedFilesDerivation": "From the banners: the upstream path of every src/ banner (399 `path:` banners, plus packages/client/src/network/index.ts for the `//` banner of network/index.ts and packages/client/abi/World.json for src/abi/README.md; 401 distinct paths), intersected with `git diff --name-only a99b4b64 1b0b34e5` of the mirror: 0 paths in common. network/comps.ts is a shim with no upstream file. pnpm-lock.yaml is not in the range (the vendored @mud-classic/utils entry is unchanged).",
+  "portedFilesChanged": {},
+  "newlyPorted": {},
+  "buckets": {
+    "formula-affecting": "none — no file under packages/client/src/app/cache/** or packages/contracts/src/libraries/**.",
+    "classification-affecting": "none — no player-string write system and no kamiden proto file changed; docs/string-classification.json re-pinned, nothing added.",
+    "state-affecting": "packages/contracts/src/systems/HarvestStartSystem.sol: two entry points added (executeAllowFailure, executeBatchedAllowFailure — a start that skips a kami unable to start); execute / executeTyped / executeBatched unchanged. No component, component id, schema, deploy.json or componentIDs.json change. The lens reads state, not calls: nothing to map.",
+    "sync-affecting": "none — no file under packages/client/src/{workers,clients,engine}/**.",
+    "coverage-affecting": "packages/client/src/app/components/modals/party/{Toolbar.tsx,constants.ts}: the party modal's batch control takes at most 8 kamis to add, 5 to collect, 5 to stop, 12 to stake — a limit on write actions this daemon does not perform; no new player-visible surface; docs/coverage.md 1.2.1 section.",
+    "outside the watched paths": "packages/client/abi/HarvestStartSystem.json and packages/client/types/ethers-contracts/HarvestStartSystem.ts (regenerated for the two entry points; not vendored here — src/abi holds World.json only), packages/client/src/app/components/library/buttons/DropdownToggle.tsx (a UI control), packages/contracts/test/systems/Harvest/HarvestStartAllowFailure.t.sol (a forge test)."
+  },
+  "bannerRule": "Every ported banner names the new pin: all 401 banners change their banner line only (every upstream path is byte-identical at both pins), plus the pin line of src/abi/README.md and of the @mud-classic/utils banner. G5.d requires the pin on every vendor banner.",
+  "lensChanges": "none under src/ beyond the banner lines (and the 1.2.1 example comments, which are not part of the advance).",
+  "g5dCounts": {
+    "before": {
+      "files": 445,
+      "vendor": 398,
+      "native": 47
+    },
+    "after": {
+      "files": 445,
+      "vendor": 398,
+      "native": 47
+    }
+  },
+  "gatesToRerun": [
+    "the classified diff (this record)",
+    "G5.d",
+    "G5.c",
+    "G3.a",
+    "G3.f",
+    "G3.g",
+    "G2.a (G2A_UPSTREAM_DIR = a checkout at 1b0b34e5)",
+    "G2.b (where runnable — the transcription is a local file from 1.2.1)",
+    "G1.b"
+  ],
+  "snapshotUpgrade": "A snapshot header names chainId, worldAddress, cacheVersion (src/cache/db.ts VERSION, 5) and the component-schema fingerprint (src/workers/sync/state/store.ts componentSchemaFingerprint over src/types/ComponentsSchema.ts); the upstream pin and the package version are in none of them. This advance changes none of the three, so a 1.2.0 snapshot loads and the restart is warm."
+}

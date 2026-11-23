@@ -13,7 +13,7 @@ import { writeG9Record } from '../gates/g9/record.mts';
 const HEX64 = '0x' + '5e'.repeat(32);
 const HEX40 = '0x' + '4d'.repeat(20);
 const WORLD = '0x2729174c265dbBd8416C6449E0E813E88f43D0E7';
-const PIN = 'a99b4b64b505b722203b2337f76a5b604539c1e0';
+const PIN = '1b0b34e58537fca324c65237c1a056495c95892e';
 
 describe('the record rule', () => {
   const record = {

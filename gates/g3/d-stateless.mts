@@ -25,7 +25,7 @@ import { ARTIFACTS_DIR, REPO_ROOT, fail, pass, sleep, writeMeasurement } from '.
 
 const DATA_DIR = path.join(ARTIFACTS_DIR, 'overnight-data');
 const SOCK = path.join(DATA_DIR, 'kami-lens.sock');
-const KAMI_INDEXES = [10016, 10164, 11279];
+const KAMI_INDEXES = [701, 702, 704];
 
 // --- 1. daemon up (warm) -----------------------------------------------------
 const daemon = spawn('npx', ['tsx', '--tsconfig', 'tsconfig.json', 'src/cli.ts', 'daemon'], {

@@ -926,7 +926,7 @@ answer are as they were.
 **And the fix only reached one of the two entry points (0.5.2).** 0.5.0
 fixed the CLI and left the SOCKET exactly as it was — which is the path the
 harness and the agents actually use. Found the day 0.5.2's own flags were
-first exercised: `account 3379 --slim` over the socket returned the whole
+first exercised: `account 77 --slim` over the socket returned the whole
 roster with `ok: true`, and `node … --eligible-only` returned an unfiltered
 answer with `ok: true`, while the same daemon refused the identical tokens
 on the CLI with `unknown option '--slim' for 'account'`. Not a missing
@@ -2212,7 +2212,8 @@ Never silent gaps.
   residual). On the next natural G2.b capture event, the new fixture
   set gets a fresh pinned `replayBase` manifest entry from day one —
   the recovery rule in the current manifest's `replayBase.note`
-  (gates/fixtures/g2b-observations.json) is the template. A base is
+  (the local transcription `gates/g2/observations.mts` locates; not part
+  of the public tree since 1.2.1) is the template. A base is
   pinned when the fixtures are born, never reconstructed after.
 
 ## 7. Upstream tracking protocol

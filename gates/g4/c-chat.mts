@@ -197,14 +197,14 @@ hermeticChecks.killSwitch = killSwitchCode === 'CHAT_DISABLED';
 
 // 4. never-in-reports sweep (fixture-seeded)
 const sweepArgs: Record<string, string[][]> = {
-  kami: [['10016']],
+  kami: [['701']],
   account: [[]],
   node: [['62']],
   party: [[]],
   item: [['1']],
   items: [[]],
   config: [['KAMI_STANDARD_COOLDOWN']],
-  battles: [['10016']],
+  battles: [['701']],
   trades: [[]],
   auctions: [[]],
   quests: [[]],

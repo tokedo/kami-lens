@@ -134,7 +134,7 @@ describe('buildEnvelope (§3.10 composition)', () => {
       hp: { current: 1, total: 2, percent: 50 },
       hpRatePerHr: '+1.00',
       cooldownSec: 0,
-      account: { index: 9, name: 'buzz' },
+      account: { index: 9, name: 'someone' },
     };
     const env = buildEnvelope(data, loadSchema('kami'), META);
     expect(env.untrusted).toEqual(['account.name', 'name']);
@@ -145,7 +145,7 @@ describe('buildEnvelope (§3.10 composition)', () => {
     const base = {
       id: '0x1',
       index: 1,
-      name: 'buzz',
+      name: 'someone',
       ownerAddress: '0x0',
       operatorAddress: '0x0',
       roomIndex: 1,
@@ -174,7 +174,7 @@ describe('buildEnvelope (§3.10 composition)', () => {
       hp: { current: 1, total: 2, percent: 50 },
       hpRatePerHr: '+1.00',
       cooldownSec: 0,
-      account: { index: 9, name: 'buzz' },
+      account: { index: 9, name: 'someone' },
     };
     const env = buildEnvelope(data, loadSchema('kami'), META, { noAuthored: true });
     expect((env.data as { name?: string }).name).toBeUndefined();
@@ -223,7 +223,7 @@ describe('buildEnvelope (§3.10 composition)', () => {
 
   it('keeps enriched fields in the answer and off the untrusted list', () => {
     const data = {
-      account: { index: 9, name: 'buzz' },
+      account: { index: 9, name: 'someone' },
       items: [
         {
           balance: 2,

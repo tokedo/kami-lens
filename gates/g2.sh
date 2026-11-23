@@ -6,9 +6,12 @@
 #                    snapshot gates/.artifacts/c2.v8snap (from G1/daemon) and
 #                    the pinned clone gates/.artifacts/upstream.
 #   G2.b [live]      display parity vs the official client. Needs human-
-#                    recorded fixtures at gates/fixtures/g2b-observations.json
-#                    (see the template; observer account is an operational
-#                    prerequisite).
+#                    recorded fixtures: a LOCAL file, not part of the public
+#                    tree — gates/fixtures/g2b-observations.json (git-
+#                    ignored) or the path G2B_OBSERVATIONS names (see the
+#                    template; observer account is an operational
+#                    prerequisite). Without it G2.b SKIPs (exit 2) and the
+#                    runner goes on.
 #   G2.d [live]      the 0.5.1 kami-sheet stat block (`--stats`) verified
 #                    against GetterSystem.getKamiByIndex at the mirror's own
 #                    pinned block. Needs gates/.artifacts/c2.v8snap and the
@@ -30,6 +33,7 @@
 #                        gates/.artifacts/g2c-unskewed.json <targetBlock>   # on host
 set -euo pipefail
 cd "$(dirname "$0")/.."
+source gates/lib.sh
 
 export NODE_OPTIONS="${NODE_OPTIONS:-} --max-old-space-size=8192"
 TSX="npx tsx --tsconfig tsconfig.json"
@@ -40,7 +44,7 @@ step "G2.a differential vs upstream calcs (hermetic)"
 $TSX gates/g2/a-differential.mts
 
 step "G2.b display parity vs official client (fixtures)"
-$TSX gates/g2/b-display-parity.mts
+skippable G2.b $TSX gates/g2/b-display-parity.mts
 
 step "G2.d kami-sheet stat block vs GetterSystem on chain (live)"
 $TSX gates/g2/d-stats-chain.mts ${G2D_SNAPSHOT:+--snapshot "$G2D_SNAPSHOT"}
@@ -56,4 +60,4 @@ if [[ ! -f gates/.artifacts/g2c-skewed.json || ! -f gates/.artifacts/g2c-unskewe
 fi
 $TSX gates/g2/c-clock-skew.mts compare gates/.artifacts/g2c-skewed.json gates/.artifacts/g2c-unskewed.json
 
-printf '\nG2 PASS — all parts exited 0 (check docs/measurements/ for dated records)\n'
+summary G2
